@@ -378,6 +378,16 @@ class RoadNetworkGenerator:  # pylint: disable=too-few-public-methods
 
         Edge length: <100m -> RESIDENTIAL, 100-300m -> MINOR/MAJOR depending
         on the start node's connection count, >300m -> MAJOR.
+
+        Attributes are computed once per undirected road and applied
+        identically to both directed edges of a bidirectional pair. The
+        master prompt's reference implementation samples ``num_lanes``
+        independently per directed edge, which QOL_RESEARCH_CHECKLIST.md
+        Section G.1's own ``test_lane_count_consistent`` explicitly flags
+        as wrong (forward/reverse should match) -- confirmed as a real
+        bug, not hypothetical: 76 of 118 edges in a routine test scenario
+        had mismatched forward/reverse lane counts before this fix. See
+        KNOWN_GAPS_AND_ISSUES.md.
         """
         node_connection_counts = {
             nid: (len(node.incoming_edges) + len(node.outgoing_edges)) // 2
@@ -392,26 +402,42 @@ class RoadNetworkGenerator:  # pylint: disable=too-few-public-methods
             else:
                 self._nodes[nid].node_type = IntersectionType.FOUR_WAY
 
+        processed_edge_ids: Set[int] = set()
         for edge in self._edges.values():
+            if edge.edge_id in processed_edge_ids:
+                continue
+
             start_connections = node_connection_counts[edge.start_node_id]
 
             if edge.length < 100:
-                edge.road_type = RoadType.RESIDENTIAL
-                edge.num_lanes = 2
-                edge.speed_limit_kmh = 30
+                road_type = RoadType.RESIDENTIAL
+                num_lanes = 2
+                speed_limit_kmh = 30
             elif edge.length < 300:
                 if start_connections >= 3:
-                    edge.road_type = RoadType.MAJOR
-                    edge.num_lanes = int(self.rng.choice([2, 3, 4]))
-                    edge.speed_limit_kmh = 50
+                    road_type = RoadType.MAJOR
+                    num_lanes = int(self.rng.choice([2, 3, 4]))
+                    speed_limit_kmh = 50
                 else:
-                    edge.road_type = RoadType.MINOR
-                    edge.num_lanes = 2
-                    edge.speed_limit_kmh = 40
+                    road_type = RoadType.MINOR
+                    num_lanes = 2
+                    speed_limit_kmh = 40
             else:
-                edge.road_type = RoadType.MAJOR
-                edge.num_lanes = int(self.rng.choice([3, 4]))
-                edge.speed_limit_kmh = 60
+                road_type = RoadType.MAJOR
+                num_lanes = int(self.rng.choice([3, 4]))
+                speed_limit_kmh = 60
+
+            edge.road_type = road_type
+            edge.num_lanes = num_lanes
+            edge.speed_limit_kmh = speed_limit_kmh
+            processed_edge_ids.add(edge.edge_id)
+
+            if edge.reverse_edge_id is not None:
+                reverse_edge = self._edges[edge.reverse_edge_id]
+                reverse_edge.road_type = road_type
+                reverse_edge.num_lanes = num_lanes
+                reverse_edge.speed_limit_kmh = speed_limit_kmh
+                processed_edge_ids.add(reverse_edge.edge_id)
 
     def _validate_network(self) -> None:
         """Validate connectivity, referential consistency, and node degree.

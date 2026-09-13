@@ -146,6 +146,28 @@ def test_road_attributes_assigned(urban_config, bounds) -> None:
         assert edge.speed_limit_kmh >= 20
 
 
+def test_forward_reverse_edge_attributes_match(urban_config, bounds) -> None:
+    """A directed edge and its reverse counterpart have identical
+    num_lanes, road_type, and speed_limit_kmh -- QOL_RESEARCH_CHECKLIST.md
+    Section G.1's test_lane_count_consistent. Regression test: this failed
+    for 76/118 edges before _assign_road_attributes was fixed to compute
+    attributes once per undirected road (see KNOWN_GAPS_AND_ISSUES.md)."""
+    gen = RoadNetworkGenerator(42, urban_config)
+    _, edges = gen.generate(bounds)
+
+    checked = 0
+    for edge in edges.values():
+        if edge.reverse_edge_id is None:
+            continue
+        reverse_edge = edges[edge.reverse_edge_id]
+        assert edge.num_lanes == reverse_edge.num_lanes
+        assert edge.road_type == reverse_edge.road_type
+        assert edge.speed_limit_kmh == reverse_edge.speed_limit_kmh
+        checked += 1
+
+    assert checked > 0, "Expected at least one bidirectional edge pair at this seed/bounds"
+
+
 def test_large_scenario_performance(urban_config) -> None:
     """Large scenario generation completes in reasonable time."""
     large_bounds = (-1000.0, -1000.0, 1000.0, 1000.0)
