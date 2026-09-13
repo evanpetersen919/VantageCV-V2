@@ -48,6 +48,12 @@ line_length = 100
 python_version = "3.11"
 strict = true
 
+# scipy ships no py.typed marker / stubs as of 1.11.4; without this, every
+# module that imports scipy.spatial fails --strict with import-untyped.
+[[tool.mypy.overrides]]
+module = "scipy.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"
