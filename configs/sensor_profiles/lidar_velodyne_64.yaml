@@ -1,0 +1,15 @@
+# Velodyne HDL-64E-equivalent LiDAR profile — used starting Phase 5
+version: "1.0"
+sensor_type: lidar
+model: velodyne_hdl64e
+
+channels: 64
+horizontal_resolution_deg: 0.18
+vertical_fov_deg: [-24.9, 2.0]
+max_range_m: 120.0
+rotation_rate_hz: 10.0
+points_per_second: 2200000
+
+extrinsics:
+  position_m: [0.0, 0.0, 1.9]
+  rotation_deg: [0.0, 0.0, 0.0]

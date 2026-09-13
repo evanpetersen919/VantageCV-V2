@@ -1,0 +1,19 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1",
+  "FriendlyName": "SyntheticDataGen",
+  "Description": "Procedural mesh, sensor simulation, traffic behavior, and data export plugin for the synthetic AV dataset generator.",
+  "Category": "Simulation",
+  "CreatedBy": "Evan Petersen",
+  "CanContainContent": false,
+  "IsBetaVersion": true,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "SyntheticDataGen",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}

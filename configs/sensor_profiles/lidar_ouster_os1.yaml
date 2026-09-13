@@ -1,0 +1,15 @@
+# Ouster OS1-64-equivalent LiDAR profile — used starting Phase 5
+version: "1.0"
+sensor_type: lidar
+model: ouster_os1_64
+
+channels: 64
+horizontal_resolution_deg: 0.35
+vertical_fov_deg: [-16.6, 16.6]
+max_range_m: 90.0
+rotation_rate_hz: 10.0
+points_per_second: 1310720
+
+extrinsics:
+  position_m: [0.0, 0.0, 1.9]
+  rotation_deg: [0.0, 0.0, 0.0]
