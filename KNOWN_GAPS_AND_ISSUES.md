@@ -13,6 +13,47 @@ later phase, tracked so it isn't forgotten).
 
 ## Open
 
+### [DEFERRED] Master prompt Section 3.3 (Phase 2) has no algorithms, formulas, code, or tests -- unlike Phase 1
+MASTER_PROMPT_PROCEDURAL_AV_DATASET_GENERATOR.md's Phase 2 section is
+literally four bullet points per sub-area (lane topology, building
+placement) plus a one-line "Tests:" list of topics, with a note saying
+"(Similar structure to Phase 1, with extensive mathematical formulations
+and tests)" that is never actually delivered. This is a real gap in the
+spec itself. `lane_topology.py` and `building_placement.py` were designed
+from scratch this phase, informed by QOL_RESEARCH_CHECKLIST.md Section B.2
+(lane boundaries) and B.3 (building placement), which do give concrete
+formulas/example tests (with two more bugs of their own -- see Resolved).
+
+### [DEFERRED] Lane connectivity across intersections (turn lanes, merges) not implemented
+`LaneTopologyGenerator` generates correct per-edge lane geometry
+(centerlines, boundaries) but does not connect a lane on an incoming edge
+to the specific lane(s) it feeds into on outgoing edges at an
+intersection -- there is no turn-restriction or lane-continuation logic.
+MASTER_PROMPT's own Phase 2 bullets mention "handle lane transitions at
+intersections" but Phase 3 ("Traffic Network") is the section that
+actually owns traffic rules, navigation graphs, and turn behavior --
+implementing real turn connectivity requires exactly that information
+(which edges are legal turns from which lane), which doesn't exist until
+Phase 3. Revisit lane-to-lane connectivity once Phase 3's traffic rules
+exist; don't invent turn restrictions here without that basis.
+
+### [DEFERRED] `ScenarioTypeConfig` has no field for road setback / sidewalk width
+`building_placement.py`'s `ROAD_SETBACK_METERS = 2.0` is a fixed module
+constant, not read from config, because no such field exists on
+`ScenarioTypeConfig` (see scenario.py) and MASTER_PROMPT never specifies
+one. A real per-scenario-type value (e.g. wider setback for
+`urban_sparse`, none for `highway`) would need a new config field added
+deliberately, not invented silently here.
+
+### [DEFERRED] Building types/materials not assigned
+MASTER_PROMPT Section 3.3 lists "assign building types, heights,
+materials" -- heights are implemented (sampled from
+`config.building_heights`); building *type* (residential/commercial/etc.)
+and *materials* are not, since nothing downstream yet consumes them (no
+mesh/rendering phase exists yet) and the spec gives no taxonomy for either.
+Revisit when Phase 3's procedural mesh factory needs a building type to
+pick a mesh/material from.
+
 ### [DEFERRED] Heavy/optional dependencies not yet in `pyproject.toml`
 `open3d==0.17.0`, `ray==2.9.3`, `h5py==3.10.0`, `protobuf==4.25.1`,
 `sphinx==7.2.6` + theme/mermaid ext, `py-spy`, `memory-profiler`,
@@ -90,7 +131,80 @@ under the 10s budget). Revisit with a `scipy.spatial.KDTree` if/when Phase
 1 performance tests are run at the "10,000+ scenarios" scale mentioned in
 MASTER_PROMPT's scalability requirements, or if bounds grow past ~5km.
 
+### [DEFERRED] City-block identification approximates blocks as individual surviving Delaunay triangles
+`BuildingPlacementGenerator._identify_blocks` reuses the same Delaunay
+triangulation `RoadNetworkGenerator` computes internally and treats each
+triangle whose 3 edges all survived length-filtering as one "block."
+Real city blocks are usually quadrilateral-ish regions spanning several
+adjacent triangles, not single triangles -- a general planar-graph
+face-finding algorithm (walking the graph to recover actual bounded faces)
+would be more realistic but is substantially more work than anything else
+specified for this phase (which gives no algorithm at all -- see above).
+This approximation is geometrically valid (triangles are simple,
+non-overlapping polygons that correctly partition the interior) but will
+produce visibly triangular block shapes rather than rectangular ones.
+Revisit if/when a mesh-rendering phase makes block shape visually matter.
+
 ## Resolved
+
+### [RESOLVED] QOL checklist's own `test_lane_boundary_perpendicular` example asserts the wrong property — Phase 2
+QOL_RESEARCH_CHECKLIST.md Section B.2 gives an example test asserting the
+*boundary polyline's own segment direction* is perpendicular to the
+*centerline's segment direction* (`dot(c_dir, l_dir) ~ 0`). Verified
+empirically against a correct parallel-offset boundary implementation:
+the actual dot product comes out ~0.9999 (nearly parallel), not ~0 --
+which makes sense, since a road's edge line runs *alongside* its
+centerline, not perpendicular to it. This is a bug in the checklist's own
+example, not in the implementation. `math_utils.py`'s
+`compute_lane_boundaries` and its tests (`test_math_utils.py`) implement
+and check the actually-correct properties instead: the boundary is
+parallel to a straight centerline, and the *offset vector* (boundary
+point minus centerline point) is perpendicular to the local direction at
+unambiguous (endpoint) points.
+
+### [RESOLVED] Building placement took >10s and never reliably terminated in reasonable time — Phase 2
+First implementation of `BuildingPlacementGenerator.generate` hung for
+over a minute on a routine urban_dense/500m bounds test case (confirmed by
+direct timing, not assumed). Root causes, both real and stacked: (1)
+`target_count` per block sometimes reached the hundreds for a single large
+triangle, and the loop paid the full `MAX_PLACEMENT_ATTEMPTS_PER_BLOCK`
+cost even long after a block was effectively full; (2) every placement
+candidate was checked for overlap against *every building placed in every
+block so far* (`existing_buildings`), an unnecessary O(total_buildings^2)
+cost across the whole scenario, not just within one block. Fixed with (1)
+an early-exit after `MAX_CONSECUTIVE_FULL_FAILURES` consecutive slots each
+exhaust every attempt (signal a block is full without exhausting
+`target_count`), and (2) checking new candidates only against the current
+block's own `placed` list -- justified because Delaunay triangle interiors
+never overlap and (once the setback bug below was also fixed) no building
+can cross into a neighboring block, so cross-block overlap is
+geometrically impossible without an explicit check. Verified: 769
+buildings generated in 0.52s post-fix vs. >60s (killed) before, on the
+identical scenario.
+
+### [RESOLVED] Road setback check missed roads passing near the *middle* of a building's side — Phase 2
+While fixing the above, restricting the setback check to only a block's
+own 3 triangle edges (for speed) caused `test_no_building_within_road_setback`
+to actually fail: a building's corner came within 1.81m of a road,
+violating the 2.0m `ROAD_SETBACK_METERS`. Root cause: for a
+skinny/obtuse Delaunay triangle, a road segment that is *not* one of that
+triangle's own 3 edges can still pass within the setback distance of a
+point deep inside it. Fixing that (checking every real road segment,
+spatially pre-filtered by a cheap padded-AABB test for speed) then
+exposed a second, independent bug: the setback check itself only tested
+distance from the building footprint's 4 *corners* to each road segment,
+which misses a road running near-parallel to, and close beside, the
+*middle* of one of the footprint's sides -- confirmed as the actual cause
+of `test_no_building_to_building_overlap` failing (two buildings on
+opposite sides of a shared road overlapped because neither one's corners,
+specifically, were close enough to trip the corner-only check). Fixed by
+replacing the corner-distance check with `_segment_intersects_aabb`
+(slab-method segment-vs-box intersection) against the footprint's AABB
+inflated by the setback distance -- the geometrically correct formulation
+of "does anything about this road come within `ROAD_SETBACK_METERS` of
+this box." Both tests now pass; see
+`test_segment_intersects_aabb_near_parallel_to_one_side` for a test that
+specifically reproduces the missed case.
 
 ### [RESOLVED] `tests/performance/` untracked by git — broke CI on first push
 Phase 0's `.gitkeep`-placeholder pass (adding placeholders so empty
