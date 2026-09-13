@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+dist/
+build/
+
+# Poetry
+poetry.lock.tmp
+
+# UE5
+unreal_plugin/**/Binaries/
+unreal_plugin/**/Intermediate/
+unreal_plugin/**/DerivedDataCache/
+unreal_plugin/**/Saved/
+ue5_project/Binaries/
+ue5_project/Intermediate/
+ue5_project/Saved/
+ue5_project/DerivedDataCache/
+*.uasset
+*.umap
+
+# Datasets / large outputs
+datasets/
+*.pcd
+*.h5
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

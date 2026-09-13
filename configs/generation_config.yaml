@@ -1,0 +1,23 @@
+# Master generation config — orchestration entry point (Phase 6+)
+version: "1.0"
+
+output:
+  dataset_dir: "./datasets/synthetic_v1"
+  format: ["coco"]        # additional formats added in Phase 6: nuscenes, custom
+
+generation:
+  base_seed: 42
+  num_scenarios: 100
+  scenario_type_weights:
+    urban_dense: 0.3
+    urban_sparse: 0.25
+    highway: 0.2
+    parking_lot: 0.15
+    roundabout: 0.1
+
+bounds:
+  default_extent_m: [-250.0, -250.0, 250.0, 250.0]
+
+sensors:
+  camera_profiles: ["camera_front.yaml", "camera_rear.yaml"]
+  lidar_profiles: ["lidar_velodyne_64.yaml"]

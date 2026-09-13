@@ -1,0 +1,34 @@
+name: Lint and Test
+
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.8"
+      - run: |
+          pip install poetry==1.7.1
+          poetry install
+      - run: poetry run black --check src/ tests/ bin/
+      - run: poetry run isort --check-only src/ tests/ bin/
+      - run: poetry run pylint src/ tests/
+      - run: poetry run mypy --strict src/
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.8"
+      - run: |
+          pip install poetry==1.7.1
+          poetry install
+      - run: poetry run pytest --cov=src --cov-report=xml --cov-fail-under=90 tests/
+      - uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml

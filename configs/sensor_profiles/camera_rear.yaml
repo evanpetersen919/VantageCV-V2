@@ -1,0 +1,15 @@
+# Rear-facing camera profile — used starting Phase 5 (Sensor Simulation)
+version: "1.0"
+sensor_type: camera
+mount: rear
+
+resolution: [1920, 1080]
+horizontal_fov_deg: 90.0
+focal_length_mm: 4.0
+sensor_width_mm: 7.4
+distortion_model: brown_conrady
+distortion_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]
+
+extrinsics:
+  position_m: [-1.0, 0.0, 1.4]
+  rotation_deg: [0.0, 0.0, 180.0]

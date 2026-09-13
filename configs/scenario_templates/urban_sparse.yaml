@@ -1,0 +1,23 @@
+# Urban Sparse scenario template — see MASTER_PROMPT Section 1.3, Category 2
+version: "1.0"
+scenario_type: urban_sparse
+
+road_network:
+  avg_block_size: [200.0, 400.0]
+  avg_road_width: 10.0
+  num_intersections: [2, 4]
+  intersection_types: ["4way", "3way"]
+
+buildings:
+  building_density: 0.35              # within documented 0.2-0.5 range
+  building_heights: [15.0, 30.0]
+
+traffic:
+  traffic_density: [0.2, 0.5]
+  vehicle_mix:
+    sedan: 0.65
+    suv: 0.25
+    truck: 0.08
+    bus: 0.02
+
+complexity_score: 45
