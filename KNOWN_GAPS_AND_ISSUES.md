@@ -13,6 +13,34 @@ later phase, tracked so it isn't forgotten).
 
 ## Open
 
+### [DEFERRED] No real multi-node/multi-GPU scaling test
+MASTER_PROMPT Section 3.8 lists "Scaling tests (2GPU, 4GPU, 8GPU)" and
+"Scaling efficiency" as a test bullet. Neither is implemented: this
+environment has no GPUs and no multi-node cluster, and (more
+fundamentally) this pipeline's actual workload is pure CPU/NumPy
+geometry generation -- nothing in Phases 1-6 touches a GPU, so GPU-count
+scaling isn't a meaningful axis for this codebase regardless of
+environment. What's implemented instead is genuine CPU-core parallelism
+via Ray's local scheduler (`distributed_runner.py`), verified for
+correctness (output identical to sequential) but not benchmarked for
+efficiency at any real scale -- `tests/integration/test_distributed_runner.py`
+only checks 2-3 scenarios across 2 workers, nowhere near enough to say
+anything meaningful about scaling efficiency even on CPU cores.
+**Action**: if real distributed generation at dataset scale (thousands of
+scenarios) is attempted, benchmark actual wall-clock scaling across
+worker counts before assuming Ray parallelism is paying off -- per-task
+overhead (each scenario currently re-imports/re-serializes its config)
+could dominate for cheap scenarios.
+
+### [RISK] Ray adds meaningful test-suite startup overhead
+Adding `ray` as a dependency increased the full test suite's wall-clock
+time noticeably (roughly 50s to 80s) even though only a handful of tests
+actually use it -- `ray.init()`'s worker-process startup cost is paid at
+least once per test session. Not a correctness issue, but worth knowing
+if test suite speed becomes a concern; consolidating Ray-dependent tests
+to share one `ray.init()` call (e.g. via a session-scoped fixture) would
+likely help if this grows further.
+
 ### [DEFERRED] NuScenes format conversion not implemented
 MASTER_PROMPT Section 3.7 lists "NuScenes format conversion" as a Phase 6
 bullet. Not implemented. NuScenes' schema (scene, sample, sample_data,
@@ -323,6 +351,28 @@ produce visibly triangular block shapes rather than rectangular ones.
 Revisit if/when a mesh-rendering phase makes block shape visually matter.
 
 ## Resolved
+
+### [RESOLVED] Resumable generation produced colliding annotation IDs across scenarios — found in Phase 7
+`resume_handler.py`'s checkpoint design writes each scenario's COCO
+contribution to its own small JSON "part" file via
+`export_coco([frame])`, called independently per scenario. Since
+`coco_exporter.export_coco`'s annotation-ID counter starts at 1 for every
+call, every part file's own annotations restarted numbering at 1 --
+merging parts naively produced multiple annotations across different
+scenarios/images sharing the same `id`, a direct violation of
+QOL_RESEARCH_CHECKLIST.md Section H.1's "no ID collisions" check (which
+`coco_exporter.py`'s own tests already enforce for the *non*-resumable
+path, but this manual reconstruction bypassed that guarantee). Caught
+directly: `test_resumable_generation_from_scratch_matches_sequential`
+failed with mismatched annotation dicts differing only in `id`, and
+tracing it down confirmed actual ID collisions, not just a numbering
+offset. Fixed by renumbering every annotation's `id` sequentially
+immediately after merging all parts, regardless of whether each part was
+freshly generated or loaded from a prior run -- bbox/segmentation/category
+content is untouched, only the `id` field changes. Verified via
+`test_checkpoint_restores_correctly_after_simulated_crash`, which
+confirms a crashed-then-resumed run produces byte-identical output
+(including annotation IDs) to an uninterrupted run.
 
 ### [RESOLVED] Added `pycocotools` and `pandas-stubs` dev dependencies — Phase 6
 `pycocotools==2.0.7` installed cleanly on Windows (pre-built wheel

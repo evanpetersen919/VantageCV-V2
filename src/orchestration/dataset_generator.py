@@ -174,7 +174,7 @@ def generate_dataset(
     metadata_paths: List[Path] = []
 
     for i in range(num_scenarios):
-        frame, metadata_path = _generate_and_render_one_scenario(
+        frame, metadata_path = generate_and_render_one_scenario(
             index=i, base_seed=base_seed, config=config, bounds=bounds, output_dir=output_dir
         )
         frames.append(frame)
@@ -182,7 +182,7 @@ def generate_dataset(
 
     coco_data = export_coco(frames)
     coco_path = output_dir / "annotations.json"
-    _write_json(coco_path, coco_data)
+    write_json(coco_path, coco_data)
 
     sanity_report = check_annotation_count_consistency(frames)
     elapsed_seconds = time.perf_counter() - start_time
@@ -197,7 +197,7 @@ def generate_dataset(
     )
 
 
-def _generate_and_render_one_scenario(  # pylint: disable=too-many-arguments
+def generate_and_render_one_scenario(  # pylint: disable=too-many-arguments
     index: int, base_seed: int, config: ScenarioTypeConfig, bounds: Bounds, output_dir: Path
 ) -> Tuple[CocoFrame, Path]:
     """Generate scenario ``index``, render its overview frame, and write
@@ -213,12 +213,12 @@ def _generate_and_render_one_scenario(  # pylint: disable=too-many-arguments
 
     metadata = build_scenario_metadata(scenario_id, seed, config_version="1.0")
     metadata_path = output_dir / f"{scenario_id}_metadata.json"
-    _write_json(metadata_path, metadata.to_dict())
+    write_json(metadata_path, metadata.to_dict())
 
     return frame, metadata_path
 
 
-def _write_json(path: Path, data: Dict[str, Any]) -> None:
+def write_json(path: Path, data: Dict[str, Any]) -> None:
     """Write ``data`` as JSON to ``path``."""
     with path.open("w", encoding="utf-8") as handle:
         json.dump(data, handle)
