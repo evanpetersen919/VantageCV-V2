@@ -234,3 +234,52 @@ file tree lists (``validate_dataset.py``, ``profile_performance.py``,
 ``visualize_scenarios.py``, ``compare_sim2real.py``) don't exist --
 see ``KNOWN_GAPS_AND_ISSUES.md``: none of them wrap an existing
 standalone capability this codebase actually has.
+
+Sensor noise
+----------------
+
+Camera lens distortion, LiDAR range noise, and depth-map noise are all
+opt-in and default to none -- every sensor is a perfect noiseless
+instrument unless you explicitly ask otherwise:
+
+.. doctest::
+
+   >>> import numpy as np
+   >>> from src.sensors.camera_model import Camera, CameraExtrinsics, CameraIntrinsics
+   >>> extrinsics = CameraExtrinsics(rotation=np.eye(3), translation=np.zeros(3))
+   >>> undistorted = CameraIntrinsics(500.0, 500.0, 320.0, 240.0, 640, 480)
+   >>> distorted = CameraIntrinsics(
+   ...     500.0, 500.0, 320.0, 240.0, 640, 480,
+   ...     distortion_coeffs=(0.1, 0.0, 0.0, 0.0, 0.0),  # (k1, k2, p1, p2, k3)
+   ... )
+   >>> pixel_a, _ = Camera(undistorted, extrinsics).project(np.array([2.0, 0.0, 10.0]))
+   >>> pixel_b, _ = Camera(distorted, extrinsics).project(np.array([2.0, 0.0, 10.0]))
+   >>> pixel_a[0] < pixel_b[0]  # positive k1 pushes the off-axis point further out
+   True
+
+``LidarSensor``'s ``range_noise_std_m`` (on ``LidarConfig``) and
+``render_depth_map``'s ``noise_std_m`` both work the same way: zero-mean
+Gaussian noise added to each measured range/depth, and both *require* an
+explicit ``seed`` the moment the corresponding std is nonzero --
+deterministic noise needs a real seed, the same way every other
+generator in this codebase does, not silent OS-entropy randomness:
+
+.. doctest::
+
+   >>> from src.sensors.lidar_model import LidarConfig, LidarSensor
+   >>> config = LidarConfig(
+   ...     channels=2, horizontal_resolution_deg=90.0,
+   ...     vertical_fov_deg=(-10.0, 10.0), max_range_m=50.0,
+   ...     range_noise_std_m=0.05,
+   ... )
+   >>> LidarSensor(config)  # doctest: +IGNORE_EXCEPTION_DETAIL
+   Traceback (most recent call last):
+       ...
+   ValueError: config.range_noise_std_m > 0 requires an explicit seed for deterministic noise
+   >>> sensor = LidarSensor(config, seed=0)  # this works
+
+Every real sensor profile shipped under ``configs/sensor_profiles/`` uses
+all-zero distortion coefficients, so this doesn't change default output
+anywhere in this codebase -- it's there for callers who explicitly want
+non-ideal sensor behavior. See ``KNOWN_GAPS_AND_ISSUES.md`` for what's
+still simplified (no pixel quantization, no sensor-profile YAML loading).

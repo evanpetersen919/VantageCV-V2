@@ -8,6 +8,7 @@ is O(width * height * triangles) with no spatial acceleration structure.
 """
 
 import numpy as np
+import pytest
 
 from src.ground_truth.depth_map import render_depth_map
 from src.procedural.mesh_factory import Mesh
@@ -95,3 +96,58 @@ def test_depth_map_no_negative_or_nan_values() -> None:
     finite = depth[np.isfinite(depth)]
     assert not np.isnan(finite).any()
     assert (finite >= 0).all()
+
+
+def test_noise_std_must_be_non_negative() -> None:
+    """A negative noise_std_m is rejected."""
+    camera = _small_camera()
+    with pytest.raises(ValueError, match="non-negative"):
+        render_depth_map(camera, [_frontal_wall_mesh()], noise_std_m=-1.0)
+
+
+def test_noise_requires_seed() -> None:
+    """noise_std_m > 0 without an explicit seed is rejected -- deterministic
+    noise needs a real seed, not silent OS-entropy randomness."""
+    camera = _small_camera()
+    with pytest.raises(ValueError, match="requires an explicit seed"):
+        render_depth_map(camera, [_frontal_wall_mesh()], noise_std_m=1.0)
+
+
+def test_noise_perturbs_finite_depth_values() -> None:
+    """With noise_std_m > 0, the depth map differs from the noiseless render."""
+    camera = _small_camera()
+    clean = render_depth_map(camera, [_frontal_wall_mesh()])
+    noisy = render_depth_map(camera, [_frontal_wall_mesh()], noise_std_m=0.5, seed=1)
+
+    assert not np.allclose(clean, noisy)
+
+
+def test_noise_never_perturbs_infinite_pixels() -> None:
+    """A pixel that hits nothing stays exactly inf, regardless of noise --
+    a miss is still a miss."""
+    camera = _small_camera()
+    depth = render_depth_map(camera, [], noise_std_m=1.0, seed=1)
+    assert np.isinf(depth).all()
+
+
+def test_noise_is_deterministic_for_same_seed() -> None:
+    """Same seed produces identical noisy output; a different seed doesn't."""
+    camera = _small_camera()
+    depth_a = render_depth_map(camera, [_frontal_wall_mesh()], noise_std_m=0.5, seed=42)
+    depth_b = render_depth_map(camera, [_frontal_wall_mesh()], noise_std_m=0.5, seed=42)
+    depth_c = render_depth_map(camera, [_frontal_wall_mesh()], noise_std_m=0.5, seed=43)
+
+    assert np.array_equal(depth_a, depth_b)
+    assert not np.array_equal(depth_a, depth_c)
+
+
+def test_noisy_depth_never_goes_below_minimum_clamp() -> None:
+    """Large noise relative to a near-zero true depth is clamped to a
+    small positive value, never negative -- a negative range measurement
+    has no physical meaning."""
+    camera = _small_camera()
+    near_wall = _frontal_wall_mesh(z=0.01)
+    depth = render_depth_map(camera, [near_wall], noise_std_m=5.0, seed=1)
+
+    finite = depth[np.isfinite(depth)]
+    assert (finite > 0).all()

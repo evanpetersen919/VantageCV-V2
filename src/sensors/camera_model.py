@@ -19,6 +19,16 @@ Camera frame: standard computer-vision convention -- +x right, +y down,
 only if its camera-frame z > 0 (in front of the camera); this is checked
 explicitly rather than assumed, since perspective division by a
 non-positive z is meaningless.
+
+Lens distortion: ``CameraIntrinsics.distortion_coeffs`` (Brown-Conrady,
+the model ``configs/sensor_profiles/camera_front.yaml``/``camera_rear
+.yaml`` declare -- see KNOWN_GAPS_AND_ISSUES.md) is optional and defaults
+to ``None`` (no distortion), so every pre-existing caller/test keeps
+behaving exactly as before. Every real sensor profile shipped in this
+repo happens to use all-zero coefficients anyway (a genuinely undistorted
+lens is a reasonable default, not a placeholder this module is hiding),
+so this only changes behavior for a caller that explicitly opts in with
+nonzero coefficients.
 """
 
 from dataclasses import dataclass
@@ -26,6 +36,33 @@ from typing import Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
+
+# Brown-Conrady distortion coefficients, in OpenCV's own (k1, k2, p1, p2,
+# k3) order: k1/k2/k3 are radial terms, p1/p2 are tangential terms.
+DistortionCoeffs = Tuple[float, float, float, float, float]
+
+
+def _apply_distortion(
+    normalized: npt.NDArray[np.float64], coeffs: DistortionCoeffs
+) -> npt.NDArray[np.float64]:
+    """Apply Brown-Conrady distortion to a normalized (pre-intrinsics)
+    image-plane point ``[x, y] = point_camera[:2] / depth``.
+
+    Standard OpenCV formulation::
+
+        r2 = x^2 + y^2
+        radial = 1 + k1*r2 + k2*r2^2 + k3*r2^3
+        x' = x*radial + 2*p1*x*y + p2*(r2 + 2*x^2)
+        y' = y*radial + p1*(r2 + 2*y^2) + 2*p2*x*y
+    """
+    k1, k2, p1, p2, k3 = coeffs
+    x, y = normalized[0], normalized[1]
+    r2 = x * x + y * y
+    radial = 1.0 + k1 * r2 + k2 * r2**2 + k3 * r2**3
+
+    x_distorted = x * radial + 2.0 * p1 * x * y + p2 * (r2 + 2.0 * x * x)
+    y_distorted = y * radial + p1 * (r2 + 2.0 * y * y) + 2.0 * p2 * x * y
+    return np.array([x_distorted, y_distorted])
 
 
 @dataclass(frozen=True)
@@ -42,6 +79,9 @@ class CameraIntrinsics:
         Principal point in pixels, normally near the image center.
     width, height : int
         Image resolution in pixels.
+    distortion_coeffs : Optional[DistortionCoeffs]
+        Brown-Conrady (k1, k2, p1, p2, k3) lens distortion coefficients,
+        or ``None`` (default) for an ideal undistorted pinhole lens.
     """
 
     focal_length_x: float
@@ -50,6 +90,7 @@ class CameraIntrinsics:
     principal_point_y: float
     width: int
     height: int
+    distortion_coeffs: Optional[DistortionCoeffs] = None
 
     def __post_init__(self) -> None:
         if self.focal_length_x <= 0 or self.focal_length_y <= 0:
@@ -73,7 +114,13 @@ class CameraIntrinsics:
         )
 
     @classmethod
-    def from_fov(cls, horizontal_fov_deg: float, width: int, height: int) -> "CameraIntrinsics":
+    def from_fov(
+        cls,
+        horizontal_fov_deg: float,
+        width: int,
+        height: int,
+        distortion_coeffs: Optional[DistortionCoeffs] = None,
+    ) -> "CameraIntrinsics":
         """Construct intrinsics from a horizontal field of view, assuming
         square pixels and a centered principal point.
 
@@ -91,6 +138,7 @@ class CameraIntrinsics:
             principal_point_y=height / 2.0,
             width=width,
             height=height,
+            distortion_coeffs=distortion_coeffs,
         )
 
 
@@ -193,6 +241,9 @@ class Camera:
             return None, depth
 
         normalized = point_camera[:2] / depth
+        if self.intrinsics.distortion_coeffs is not None:
+            normalized = _apply_distortion(normalized, self.intrinsics.distortion_coeffs)
+
         k = self.intrinsics.get_intrinsic_matrix()
         pixel_homogeneous = k @ np.array([normalized[0], normalized[1], 1.0])
         pixel = pixel_homogeneous[:2]

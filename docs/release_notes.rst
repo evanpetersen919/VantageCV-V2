@@ -1,6 +1,31 @@
 Release Notes
 ==============
 
+Unreleased -- Sensor noise model
+------------------------------------
+
+Camera projection, LiDAR ray-casting, and depth-map rendering were all
+perfectly noise-free; closed the gap MASTER_PROMPT's own
+``camera_front.yaml``/``camera_rear.yaml`` templates implied by declaring
+``distortion_model``/``distortion_coeffs`` fields nothing read. Added
+``CameraIntrinsics.distortion_coeffs`` (Brown-Conrady k1/k2/p1/p2/k3,
+applied in ``Camera.project`` -- ``None`` by default, so every
+pre-existing caller is unaffected), ``LidarConfig.range_noise_std_m``
+(zero-mean Gaussian noise on each hit's measured range, ``LidarSensor``
+now takes an optional ``seed``), and ``render_depth_map``'s
+``noise_std_m``/``seed`` (same Gaussian-noise treatment, applied only to
+finite/hit pixels). Every noise parameter defaults to off/zero and
+*requires* an explicit seed the moment it's turned on -- deterministic
+noise, not silent OS-entropy randomness, matching every other generator
+in this codebase. Every real sensor profile shipped in this repo uses
+all-zero distortion coefficients, so this changes no default output
+anywhere; it's opt-in realism for a caller that wants it. Deliberately
+out of scope: pixel quantization (risks disturbing existing bbox-extraction
+precision for no clearly-demonstrated benefit) and loading distortion
+coefficients from ``configs/sensor_profiles/`` YAML (still reference-only,
+same as the scenario templates before ``config_loader.py`` -- see
+``KNOWN_GAPS_AND_ISSUES.md``).
+
 Unreleased -- Per-lane turn connectivity across intersections
 --------------------------------------------------------------
 
