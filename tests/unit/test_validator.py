@@ -10,6 +10,12 @@ import numpy as np
 
 from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
+from src.procedural.lane_connectivity import (
+    LaneConnection,
+    LaneConnectivityGenerator,
+    LaneConnectivityGraph,
+    TurnType,
+)
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
 from src.procedural.road_network import (
@@ -41,7 +47,8 @@ def _generate_everything_with_actors(seed: int, config, bounds):
     vehicles, pedestrians = ActorPlacementGenerator(seed, config).generate(edges, traffic)
     meshes += [MeshFactory.build_vehicle_mesh(v) for v in vehicles]
     meshes += [MeshFactory.build_pedestrian_mesh(p) for p in pedestrians]
-    return nodes, edges, lanes, buildings, meshes, vehicles, pedestrians
+    lane_connectivity = LaneConnectivityGenerator().generate(nodes, edges, lanes)
+    return nodes, edges, lanes, buildings, meshes, vehicles, pedestrians, lane_connectivity
 
 
 def test_full_generated_scenario_is_valid(urban_config, bounds) -> None:
@@ -169,11 +176,13 @@ def test_full_generated_scenario_with_actors_is_valid(urban_config, bounds) -> N
         meshes,
         vehicles,
         pedestrians,
+        lane_connectivity,
     ) = _generate_everything_with_actors(42, urban_config, bounds)
     assert vehicles  # sanity: this seed/config actually places some
+    assert lane_connectivity.connections  # sanity: this seed/config actually connects some
 
     report = ScenarioValidator().validate(
-        bounds, nodes, edges, lanes, buildings, meshes, vehicles, pedestrians
+        bounds, nodes, edges, lanes, buildings, meshes, vehicles, pedestrians, lane_connectivity
     )
     assert report.is_valid, report.issues
 
@@ -245,6 +254,68 @@ def test_pedestrian_non_finite_center_flagged() -> None:
 
     assert not report.is_valid
     assert any("non-finite" in issue for issue in report.issues)
+
+
+def _sample_lane(lane_id: int = 0) -> Lane:
+    return Lane(
+        lane_id=lane_id,
+        edge_id=0,
+        lane_index=0,
+        centerline=np.array([[0.0, 0.0], [10.0, 0.0]]),
+        left_boundary=np.array([[0.0, 2.0], [10.0, 2.0]]),
+        right_boundary=np.array([[0.0, -2.0], [10.0, -2.0]]),
+        width=4.0,
+    )
+
+
+def test_lane_connection_unknown_from_lane_flagged() -> None:
+    """A connection whose from_lane_id isn't a real lane is reported."""
+    lane = _sample_lane(lane_id=0)
+    connectivity = LaneConnectivityGraph(
+        connections=[LaneConnection(from_lane_id=999, to_lane_id=0, turn_type=TurnType.STRAIGHT)]
+    )
+    report = ScenarioValidator().validate(
+        (0.0, 0.0, 100.0, 100.0), {}, {}, {0: lane}, [], [], [], [], connectivity
+    )
+
+    assert not report.is_valid
+    assert any("from_lane_id 999" in issue for issue in report.issues)
+
+
+def test_lane_connection_unknown_to_lane_flagged() -> None:
+    """A connection whose to_lane_id isn't a real lane is reported."""
+    lane = _sample_lane(lane_id=0)
+    connectivity = LaneConnectivityGraph(
+        connections=[LaneConnection(from_lane_id=0, to_lane_id=999, turn_type=TurnType.STRAIGHT)]
+    )
+    report = ScenarioValidator().validate(
+        (0.0, 0.0, 100.0, 100.0), {}, {}, {0: lane}, [], [], [], [], connectivity
+    )
+
+    assert not report.is_valid
+    assert any("to_lane_id 999" in issue for issue in report.issues)
+
+
+def test_lane_connection_self_loop_flagged() -> None:
+    """A connection from a lane to itself is reported."""
+    lane = _sample_lane(lane_id=0)
+    connectivity = LaneConnectivityGraph(
+        connections=[LaneConnection(from_lane_id=0, to_lane_id=0, turn_type=TurnType.STRAIGHT)]
+    )
+    report = ScenarioValidator().validate(
+        (0.0, 0.0, 100.0, 100.0), {}, {}, {0: lane}, [], [], [], [], connectivity
+    )
+
+    assert not report.is_valid
+    assert any("connects to itself" in issue for issue in report.issues)
+
+
+def test_lane_connectivity_none_is_skipped() -> None:
+    """Omitting lane_connectivity entirely (the default) doesn't run this
+    check at all -- every pre-existing caller keeps working unchanged."""
+    lane = _sample_lane(lane_id=0)
+    report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), {}, {}, {0: lane}, [], [])
+    assert report.is_valid
 
 
 def test_mesh_non_finite_vertices_flagged() -> None:

@@ -21,6 +21,7 @@ import numpy as np
 
 from src.procedural.actor_placement import Pedestrian, Vehicle
 from src.procedural.building_placement import Building
+from src.procedural.lane_connectivity import LaneConnectivityGraph
 from src.procedural.lane_topology import Lane
 from src.procedural.mesh_factory import Mesh
 from src.procedural.road_network import RoadEdge, RoadNode
@@ -62,6 +63,7 @@ class ScenarioValidator:  # pylint: disable=too-few-public-methods
         meshes: List[Mesh],
         vehicles: Optional[List[Vehicle]] = None,
         pedestrians: Optional[List[Pedestrian]] = None,
+        lane_connectivity: Optional[LaneConnectivityGraph] = None,
     ) -> ValidationReport:
         """Validate every geometric element of a generated scenario.
 
@@ -75,6 +77,9 @@ class ScenarioValidator:  # pylint: disable=too-few-public-methods
             Output of ``ActorPlacementGenerator``, if any -- optional and
             defaulting to none, so every pre-existing caller (and every
             pre-existing test) keeps working unchanged.
+        lane_connectivity
+            Output of ``LaneConnectivityGenerator``, if any -- optional,
+            same reasoning as ``vehicles``/``pedestrians``.
 
         Returns
         -------
@@ -93,6 +98,7 @@ class ScenarioValidator:  # pylint: disable=too-few-public-methods
         self._validate_meshes(meshes, report)
         self._validate_vehicles(vehicles or [], report)
         self._validate_pedestrians(pedestrians or [], report)
+        self._validate_lane_connectivity(lane_connectivity, lanes, report)
 
         return report
 
@@ -167,6 +173,29 @@ class ScenarioValidator:  # pylint: disable=too-few-public-methods
         for pedestrian in pedestrians:
             if not np.isfinite(pedestrian.center).all() or not np.isfinite(pedestrian.heading_rad):
                 report.add(f"Pedestrian {pedestrian.pedestrian_id}: non-finite geometry")
+
+    @staticmethod
+    def _validate_lane_connectivity(
+        lane_connectivity: Optional[LaneConnectivityGraph],
+        lanes: Dict[int, Lane],
+        report: ValidationReport,
+    ) -> None:
+        """Regression safety net, not a check expected to ever fail by
+        construction: every connection's from/to lane_id should reference
+        a real lane, and never connect a lane to itself."""
+        if lane_connectivity is None:
+            return
+        for connection in lane_connectivity.connections:
+            if connection.from_lane_id not in lanes:
+                report.add(
+                    f"Lane connection: from_lane_id {connection.from_lane_id} " "is not a real lane"
+                )
+            if connection.to_lane_id not in lanes:
+                report.add(
+                    f"Lane connection: to_lane_id {connection.to_lane_id} is not a real lane"
+                )
+            if connection.from_lane_id == connection.to_lane_id:
+                report.add(f"Lane connection: lane {connection.from_lane_id} connects to itself")
 
     @staticmethod
     def _validate_meshes(meshes: List[Mesh], report: ValidationReport) -> None:

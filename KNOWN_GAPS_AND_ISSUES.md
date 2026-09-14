@@ -318,16 +318,39 @@ straight up with a flat roof quad -- no pitched/hipped roof, parapet, or
 architectural detail. Reasonable for a first pass; MASTER_PROMPT gives no
 building-detail spec to implement against.
 
-### [DEFERRED] Lane connectivity across intersections still not implemented (unblocked by this phase, not yet done)
-Phase 2's KNOWN_GAPS entry said turn-lane connectivity was deferred until
-Phase 3's traffic rules existed. They now do (`TrafficNetworkGenerator`
-assigns `TrafficControlType` per node), but per-lane turn connectivity
-(which incoming lane feeds which outgoing lane at an intersection, turn
-restrictions) is still not implemented -- this phase only reached
-intersection-level control assignment and a node-level navigation graph,
-not lane-level turn graphs. Revisit before any phase that needs individual
-vehicles to actually navigate lane-to-lane through an intersection (likely
-Phase 4/5, vehicle behavior).
+### [RESOLVED] Lane connectivity across intersections was not implemented
+Was: deferred twice -- Phase 2's `lane_topology.py` deferred it to Phase
+3's traffic rules; Phase 3's `traffic_network.py` deferred it again
+("full per-lane turn graphs are deferred further still"), since neither
+phase had (or needed) the geometric classification logic to determine
+which incoming lane legally feeds which outgoing lane at an intersection.
+
+Resolved by `src/procedural/lane_connectivity.py`
+(`LaneConnectivityGenerator`): for every (incoming edge, outgoing edge)
+pair at a node (from `RoadNode.incoming_edges`/`outgoing_edges`, already
+populated since Phase 1 but otherwise unused for this purpose), classifies
+the movement STRAIGHT/LEFT/RIGHT from the signed angle between the
+incoming edge's final heading and the outgoing edge's initial heading,
+excludes U-turns (`outgoing_edge is incoming_edge.reverse_edge_id`), and
+drops LEFT/RIGHT movements the incoming edge's own
+`allows_turning_left`/`allows_turning_right` flag forbids -- both fields
+existed, unused, since Phase 1 too. Lane-level (not just edge-level)
+mapping follows `lane_topology.py`'s own right-hand-traffic convention
+(lane 0 = median/left lane, highest index = curb/right lane): STRAIGHT
+connects lanes index-for-index, LEFT only connects lane 0 to lane 0,
+RIGHT only connects the outermost lane to the outermost lane -- a
+defensible default absent any dedicated-turn-lane concept elsewhere in
+this codebase.
+
+Wired into `ScenarioResult.lane_connectivity` and `ScenarioValidator`
+(basic regression checks: every connection's lane ids are real, no
+lane connects to itself) alongside every other generator's output.
+Deliberately still out of scope: this produces a connectivity *graph*
+(which lane can legally reach which), not vehicle routing/path-following
+behavior -- `ActorPlacementGenerator` still places vehicles statically at
+spawn zones; nothing consumes this graph to actually move a vehicle
+through an intersection yet. Revisit if/when vehicle animation/routing
+is ever built -- this graph is exactly what that would need as its input.
 
 ### [DEFERRED] No parking spawn zones
 MASTER_PROMPT Section 3.4 lists "spawn zones (driving, parking,
@@ -349,19 +372,6 @@ spec itself. `lane_topology.py` and `building_placement.py` were designed
 from scratch this phase, informed by QOL_RESEARCH_CHECKLIST.md Section B.2
 (lane boundaries) and B.3 (building placement), which do give concrete
 formulas/example tests (with two more bugs of their own -- see Resolved).
-
-### [DEFERRED] Lane connectivity across intersections (turn lanes, merges) not implemented
-`LaneTopologyGenerator` generates correct per-edge lane geometry
-(centerlines, boundaries) but does not connect a lane on an incoming edge
-to the specific lane(s) it feeds into on outgoing edges at an
-intersection -- there is no turn-restriction or lane-continuation logic.
-MASTER_PROMPT's own Phase 2 bullets mention "handle lane transitions at
-intersections" but Phase 3 ("Traffic Network") is the section that
-actually owns traffic rules, navigation graphs, and turn behavior --
-implementing real turn connectivity requires exactly that information
-(which edges are legal turns from which lane), which doesn't exist until
-Phase 3. Revisit lane-to-lane connectivity once Phase 3's traffic rules
-exist; don't invent turn restrictions here without that basis.
 
 ### [DEFERRED] `ScenarioTypeConfig` has no field for road setback / sidewalk width
 `building_placement.py`'s `ROAD_SETBACK_METERS = 2.0` is a fixed module
@@ -412,14 +422,17 @@ MASTER_PROMPT 3.1.1 calls for creating the UE5 project itself via
 **Action**: do this as the first step of Phase 4, not before — Phases 1-3 are
 pure Python and don't need it.
 
-### [RISK] CI workflow (`.github/workflows/lint_and_test.yml`) has never actually run on GitHub Actions
-Written to spec and now known to work locally via Poetry (see Resolved), but
-never exercised on an actual Actions runner. First real push may still
-surface issues (e.g. `poetry install` needing `--no-root` explicitly in CI,
-codecov action needing a token for a private repo — this repo's visibility
-has not been confirmed).
-**Action**: watch the first Actions run after this commit is pushed; fix
-immediately rather than letting it go red silently.
+### [RESOLVED] CI workflow (`.github/workflows/lint_and_test.yml`) had never actually run on GitHub Actions
+Was: written to spec and known to work locally via Poetry, but never
+exercised on an actual Actions runner, with open questions about
+`poetry install`/codecov behaving differently there.
+
+Resolved since Phase 7 (see the `pkg_resources`/Ray entry below, found via
+a real Actions run on commit `4c06f02`): every push since has run on
+GitHub Actions and is confirmed green, including every commit through
+`434378e` (CLI + config loader). This entry was left stale for several
+commits after that -- a reminder to keep this file in sync with reality,
+not just append to it.
 
 ### [DEFERRED] Docker/Kubernetes deployment (MASTER_PROMPT Section 2.4) not started
 Not needed until Phase 6+ distributed/cloud scaling. No action needed yet.
