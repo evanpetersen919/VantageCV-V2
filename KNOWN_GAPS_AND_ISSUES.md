@@ -13,6 +13,52 @@ later phase, tracked so it isn't forgotten).
 
 ## Open
 
+### [DEFERRED] LiDAR ray-casting and depth-map rendering have no spatial acceleration structure
+`lidar_model.py`'s `LidarSensor.scan` and `depth_map.py`'s
+`render_depth_map` are both O(rays * triangles) / O(pixels * triangles)
+brute force -- every ray is tested against every triangle of every mesh,
+with no BVH/octree/kd-tree to cull obviously-irrelevant geometry. Fine
+for small test scenes (kept deliberately small in
+`tests/unit/test_lidar_model.py` and `tests/unit/test_depth_map.py`
+specifically because of this), but a real sensor config (e.g. a 64-channel
+LiDAR at ~2000 azimuth samples/sweep, or a 1920x1080 depth map) against a
+realistic scene's mesh count would be far too slow for actual dataset
+generation.
+**Action**: if/when real-scale frame generation is attempted (Phase 6+),
+add a spatial index (even a simple uniform grid over triangle bounding
+boxes would help enormously) before running this against anything beyond
+test-sized scenes.
+
+### [DEFERRED] Segmentation mask rasterization is O(width * height) per object
+`segmentation.py`'s `rasterize_instance_masks` runs one full-image
+`matplotlib.path.Path.contains_points` pass per object (vectorized across
+pixels, but not across objects). Correct and fine at test scale; a frame
+with many buildings at HD resolution would be considerably slower than a
+proper GPU/renderer-based approach. Same "revisit at real dataset scale"
+note as the ray-casting entry above.
+
+### [DEFERRED] Ground truth extraction only covers buildings, not roads/lanes/vehicles
+`bbox_3d.py`, `bbox_2d.py`, and `segmentation.py` all operate on
+`Building` objects (the only "object" type this codebase generates so
+far -- there is no vehicle/pedestrian placement anywhere in the pipeline
+yet, and MASTER_PROMPT never specifies one for this phase either). Road
+and lane geometry get real meshes (`mesh_factory.py`) and could in
+principle get bounding boxes/segmentation too, but nothing in the spec's
+own Phase 5 bullets asks for road/lane ground truth -- only "objects,"
+which in a real AV dataset means vehicles/pedestrians/cyclists, none of
+which this codebase generates. This is a genuine scope gap relative to
+what a real AV perception dataset needs, inherited from the master
+prompt never specifying vehicle/pedestrian placement anywhere in its
+8-phase roadmap.
+
+### [DEFERRED] No sensor noise model
+Camera projection, LiDAR ray-casting, and depth rendering are all
+noise-free (perfect pinhole projection, perfect ray intersections). Real
+sensors have distortion, quantization, and noise; MASTER_PROMPT's own
+`camera_front.yaml`/`camera_rear.yaml` config templates (Phase 0) already
+declare a `distortion_model`/`distortion_coeffs` field that nothing reads
+yet. Revisit if sim2real validation (Phase 6) needs it.
+
 ### [RISK] `UE5Backend`'s per-call connection setup makes the master prompt's <100ms/<2s latency budgets unverifiable as literally stated
 `UE5Backend.call()` opens a brand-new WebSocket connection for every RPC
 call (documented as a deliberate simplicity tradeoff in backend.py).
@@ -239,6 +285,23 @@ produce visibly triangular block shapes rather than rectangular ones.
 Revisit if/when a mesh-rendering phase makes block shape visually matter.
 
 ## Resolved
+
+### [RESOLVED] Bare `poetry run pytest` doesn't discover brand-new source files until `poetry install` is re-run — found in Phase 5
+Confirmed by direct, repeated testing: after adding a new file under
+`src/` (e.g. `src/sensors/camera_model.py`), `poetry run pytest
+tests/unit/test_camera_model.py` failed with `ModuleNotFoundError: No
+module named 'src.sensors.camera_model'`, even though `.venv/Scripts/
+python.exe -m pytest` (same venv, same test) and `poetry run python -m
+pytest` both succeeded immediately. Existing (previously-added) test
+files were unaffected by bare `poetry run pytest` -- only brand-new
+modules triggered it. Root cause not fully diagnosed (something about how
+the `pytest.exe` console-script entry point resolves the editable
+install's package contents differs from `python -m pytest`), but running
+`poetry install` again reliably fixed it every time it was tried.
+**Action**: run `poetry install` after adding any new file under `src/`,
+before trusting a bare `poetry run pytest` run of tests that import it.
+`python -m pytest` (or `poetry run python -m pytest`) appears unaffected
+and can be used as a workaround if `poetry install` is inconvenient.
 
 ### [RESOLVED] Road network nodes could end up outside the caller's declared bounds — found via Phase 4's ScenarioValidator
 Discovered by `ScenarioValidator`'s own first real end-to-end test
