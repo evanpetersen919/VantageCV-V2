@@ -186,3 +186,99 @@ def test_lidar_hit_points_lie_on_ground_plane() -> None:
     assert len(points) > 0
     world_z = origin[2] + points[:, 2]
     assert np.allclose(world_z, 0.0, atol=1e-6)
+
+
+def test_range_noise_std_must_be_non_negative() -> None:
+    """A negative range_noise_std_m is rejected at construction."""
+    with pytest.raises(ValueError, match="non-negative"):
+        LidarConfig(
+            channels=1,
+            horizontal_resolution_deg=90.0,
+            vertical_fov_deg=(0.0, 0.0),
+            max_range_m=50.0,
+            range_noise_std_m=-1.0,
+        )
+
+
+def test_range_noise_requires_seed() -> None:
+    """Constructing a LidarSensor with range_noise_std_m > 0 but no seed
+    is rejected -- deterministic noise needs a real seed, not silent
+    OS-entropy randomness."""
+    config = LidarConfig(
+        channels=1,
+        horizontal_resolution_deg=90.0,
+        vertical_fov_deg=(0.0, 0.0),
+        max_range_m=50.0,
+        range_noise_std_m=0.5,
+    )
+    with pytest.raises(ValueError, match="requires an explicit seed"):
+        LidarSensor(config)
+
+
+def test_range_noise_perturbs_hit_distances() -> None:
+    """With range_noise_std_m > 0, hit distances differ from the noiseless
+    (range_noise_std_m=0) scan of the same scene."""
+    origin = np.array([0.0, 0.0, 5.0])
+    base_kwargs = {
+        "channels": 4,
+        "horizontal_resolution_deg": 15.0,
+        "vertical_fov_deg": (-30.0, -5.0),
+        "max_range_m": 20.0,
+    }
+    clean_config = LidarConfig(**base_kwargs)
+    noisy_config = LidarConfig(**base_kwargs, range_noise_std_m=0.3)
+
+    clean_points = LidarSensor(clean_config).scan(origin, [_ground_plane_mesh()])
+    noisy_points = LidarSensor(noisy_config, seed=7).scan(origin, [_ground_plane_mesh()])
+
+    clean_distances = np.sort(np.linalg.norm(clean_points, axis=1))
+    noisy_distances = np.sort(np.linalg.norm(noisy_points, axis=1))
+    assert len(clean_distances) == len(noisy_distances)
+    assert not np.allclose(clean_distances, noisy_distances)
+
+
+def test_range_noise_is_deterministic_for_same_seed() -> None:
+    """Same seed produces identical noisy output; a different seed
+    doesn't."""
+    origin = np.array([0.0, 0.0, 5.0])
+    config = LidarConfig(
+        channels=4,
+        horizontal_resolution_deg=15.0,
+        vertical_fov_deg=(-30.0, -5.0),
+        max_range_m=20.0,
+        range_noise_std_m=0.3,
+    )
+
+    points_a = LidarSensor(config, seed=42).scan(origin, [_ground_plane_mesh()])
+    points_b = LidarSensor(config, seed=42).scan(origin, [_ground_plane_mesh()])
+    points_c = LidarSensor(config, seed=43).scan(origin, [_ground_plane_mesh()])
+
+    assert np.array_equal(points_a, points_b)
+    assert not np.array_equal(points_a, points_c)
+
+
+def test_range_noise_can_drop_hits_near_max_range() -> None:
+    """Noise can push a near-boundary hit's measured range past
+    max_range_m, correctly dropping it -- exactly what a real noisy
+    sensor would do, not an artifact to special-case around."""
+    origin = np.array([0.0, 0.0, 5.0])
+    # Ground plane is exactly max_range_m away at nadir; large noise std
+    # guarantees some rays get pushed over the boundary.
+    config_clean = LidarConfig(
+        channels=1,
+        horizontal_resolution_deg=360.0,
+        vertical_fov_deg=(-90.0, -90.0),
+        max_range_m=5.0,
+    )
+    config_noisy = LidarConfig(
+        channels=1,
+        horizontal_resolution_deg=360.0,
+        vertical_fov_deg=(-90.0, -90.0),
+        max_range_m=5.0,
+        range_noise_std_m=10.0,
+    )
+    clean_points = LidarSensor(config_clean).scan(origin, [_ground_plane_mesh()])
+    noisy_points = LidarSensor(config_noisy, seed=1).scan(origin, [_ground_plane_mesh()])
+
+    assert len(clean_points) == 1
+    assert len(noisy_points) == 0

@@ -171,3 +171,70 @@ def test_world_to_camera_translation_applied_correctly() -> None:
     extrinsics = CameraExtrinsics(rotation=np.eye(3), translation=np.array([5.0, 0.0, 0.0]))
     point_camera = extrinsics.world_to_camera(np.array([5.0, 0.0, 10.0]))
     assert np.allclose(point_camera, [0.0, 0.0, 10.0])
+
+
+def test_no_distortion_by_default() -> None:
+    """distortion_coeffs defaults to None -- undistorted projection,
+    matching every pre-existing caller's own expectations exactly."""
+    intrinsics = CameraIntrinsics(500.0, 500.0, 320.0, 240.0, 640, 480)
+    assert intrinsics.distortion_coeffs is None
+
+
+def test_zero_distortion_coeffs_match_no_distortion() -> None:
+    """All-zero distortion_coeffs (what every real sensor profile in this
+    repo actually ships) produce identical output to distortion_coeffs=None."""
+    extrinsics = CameraExtrinsics(rotation=np.eye(3), translation=np.zeros(3))
+    point = np.array([3.0, -1.5, 12.0])
+
+    undistorted = CameraIntrinsics(500.0, 500.0, 320.0, 240.0, 640, 480)
+    zero_distortion = CameraIntrinsics(
+        500.0, 500.0, 320.0, 240.0, 640, 480, distortion_coeffs=(0.0, 0.0, 0.0, 0.0, 0.0)
+    )
+
+    pixel_a, _ = Camera(undistorted, extrinsics).project(point)
+    pixel_b, _ = Camera(zero_distortion, extrinsics).project(point)
+    assert np.allclose(pixel_a, pixel_b)
+
+
+def test_positive_radial_distortion_pushes_off_axis_point_further_out() -> None:
+    """A positive k1 (pincushion-direction radial term) moves an
+    off-axis point's pixel further from the principal point than the
+    undistorted projection."""
+    extrinsics = CameraExtrinsics(rotation=np.eye(3), translation=np.zeros(3))
+    point = np.array([2.0, 0.0, 10.0])
+    principal_point = np.array([320.0, 240.0])
+
+    undistorted = CameraIntrinsics(500.0, 500.0, 320.0, 240.0, 640, 480)
+    distorted = CameraIntrinsics(
+        500.0, 500.0, 320.0, 240.0, 640, 480, distortion_coeffs=(0.1, 0.0, 0.0, 0.0, 0.0)
+    )
+
+    pixel_undistorted, _ = Camera(undistorted, extrinsics).project(point)
+    pixel_distorted, _ = Camera(distorted, extrinsics).project(point)
+
+    assert pixel_undistorted is not None and pixel_distorted is not None
+    dist_undistorted = np.linalg.norm(pixel_undistorted - principal_point)
+    dist_distorted = np.linalg.norm(pixel_distorted - principal_point)
+    assert dist_distorted > dist_undistorted
+
+
+def test_distortion_leaves_principal_axis_point_unmoved() -> None:
+    """A point directly on the optical axis (normalized [0, 0]) is
+    unaffected by radial/tangential distortion -- r=0 everywhere in the
+    Brown-Conrady formula."""
+    extrinsics = CameraExtrinsics(rotation=np.eye(3), translation=np.zeros(3))
+    point = np.array([0.0, 0.0, 10.0])
+
+    distorted = CameraIntrinsics(
+        500.0, 500.0, 320.0, 240.0, 640, 480, distortion_coeffs=(0.5, 0.3, 0.2, 0.1, 0.05)
+    )
+    pixel, _ = Camera(distorted, extrinsics).project(point)
+    assert pixel is not None
+    assert np.allclose(pixel, [320.0, 240.0], atol=1e-6)
+
+
+def test_from_fov_passes_through_distortion_coeffs() -> None:
+    """from_fov's optional distortion_coeffs argument is stored, not dropped."""
+    coeffs = (0.1, 0.0, 0.0, 0.0, 0.0)
+    intrinsics = CameraIntrinsics.from_fov(90.0, 640, 480, distortion_coeffs=coeffs)
+    assert intrinsics.distortion_coeffs == coeffs

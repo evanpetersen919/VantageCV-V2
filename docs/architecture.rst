@@ -70,12 +70,16 @@ Layers
 
 **Sensors & ground truth** (``src/sensors/``, ``src/ground_truth/``, Phase 5)
    Pure geometry/math, genuinely tested without any rendering engine:
-   pinhole camera projection, LiDAR ray-casting (Moeller-Trumbore
-   ray-triangle intersection against the same mesh buffers
-   :mod:`src.procedural.mesh_factory` produces), depth map rendering,
-   and 3D/2D bounding box + instance segmentation extraction (segmentation
-   exploits that a building is a convex box: its silhouette is exactly
-   the convex hull of its projected corners).
+   pinhole camera projection (optionally with Brown-Conrady lens
+   distortion -- ``CameraIntrinsics.distortion_coeffs``, ``None`` by
+   default), LiDAR ray-casting (Moeller-Trumbore ray-triangle
+   intersection against the same mesh buffers
+   :mod:`src.procedural.mesh_factory` produces, optionally with Gaussian
+   range noise -- ``LidarConfig.range_noise_std_m``), depth map rendering
+   (optionally with Gaussian depth noise -- ``render_depth_map``'s own
+   ``noise_std_m``), and 3D/2D bounding box + instance segmentation
+   extraction (segmentation exploits that a building is a convex box: its
+   silhouette is exactly the convex hull of its projected corners).
 
 **Export & validation** (``src/export/``, ``src/validation/``, Phase 6)
    COCO JSON export (schema-validated against the real ``pycocotools``

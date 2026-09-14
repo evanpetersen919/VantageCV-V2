@@ -41,12 +41,18 @@ class LidarConfig:
     max_range_m : float
         Maximum sensing range in meters; rays that don't hit anything
         within this range produce no point.
+    range_noise_std_m : float
+        Standard deviation (meters) of zero-mean Gaussian noise added to
+        each hit's measured range, modeling real rangefinder measurement
+        error. Default 0.0 (no noise, exact geometric hits) -- every
+        pre-existing caller/test keeps behaving exactly as before.
     """
 
     channels: int
     horizontal_resolution_deg: float
     vertical_fov_deg: Tuple[float, float]
     max_range_m: float
+    range_noise_std_m: float = 0.0
 
     def __post_init__(self) -> None:
         if self.channels <= 0:
@@ -57,6 +63,8 @@ class LidarConfig:
             raise ValueError("max_range_m must be positive")
         if self.vertical_fov_deg[0] > self.vertical_fov_deg[1]:
             raise ValueError("vertical_fov_deg must satisfy min <= max")
+        if self.range_noise_std_m < 0:
+            raise ValueError("range_noise_std_m must be non-negative")
 
     @property
     def horizontal_samples(self) -> int:
@@ -146,8 +154,17 @@ class LidarSensor:  # pylint: disable=too-few-public-methods
     the class is private implementation detail of that operation.
     """
 
-    def __init__(self, config: LidarConfig) -> None:
+    def __init__(self, config: LidarConfig, seed: Optional[int] = None) -> None:
+        if config.range_noise_std_m > 0 and seed is None:
+            raise ValueError(
+                "config.range_noise_std_m > 0 requires an explicit seed for deterministic noise"
+            )
         self.config = config
+        # Constructed unconditionally (even with seed=None) to keep `rng`
+        # a plain Generator rather than Optional[Generator] -- it's only
+        # ever read when range_noise_std_m > 0, which __init__ already
+        # guarantees means a real seed was given.
+        self.rng = np.random.Generator(np.random.PCG64(seed))
 
     def scan(self, origin: npt.NDArray[np.float64], meshes: List[Mesh]) -> npt.NDArray[np.float64]:
         """Cast one full sweep of rays from ``origin`` and collect hit
@@ -168,7 +185,12 @@ class LidarSensor:  # pylint: disable=too-few-public-methods
             [N, 3] array of hit points, sensor-relative. N <=
             ``channels * horizontal_samples``; rays that hit nothing
             within ``max_range_m`` produce no point (a real LiDAR doesn't
-            report a point for a miss either).
+            report a point for a miss either). If ``config
+            .range_noise_std_m > 0``, each hit's measured range has
+            zero-mean Gaussian noise added before the ``max_range_m``
+            check -- a genuine hit can therefore be dropped (noise pushed
+            it past max range or negative) exactly as a real noisy sensor
+            would drop it.
         """
         azimuths = np.radians(np.linspace(0, 360, self.config.horizontal_samples, endpoint=False))
         elevations = np.radians(
@@ -190,7 +212,13 @@ class LidarSensor:  # pylint: disable=too-few-public-methods
                     ]
                 )
                 distance = closest_hit_distance(origin, direction, meshes)
-                if distance is not None and distance <= self.config.max_range_m:
+                if distance is None:
+                    continue
+
+                if self.config.range_noise_std_m > 0:
+                    distance += float(self.rng.normal(0.0, self.config.range_noise_std_m))
+
+                if 0 < distance <= self.config.max_range_m:
                     points.append(direction * distance)
 
         if not points:
