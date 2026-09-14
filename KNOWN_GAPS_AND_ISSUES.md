@@ -13,6 +13,44 @@ later phase, tracked so it isn't forgotten).
 
 ## Open
 
+### [DEFERRED] NuScenes format conversion not implemented
+MASTER_PROMPT Section 3.7 lists "NuScenes format conversion" as a Phase 6
+bullet. Not implemented. NuScenes' schema (scene, sample, sample_data,
+ego_pose, calibrated_sensor, category, instance, sample_annotation
+tables, cross-referenced by token) is fundamentally built around
+*temporal sequences of ego vehicle poses observing dynamic objects*
+(vehicles, pedestrians, cyclists) -- this codebase generates neither
+multi-frame temporal sequences nor any dynamic/movable object (see the
+Phase 5 entry above: only buildings exist as annotatable objects). A
+NuScenes export of static buildings from single independent frames would
+be schema-conformant in the narrowest sense but wouldn't represent what
+the format is actually for, and building one now would mean inventing
+placeholder ego-motion/dynamic-object semantics with nothing real to back
+them. Revisit once vehicle/pedestrian placement and multi-frame temporal
+scenario generation both exist -- neither is in MASTER_PROMPT's roadmap
+as it stands.
+
+### [DEFERRED] Sim2real distribution analysis not implemented
+MASTER_PROMPT Section 3.7 lists "Sim2real distribution analysis" as a
+bullet, and Section 1.1's architecture diagram lists a "Sim2Real
+Validator (domain gap analysis)." Not implemented: doing this
+meaningfully requires a real reference dataset to compare distributions
+against (e.g. real building-height distributions, real traffic patterns),
+and none exists anywhere in this codebase or its dependencies -- CLAUDE_
+SKILLS_AND_PROMPTS.md's own Skill 13 (Sim2Real Validation) prompt template
+explicitly expects the user to supply reference data, which nobody has
+in this context. `sanity_checker.py`'s `check_building_height_distribution`
+is the closest analogue actually implemented: it compares generated
+output against the *configured* distribution (not a real-world one),
+which is a real, useful check but not sim2real analysis in the sense the
+spec means.
+
+### [DEFERRED] COCO export only carries building/"structure" annotations, matching Phase 5's ground-truth scope gap
+Same root cause as the Phase 5 entry above (no vehicle/pedestrian
+placement anywhere in the pipeline): `coco_exporter.py` declares exactly
+one category ("building"). A real AV-perception COCO dataset would need
+vehicle/pedestrian/cyclist categories with actual annotated instances.
+
 ### [DEFERRED] LiDAR ray-casting and depth-map rendering have no spatial acceleration structure
 `lidar_model.py`'s `LidarSensor.scan` and `depth_map.py`'s
 `render_depth_map` are both O(rays * triangles) / O(pixels * triangles)
@@ -285,6 +323,17 @@ produce visibly triangular block shapes rather than rectangular ones.
 Revisit if/when a mesh-rendering phase makes block shape visually matter.
 
 ## Resolved
+
+### [RESOLVED] Added `pycocotools` and `pandas-stubs` dev dependencies — Phase 6
+`pycocotools==2.0.7` installed cleanly on Windows (pre-built wheel
+available) and is used for real schema validation of COCO exports
+(`test_coco_schema_valid_per_pycocotools` loads the export through the
+actual reference `pycocotools.coco.COCO` parser, not just hand-written
+structural checks). `pandas-stubs` was added rather than reaching for
+the same `ignore_missing_imports` blanket-override pattern used for
+scipy (Phase 1) -- pandas has a well-maintained stubs package, so
+`sanity_checker.py`'s pandas usage gets real `mypy --strict` type
+checking instead of being waved through.
 
 ### [RESOLVED] Bare `poetry run pytest` doesn't discover brand-new source files until `poetry install` is re-run — found in Phase 5
 Confirmed by direct, repeated testing: after adding a new file under
