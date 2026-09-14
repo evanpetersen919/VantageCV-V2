@@ -179,7 +179,8 @@ class RoadNetworkGenerator:  # pylint: disable=too-few-public-methods
         """
         grid_points = self._generate_grid_points(bounds)
         perturbed_points = self._perturb_grid(grid_points)
-        self._create_nodes_from_points(perturbed_points)
+        contained_points = self._keep_within_bounds(perturbed_points, bounds)
+        self._create_nodes_from_points(contained_points)
         self._connect_nodes()
         self._assign_road_attributes()
         self._validate_network()
@@ -236,6 +237,50 @@ class RoadNetworkGenerator:  # pylint: disable=too-few-public-methods
         perturbed_points = grid_points + perturbation
 
         return perturbed_points
+
+    @staticmethod
+    def _keep_within_bounds(
+        points: npt.NDArray[np.float64], bounds: Tuple[float, float, float, float]
+    ) -> npt.NDArray[np.float64]:
+        """Fold any point that fell outside ``bounds`` back inside it by
+        reflection at the violated edge(s), falling back to a hard clip
+        for the rare case reflection alone doesn't suffice.
+
+        Both grid generation (``_generate_grid_points`` can overshoot by
+        up to one full ``spacing`` per axis by construction -- see
+        KNOWN_GAPS_AND_ISSUES.md) and Gaussian perturbation
+        (``_perturb_grid``) can push a point outside the caller's declared
+        ``bounds``. This was never checked or corrected before
+        ScenarioValidator's bounds-containment check caught it on a real
+        generated scenario: e.g. a node at (-271.6, -234.4) with
+        bounds=(-250, -250, 250, 250).
+
+        Reflection ("bounce back off the wall"), not a hard clip, is used
+        because a hard clip collapses every overshooting point on the
+        same side onto one exact boundary line -- for 3+ points that is
+        an *exactly collinear* configuration, which crashes Delaunay
+        triangulation in ``_connect_nodes`` (a real, previously
+        established failure mode -- see
+        test_collinear_points_raise_value_error_not_qhull_error).
+        Reflection preserves each point's relative offset, so
+        overshooting points stay spread out rather than collapsing onto a
+        line. The final ``np.clip`` is a safety net only, for the
+        practically-unreachable case where a single reflection isn't
+        enough to bring a point back in range.
+        """
+        x_min, y_min, x_max, y_max = bounds
+        reflected = points.copy()
+
+        for axis, (lo, hi) in enumerate(((x_min, x_max), (y_min, y_max))):
+            below = reflected[:, axis] < lo
+            reflected[below, axis] = lo + (lo - reflected[below, axis])
+            above = reflected[:, axis] > hi
+            reflected[above, axis] = hi - (reflected[above, axis] - hi)
+
+        reflected[:, 0] = np.clip(reflected[:, 0], x_min, x_max)
+        reflected[:, 1] = np.clip(reflected[:, 1], y_min, y_max)
+
+        return reflected
 
     def _create_nodes_from_points(self, points: npt.NDArray[np.float64]) -> None:
         """Create ``RoadNode`` objects from a point cloud, merging points

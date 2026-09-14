@@ -13,6 +13,49 @@ later phase, tracked so it isn't forgotten).
 
 ## Open
 
+### [RISK] `UE5Backend`'s per-call connection setup makes the master prompt's <100ms/<2s latency budgets unverifiable as literally stated
+`UE5Backend.call()` opens a brand-new WebSocket connection for every RPC
+call (documented as a deliberate simplicity tradeoff in backend.py).
+Measured directly and repeatedly against a local mock server: round-trip
+time for the *same* call varied from well under 100ms to over 2 seconds
+across otherwise-identical runs on this machine, with values landing
+suspiciously close to whole seconds (e.g. 2.04s) -- consistent with
+intermittent external interference on new local socket connections (most
+likely antivirus real-time scanning on Windows), not a bug in the
+request/response logic itself (which is 100% covered and passes every
+functional test). The tests now assert only generous smoke-test bounds
+(<5s) rather than the spec's literal targets.
+**Action**: if real <100ms production latency is ever required, switch to
+a persistent connection (connect once, reuse for many calls) rather than
+per-call connect/disconnect -- this removes handshake cost from the
+steady-state latency and would likely resolve the spec's target being
+achievable in practice, though it doesn't explain the *variance* seen
+here, which needs testing on a machine without the same local antivirus
+configuration to confirm the root cause.
+
+### [DEFERRED] LoadProceduralScenario C++ skeleton doesn't parse into mesh/traffic data yet
+`AProceduralScenarioLoader::LoadProceduralScenario` (unverified, uncompiled --
+see UE5 plugin gaps above) only validates that its input is well-formed
+JSON. It does not dispatch per-mesh `UScenarioMeshBuilder::BuildMeshSection`
+calls, initialize a traffic controller actor (no such class exists yet),
+or implement streaming/culling -- MASTER_PROMPT Section 3.5's other three
+"Procedural Meshes"/"Traffic Network" bullets for this phase. All three
+need either a real UE5 project to build/profile against (streaming/
+culling) or upstream pieces that don't exist yet (a traffic controller
+actor class; Phase 6's orchestration layer, which is what would actually
+produce the JSON payload this function receives). The JSON schema this
+function expects is therefore provisional, not finalized against a real
+producer.
+
+### [DEFERRED] No actual UE5 `.uproject` still, and Phase 4's own first bullet (create it) not done
+Same limitation carried from Phase 0/1's KNOWN_GAPS entries: no UE5.4
+install exists in this environment, so nothing under `unreal_plugin/` has
+ever been opened in the Unreal Editor or compiled. Phase 4 was the
+roadmap's designated point to create the actual `.uproject` (MASTER_PROMPT
+3.1.1); still not done, and shouldn't be attempted blind -- do this first,
+manually, once UE5.4 LTS is actually installed somewhere, before trusting
+any of the C++ under `unreal_plugin/`.
+
 ### [DEFERRED] Master prompt Section 3.4 (Phase 3) contradicts Section 1.1 on which language owns mesh generation
 MASTER_PROMPT_PROCEDURAL_AV_DATASET_GENERATOR.md Section 3.4 labels
 "Procedural Meshes" as "(C++ in UE5)". Section 1.1's own architecture
@@ -196,6 +239,30 @@ produce visibly triangular block shapes rather than rectangular ones.
 Revisit if/when a mesh-rendering phase makes block shape visually matter.
 
 ## Resolved
+
+### [RESOLVED] Road network nodes could end up outside the caller's declared bounds — found via Phase 4's ScenarioValidator
+Discovered by `ScenarioValidator`'s own first real end-to-end test
+(`test_full_generated_scenario_is_valid`) actually failing on a routine
+generated scenario: node positions up to ~70m outside a 500m-wide bounds
+region. Root cause, present since Phase 1 and never previously tested:
+(1) `_generate_grid_points` can overshoot the requested bounds by up to
+one full grid `spacing` per axis by construction (`np.arange(x_min, x_max
++ spacing, spacing)` always includes `x_min + spacing`, previously noted
+in this file only as a "grid points guaranteed >= 2 per axis" quirk, not
+recognized as a bounds violation in its own right); (2) Gaussian
+perturbation in `_perturb_grid` can push any point further out, with no
+containment check anywhere in the pipeline. Fixed by adding
+`RoadNetworkGenerator._keep_within_bounds`, called after perturbation:
+reflects any out-of-bounds point back across the violated edge (not a
+hard clip, which would collapse every overshooting point on the same
+side onto one exact boundary line -- for 3+ points, an exactly collinear
+configuration that crashes Delaunay triangulation, a real failure mode
+already established via `test_collinear_points_raise_value_error_not_qhull_error`).
+A final `np.clip` is kept as a safety net for the practically-unreachable
+case where reflection alone isn't enough. Verified with
+`test_all_node_positions_within_bounds` and a 20-seed parametrized
+variant, plus the originally-failing validator integration test now
+passing.
 
 ### [RESOLVED] Forward/reverse road edges got independently-sampled, often-mismatched lane counts — found in Phase 3
 QOL_RESEARCH_CHECKLIST.md Section G.1's own `test_lane_count_consistent`
@@ -396,19 +463,19 @@ this Windows machine; `scripts/run_linter.sh` now falls back to
 `python -m poetry` when the `poetry` executable isn't found. Contributors on
 other machines should confirm `poetry` resolves normally, or rely on the
 fallback.
-
-### [RESOLVED] Poetry install/lint/test flow — Phase 0
-Original entry said Poetry wasn't installed and the flow was unverified.
-Installed Poetry 1.7.1 via `pip install --user`, ran `poetry install`
-(succeeded, `poetry.lock` generated and committed), then `poetry run pytest
---cov=src` (33/33 pass) and `scripts/run_linter.sh` (black/isort/pylint/mypy
---strict all clean, pylint 10.00/10) — all against the real Poetry-managed
-environment, not just a bare pip venv.
-**Residual note**: `poetry` was not on PATH after a `pip install --user` on
-this Windows machine; `scripts/run_linter.sh` now falls back to
-`python -m poetry` when the `poetry` executable isn't found. Contributors on
-other machines should confirm `poetry` resolves normally, or rely on the
-fallback.
+**Update (Phase 4)**: partway through this session, `python` on PATH
+started resolving to this project's own `.venv/Scripts/python.exe`
+(created for early Phase 0 experimentation) instead of the system Python
+that actually has Poetry installed -- so `python -m poetry` itself broke
+(`No module named poetry`), even though the fallback logic above was
+designed for the opposite problem (poetry missing from PATH, not python
+resolving to the wrong installation). Cause not fully diagnosed (likely
+some shell/session state change unrelated to this repo). Worked around by
+invoking Poetry via its full system path
+(`C:\Users\<user>\AppData\Local\Microsoft\WindowsApps\python.exe -m
+poetry ...`) directly rather than trusting `python -m poetry`. Anyone
+hitting `No module named poetry` should check `where python` first -- it
+may not be the interpreter Poetry is installed against.
 
 ### [RESOLVED] pylint/mypy never run against real code — Phase 0
 `tests/unit/test_project_initialization.py` initially had 8 missing-docstring

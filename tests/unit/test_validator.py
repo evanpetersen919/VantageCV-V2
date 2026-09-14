@@ -1,0 +1,213 @@
+"""Unit tests for ScenarioValidator."""
+
+# pylint: disable=duplicate-code
+# Several tests here construct a minimal RoadEdge/Lane by hand to isolate
+# one validator check, which inevitably resembles similar hand-built
+# fixtures in test_traffic_network.py/test_mesh_factory.py -- shared
+# fixtures would couple those unrelated test files together for no benefit.
+
+import numpy as np
+
+from src.procedural.building_placement import Building, BuildingPlacementGenerator
+from src.procedural.lane_topology import Lane, LaneTopologyGenerator
+from src.procedural.mesh_factory import Mesh, MeshFactory
+from src.procedural.road_network import (
+    IntersectionType,
+    RoadEdge,
+    RoadNetworkGenerator,
+    RoadNode,
+    RoadType,
+)
+from src.procedural.validator import ScenarioValidator
+
+# urban_config, bounds fixtures: see tests/conftest.py
+
+
+def _generate_everything(seed: int, config, bounds):
+    road_gen = RoadNetworkGenerator(seed, config)
+    nodes, edges = road_gen.generate(bounds)
+    lanes = LaneTopologyGenerator().generate(nodes, edges)
+    buildings = BuildingPlacementGenerator(seed, config).generate(nodes, edges)
+    meshes = [MeshFactory.build_road_mesh(lane) for lane in lanes.values()]
+    meshes += [MeshFactory.build_building_mesh(b) for b in buildings]
+    return nodes, edges, lanes, buildings, meshes
+
+
+def test_full_generated_scenario_is_valid(urban_config, bounds) -> None:
+    """A genuine end-to-end generated scenario passes validation cleanly."""
+    nodes, edges, lanes, buildings, meshes = _generate_everything(42, urban_config, bounds)
+
+    report = ScenarioValidator().validate(bounds, nodes, edges, lanes, buildings, meshes)
+
+    assert report.is_valid, report.issues
+
+
+def test_node_outside_bounds_flagged() -> None:
+    """A node positioned outside the declared bounds is reported."""
+    nodes = {
+        0: RoadNode(
+            node_id=0, position=np.array([1000.0, 1000.0]), node_type=IntersectionType.ISOLATED
+        )
+    }
+    report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), nodes, {}, {}, [], [])
+
+    assert not report.is_valid
+    assert any("outside bounds" in issue for issue in report.issues)
+
+
+def test_node_non_finite_position_flagged() -> None:
+    """A NaN node position is reported, not silently passed through the
+    bounds check (which would otherwise raise or give a wrong answer)."""
+    nodes = {
+        0: RoadNode(
+            node_id=0, position=np.array([np.nan, 0.0]), node_type=IntersectionType.ISOLATED
+        )
+    }
+    report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), nodes, {}, {}, [], [])
+
+    assert not report.is_valid
+    assert any("non-finite" in issue for issue in report.issues)
+
+
+def test_edge_zero_length_flagged() -> None:
+    """An edge with zero (or negative) length is reported."""
+    edge = RoadEdge(
+        edge_id=0,
+        start_node_id=0,
+        end_node_id=1,
+        road_type=RoadType.MAJOR,
+        centerline=np.array([[0.0, 0.0], [0.0, 0.0]]),
+        length=0.0,
+        num_lanes=2,
+        speed_limit_kmh=50,
+        width_meters=10.0,
+    )
+    report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), {}, {0: edge}, {}, [], [])
+
+    assert not report.is_valid
+    assert any("invalid length" in issue for issue in report.issues)
+
+
+def test_edge_non_finite_centerline_flagged() -> None:
+    """An edge with an Inf centerline coordinate is reported."""
+    edge = RoadEdge(
+        edge_id=0,
+        start_node_id=0,
+        end_node_id=1,
+        road_type=RoadType.MAJOR,
+        centerline=np.array([[0.0, 0.0], [np.inf, 0.0]]),
+        length=10.0,
+        num_lanes=2,
+        speed_limit_kmh=50,
+        width_meters=10.0,
+    )
+    report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), {}, {0: edge}, {}, [], [])
+
+    assert not report.is_valid
+    assert any("non-finite centerline" in issue for issue in report.issues)
+
+
+def test_lane_non_finite_boundary_flagged() -> None:
+    """A lane with a NaN boundary point is reported."""
+    lane = Lane(
+        lane_id=0,
+        edge_id=0,
+        lane_index=0,
+        centerline=np.array([[0.0, 0.0], [10.0, 0.0]]),
+        left_boundary=np.array([[0.0, 2.0], [np.nan, 2.0]]),
+        right_boundary=np.array([[0.0, -2.0], [10.0, -2.0]]),
+        width=4.0,
+    )
+    report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), {}, {}, {0: lane}, [], [])
+
+    assert not report.is_valid
+    assert any("left_boundary" in issue for issue in report.issues)
+
+
+def test_building_outside_bounds_flagged() -> None:
+    """A building whose footprint extends outside the declared bounds is
+    reported (even if its center is inside)."""
+    building = Building(
+        building_id=0, center=np.array([95.0, 50.0]), width=20.0, depth=10.0, height=15.0
+    )
+    report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), {}, {}, {}, [building], [])
+
+    assert not report.is_valid
+    assert any("outside bounds" in issue for issue in report.issues)
+
+
+def test_building_non_finite_height_flagged() -> None:
+    """A building with a non-finite height is reported."""
+    building = Building(
+        building_id=0, center=np.array([50.0, 50.0]), width=10.0, depth=10.0, height=np.nan
+    )
+    report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), {}, {}, {}, [building], [])
+
+    assert not report.is_valid
+    assert any("non-finite" in issue for issue in report.issues)
+
+
+def test_mesh_non_finite_vertices_flagged() -> None:
+    """A mesh with a NaN vertex is reported."""
+    mesh = Mesh(
+        vertices=np.array([[0.0, 0.0, 0.0], [np.nan, 1.0, 0.0], [1.0, 0.0, 0.0]]),
+        triangles=np.array([0, 1, 2]),
+        uvs=np.zeros((3, 2)),
+        material="asphalt",
+    )
+    report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), {}, {}, {}, [], [mesh])
+
+    assert not report.is_valid
+    assert any("non-finite vertices" in issue for issue in report.issues)
+
+
+def test_mesh_triangle_index_out_of_range_flagged() -> None:
+    """A triangle index referencing a non-existent vertex is reported."""
+    mesh = Mesh(
+        vertices=np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]),
+        triangles=np.array([0, 1, 99]),
+        uvs=np.zeros((3, 2)),
+        material="asphalt",
+    )
+    report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), {}, {}, {}, [], [mesh])
+
+    assert not report.is_valid
+    assert any("index out of range" in issue for issue in report.issues)
+
+
+def test_mesh_malformed_triangle_buffer_length_flagged() -> None:
+    """A triangle index buffer whose length isn't a multiple of 3 is
+    reported."""
+    mesh = Mesh(
+        vertices=np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
+        triangles=np.array([0, 1]),
+        uvs=np.zeros((2, 2)),
+        material="asphalt",
+    )
+    report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), {}, {}, {}, [], [mesh])
+
+    assert not report.is_valid
+    assert any("multiple of 3" in issue for issue in report.issues)
+
+
+def test_empty_scenario_is_valid() -> None:
+    """A scenario with no elements at all trivially passes (nothing to
+    violate any check)."""
+    report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), {}, {}, {}, [], [])
+    assert report.is_valid
+
+
+def test_report_collects_multiple_independent_issues() -> None:
+    """Validation doesn't stop at the first failure -- multiple
+    independent violations are all reported in one pass."""
+    nodes = {
+        0: RoadNode(
+            node_id=0, position=np.array([1000.0, 0.0]), node_type=IntersectionType.ISOLATED
+        )
+    }
+    building = Building(
+        building_id=0, center=np.array([2000.0, 0.0]), width=10.0, depth=10.0, height=10.0
+    )
+    report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), nodes, {}, {}, [building], [])
+
+    assert len(report.issues) >= 2
