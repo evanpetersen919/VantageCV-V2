@@ -85,7 +85,11 @@ Layers
    involved; see :doc:`performance_tuning`).
    :mod:`src.orchestration.resume_handler` adds checkpointed, resumable
    generation: an interrupted run's completed scenarios are loaded from
-   disk rather than regenerated.
+   disk rather than regenerated. ``bin/generate_dataset.py`` is a thin
+   CLI wrapper over :func:`src.orchestration.dataset_generator.generate_dataset`,
+   using :func:`src.utils.config_loader.load_scenario_config` to build a
+   ``ScenarioTypeConfig`` from one of ``configs/scenario_templates/``'s
+   own YAML files.
 
 **UE5 integration** (``unreal_plugin/``, ``src/ue5/``, Phase 4)
    :mod:`src.ue5.backend` is a genuine, tested JSON-RPC-over-WebSocket

@@ -12,12 +12,13 @@ for real, executable usage examples.
 
 All 8 phases complete (road network → lanes → buildings → traffic → meshes →
 validation → sensors/ground truth → export → distributed/resumable generation →
-docs), plus vehicle/pedestrian placement (`src/procedural/actor_placement.py`)
-added afterward -- MASTER_PROMPT's own roadmap never specified this despite
-`ScenarioTypeConfig.vehicle_mix` and traffic spawn zones existing since Phases
-1 and 3. See [`docs/release_notes.rst`](docs/release_notes.rst) for what
-shipped in each phase and [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)
-for every deliberate scope decision and bug found along the way.
+docs), plus two additions made afterward: vehicle/pedestrian placement
+(`src/procedural/actor_placement.py`) and a real CLI + YAML config loader
+(`bin/generate_dataset.py`, `src/utils/config_loader.py`) -- neither was
+scoped precisely by MASTER_PROMPT's own roadmap. See
+[`docs/release_notes.rst`](docs/release_notes.rst) for what shipped in each
+phase and [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md) for every
+deliberate scope decision and bug found along the way.
 
 ## Requirements
 
@@ -39,6 +40,20 @@ If `poetry run pytest` doesn't pick up a module you just added, run
 `poetry install` again first -- see `KNOWN_GAPS_AND_ISSUES.md`.
 
 ## Quick start
+
+Command line, using one of the two real (`urban_dense`/`urban_sparse`)
+scenario templates under `configs/scenario_templates/`:
+
+```bash
+python bin/generate_dataset.py \
+    --config configs/scenario_templates/urban_dense.yaml \
+    --num-scenarios 10 \
+    --base-seed 0 \
+    --bounds -250 -250 250 250 \
+    --output-dir ./datasets/synthetic_v1
+```
+
+Or directly from Python:
 
 ```python
 from src.procedural.scenario import ScenarioType, ScenarioTypeConfig
@@ -87,6 +102,7 @@ poetry run sphinx-build -b html docs docs/_build/html
 - `src/orchestration/` -- end-to-end pipeline, Ray-based parallel generation, resumable/checkpointed generation
 - `src/ue5/` -- JSON-RPC/WebSocket client for UE5 (tested against a local mock server)
 - `unreal_plugin/SyntheticDataGen/` -- UE5 C++ plugin skeleton (never compiled -- see `KNOWN_GAPS_AND_ISSUES.md`)
-- `configs/` -- scenario and sensor YAML templates (reference only -- not yet loaded by any code, see `KNOWN_GAPS_AND_ISSUES.md`)
+- `configs/` -- scenario and sensor YAML templates (`urban_dense`/`urban_sparse` are real and loadable via `src/utils/config_loader.py`; the other three are reference-only, see `KNOWN_GAPS_AND_ISSUES.md`)
+- `bin/generate_dataset.py` -- CLI entry point
 - `docs/` -- Sphinx documentation source
 - `tests/` -- unit and integration test suites

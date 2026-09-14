@@ -17,5 +17,5 @@ fi
 
 $POETRY run black --check src/ tests/ bin/
 $POETRY run isort --check-only src/ tests/ bin/
-$POETRY run pylint src/ tests/
-$POETRY run mypy --strict src/
+$POETRY run pylint src/ tests/ bin/
+$POETRY run mypy --strict src/ bin/

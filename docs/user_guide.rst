@@ -168,21 +168,69 @@ scenarios already recorded as complete in a checkpoint file:
 Loading a scenario config from YAML
 ---------------------------------------
 
-The five scenario templates under ``configs/scenario_templates/`` (urban
-dense, urban sparse, highway, parking lot, roundabout) match
-:class:`src.procedural.scenario.ScenarioTypeConfig`'s fields. Load one
-with PyYAML plus a small mapping step -- there's no ``ScenarioTypeConfig
-.from_yaml`` helper yet (this codebase reads the YAML config templates as
-reference/documentation of each scenario type's intended parameters
-rather than loading them directly at runtime; see
-``KNOWN_GAPS_AND_ISSUES.md`` if you build one):
+:func:`src.utils.config_loader.load_scenario_config` loads a
+``configs/scenario_templates/``-shaped YAML file directly into a
+:class:`src.procedural.scenario.ScenarioTypeConfig`:
 
-.. code-block:: python
+.. doctest::
 
-   import yaml
+   >>> from src.utils.config_loader import load_scenario_config
+   >>> config = load_scenario_config("configs/scenario_templates/urban_dense.yaml")
+   >>> config.scenario_type
+   <ScenarioType.URBAN_DENSE: 'urban_dense'>
+   >>> config.building_density
+   0.8
 
-   with open("configs/scenario_templates/urban_dense.yaml") as f:
-       raw = yaml.safe_load(f)
-   # raw["road_network"]["avg_block_size"], raw["buildings"]["building_density"],
-   # etc. -- map these onto ScenarioTypeConfig's constructor fields yourself
-   # for now.
+Only ``urban_dense.yaml`` and ``urban_sparse.yaml`` are actually
+generatable this way: :class:`src.procedural.road_network.RoadNetworkGenerator`
+implements exactly one strategy (perturbed-grid + Delaunay triangulation),
+regardless of ``scenario_type`` -- it never branches on it. The other
+three templates (``highway.yaml``, ``parking_lot.yaml``,
+``roundabout.yaml``) describe generation strategies that were never
+implemented and don't even share ``ScenarioTypeConfig``'s field names;
+loading one raises ``NotImplementedError`` with a message explaining why,
+rather than a confusing lower-level failure:
+
+.. doctest::
+
+   >>> load_scenario_config("configs/scenario_templates/highway.yaml")
+   Traceback (most recent call last):
+       ...
+   NotImplementedError: ScenarioType.HIGHWAY has no real road-network generation strategy implemented yet (RoadNetworkGenerator only supports the perturbed-grid + Delaunay approach urban_dense/urban_sparse use) -- see KNOWN_GAPS_AND_ISSUES.md. Cannot load 'highway' as a generatable config.
+
+See ``KNOWN_GAPS_AND_ISSUES.md`` for why the other three scenario types
+have no real generator behind them yet.
+
+Command-line usage
+----------------------
+
+``bin/generate_dataset.py`` is a thin CLI wrapper around
+:func:`src.orchestration.dataset_generator.generate_dataset`, for
+generating a dataset without writing any Python:
+
+.. code-block:: bash
+
+   python bin/generate_dataset.py \
+       --config configs/scenario_templates/urban_dense.yaml \
+       --num-scenarios 10 \
+       --base-seed 0 \
+       --bounds -250 -250 250 250 \
+       --output-dir ./datasets/synthetic_v1
+
+Not a doctest (spawns a subprocess and writes real files, same reasoning
+as "Generating and exporting a small dataset" above) -- see
+``tests/integration/test_cli.py`` for the equivalent, actually-executed
+version of this exact call, including its exit code and stdout.
+
+``--config`` only accepts ``urban_dense.yaml``/``urban_sparse.yaml``-shaped
+files (see the previous section); every other flag maps directly onto
+``generate_dataset``'s own parameters. Exits 1 with a clean error message
+(not a raw traceback) for a bad ``--config`` path/shape or a scenario that
+fails ``ScenarioValidator``; exits 2 (argparse's own convention) for
+missing/malformed arguments.
+
+The other ``bin/*.py`` scripts MASTER_PROMPT_PROCEDURAL_AV_DATASET_GENERATOR.md's
+file tree lists (``validate_dataset.py``, ``profile_performance.py``,
+``visualize_scenarios.py``, ``compare_sim2real.py``) don't exist --
+see ``KNOWN_GAPS_AND_ISSUES.md``: none of them wrap an existing
+standalone capability this codebase actually has.

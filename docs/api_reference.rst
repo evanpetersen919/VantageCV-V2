@@ -90,3 +90,9 @@ Orchestration & Distributed Generation (Phases 6-7)
 
 .. automodule:: src.orchestration.resume_handler
    :members:
+
+Command-Line Interface
+--------------------------
+
+.. automodule:: src.utils.config_loader
+   :members:

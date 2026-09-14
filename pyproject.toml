@@ -61,6 +61,15 @@ strict = true
 module = "scipy.*"
 ignore_missing_imports = true
 
+# pyyaml ships no py.typed marker / stubs as of 6.0.1 either (a types-PyYAML
+# stub package exists on PyPI, but adding it as a real dependency would need
+# regenerating poetry.lock via `poetry lock`, which isn't possible in every
+# environment this project is built in -- see KNOWN_GAPS_AND_ISSUES.md's
+# "Poetry install/lint/test flow" entry).
+[[tool.mypy.overrides]]
+module = "yaml.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"
