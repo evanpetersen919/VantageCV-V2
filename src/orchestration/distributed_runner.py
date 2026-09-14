@@ -76,7 +76,18 @@ def generate_dataset_distributed(  # pylint: disable=too-many-arguments
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if not ray.is_initialized():
-        ray.init(num_cpus=num_workers, include_dashboard=False, logging_level="ERROR")
+        # object_store_memory is capped explicitly: Ray's default sizing
+        # can exceed the small /dev/shm (often 64MB) that CI containers
+        # commonly provide, which fails ray.init() outright on some
+        # runners. 200MB is comfortably under that ceiling and far more
+        # than this pipeline's small NumPy/dict payloads need. See
+        # KNOWN_GAPS_AND_ISSUES.md.
+        ray.init(
+            num_cpus=num_workers,
+            include_dashboard=False,
+            logging_level="ERROR",
+            object_store_memory=200 * 1024 * 1024,
+        )
 
     futures = [
         generate_and_render_one_scenario_remote.remote(i, base_seed, config, bounds, output_dir)

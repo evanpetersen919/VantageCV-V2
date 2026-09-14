@@ -32,6 +32,29 @@ worker counts before assuming Ray parallelism is paying off -- per-task
 overhead (each scenario currently re-imports/re-serializes its config)
 could dominate for cheap scenarios.
 
+### [RISK] CI failed on the first Phase 7 push; fix applied is a strong hypothesis, not confirmed via logs
+`main` commit `4c06f02` (Phase 7) went red on GitHub Actions' `test` job
+(the `lint` job passed) despite passing locally, including against a
+genuinely fresh clone on this machine. Could not fetch the actual failure
+log: the repo API returned `403 Must have admin rights to Repository` for
+log download (same limitation hit in Phase 1's CI-fix session), no `gh`
+auth or `GH_TOKEN` was available in this environment, and there's no
+Docker here to reproduce an Ubuntu container locally to narrow it down
+directly.
+Applied a fix based on the single most common, well-documented Ray+CI
+failure mode instead of guessing blindly: GitHub Actions' standard Ubuntu
+runners often provide a small `/dev/shm` (frequently 64MB), and Ray's
+object store can fail `ray.init()` outright when its default sizing
+exceeds that. Set `object_store_memory=200*1024*1024` (200MB, safely
+under typical CI shm limits and far more than this pipeline's small
+NumPy/dict payloads need) on every `ray.init()` call in the codebase
+(`distributed_runner.py` and the one direct call in
+`test_distributed_runner.py`).
+**This is not a confirmed root-cause fix.** If CI is still red after this
+change lands, the actual log needs to be read (via `gh auth login` in an
+interactive session, or the user pulling it from the Actions UI directly)
+rather than continuing to guess at Ray CI failure modes one at a time.
+
 ### [RISK] Ray adds meaningful test-suite startup overhead
 Adding `ray` as a dependency increased the full test suite's wall-clock
 time noticeably (roughly 50s to 80s) even though only a handful of tests

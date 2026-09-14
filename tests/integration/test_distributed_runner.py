@@ -73,7 +73,12 @@ def test_generate_dataset_distributed_reuses_existing_ray_instance(
     process), generate_dataset_distributed reuses it rather than erroring
     on a duplicate ray.init() call."""
     if not ray.is_initialized():
-        ray.init(num_cpus=2, include_dashboard=False, logging_level="ERROR")
+        ray.init(
+            num_cpus=2,
+            include_dashboard=False,
+            logging_level="ERROR",
+            object_store_memory=200 * 1024 * 1024,
+        )
 
     assert ray.is_initialized()
 
