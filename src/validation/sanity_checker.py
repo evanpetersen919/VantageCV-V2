@@ -13,7 +13,7 @@ against ``config.building_heights``, which this module does instead.
 """
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -43,10 +43,6 @@ class SanityReport:
 def check_annotation_count_consistency(frames: List[CocoFrame]) -> SanityReport:
     """Check that annotation counts don't vary wildly frame-to-frame.
 
-    A frame is flagged as an outlier if its annotation count deviates
-    from the dataset mean by more than 3 standard deviations --
-    QOL_RESEARCH_CHECKLIST.md Section H.2's own threshold.
-
     Parameters
     ----------
     frames : List[CocoFrame]
@@ -55,9 +51,29 @@ def check_annotation_count_consistency(frames: List[CocoFrame]) -> SanityReport:
     -------
     SanityReport
     """
-    counts = [len(frame.bboxes_2d) for frame in frames]
+    return check_annotation_count_consistency_from_counts(
+        [(frame.image_id, len(frame.bboxes_2d)) for frame in frames]
+    )
 
-    if not counts:
+
+def check_annotation_count_consistency_from_counts(
+    image_id_and_count: Sequence[Tuple[int, int]],
+) -> SanityReport:
+    """Lower-level counterpart to ``check_annotation_count_consistency``
+    that works from plain ``(image_id, annotation_count)`` pairs instead
+    of full ``CocoFrame`` objects.
+
+    Exists so callers that only have already-exported COCO data on hand
+    (e.g. ``resume_handler.py``, which reconstructs a dataset from
+    per-scenario JSON parts rather than holding live ``CocoFrame``
+    objects) can run this check without fabricating fake frame objects
+    just to satisfy the frame-based signature.
+
+    A frame is flagged as an outlier if its annotation count deviates
+    from the dataset mean by more than 3 standard deviations --
+    QOL_RESEARCH_CHECKLIST.md Section H.2's own threshold.
+    """
+    if not image_id_and_count:
         return SanityReport(
             num_frames=0,
             num_annotations=0,
@@ -67,18 +83,21 @@ def check_annotation_count_consistency(frames: List[CocoFrame]) -> SanityReport:
             outlier_frame_ids=[],
         )
 
+    image_ids = [image_id for image_id, _ in image_id_and_count]
+    counts = [count for _, count in image_id_and_count]
+
     series = pd.Series(counts)
     mean = float(series.mean())
     std = float(series.std(ddof=0))
 
     outlier_frame_ids = [
-        frame.image_id
-        for frame, count in zip(frames, counts)
+        image_id
+        for image_id, count in zip(image_ids, counts)
         if std > 0 and abs(count - mean) > 3 * std
     ]
 
     return SanityReport(
-        num_frames=len(frames),
+        num_frames=len(image_id_and_count),
         num_annotations=int(series.sum()),
         annotation_counts_per_frame=counts,
         mean_annotations_per_frame=mean,
