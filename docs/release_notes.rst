@@ -1,6 +1,25 @@
 Release Notes
 ==============
 
+Unreleased -- Per-lane turn connectivity across intersections
+--------------------------------------------------------------
+
+Added :mod:`src.procedural.lane_connectivity` (``LaneConnectivityGenerator``):
+computes which lane legally feeds which other lane at every intersection,
+closing a gap deferred twice (Phase 2's ``lane_topology.py`` deferred it to
+Phase 3's traffic rules; Phase 3's ``traffic_network.py`` deferred it
+again). Classifies each (incoming edge, outgoing edge) movement
+straight/left/right from the signed angle between their headings,
+excludes U-turns (the incoming edge's own reverse), and respects
+``RoadEdge.allows_turning_left``/``allows_turning_right`` -- both fields
+existed unused since Phase 1. Lane-level mapping follows
+``lane_topology.py``'s own right-hand-traffic convention: straight
+connects lanes index-for-index, left only connects the median (lane 0)
+lane, right only connects the curb (highest-index) lane. Wired into
+``ScenarioResult``/``ScenarioValidator`` alongside every other generator's
+output; produces a connectivity *graph* only, not vehicle routing
+behavior -- ``ActorPlacementGenerator`` still places vehicles statically.
+
 Unreleased -- CLI + scenario config YAML loading
 ----------------------------------------------------
 

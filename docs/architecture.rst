@@ -21,6 +21,7 @@ Pipeline overview
        B --> D[BuildingPlacementGenerator]
        C --> E[TrafficNetworkGenerator]
        D --> E
+       C --> EB[LaneConnectivityGenerator]
        E --> EA[ActorPlacementGenerator]
        C --> F[MeshFactory]
        D --> F
@@ -30,6 +31,7 @@ Pipeline overview
        D --> G
        F --> G
        EA --> G
+       EB --> G
        F --> H[Camera projection]
        D --> H
        EA --> H
@@ -49,11 +51,14 @@ Layers
    networks (planar straight-line graph via perturbed-grid + Delaunay
    triangulation), per-lane boundary geometry, building placement
    (Delaunay triangles as an approximate city-block partition), traffic
-   control assignment, vehicle/pedestrian placement at
-   :mod:`src.procedural.traffic_network`'s own spawn zones
-   (:mod:`src.procedural.actor_placement` -- oriented, heading-aware
-   boxes sampled from ``config.vehicle_mix``), and mesh generation (road
-   surface strips, building/vehicle/pedestrian boxes).
+   control assignment, per-lane turn connectivity across intersections
+   (:mod:`src.procedural.lane_connectivity` -- which lane legally feeds
+   which other lane, classified straight/left/right from edge geometry
+   and ``RoadEdge.allows_turning_left``/``allows_turning_right``),
+   vehicle/pedestrian placement at :mod:`src.procedural.traffic_network`'s
+   own spawn zones (:mod:`src.procedural.actor_placement` -- oriented,
+   heading-aware boxes sampled from ``config.vehicle_mix``), and mesh
+   generation (road surface strips, building/vehicle/pedestrian boxes).
 
    Determinism: every generator owns an isolated
    ``numpy.random.Generator(numpy.random.PCG64(seed))`` -- not the legacy

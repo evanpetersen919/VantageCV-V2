@@ -26,6 +26,7 @@ from src.ground_truth.bbox_3d import (
 )
 from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
+from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadNode
@@ -54,6 +55,7 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     lanes: Dict[int, Lane]
     buildings: List[Building]
     traffic: TrafficNetwork
+    lane_connectivity: LaneConnectivityGraph
     vehicles: List[Vehicle]
     pedestrians: List[Pedestrian]
     meshes: List[Mesh]
@@ -91,6 +93,7 @@ def generate_scenario(
     lanes = LaneTopologyGenerator().generate(nodes, edges)
     buildings = BuildingPlacementGenerator(seed, config).generate(nodes, edges)
     traffic = TrafficNetworkGenerator().generate(nodes, edges, lanes)
+    lane_connectivity = LaneConnectivityGenerator().generate(nodes, edges, lanes)
     vehicles, pedestrians = ActorPlacementGenerator(seed, config).generate(edges, traffic)
 
     meshes: List[Mesh] = [MeshFactory.build_road_mesh(lane) for lane in lanes.values()]
@@ -99,7 +102,7 @@ def generate_scenario(
     meshes += [MeshFactory.build_pedestrian_mesh(pedestrian) for pedestrian in pedestrians]
 
     validation_report = ScenarioValidator().validate(
-        bounds, nodes, edges, lanes, buildings, meshes, vehicles, pedestrians
+        bounds, nodes, edges, lanes, buildings, meshes, vehicles, pedestrians, lane_connectivity
     )
     if not validation_report.is_valid:
         raise ValueError(
@@ -113,6 +116,7 @@ def generate_scenario(
         lanes=lanes,
         buildings=buildings,
         traffic=traffic,
+        lane_connectivity=lane_connectivity,
         vehicles=vehicles,
         pedestrians=pedestrians,
         meshes=meshes,

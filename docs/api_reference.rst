@@ -28,6 +28,9 @@ Procedural Generation (Phases 1-3)
 .. automodule:: src.procedural.traffic_network
    :members:
 
+.. automodule:: src.procedural.lane_connectivity
+   :members:
+
 .. automodule:: src.procedural.actor_placement
    :members:
 
