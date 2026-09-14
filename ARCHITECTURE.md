@@ -7,10 +7,10 @@ duplicating it here would just drift out of sync again, the way this file's own
 previous version did (it claimed every generator used `numpy.random.RandomState`,
 which stopped being true in Phase 1).
 
-For the original specification this system was built against, see
-[`MASTER_PROMPT_PROCEDURAL_AV_DATASET_GENERATOR.md`](MASTER_PROMPT_PROCEDURAL_AV_DATASET_GENERATOR.md)
-Section 1. Where the two disagree, `docs/architecture.rst` and the code win --
-the master prompt is the original ask, not always an accurate description of
+This system was built against a local `MASTER_PROMPT_PROCEDURAL_AV_DATASET_GENERATOR.md`
+specification (kept on disk, not published in this repo -- see `.gitignore`).
+Where the code and that original spec disagree, `docs/architecture.rst` and the
+code win -- the spec is the original ask, not always an accurate description of
 what exists today. See [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)
 for every place the two diverge and why.
 

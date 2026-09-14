@@ -45,3 +45,14 @@ datasets/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local-only planning/spec docs (kept on disk, not published to the
+# public repo -- extensively cross-referenced by section name throughout
+# KNOWN_GAPS_AND_ISSUES.md, docstrings, and test comments, so those
+# references will point to files a repo visitor can't see; that's a
+# known, accepted tradeoff, not an oversight -- see the commit that
+# added this.
+MASTER_PROMPT_PROCEDURAL_AV_DATASET_GENERATOR.md
+HOW_TO_USE_MASTER_PROMPT.md
+CLAUDE_SKILLS_AND_PROMPTS.md
+QOL_RESEARCH_CHECKLIST.md
