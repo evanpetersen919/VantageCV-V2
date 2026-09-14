@@ -7,6 +7,7 @@ degenerate triangles, correct (CCW) winding order, sensible bounds.
 import numpy as np
 import pytest
 
+from src.procedural.actor_placement import Pedestrian, Vehicle
 from src.procedural.building_placement import Building
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import MIN_TRIANGLE_AREA_SQ_METERS, MeshFactory, _quad_indices_ccw
@@ -164,6 +165,108 @@ def test_building_mesh_material() -> None:
     )
     mesh = MeshFactory.build_building_mesh(building)
     assert mesh.material == "concrete"
+
+
+def _sample_vehicle(heading_rad: float = 0.0) -> Vehicle:
+    return Vehicle(
+        vehicle_id=0,
+        vehicle_type="sedan",
+        center=np.array([10.0, -5.0]),
+        heading_rad=heading_rad,
+        length=4.6,
+        width=1.8,
+        height=1.5,
+    )
+
+
+def test_vehicle_mesh_vertex_and_triangle_count() -> None:
+    """A vehicle box has 8 vertices and 12 triangles, same topology as a
+    building."""
+    mesh = MeshFactory.build_vehicle_mesh(_sample_vehicle())
+    assert len(mesh.vertices) == 8
+    assert len(mesh.triangles) == 12 * 3
+
+
+def test_vehicle_mesh_vertices_finite() -> None:
+    """No NaN or Inf in a vehicle mesh's vertices."""
+    mesh = MeshFactory.build_vehicle_mesh(_sample_vehicle(heading_rad=1.2))
+    assert np.isfinite(mesh.vertices).all()
+
+
+def test_vehicle_mesh_material() -> None:
+    """Vehicle meshes use the vehicle_paint material."""
+    mesh = MeshFactory.build_vehicle_mesh(_sample_vehicle())
+    assert mesh.material == "vehicle_paint"
+
+
+def test_vehicle_mesh_height_matches_vehicle() -> None:
+    """Top vertices sit at z=height, base vertices at z=0."""
+    vehicle = _sample_vehicle()
+    mesh = MeshFactory.build_vehicle_mesh(vehicle)
+    assert np.allclose(mesh.vertices[4:, 2], vehicle.height)
+    assert np.allclose(mesh.vertices[:4, 2], 0.0)
+
+
+def test_vehicle_mesh_heading_zero_matches_axis_aligned_footprint() -> None:
+    """heading=0's footprint extent matches length/width directly."""
+    vehicle = _sample_vehicle(heading_rad=0.0)
+    mesh = MeshFactory.build_vehicle_mesh(vehicle)
+    base_xy = mesh.vertices[:4, :2]
+    assert np.isclose(base_xy[:, 0].max() - base_xy[:, 0].min(), vehicle.length)
+    assert np.isclose(base_xy[:, 1].max() - base_xy[:, 1].min(), vehicle.width)
+
+
+def test_vehicle_mesh_heading_quarter_turn_swaps_footprint_extents() -> None:
+    """heading=pi/2 rotates the footprint 90 degrees, swapping its
+    world-space x/y extents relative to heading=0."""
+    vehicle = _sample_vehicle(heading_rad=np.pi / 2)
+    mesh = MeshFactory.build_vehicle_mesh(vehicle)
+    base_xy = mesh.vertices[:4, :2]
+    assert np.isclose(base_xy[:, 0].max() - base_xy[:, 0].min(), vehicle.width)
+    assert np.isclose(base_xy[:, 1].max() - base_xy[:, 1].min(), vehicle.length)
+
+
+def test_vehicle_mesh_no_degenerate_triangles() -> None:
+    """Every one of a vehicle's 12 triangles has non-zero 3D area."""
+    mesh = MeshFactory.build_vehicle_mesh(_sample_vehicle(heading_rad=0.7))
+    for i in range(0, len(mesh.triangles), 3):
+        v0 = mesh.vertices[mesh.triangles[i]]
+        v1 = mesh.vertices[mesh.triangles[i + 1]]
+        v2 = mesh.vertices[mesh.triangles[i + 2]]
+        area = 0.5 * float(np.linalg.norm(np.cross(v1 - v0, v2 - v0)))
+        assert area > MIN_TRIANGLE_AREA_SQ_METERS, f"Degenerate triangle: area={area}"
+
+
+def _sample_pedestrian(heading_rad: float = 0.0) -> Pedestrian:
+    return Pedestrian(pedestrian_id=0, center=np.array([1.0, 2.0]), heading_rad=heading_rad)
+
+
+def test_pedestrian_mesh_vertex_and_triangle_count() -> None:
+    """A pedestrian box has 8 vertices and 12 triangles, same topology as
+    a building."""
+    mesh = MeshFactory.build_pedestrian_mesh(_sample_pedestrian())
+    assert len(mesh.vertices) == 8
+    assert len(mesh.triangles) == 12 * 3
+
+
+def test_pedestrian_mesh_vertices_finite() -> None:
+    """No NaN or Inf in a pedestrian mesh's vertices."""
+    mesh = MeshFactory.build_pedestrian_mesh(_sample_pedestrian(heading_rad=2.1))
+    assert np.isfinite(mesh.vertices).all()
+
+
+def test_pedestrian_mesh_material() -> None:
+    """Pedestrian meshes use the pedestrian material."""
+    mesh = MeshFactory.build_pedestrian_mesh(_sample_pedestrian())
+    assert mesh.material == "pedestrian"
+
+
+def test_pedestrian_mesh_height_matches_pedestrian() -> None:
+    """Top vertices sit at z=height, base vertices at z=0."""
+    pedestrian = _sample_pedestrian()
+    mesh = MeshFactory.build_pedestrian_mesh(pedestrian)
+    assert np.allclose(mesh.vertices[4:, 2], pedestrian.height)
+    assert np.allclose(mesh.vertices[:4, 2], 0.0)
 
 
 @pytest.mark.parametrize(

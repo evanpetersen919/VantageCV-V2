@@ -95,16 +95,15 @@ bullet. Not implemented. NuScenes' schema (scene, sample, sample_data,
 ego_pose, calibrated_sensor, category, instance, sample_annotation
 tables, cross-referenced by token) is fundamentally built around
 *temporal sequences of ego vehicle poses observing dynamic objects*
-(vehicles, pedestrians, cyclists) -- this codebase generates neither
-multi-frame temporal sequences nor any dynamic/movable object (see the
-Phase 5 entry above: only buildings exist as annotatable objects). A
-NuScenes export of static buildings from single independent frames would
-be schema-conformant in the narrowest sense but wouldn't represent what
-the format is actually for, and building one now would mean inventing
-placeholder ego-motion/dynamic-object semantics with nothing real to back
-them. Revisit once vehicle/pedestrian placement and multi-frame temporal
-scenario generation both exist -- neither is in MASTER_PROMPT's roadmap
-as it stands.
+(vehicles, pedestrians, cyclists) -- this codebase generates dynamic
+objects now (`actor_placement.py`, below) but still no multi-frame
+temporal sequences (every scenario is a single independent frame). A
+NuScenes export of one frame's static+dynamic objects would be
+schema-conformant in the narrowest sense but wouldn't represent what the
+format is actually for, and building one now would mean inventing
+placeholder ego-motion semantics with nothing real to back them. Revisit
+once multi-frame temporal scenario generation exists -- not in
+MASTER_PROMPT's roadmap as it stands.
 
 ### [DEFERRED] Sim2real distribution analysis not implemented
 MASTER_PROMPT Section 3.7 lists "Sim2real distribution analysis" as a
@@ -121,11 +120,16 @@ output against the *configured* distribution (not a real-world one),
 which is a real, useful check but not sim2real analysis in the sense the
 spec means.
 
-### [DEFERRED] COCO export only carries building/"structure" annotations, matching Phase 5's ground-truth scope gap
-Same root cause as the Phase 5 entry above (no vehicle/pedestrian
-placement anywhere in the pipeline): `coco_exporter.py` declares exactly
-one category ("building"). A real AV-perception COCO dataset would need
-vehicle/pedestrian/cyclist categories with actual annotated instances.
+### [RESOLVED] COCO export only carried building/"structure" annotations
+Was: `coco_exporter.py` declared exactly one category ("building"), since
+no vehicle/pedestrian placement existed anywhere in the pipeline.
+Resolved by `actor_placement.py` (see the ground-truth entry below):
+`coco_exporter.py` now declares every category in
+`src.ground_truth.categories` (building, sedan, suv, truck, bus,
+pedestrian) and reads each annotation's real `category_id` from its
+source `BoundingBox3D` rather than hard-coding `BUILDING_CATEGORY_ID`.
+Cyclists are still not a category -- `ScenarioTypeConfig.vehicle_mix` has
+no cyclist entry, and nothing in MASTER_PROMPT's roadmap asks for one.
 
 ### [DEFERRED] LiDAR ray-casting and depth-map rendering have no spatial acceleration structure
 `lidar_model.py`'s `LidarSensor.scan` and `depth_map.py`'s
@@ -151,19 +155,56 @@ with many buildings at HD resolution would be considerably slower than a
 proper GPU/renderer-based approach. Same "revisit at real dataset scale"
 note as the ray-casting entry above.
 
-### [DEFERRED] Ground truth extraction only covers buildings, not roads/lanes/vehicles
-`bbox_3d.py`, `bbox_2d.py`, and `segmentation.py` all operate on
-`Building` objects (the only "object" type this codebase generates so
-far -- there is no vehicle/pedestrian placement anywhere in the pipeline
-yet, and MASTER_PROMPT never specifies one for this phase either). Road
-and lane geometry get real meshes (`mesh_factory.py`) and could in
-principle get bounding boxes/segmentation too, but nothing in the spec's
-own Phase 5 bullets asks for road/lane ground truth -- only "objects,"
-which in a real AV dataset means vehicles/pedestrians/cyclists, none of
-which this codebase generates. This is a genuine scope gap relative to
-what a real AV perception dataset needs, inherited from the master
-prompt never specifying vehicle/pedestrian placement anywhere in its
-8-phase roadmap.
+### [RESOLVED] Ground truth extraction only covered buildings, not vehicles/pedestrians
+Was: `bbox_3d.py`, `bbox_2d.py`, and `segmentation.py` all operated on
+`Building` objects only -- no vehicle/pedestrian placement existed
+anywhere in the pipeline, and MASTER_PROMPT never specifies one for any
+phase (`ScenarioTypeConfig.vehicle_mix` since Phase 1 and
+`TrafficNetworkGenerator`'s driving/pedestrian `SpawnZone`s since Phase 3
+both sat unused for their obvious purpose until now).
+
+Resolved by adding `src/procedural/actor_placement.py`
+(`ActorPlacementGenerator`): places vehicles/pedestrians at
+`TrafficNetworkGenerator`'s own spawn zones (one occupancy roll per zone,
+sampled from `config.traffic_density`; vehicle type sampled from
+`config.vehicle_mix`; heading derived from the spawn zone's own road
+edge direction), with AABB-overlap rejection between vehicles.
+`BoundingBox3D` gained `heading_rad` (a real rotation applied in
+`corners()`, not just axis-aligned) and `category_id`
+(`src.ground_truth.categories`, shared with `coco_exporter.py` so the two
+can't drift). `MeshFactory` gained `build_vehicle_mesh`/
+`build_pedestrian_mesh` (oriented boxes, same topology as
+`build_building_mesh`). `dataset_generator.render_frame` combines all
+three object kinds' `BoundingBox3D`s with an id-offset scheme (each
+kind's own 0-based counter offset by the preceding kinds' counts) so
+`object_id` stays globally unique per frame.
+
+Three deliberate scope decisions made along the way, not covered by any
+spec (MASTER_PROMPT never specifies vehicle/pedestrian placement at all):
+- **Pedestrian occupancy** is `traffic_density`'s own sampled fraction
+  times a fixed `PEDESTRIAN_DENSITY_FRACTION_OF_TRAFFIC = 0.3` constant,
+  since `ScenarioTypeConfig` has no dedicated pedestrian-density field
+  and adding one for a single module felt like the wrong place to extend
+  the schema.
+- **No bounds-containment check** for vehicles/pedestrians in
+  `ScenarioValidator` (only finiteness) -- unlike buildings, which get an
+  explicit `ROAD_SETBACK_METERS` margin *guaranteeing* their footprint
+  stays inside `bounds`, vehicles/pedestrians are anchored directly at
+  spawn zone positions, which are themselves never bounds-checked (see
+  `test_traffic_network.py`) and can legitimately sit at/past the road
+  network's edge. Adding a strict check here surfaced this immediately
+  as real end-to-end generation failures, not a false positive to
+  special-case around.
+- **Vehicles/pedestrians are represented as boxes still** for meshes (no
+  wheels/limbs/detail) and are static (no motion, no lane-following
+  behavior) -- placement only, matching this phase's actual scope.
+  Per-lane turn connectivity (needed for real vehicle *navigation*, as
+  opposed to placement) remains deferred -- see that entry below.
+
+Road/lane ground truth (as opposed to vehicles/pedestrians) is still not
+extracted -- nothing in MASTER_PROMPT's Phase 5 bullets asks for it, and
+roads/lanes aren't "objects" in the AV-perception sense a COCO category
+would represent.
 
 ### [DEFERRED] No sensor noise model
 Camera projection, LiDAR ray-casting, and depth rendering are all

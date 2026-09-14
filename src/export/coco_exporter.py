@@ -5,10 +5,12 @@ informed directly by QOL_RESEARCH_CHECKLIST.md Section H.1's own test
 signatures (required fields, no ID collisions, valid cross-references,
 JSON-serializability).
 
-Only one category exists in the exported dataset: "building" -- the only
-object type this codebase's procedural generation produces annotations
-for (see KNOWN_GAPS_AND_ISSUES.md: no vehicle/pedestrian placement exists
-anywhere in the pipeline, which a real AV COCO-format dataset would need).
+Every category in ``src.ground_truth.categories`` is exported (building,
+sedan, suv, truck, bus, pedestrian) -- one annotation's ``category_id``
+comes directly from its source ``BoundingBox3D.category_id``, so
+buildings/vehicles/pedestrians all export correctly as long as
+``CocoFrame.bboxes_3d_by_id`` covers every annotated object (see
+``dataset_generator.render_frame``, the only real caller).
 """
 
 from dataclasses import dataclass, field
@@ -16,10 +18,14 @@ from typing import Any, Dict, List
 
 from src.ground_truth.bbox_2d import BoundingBox2D
 from src.ground_truth.bbox_3d import BoundingBox3D
+from src.ground_truth.categories import BUILDING, CATEGORY_NAMES
 from src.ground_truth.segmentation import compute_silhouette
 from src.sensors.camera_model import Camera
 
-BUILDING_CATEGORY_ID = 1
+# Fallback only: a bbox_2d with no matching bboxes_3d_by_id entry (should
+# not happen for any real caller, since every BoundingBox2D is derived
+# from a BoundingBox3D -- see project_bboxes_3d_to_2d).
+BUILDING_CATEGORY_ID = BUILDING
 
 
 @dataclass
@@ -34,7 +40,11 @@ class CocoFrame:
 
 
 def _bbox_2d_to_coco_annotation(
-    annotation_id: int, image_id: int, bbox_2d: BoundingBox2D, silhouette: Any
+    annotation_id: int,
+    image_id: int,
+    bbox_2d: BoundingBox2D,
+    category_id: int,
+    silhouette: Any,
 ) -> Dict[str, Any]:
     """Build one COCO annotation dict from a projected 2D box and
     (optionally) its polygon silhouette."""
@@ -48,7 +58,7 @@ def _bbox_2d_to_coco_annotation(
     return {
         "id": annotation_id,
         "image_id": image_id,
-        "category_id": BUILDING_CATEGORY_ID,
+        "category_id": category_id,
         "bbox": [bbox_2d.x_min, bbox_2d.y_min, width, height],
         "area": bbox_2d.area,
         "iscrowd": 0,
@@ -89,17 +99,32 @@ def export_coco(frames: List[CocoFrame]) -> Dict[str, Any]:
 
         for bbox_2d in frame.bboxes_2d:
             silhouette = None
+            category_id = BUILDING_CATEGORY_ID
             bbox_3d = frame.bboxes_3d_by_id.get(bbox_2d.object_id)
             if bbox_3d is not None:
                 silhouette = compute_silhouette(frame.camera, bbox_3d)
+                category_id = bbox_3d.category_id
 
             annotations.append(
                 _bbox_2d_to_coco_annotation(
-                    annotation_id_counter, frame.image_id, bbox_2d, silhouette
+                    annotation_id_counter, frame.image_id, bbox_2d, category_id, silhouette
                 )
             )
             annotation_id_counter += 1
 
-    categories = [{"id": BUILDING_CATEGORY_ID, "name": "building", "supercategory": "structure"}]
+    categories = [
+        {"id": category_id, "name": name, "supercategory": _supercategory(name)}
+        for category_id, name in sorted(CATEGORY_NAMES.items())
+    ]
 
     return {"images": images, "annotations": annotations, "categories": categories}
+
+
+def _supercategory(category_name: str) -> str:
+    """COCO's conventional broad grouping for one of this dataset's own
+    category names."""
+    if category_name == "building":
+        return "structure"
+    if category_name == "pedestrian":
+        return "person"
+    return "vehicle"

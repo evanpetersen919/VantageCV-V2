@@ -21,14 +21,18 @@ Pipeline overview
        B --> D[BuildingPlacementGenerator]
        C --> E[TrafficNetworkGenerator]
        D --> E
+       E --> EA[ActorPlacementGenerator]
        C --> F[MeshFactory]
        D --> F
+       EA --> F
        B --> G[ScenarioValidator]
        C --> G
        D --> G
        F --> G
+       EA --> G
        F --> H[Camera projection]
        D --> H
+       EA --> H
        H --> I[bbox_3d / bbox_2d / segmentation / depth_map]
        I --> J[coco_exporter]
        J --> K[annotations.json]
@@ -41,12 +45,15 @@ Layers
 ------
 
 **Procedural generation** (``src/procedural/``, Phases 1-3)
-   Deterministic, seed-driven generation of the scenario's static
-   geometry: road networks (planar straight-line graph via perturbed-grid
-   + Delaunay triangulation), per-lane boundary geometry, building
-   placement (Delaunay triangles as an approximate city-block
-   partition), traffic control assignment, and mesh generation (road
-   surface strips, building boxes).
+   Deterministic, seed-driven generation of the scenario's geometry: road
+   networks (planar straight-line graph via perturbed-grid + Delaunay
+   triangulation), per-lane boundary geometry, building placement
+   (Delaunay triangles as an approximate city-block partition), traffic
+   control assignment, vehicle/pedestrian placement at
+   :mod:`src.procedural.traffic_network`'s own spawn zones
+   (:mod:`src.procedural.actor_placement` -- oriented, heading-aware
+   boxes sampled from ``config.vehicle_mix``), and mesh generation (road
+   surface strips, building/vehicle/pedestrian boxes).
 
    Determinism: every generator owns an isolated
    ``numpy.random.Generator(numpy.random.PCG64(seed))`` -- not the legacy
@@ -92,11 +99,6 @@ Layers
 What is deliberately not implemented
 --------------------------------------
 
-- **Vehicles and pedestrians.** Nothing in this pipeline places dynamic
-  objects -- only static buildings exist as annotatable objects. This is
-  a real gap relative to what an AV perception dataset needs, inherited
-  from the master prompt never specifying vehicle/pedestrian placement
-  anywhere in its own 8-phase roadmap.
 - **NuScenes export and sim2real distribution analysis** (Phase 6):
   NuScenes' schema is built around temporal sequences of dynamic
   objects, which this pipeline doesn't generate; sim2real analysis needs

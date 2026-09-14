@@ -1,6 +1,23 @@
 Release Notes
 ==============
 
+Unreleased -- Vehicle & pedestrian placement
+-----------------------------------------------
+
+Added :mod:`src.procedural.actor_placement` (``ActorPlacementGenerator``):
+places vehicles and pedestrians at :mod:`src.procedural.traffic_network`'s
+own spawn zones, sampling vehicle type from ``config.vehicle_mix`` and
+deriving each actor's heading from its spawn edge's direction of travel.
+``BoundingBox3D`` gained ``heading_rad`` (oriented boxes, not just
+axis-aligned) and ``category_id`` (:mod:`src.ground_truth.categories`);
+``MeshFactory`` gained ``build_vehicle_mesh``/``build_pedestrian_mesh``;
+``coco_exporter`` now exports every category (building, sedan, suv,
+truck, bus, pedestrian), not just "building"; ``sanity_checker`` gained
+``check_vehicle_class_distribution`` (QOL_RESEARCH_CHECKLIST.md Section
+H.2's own example check, now directly implemented rather than substituted
+with a building-height analogue). This closes the "no vehicle/pedestrian
+placement" gap called out below and in ``KNOWN_GAPS_AND_ISSUES.md``.
+
 v0.1.0 -- Phases 0-7 complete
 --------------------------------
 
@@ -70,8 +87,7 @@ Known limitations
 ^^^^^^^^^^^^^^^^^^
 
 See :doc:`architecture`'s "deliberately not implemented" section and
-``KNOWN_GAPS_AND_ISSUES.md`` for the complete list. Highlights: no
-vehicle/pedestrian placement anywhere in the pipeline; the
+``KNOWN_GAPS_AND_ISSUES.md`` for the complete list. Highlights: the
 ``unreal_plugin/`` C++ has never been compiled (no UE5.4 install in any
 environment this was built in); ray-casting/rasterization have no
 spatial acceleration structure.

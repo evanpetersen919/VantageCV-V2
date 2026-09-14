@@ -12,9 +12,12 @@ for real, executable usage examples.
 
 All 8 phases complete (road network → lanes → buildings → traffic → meshes →
 validation → sensors/ground truth → export → distributed/resumable generation →
-docs). See [`docs/release_notes.rst`](docs/release_notes.rst) for what shipped in
-each phase and [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md) for every
-deliberate scope decision and bug found along the way.
+docs), plus vehicle/pedestrian placement (`src/procedural/actor_placement.py`)
+added afterward -- MASTER_PROMPT's own roadmap never specified this despite
+`ScenarioTypeConfig.vehicle_mix` and traffic spawn zones existing since Phases
+1 and 3. See [`docs/release_notes.rst`](docs/release_notes.rst) for what
+shipped in each phase and [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)
+for every deliberate scope decision and bug found along the way.
 
 ## Requirements
 

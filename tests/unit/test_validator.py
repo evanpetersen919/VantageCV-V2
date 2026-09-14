@@ -8,6 +8,7 @@
 
 import numpy as np
 
+from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
@@ -18,6 +19,7 @@ from src.procedural.road_network import (
     RoadNode,
     RoadType,
 )
+from src.procedural.traffic_network import TrafficNetworkGenerator
 from src.procedural.validator import ScenarioValidator
 
 # urban_config, bounds fixtures: see tests/conftest.py
@@ -31,6 +33,15 @@ def _generate_everything(seed: int, config, bounds):
     meshes = [MeshFactory.build_road_mesh(lane) for lane in lanes.values()]
     meshes += [MeshFactory.build_building_mesh(b) for b in buildings]
     return nodes, edges, lanes, buildings, meshes
+
+
+def _generate_everything_with_actors(seed: int, config, bounds):
+    nodes, edges, lanes, buildings, meshes = _generate_everything(seed, config, bounds)
+    traffic = TrafficNetworkGenerator().generate(nodes, edges, lanes)
+    vehicles, pedestrians = ActorPlacementGenerator(seed, config).generate(edges, traffic)
+    meshes += [MeshFactory.build_vehicle_mesh(v) for v in vehicles]
+    meshes += [MeshFactory.build_pedestrian_mesh(p) for p in pedestrians]
+    return nodes, edges, lanes, buildings, meshes, vehicles, pedestrians
 
 
 def test_full_generated_scenario_is_valid(urban_config, bounds) -> None:
@@ -142,6 +153,95 @@ def test_building_non_finite_height_flagged() -> None:
         building_id=0, center=np.array([50.0, 50.0]), width=10.0, depth=10.0, height=np.nan
     )
     report = ScenarioValidator().validate((0.0, 0.0, 100.0, 100.0), {}, {}, {}, [building], [])
+
+    assert not report.is_valid
+    assert any("non-finite" in issue for issue in report.issues)
+
+
+def test_full_generated_scenario_with_actors_is_valid(urban_config, bounds) -> None:
+    """A genuine end-to-end scenario including vehicles/pedestrians
+    passes validation cleanly."""
+    (
+        nodes,
+        edges,
+        lanes,
+        buildings,
+        meshes,
+        vehicles,
+        pedestrians,
+    ) = _generate_everything_with_actors(42, urban_config, bounds)
+    assert vehicles  # sanity: this seed/config actually places some
+
+    report = ScenarioValidator().validate(
+        bounds, nodes, edges, lanes, buildings, meshes, vehicles, pedestrians
+    )
+    assert report.is_valid, report.issues
+
+
+def test_vehicle_non_finite_center_flagged() -> None:
+    """A vehicle with a NaN center is reported."""
+    vehicle = Vehicle(
+        vehicle_id=0,
+        vehicle_type="sedan",
+        center=np.array([np.nan, 0.0]),
+        heading_rad=0.0,
+        length=4.6,
+        width=1.8,
+        height=1.5,
+    )
+    report = ScenarioValidator().validate(
+        (0.0, 0.0, 100.0, 100.0), {}, {}, {}, [], [], [vehicle], []
+    )
+
+    assert not report.is_valid
+    assert any("non-finite" in issue for issue in report.issues)
+
+
+def test_vehicle_non_finite_heading_flagged() -> None:
+    """A vehicle with a non-finite heading is reported."""
+    vehicle = Vehicle(
+        vehicle_id=0,
+        vehicle_type="sedan",
+        center=np.array([50.0, 50.0]),
+        heading_rad=np.nan,
+        length=4.6,
+        width=1.8,
+        height=1.5,
+    )
+    report = ScenarioValidator().validate(
+        (0.0, 0.0, 100.0, 100.0), {}, {}, {}, [], [], [vehicle], []
+    )
+
+    assert not report.is_valid
+    assert any("non-finite" in issue for issue in report.issues)
+
+
+def test_vehicle_outside_bounds_not_flagged() -> None:
+    """A vehicle positioned outside `bounds` is deliberately NOT
+    flagged -- see ScenarioValidator._validate_vehicles's own docstring
+    comment: spawn zone positions (which anchor every vehicle) are never
+    bounds-checked, unlike buildings."""
+    vehicle = Vehicle(
+        vehicle_id=0,
+        vehicle_type="sedan",
+        center=np.array([500.0, 500.0]),
+        heading_rad=0.0,
+        length=4.6,
+        width=1.8,
+        height=1.5,
+    )
+    report = ScenarioValidator().validate(
+        (0.0, 0.0, 100.0, 100.0), {}, {}, {}, [], [], [vehicle], []
+    )
+    assert report.is_valid
+
+
+def test_pedestrian_non_finite_center_flagged() -> None:
+    """A pedestrian with a NaN center is reported."""
+    pedestrian = Pedestrian(pedestrian_id=0, center=np.array([np.nan, 0.0]), heading_rad=0.0)
+    report = ScenarioValidator().validate(
+        (0.0, 0.0, 100.0, 100.0), {}, {}, {}, [], [], [], [pedestrian]
+    )
 
     assert not report.is_valid
     assert any("non-finite" in issue for issue in report.issues)

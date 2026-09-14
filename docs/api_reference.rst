@@ -28,6 +28,9 @@ Procedural Generation (Phases 1-3)
 .. automodule:: src.procedural.traffic_network
    :members:
 
+.. automodule:: src.procedural.actor_placement
+   :members:
+
 .. automodule:: src.procedural.mesh_factory
    :members:
 
@@ -47,6 +50,9 @@ Sensors & Ground Truth (Phase 5)
    :members:
 
 .. automodule:: src.sensors.lidar_model
+   :members:
+
+.. automodule:: src.ground_truth.categories
    :members:
 
 .. automodule:: src.ground_truth.bbox_3d
