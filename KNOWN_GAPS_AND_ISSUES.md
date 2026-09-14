@@ -13,39 +13,71 @@ later phase, tracked so it isn't forgotten).
 
 ## Open
 
-### [DEFERRED] Scenario config YAML templates are reference-only, never actually loaded
-`configs/scenario_templates/*.yaml` (created Phase 0) and MASTER_PROMPT's
-own file tree listing `src/utils/config_loader.py` imply scenario configs
-should be loadable from YAML at runtime. Confirmed directly (grepped
-`src/` for any `yaml.safe_load`/`yaml.load`/`from_yaml`): no such loader
-exists anywhere in this codebase. Every `ScenarioTypeConfig` used in
-tests, examples, and the user guide is constructed directly in Python.
-`docs/user_guide.rst`'s own "Loading a scenario config from YAML"
-section documents this gap explicitly with a manual workaround rather
-than pretending a loader exists. **Action**: if a real CLI (`bin/
-generate_dataset.py`, listed in MASTER_PROMPT's file tree but not yet
-created -- see next entry) is ever built, it will need this loader.
+### [RESOLVED] Scenario config YAML templates were reference-only, never actually loaded
+Was: no code anywhere loaded `configs/scenario_templates/*.yaml` at
+runtime; every `ScenarioTypeConfig` used in tests/examples/the user guide
+was constructed directly in Python.
 
-### [DEFERRED] No CLI entry points (`bin/generate_dataset.py` etc.) or `documentation.yml` CI workflow
-MASTER_PROMPT's Phase 0 file tree lists `bin/generate_dataset.py`,
-`bin/validate_dataset.py`, `bin/profile_performance.py`,
-`bin/visualize_scenarios.py`, `bin/compare_sim2real.py`, and a separate
-`.github/workflows/documentation.yml`. None exist -- every capability
-this pipeline has is only reachable by importing the Python API directly
-(as `docs/user_guide.rst` and every integration test do), not via a
-command-line tool. A dedicated `documentation.yml` CI workflow was also
-skipped: `tests/integration/test_docs_build.py` already runs both the
-HTML and doctest Sphinx builds as part of the existing `lint_and_test.yml`
-`test` job, so a separate workflow would just duplicate that coverage
-without adding any -- the only thing it could add (publishing built HTML
-docs as a CI artifact for browsing) wasn't asked for and would need a
-deliberate hosting decision (GitHub Pages, etc.), not just a workflow file.
-**Action**: build `bin/generate_dataset.py` as a thin CLI wrapper around
-`src.orchestration.dataset_generator.generate_dataset` (argparse over
-num_scenarios/seed/config-path/output-dir) if command-line usage is
-ever actually needed -- the underlying function is already stable and
-tested, so this would be a small, low-risk addition whenever it's
-wanted, not a blocker for anything else.
+Resolved by `src/utils/config_loader.py`'s `load_scenario_config`: maps a
+template's nested YAML (`road_network:`/`buildings:`/`traffic:` sections)
+onto `ScenarioTypeConfig`'s flat constructor fields. Only two of the five
+templates are actually loadable this way, though: `urban_dense.yaml` and
+`urban_sparse.yaml` share `ScenarioTypeConfig`'s schema because
+`RoadNetworkGenerator` implements exactly one generation strategy
+(perturbed-grid + Delaunay) regardless of `scenario_type` -- it never
+branches on it. `highway.yaml`, `parking_lot.yaml`, and `roundabout.yaml`
+describe entirely different, never-implemented generation strategies (see
+the Highway `BLOCKER-for-later` entry and the "No parking spawn zones"
+entry below) and don't even share `ScenarioTypeConfig`'s field names.
+Loading one of those three raises `NotImplementedError` with a message
+explaining why, rather than a confusing `KeyError`/`pydantic.ValidationError`
+or a silently-wrong config. This is a deliberate, honest scope boundary,
+not a partial implementation to revisit -- the fix for those three
+templates is implementing their own road-generation strategies (separate,
+larger pieces of work each), not extending this loader.
+
+### [RESOLVED] No CLI entry points (`bin/generate_dataset.py` etc.)
+Was: every capability this pipeline has was only reachable by importing
+the Python API directly, not via a command-line tool.
+
+Resolved by `bin/generate_dataset.py`: an argparse wrapper around
+`src.orchestration.dataset_generator.generate_dataset`, using the
+`config_loader.py` entry above for its `--config` flag. Handles the two
+sys.path gotchas real `bin/` scripts hit in a `src`-layout project: it
+inserts the repo root onto `sys.path` before importing `src.*` (running a
+script directly puts the script's own directory on `sys.path`, not the
+repo root or cwd), and it catches `FileNotFoundError`/`NotImplementedError`/
+`ValueError` around config loading and generation to print a clean
+one-line message on stderr and exit 1, rather than a raw traceback for
+every-day failure modes (bad config path, unsupported scenario type,
+`ScenarioValidator` failure). `scripts/run_linter.sh` and
+`lint_and_test.yml` both extended to run pylint/mypy against `bin/` too,
+not just black/isort as before -- it's real code now.
+
+The other four `bin/*.py` scripts MASTER_PROMPT's Phase 0 file tree lists
+(`validate_dataset.py`, `profile_performance.py`, `visualize_scenarios.py`,
+`compare_sim2real.py`) still don't exist -- none of them wrap an existing
+standalone capability this codebase has (there's no sim2real comparison
+logic to expose a CLI for, for instance; see the Sim2real entry above).
+Building them now would mean inventing functionality, not exposing
+something real, so they're left deferred rather than stubbed out.
+
+A dedicated `documentation.yml` CI workflow (also in MASTER_PROMPT's file
+tree) was deliberately not built: `tests/integration/test_docs_build.py`
+already runs both the HTML and doctest Sphinx builds as part of the
+existing `lint_and_test.yml` `test` job, so a separate workflow would
+duplicate that coverage without adding any -- the only thing it could add
+(publishing built HTML docs somewhere, e.g. GitHub Pages) wasn't asked
+for and needs a deliberate hosting decision, not just a workflow file.
+
+`config_loader.py`'s `import yaml` needed a `mypy --strict` override
+(`pyproject.toml`'s `[[tool.mypy.overrides]] module = "yaml.*"`, same
+pattern as the pre-existing scipy override): `pyyaml` 6.0.1 ships no
+`py.typed` marker, and a real `types-PyYAML` stub package exists but
+adding it as a dependency would need regenerating `poetry.lock` via
+`poetry lock`, which isn't possible in every environment this project is
+built in (see the "Poetry install/lint/test flow" entry below). Revisit
+if/when a real Poetry install is confirmed available.
 
 ### [DEFERRED] No real multi-node/multi-GPU scaling test
 MASTER_PROMPT Section 3.8 lists "Scaling tests (2GPU, 4GPU, 8GPU)" and

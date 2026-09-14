@@ -15,8 +15,8 @@ jobs:
           poetry install
       - run: poetry run black --check src/ tests/ bin/
       - run: poetry run isort --check-only src/ tests/ bin/
-      - run: poetry run pylint src/ tests/
-      - run: poetry run mypy --strict src/
+      - run: poetry run pylint src/ tests/ bin/
+      - run: poetry run mypy --strict src/ bin/
 
   test:
     runs-on: ubuntu-latest

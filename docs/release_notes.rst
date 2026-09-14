@@ -1,6 +1,25 @@
 Release Notes
 ==============
 
+Unreleased -- CLI + scenario config YAML loading
+----------------------------------------------------
+
+Added ``bin/generate_dataset.py``, an argparse CLI wrapping
+:func:`src.orchestration.dataset_generator.generate_dataset`, and
+:func:`src.utils.config_loader.load_scenario_config`, which loads a
+``configs/scenario_templates/``-shaped YAML file into a
+:class:`src.procedural.scenario.ScenarioTypeConfig`. Only
+``urban_dense.yaml``/``urban_sparse.yaml`` are actually generatable --
+:class:`src.procedural.road_network.RoadNetworkGenerator` implements one
+strategy (perturbed-grid + Delaunay) regardless of ``scenario_type``, so
+``highway.yaml``/``parking_lot.yaml``/``roundabout.yaml`` (different,
+never-implemented strategies) raise ``NotImplementedError`` with a clear
+message rather than a confusing lower-level failure. This closes two
+named-but-unbuilt gaps from MASTER_PROMPT's own Phase 0 file tree; see
+``KNOWN_GAPS_AND_ISSUES.md`` for the four other listed ``bin/*.py``
+scripts that remain deliberately unbuilt (none wrap an existing
+standalone capability).
+
 Unreleased -- Vehicle & pedestrian placement
 -----------------------------------------------
 
