@@ -1,22 +1,23 @@
 # Architecture
 
-See `MASTER_PROMPT_PROCEDURAL_AV_DATASET_GENERATOR.md` Section 1 for the full
-system design. Summary of layers, top to bottom:
+See [`docs/architecture.rst`](docs/architecture.rst) (or the built Sphinx docs) for
+the current, accurate architecture description, kept in sync with what's actually
+implemented (Phases 0-7 complete). This file is a short pointer, not a duplicate --
+duplicating it here would just drift out of sync again, the way this file's own
+previous version did (it claimed every generator used `numpy.random.RandomState`,
+which stopped being true in Phase 1).
 
-1. **Orchestration** (`src/orchestration/`, `bin/`) — CLI entry points, batch/distributed generation.
-2. **Procedural Generation Engine** (`src/procedural/`) — deterministic, seed-driven generation of road networks (PSLG + Delaunay), lane topology, building placement, traffic network, procedural meshes.
-3. **Simulation Backend** (`unreal_plugin/`) — UE5.4 C++ plugin that loads generated scenarios and renders them.
-4. **Sensor Layer** (`src/sensors/`) — camera/LiDAR/radar physical models.
-5. **Ground Truth Extraction** (`src/ground_truth/`) — 3D/2D bounding boxes, segmentation, occlusion.
-6. **Export** (`src/export/`) — COCO / NuScenes / custom format writers.
-7. **Validation** (`src/validation/`) — sanity checks, distribution analysis, sim2real gap analysis.
+For the original specification this system was built against, see
+[`MASTER_PROMPT_PROCEDURAL_AV_DATASET_GENERATOR.md`](MASTER_PROMPT_PROCEDURAL_AV_DATASET_GENERATOR.md)
+Section 1. Where the two disagree, `docs/architecture.rst` and the code win --
+the master prompt is the original ask, not always an accurate description of
+what exists today. See [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)
+for every place the two diverge and why.
 
-## Core principle: deterministic generation from seed
+## Building the docs
 
+```bash
+poetry run sphinx-build -b html docs docs/_build/html
 ```
-seed: int64 -> RNG state -> Road Network -> Lanes -> Buildings -> Meshes -> Scene
-```
 
-Every generator class owns an isolated `numpy.random.RandomState`, never touches
-global random state, and is covered by a determinism test
-(`same seed -> bit-identical output`). See `QOL_RESEARCH_CHECKLIST.md` Section A.2/C.1.
+Then open `docs/_build/html/index.html`.

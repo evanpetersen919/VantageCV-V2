@@ -15,6 +15,9 @@ coverage.xml
 dist/
 build/
 
+# Sphinx
+docs/_build/
+
 # Poetry
 poetry.lock.tmp
 
