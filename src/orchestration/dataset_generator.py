@@ -19,7 +19,12 @@ import numpy as np
 from src.export.coco_exporter import CocoFrame, export_coco
 from src.export.metadata_manager import ScenarioMetadata, build_scenario_metadata
 from src.ground_truth.bbox_2d import project_bboxes_3d_to_2d
-from src.ground_truth.bbox_3d import extract_bboxes_3d
+from src.ground_truth.bbox_3d import (
+    extract_bboxes_3d,
+    extract_bboxes_3d_pedestrians,
+    extract_bboxes_3d_vehicles,
+)
+from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
@@ -49,6 +54,8 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     lanes: Dict[int, Lane]
     buildings: List[Building]
     traffic: TrafficNetwork
+    vehicles: List[Vehicle]
+    pedestrians: List[Pedestrian]
     meshes: List[Mesh]
     validation_report: ValidationReport
 
@@ -84,11 +91,16 @@ def generate_scenario(
     lanes = LaneTopologyGenerator().generate(nodes, edges)
     buildings = BuildingPlacementGenerator(seed, config).generate(nodes, edges)
     traffic = TrafficNetworkGenerator().generate(nodes, edges, lanes)
+    vehicles, pedestrians = ActorPlacementGenerator(seed, config).generate(edges, traffic)
 
     meshes: List[Mesh] = [MeshFactory.build_road_mesh(lane) for lane in lanes.values()]
     meshes += [MeshFactory.build_building_mesh(building) for building in buildings]
+    meshes += [MeshFactory.build_vehicle_mesh(vehicle) for vehicle in vehicles]
+    meshes += [MeshFactory.build_pedestrian_mesh(pedestrian) for pedestrian in pedestrians]
 
-    validation_report = ScenarioValidator().validate(bounds, nodes, edges, lanes, buildings, meshes)
+    validation_report = ScenarioValidator().validate(
+        bounds, nodes, edges, lanes, buildings, meshes, vehicles, pedestrians
+    )
     if not validation_report.is_valid:
         raise ValueError(
             f"Scenario {scenario_id} (seed={seed}) failed validation: {validation_report.issues}"
@@ -101,6 +113,8 @@ def generate_scenario(
         lanes=lanes,
         buildings=buildings,
         traffic=traffic,
+        vehicles=vehicles,
+        pedestrians=pedestrians,
         meshes=meshes,
         validation_report=validation_report,
     )
@@ -125,9 +139,23 @@ def default_overview_camera(bounds: Bounds, width: int = 1280, height: int = 720
 def render_frame(
     scenario: ScenarioResult, camera: Camera, image_id: int, file_name: str
 ) -> CocoFrame:
-    """Project a scenario's buildings through ``camera`` into one
-    COCO-ready frame."""
-    bboxes_3d = extract_bboxes_3d(scenario.buildings)
+    """Project a scenario's buildings, vehicles, and pedestrians through
+    ``camera`` into one COCO-ready frame.
+
+    Each object kind's own id counter starts at 0 (``building_id``,
+    ``vehicle_id``, ``pedestrian_id`` -- see their respective
+    generators), so vehicles' and pedestrians' object_ids are offset by
+    the preceding kinds' counts to keep the combined id space unique
+    within this frame.
+    """
+    vehicle_id_offset = len(scenario.buildings)
+    pedestrian_id_offset = vehicle_id_offset + len(scenario.vehicles)
+
+    bboxes_3d = (
+        extract_bboxes_3d(scenario.buildings)
+        + extract_bboxes_3d_vehicles(scenario.vehicles, id_offset=vehicle_id_offset)
+        + extract_bboxes_3d_pedestrians(scenario.pedestrians, id_offset=pedestrian_id_offset)
+    )
     bboxes_2d = project_bboxes_3d_to_2d(camera, bboxes_3d)
     bboxes_3d_by_id = {bbox.object_id: bbox for bbox in bboxes_3d}
 

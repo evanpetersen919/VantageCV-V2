@@ -12,6 +12,7 @@ from src.sensors.camera_model import Camera, CameraExtrinsics, CameraIntrinsics
 from src.validation.sanity_checker import (
     check_annotation_count_consistency,
     check_building_height_distribution,
+    check_vehicle_class_distribution,
 )
 
 # urban_config fixture: see tests/conftest.py
@@ -100,3 +101,37 @@ def test_building_height_distribution_skewed_mean_fails(urban_config) -> None:
 def test_building_height_distribution_empty_list_passes(urban_config) -> None:
     """No buildings at all trivially passes (nothing to violate)."""
     assert check_building_height_distribution([], urban_config)
+
+
+def test_vehicle_class_distribution_matching_mix_passes(urban_config) -> None:
+    """Vehicle types sampled at exactly config.vehicle_mix's own
+    fractions pass."""
+    rng = np.random.default_rng(42)
+    types = list(urban_config.vehicle_mix.keys())
+    weights = list(urban_config.vehicle_mix.values())
+    vehicle_types = rng.choice(types, size=5000, p=weights).tolist()
+
+    assert check_vehicle_class_distribution(vehicle_types, urban_config)
+
+
+def test_vehicle_class_distribution_skewed_fails(urban_config) -> None:
+    """Every vehicle being the same type, when config.vehicle_mix expects
+    a spread across 4 types, fails the tolerance check."""
+    vehicle_types = ["sedan"] * 100
+
+    assert not check_vehicle_class_distribution(vehicle_types, urban_config)
+
+
+def test_vehicle_class_distribution_missing_type_fails(urban_config) -> None:
+    """A configured type that never appears at all (0% vs. its expected
+    fraction) fails, as long as its expected fraction exceeds tolerance."""
+    # urban_config expects bus: 0.05 -- well within tolerance even at 0%,
+    # but sedan: 0.6 is not.
+    vehicle_types = ["bus"] * 20 + ["suv"] * 20 + ["truck"] * 20  # no sedan at all
+
+    assert not check_vehicle_class_distribution(vehicle_types, urban_config)
+
+
+def test_vehicle_class_distribution_empty_list_passes(urban_config) -> None:
+    """No vehicles at all trivially passes (nothing to violate)."""
+    assert check_vehicle_class_distribution([], urban_config)

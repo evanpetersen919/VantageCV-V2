@@ -15,10 +15,11 @@ environment) -- see that module's docstring.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+from src.procedural.actor_placement import Pedestrian, Vehicle
 from src.procedural.building_placement import Building
 from src.procedural.lane_topology import Lane
 from src.procedural.mesh_factory import Mesh
@@ -59,6 +60,8 @@ class ScenarioValidator:  # pylint: disable=too-few-public-methods
         lanes: Dict[int, Lane],
         buildings: List[Building],
         meshes: List[Mesh],
+        vehicles: Optional[List[Vehicle]] = None,
+        pedestrians: Optional[List[Pedestrian]] = None,
     ) -> ValidationReport:
         """Validate every geometric element of a generated scenario.
 
@@ -68,6 +71,10 @@ class ScenarioValidator:  # pylint: disable=too-few-public-methods
             (x_min, y_min, x_max, y_max) the scenario was generated within.
         nodes, edges, lanes, buildings, meshes
             Output of the corresponding generator for this scenario.
+        vehicles, pedestrians
+            Output of ``ActorPlacementGenerator``, if any -- optional and
+            defaulting to none, so every pre-existing caller (and every
+            pre-existing test) keeps working unchanged.
 
         Returns
         -------
@@ -84,6 +91,8 @@ class ScenarioValidator:  # pylint: disable=too-few-public-methods
         self._validate_lanes(lanes, report)
         self._validate_buildings(buildings, bounds, report)
         self._validate_meshes(meshes, report)
+        self._validate_vehicles(vehicles or [], report)
+        self._validate_pedestrians(pedestrians or [], report)
 
         return report
 
@@ -136,6 +145,28 @@ class ScenarioValidator:  # pylint: disable=too-few-public-methods
                     f"Building {building.building_id}: footprint {building.aabb} "
                     f"outside bounds {bounds}"
                 )
+
+    @staticmethod
+    def _validate_vehicles(vehicles: List[Vehicle], report: ValidationReport) -> None:
+        # Finiteness only, no bounds-containment check: vehicles are
+        # anchored directly at TrafficNetworkGenerator's own spawn zone
+        # positions (lane starts, sidewalk offsets), which are
+        # themselves never validated against `bounds` either -- see
+        # test_traffic_network.py. Unlike buildings (placed with an
+        # explicit ROAD_SETBACK_METERS margin guaranteeing containment),
+        # spawn zones near the road network's edge can legitimately sit
+        # slightly outside `bounds`; that's a property of the road
+        # network's own generation, not a vehicle-placement defect.
+        for vehicle in vehicles:
+            if not np.isfinite(vehicle.center).all() or not np.isfinite(vehicle.heading_rad):
+                report.add(f"Vehicle {vehicle.vehicle_id}: non-finite geometry")
+
+    @staticmethod
+    def _validate_pedestrians(pedestrians: List[Pedestrian], report: ValidationReport) -> None:
+        # See _validate_vehicles: same rationale for omitting a bounds check.
+        for pedestrian in pedestrians:
+            if not np.isfinite(pedestrian.center).all() or not np.isfinite(pedestrian.heading_rad):
+                report.add(f"Pedestrian {pedestrian.pedestrian_id}: non-finite geometry")
 
     @staticmethod
     def _validate_meshes(meshes: List[Mesh], report: ValidationReport) -> None:

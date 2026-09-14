@@ -32,22 +32,27 @@ def test_generate_scenario_produces_valid_result(urban_config, bounds) -> None:
     assert len(scenario.edges) > 0
     assert len(scenario.lanes) > 0
     assert len(scenario.meshes) > 0
+    assert scenario.vehicles  # this config/seed places some
     assert scenario.validation_report.is_valid
 
 
 def test_generate_scenario_deterministic(urban_config, bounds) -> None:
-    """Same seed produces the same node/edge/building counts."""
+    """Same seed produces the same node/edge/building/vehicle/pedestrian
+    counts."""
     scenario1 = generate_scenario(42, urban_config, bounds, "s1")
     scenario2 = generate_scenario(42, urban_config, bounds, "s2")
 
     assert len(scenario1.nodes) == len(scenario2.nodes)
     assert len(scenario1.edges) == len(scenario2.edges)
     assert len(scenario1.buildings) == len(scenario2.buildings)
+    assert len(scenario1.vehicles) == len(scenario2.vehicles)
+    assert len(scenario1.pedestrians) == len(scenario2.pedestrians)
 
 
 def test_render_frame_produces_coco_frame(urban_config, bounds) -> None:
-    """render_frame projects a scenario's buildings into a well-formed
-    CocoFrame."""
+    """render_frame projects a scenario's buildings, vehicles, and
+    pedestrians into a well-formed CocoFrame with a unique object_id per
+    object across all three kinds."""
     scenario = generate_scenario(42, urban_config, bounds, "s")
     camera = default_overview_camera(bounds)
 
@@ -56,6 +61,10 @@ def test_render_frame_produces_coco_frame(urban_config, bounds) -> None:
     assert frame.image_id == 0
     assert frame.file_name == "frame.png"
     assert isinstance(frame.bboxes_2d, list)
+
+    expected_total = len(scenario.buildings) + len(scenario.vehicles) + len(scenario.pedestrians)
+    assert len(frame.bboxes_3d_by_id) == expected_total
+    assert len(frame.bboxes_3d_by_id) == len(set(frame.bboxes_3d_by_id))
 
 
 def test_generate_dataset_end_to_end(urban_config, bounds, tmp_path) -> None:

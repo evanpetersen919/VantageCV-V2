@@ -15,6 +15,7 @@ from pycocotools.coco import COCO
 from src.export.coco_exporter import CocoFrame, export_coco
 from src.ground_truth.bbox_2d import project_bboxes_3d_to_2d
 from src.ground_truth.bbox_3d import BoundingBox3D
+from src.ground_truth.categories import CATEGORY_NAMES
 from src.sensors.camera_model import Camera, CameraExtrinsics, CameraIntrinsics
 
 
@@ -148,13 +149,13 @@ def test_coco_segmentation_empty_when_no_3d_box_provided() -> None:
 
 
 def test_coco_empty_frames_list() -> None:
-    """No frames at all produces an empty but well-formed COCO dict."""
+    """No frames at all produces an empty but well-formed COCO dict, but
+    still declares every known category (categories are a fixed schema,
+    not derived from what happens to appear in this particular export)."""
     coco = export_coco([])
-    assert coco == {
-        "images": [],
-        "annotations": [],
-        "categories": [{"id": 1, "name": "building", "supercategory": "structure"}],
-    }
+    assert not coco["images"]
+    assert not coco["annotations"]
+    assert {cat["id"] for cat in coco["categories"]} == set(CATEGORY_NAMES)
 
 
 def test_coco_schema_valid_per_pycocotools() -> None:
@@ -173,11 +174,12 @@ def test_coco_schema_valid_per_pycocotools() -> None:
 
         assert len(loaded.getImgIds()) == 2
         assert len(loaded.getAnnIds()) == len(coco["annotations"])
-        assert loaded.getCatIds() == [1]
+        assert set(loaded.getCatIds()) == set(CATEGORY_NAMES)
 
 
-def test_coco_category_is_building() -> None:
-    """The single declared category is 'building'."""
+def test_coco_categories_match_registry() -> None:
+    """The declared categories match src.ground_truth.categories exactly
+    -- every id/name pair, not just the ones this sample frame uses."""
     coco = export_coco([_sample_frame()])
-    assert len(coco["categories"]) == 1
-    assert coco["categories"][0]["name"] == "building"
+    exported = {cat["id"]: cat["name"] for cat in coco["categories"]}
+    assert exported == CATEGORY_NAMES

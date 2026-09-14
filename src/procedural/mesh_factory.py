@@ -40,6 +40,7 @@ from typing import List, Tuple
 import numpy as np
 import numpy.typing as npt
 
+from src.procedural.actor_placement import Pedestrian, Vehicle
 from src.procedural.building_placement import Building
 from src.procedural.lane_topology import Lane
 
@@ -75,6 +76,40 @@ def _box_quad_faces_to_triangles(
     for corner_a, corner_b, corner_c, corner_d in faces:
         triangles.extend([corner_a, corner_b, corner_c, corner_a, corner_c, corner_d])
     return np.array(triangles, dtype=np.int64)
+
+
+def _oriented_box_vertices(  # pylint: disable=too-many-arguments
+    center_xy: npt.NDArray[np.float64],
+    length: float,
+    width: float,
+    height: float,
+    heading_rad: float,
+    base_z: float,
+) -> npt.NDArray[np.float64]:
+    """8 box vertices (4 base corners + 4 top corners, same layout as
+    ``build_building_mesh``'s), footprint rotated by ``heading_rad`` about
+    its own center before being translated to ``center_xy``.
+
+    A rotation is rigid (no reflection), so ``_BOX_FACES``'s winding
+    order stays correct regardless of ``heading_rad`` -- no separate CCW
+    fixup is needed here, matching ``build_building_mesh``.
+    """
+    half_length, half_width = length / 2.0, width / 2.0
+    local_footprint = np.array(
+        [
+            [-half_length, -half_width],
+            [half_length, -half_width],
+            [half_length, half_width],
+            [-half_length, half_width],
+        ]
+    )
+    cos_h, sin_h = np.cos(heading_rad), np.sin(heading_rad)
+    rotation = np.array([[cos_h, -sin_h], [sin_h, cos_h]])
+    world_footprint = local_footprint @ rotation.T + center_xy
+
+    base = np.column_stack([world_footprint, np.full(4, base_z)])
+    top = np.column_stack([world_footprint, np.full(4, base_z + height)])
+    return np.vstack([base, top])
 
 
 @dataclass(eq=False)
@@ -209,3 +244,54 @@ class MeshFactory:
             uvs=uvs,
             material="concrete",
         )
+
+    @staticmethod
+    def build_vehicle_mesh(vehicle: Vehicle) -> Mesh:
+        """Build an oriented box mesh for one vehicle, footprint rotated
+        by ``vehicle.heading_rad`` about its center.
+
+        Returns
+        -------
+        Mesh
+            8 vertices, 12 triangles -- same box topology as
+            ``build_building_mesh``, just oriented rather than
+            axis-aligned.
+        """
+        vertices = _oriented_box_vertices(
+            vehicle.center,
+            vehicle.length,
+            vehicle.width,
+            vehicle.height,
+            vehicle.heading_rad,
+            base_z=_BUILDING_BASE_Z,
+        )
+        uvs = np.zeros((8, 2))
+        triangles = _box_quad_faces_to_triangles(_BOX_FACES)
+
+        return Mesh(vertices=vertices, triangles=triangles, uvs=uvs, material="vehicle_paint")
+
+    @staticmethod
+    def build_pedestrian_mesh(pedestrian: Pedestrian) -> Mesh:
+        """Build an oriented box mesh for one pedestrian, footprint
+        rotated by ``pedestrian.heading_rad`` about its center.
+        ``pedestrian.depth`` is the box's local-x (forward-facing) extent,
+        matching how ``heading_rad`` is derived (facing direction of
+        travel) for both vehicles and pedestrians.
+
+        Returns
+        -------
+        Mesh
+            8 vertices, 12 triangles.
+        """
+        vertices = _oriented_box_vertices(
+            pedestrian.center,
+            pedestrian.depth,
+            pedestrian.width,
+            pedestrian.height,
+            pedestrian.heading_rad,
+            base_z=_BUILDING_BASE_Z,
+        )
+        uvs = np.zeros((8, 2))
+        triangles = _box_quad_faces_to_triangles(_BOX_FACES)
+
+        return Mesh(vertices=vertices, triangles=triangles, uvs=uvs, material="pedestrian")

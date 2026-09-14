@@ -6,10 +6,12 @@ entry, informed by QOL_RESEARCH_CHECKLIST.md Section H.2's dataset-
 consistency checks.
 
 Section H.2's own example test compares annotation *class* distribution
-against ``config.vehicle_mix`` -- this codebase generates no vehicles
-(see KNOWN_GAPS_AND_ISSUES.md), so the closest genuinely-applicable
-analogue here is comparing generated *building height* distribution
-against ``config.building_heights``, which this module does instead.
+against ``config.vehicle_mix`` -- ``check_vehicle_class_distribution``
+implements that directly now that ``actor_placement.py`` exists.
+``check_building_height_distribution`` predates vehicle placement and
+covers the same kind of "generated distribution matches config" idea for
+buildings, which have no comparably direct QOL_RESEARCH_CHECKLIST.md
+bullet of their own.
 """
 
 from dataclasses import dataclass
@@ -149,3 +151,40 @@ def check_building_height_distribution(
     relative_error = abs(actual_mean - expected_mean) / expected_mean
 
     return relative_error <= tolerance
+
+
+def check_vehicle_class_distribution(
+    vehicle_types: List[str], config: ScenarioTypeConfig, tolerance: float = 0.15
+) -> bool:
+    """Check that generated vehicle-type frequencies roughly match
+    ``config.vehicle_mix`` -- QOL_RESEARCH_CHECKLIST.md Section H.2's own
+    example check, directly.
+
+    Parameters
+    ----------
+    vehicle_types : List[str]
+        ``Vehicle.vehicle_type`` of every vehicle in the dataset (across
+        all scenarios).
+    config : ScenarioTypeConfig
+    tolerance : float
+        Allowed absolute deviation between each type's empirical fraction
+        and its configured fraction in ``config.vehicle_mix``.
+
+    Returns
+    -------
+    bool
+        True iff every configured vehicle type's empirical fraction is
+        within ``tolerance`` of its ``vehicle_mix`` fraction. Vacuously
+        true for an empty ``vehicle_types`` (nothing to compare).
+    """
+    if not vehicle_types:
+        return True
+
+    empirical_fractions = pd.Series(vehicle_types).value_counts(normalize=True)
+
+    for vehicle_type, expected_fraction in config.vehicle_mix.items():
+        actual_fraction = float(empirical_fractions.get(vehicle_type, 0.0))
+        if abs(actual_fraction - expected_fraction) > tolerance:
+            return False
+
+    return True
