@@ -83,7 +83,7 @@ def rasterize_instance_masks(  # pylint: disable=too-many-locals
 
     Returns
     -------
-    Dict[int, npt.NDArray[np.bool_]]
+    ``Dict[int, npt.NDArray[np.bool_]]``
         ``object_id -> [height, width]`` boolean mask, one entry per
         object with at least one visible pixel after occlusion
         resolution. Objects fully occluded or entirely out of frame are
