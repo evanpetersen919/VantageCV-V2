@@ -85,6 +85,37 @@ def test_network_connectivity(urban_config, bounds) -> None:
     assert visited_count == len(nodes), f"Network not connected: {visited_count} / {len(nodes)}"
 
 
+def test_all_node_positions_within_bounds(urban_config, bounds) -> None:
+    """Every node's position stays within the declared bounds, even after
+    Gaussian perturbation. Regression test: grid generation can overshoot
+    by up to one spacing per axis, and perturbation can push a point
+    further out; both went unchecked until ScenarioValidator (Phase 4)
+    caught nodes up to ~70m outside a 500m-wide bounds region on a
+    real generated scenario. See KNOWN_GAPS_AND_ISSUES.md."""
+    gen = RoadNetworkGenerator(42, urban_config)
+    nodes, _ = gen.generate(bounds)
+
+    x_min, y_min, x_max, y_max = bounds
+    for node_id, node in nodes.items():
+        x, y = node.position
+        assert x_min <= x <= x_max, f"Node {node_id}: x={x} outside [{x_min}, {x_max}]"
+        assert y_min <= y <= y_max, f"Node {node_id}: y={y} outside [{y_min}, {y_max}]"
+
+
+@pytest.mark.parametrize("seed", range(20))
+def test_all_node_positions_within_bounds_across_seeds(urban_config, bounds, seed) -> None:
+    """Bounds containment holds across many seeds, not just one lucky
+    case (reflection math should be seed-independent)."""
+    gen = RoadNetworkGenerator(seed, urban_config)
+    nodes, _ = gen.generate(bounds)
+
+    x_min, y_min, x_max, y_max = bounds
+    for node in nodes.values():
+        x, y = node.position
+        assert x_min <= x <= x_max
+        assert y_min <= y <= y_max
+
+
 def test_edge_length_constraints(urban_config, bounds) -> None:
     """All edges satisfy length constraints."""
     gen = RoadNetworkGenerator(42, urban_config)
