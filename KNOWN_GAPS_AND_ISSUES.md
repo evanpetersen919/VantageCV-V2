@@ -32,28 +32,19 @@ worker counts before assuming Ray parallelism is paying off -- per-task
 overhead (each scenario currently re-imports/re-serializes its config)
 could dominate for cheap scenarios.
 
-### [RISK] CI failed on the first Phase 7 push; fix applied is a strong hypothesis, not confirmed via logs
-`main` commit `4c06f02` (Phase 7) went red on GitHub Actions' `test` job
-(the `lint` job passed) despite passing locally, including against a
-genuinely fresh clone on this machine. Could not fetch the actual failure
-log: the repo API returned `403 Must have admin rights to Repository` for
-log download (same limitation hit in Phase 1's CI-fix session), no `gh`
-auth or `GH_TOKEN` was available in this environment, and there's no
-Docker here to reproduce an Ubuntu container locally to narrow it down
-directly.
-Applied a fix based on the single most common, well-documented Ray+CI
-failure mode instead of guessing blindly: GitHub Actions' standard Ubuntu
-runners often provide a small `/dev/shm` (frequently 64MB), and Ray's
-object store can fail `ray.init()` outright when its default sizing
-exceeds that. Set `object_store_memory=200*1024*1024` (200MB, safely
-under typical CI shm limits and far more than this pipeline's small
-NumPy/dict payloads need) on every `ray.init()` call in the codebase
-(`distributed_runner.py` and the one direct call in
-`test_distributed_runner.py`).
-**This is not a confirmed root-cause fix.** If CI is still red after this
-change lands, the actual log needs to be read (via `gh auth login` in an
-interactive session, or the user pulling it from the Actions UI directly)
-rather than continuing to guess at Ray CI failure modes one at a time.
+### [RISK] `pkg_resources` (needed by Ray, via the pinned `setuptools<81`) is slated for removal by setuptools upstream
+The fix above pins `setuptools<81` specifically to keep `pkg_resources`
+importable, because `ray` 2.9.3's `ray/_private/pydantic_compat.py` does
+`from pkg_resources import packaging` unconditionally whenever a remote
+task is first submitted. `pkg_resources` itself now warns on import:
+"slated for removal as early as 2025-11-30." When that happens, this
+pin will stop being satisfiable (or satisfiable only with an
+increasingly ancient setuptools), and every `ray.remote(...).remote()`
+call in this codebase will break again the same way.
+**Action**: watch for a `ray` release that no longer imports
+`pkg_resources` (newer Ray versions past 2.9.3 likely already fixed
+this internally) and upgrade `ray` + drop the `setuptools<81` pin
+together, rather than pinning setuptools indefinitely.
 
 ### [RISK] Ray adds meaningful test-suite startup overhead
 Adding `ray` as a dependency increased the full test suite's wall-clock
@@ -374,6 +365,46 @@ produce visibly triangular block shapes rather than rectangular ones.
 Revisit if/when a mesh-rendering phase makes block shape visually matter.
 
 ## Resolved
+
+### [RESOLVED] CI failed on Phase 7's first push: `ModuleNotFoundError: No module named 'pkg_resources'` inside Ray — root cause confirmed via user-provided log
+`main` commit `4c06f02` (Phase 7) went red on GitHub Actions' `test` job
+despite passing locally against a genuinely fresh clone on this machine.
+This session had no way to fetch the actual failure log itself (repo API
+returned `403 Must have admin rights to Repository`, no `gh` auth
+available, no Docker to reproduce Ubuntu locally) -- an initial fix
+attempt (capping `ray.init(object_store_memory=...)` against the
+well-known "small `/dev/shm` on CI" Ray failure mode) was applied as a
+reasonable but unconfirmed hypothesis and did **not** fix it. The user
+then pasted the actual CI log, which showed the real error: every
+`ray.remote(...).remote()` call failed with
+`ModuleNotFoundError: No module named 'pkg_resources'`, raised from deep
+inside `ray/_private/pydantic_compat.py`'s unconditional
+`from pkg_resources import packaging` (triggered the first time Ray sets
+up its serialization context for a submitted task).
+Root cause: `pkg_resources` ships as part of `setuptools`, and
+`setuptools` was never declared as an explicit dependency anywhere in
+this project -- it was only present by transitive/environment accident,
+and evidently absent (or present without `pkg_resources`) in whatever
+`setuptools` version the CI runner's poetry-managed venv actually got.
+Attempting the straightforward fix (`poetry add setuptools`) made it
+**worse**: it resolved to the newest available `setuptools` (84.0.0),
+which -- confirmed by reproducing the exact same
+`ModuleNotFoundError: No module named 'pkg_resources'` locally after that
+install -- has itself now removed `pkg_resources` entirely, as part of
+setuptools' own ongoing deprecation of that API (import warns "slated
+for removal as early as 2025-11-30"). Fixed by pinning `setuptools<81`
+(landed on 80.10.2), the last major line confirmed locally to still ship
+an importable `pkg_resources` (with the deprecation warning, not an
+error). Verified for real: `tests/integration/test_distributed_runner.py`
+(the exact 3 tests that failed in CI) now pass locally, and the full
+290-test suite plus lint/mypy all pass clean.
+**Process note**: this took two attempts precisely because the first fix
+was applied without ever seeing the real error -- a plausible, well-
+justified guess is not a substitute for the actual log. Logged honestly
+as a hypothesis at the time (see the entry that used to be here); once
+the user provided the real traceback, the actual fix took one attempt.
+See the two [RISK] entries above (setuptools pin fragility, Ray's own
+future `pkg_resources` removal) for what could still break this later.
 
 ### [RESOLVED] Resumable generation produced colliding annotation IDs across scenarios — found in Phase 7
 `resume_handler.py`'s checkpoint design writes each scenario's COCO
