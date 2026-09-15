@@ -30,7 +30,8 @@ from src.procedural.road_network import IntersectionType, RoadEdge, RoadNode
 
 # Sidewalk offset beyond a road's outer lane edge, within which pedestrian
 # spawn zones are placed. Matches the sidewalk-width order of magnitude
-# used for ROAD_SETBACK_METERS in building_placement.py.
+# used by ScenarioTypeConfig.road_setback_meters's own default in
+# scenario.py/building_placement.py.
 SIDEWALK_OFFSET_METERS = 1.5
 
 

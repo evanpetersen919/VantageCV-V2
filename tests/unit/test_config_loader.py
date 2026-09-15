@@ -31,6 +31,7 @@ def test_load_urban_dense_matches_file_contents() -> None:
     assert config.traffic_density == (0.6, 1.0)
     assert config.vehicle_mix == {"sedan": 0.6, "suv": 0.25, "truck": 0.10, "bus": 0.05}
     assert config.complexity_score == 80
+    assert config.road_setback_meters == 2.0
 
 
 def test_load_urban_sparse_matches_file_contents() -> None:
@@ -42,6 +43,33 @@ def test_load_urban_sparse_matches_file_contents() -> None:
     assert config.num_intersections == (2, 4)
     assert config.building_density == 0.35
     assert config.complexity_score == 45
+    assert config.road_setback_meters == 4.0
+
+
+def test_load_omitted_road_setback_meters_uses_scenario_type_config_default(tmp_path) -> None:
+    """A template that doesn't set buildings.road_setback_meters at all
+    gets ScenarioTypeConfig's own default, not a silently-missing value."""
+    yaml_path = tmp_path / "no_setback.yaml"
+    yaml_path.write_text(
+        """
+scenario_type: urban_dense
+road_network:
+  avg_block_size: [80.0, 150.0]
+  avg_road_width: 12.0
+  num_intersections: [4, 9]
+  intersection_types: ["4way", "3way"]
+buildings:
+  building_density: 0.8
+  building_heights: [20.0, 40.0]
+traffic:
+  traffic_density: [0.6, 1.0]
+  vehicle_mix:
+    sedan: 1.0
+complexity_score: 80
+"""
+    )
+    config = load_scenario_config(yaml_path)
+    assert config.road_setback_meters == 2.0
 
 
 def test_load_urban_dense_config_is_usable_by_real_generator(bounds) -> None:

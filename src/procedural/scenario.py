@@ -49,6 +49,12 @@ class ScenarioTypeConfig(BaseModel):
         Vehicle type name -> fraction of population. Must sum to ~1.0.
     complexity_score : int
         Informational relative complexity metric in [0, 100].
+    road_setback_meters : float
+        Minimum clearance (meters) a building must keep from every road,
+        beyond the road's own half-width -- read by
+        ``BuildingPlacementGenerator``. Defaults to 2.0 (real-world
+        minimum sidewalk width guidance), matching the fixed constant
+        this field replaces (see KNOWN_GAPS_AND_ISSUES.md).
     """
 
     scenario_type: ScenarioType
@@ -61,6 +67,7 @@ class ScenarioTypeConfig(BaseModel):
     traffic_density: Tuple[float, float]
     vehicle_mix: Dict[str, float]
     complexity_score: int
+    road_setback_meters: float = 2.0
 
     @field_validator("avg_block_size", "building_heights", "traffic_density")
     @classmethod
@@ -91,4 +98,11 @@ class ScenarioTypeConfig(BaseModel):
         total = sum(value.values())
         if not 0.99 <= total <= 1.01:
             raise ValueError(f"vehicle_mix fractions must sum to ~1.0, got {total}")
+        return value
+
+    @field_validator("road_setback_meters")
+    @classmethod
+    def _validate_road_setback(cls, value: float) -> float:
+        if value < 0.0:
+            raise ValueError(f"road_setback_meters must be non-negative, got {value}")
         return value

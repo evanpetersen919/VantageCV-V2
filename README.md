@@ -12,21 +12,14 @@ for real, executable usage examples.
 
 All 8 phases complete (road network → lanes → buildings → traffic → meshes →
 validation → sensors/ground truth → export → distributed/resumable generation →
-docs), plus seven additions made afterward, none scoped precisely by
-MASTER_PROMPT's own roadmap: vehicle/pedestrian placement
-(`src/procedural/actor_placement.py`); a real CLI + YAML config loader
-(`bin/generate_dataset.py`, `src/utils/config_loader.py`); per-lane turn
-connectivity across intersections (`src/procedural/lane_connectivity.py`);
-an opt-in sensor noise model (camera lens distortion, LiDAR/depth range
-noise); a spatial acceleration structure for LiDAR/depth-map ray-casting
-(`TriangleGrid` in `src/sensors/lidar_model.py`); accelerated segmentation
-mask rasterization (`_paint_silhouette` in `src/ground_truth/segmentation.py`);
-and building types/materials (`BuildingType` in
-`src/procedural/building_placement.py`). See
-[`docs/release_notes.rst`](docs/release_notes.rst) for what
-shipped in each
-phase and [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md) for every
-deliberate scope decision and bug found along the way.
+docs), plus eight follow-on additions not scoped precisely by MASTER_PROMPT's
+own roadmap (vehicle/pedestrian placement, a real CLI + YAML config loader,
+per-lane turn connectivity, an opt-in sensor noise model, spatial
+acceleration for LiDAR/depth/segmentation, building types/materials, and
+configurable road setback). See [`docs/release_notes.rst`](docs/release_notes.rst)
+for what shipped in each phase/addition and
+[`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md) for every deliberate
+scope decision and bug found along the way.
 
 ## Requirements
 

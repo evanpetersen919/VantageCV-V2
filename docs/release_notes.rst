@@ -1,6 +1,19 @@
 Release Notes
 ==============
 
+Unreleased -- Configurable road setback
+--------------------------------------------
+
+Added ``ScenarioTypeConfig.road_setback_meters`` (``>= 0``, default
+``2.0``), replacing ``building_placement.py``'s fixed
+``ROAD_SETBACK_METERS`` module constant -- ``BuildingPlacementGenerator``
+now reads it from config instead. ``config_loader.py`` maps it from a
+template's optional ``buildings.road_setback_meters`` YAML key;
+``urban_dense.yaml``/``urban_sparse.yaml`` now set genuinely different
+values (``2.0``/``4.0``), not just a passthrough field that's never
+varied. The default matches the old constant exactly, so every
+pre-existing caller/template kept working unchanged.
+
 Unreleased -- Building types and materials
 ----------------------------------------------
 
