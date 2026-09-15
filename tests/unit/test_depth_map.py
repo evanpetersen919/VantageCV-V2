@@ -3,8 +3,10 @@
 Covers MASTER_PROMPT Section 3.6's own "Depth map resolution validation"
 test bullet, plus basic geometric correctness.
 
-Test images are kept small (see depth_map.py module docstring): rendering
-is O(width * height * triangles) with no spatial acceleration structure.
+Test images are still kept small: rendering casts one ray per pixel via
+TriangleGrid (see depth_map.py module docstring), and many pixels each
+casting a ray is real work a unit test shouldn't pay for even
+accelerated.
 """
 
 import numpy as np
