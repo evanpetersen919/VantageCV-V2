@@ -62,7 +62,9 @@ Layers
    vehicle/pedestrian placement at :mod:`src.procedural.traffic_network`'s
    own spawn zones (:mod:`src.procedural.actor_placement` -- oriented,
    heading-aware boxes sampled from ``config.vehicle_mix``), and mesh
-   generation (road surface strips, building/vehicle/pedestrian boxes).
+   generation (road surface strips, vehicle/pedestrian boxes, and
+   buildings -- a flat-roofed box for MIXED_USE/COMMERCIAL, a real gable
+   roof for RESIDENTIAL).
 
    Determinism: every generator owns an isolated
    ``numpy.random.Generator(numpy.random.PCG64(seed))`` -- not the legacy
