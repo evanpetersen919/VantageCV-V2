@@ -1,6 +1,22 @@
 Release Notes
 ==============
 
+Unreleased -- Accelerated segmentation mask rasterization
+----------------------------------------------------------------
+
+Each object's point-in-polygon test in ``rasterize_instance_masks`` (via
+the new ``_paint_silhouette`` helper) now only runs over its own
+projected silhouette's pixel bounding box, clipped to the image, instead
+of a full-image pass regardless of the object's actual on-screen size.
+An exact optimization, not an approximation -- verified directly against
+a brute-force full-image reference across 100 randomized convex polygon
+shapes/positions in ``test_segmentation.py``, including silhouettes
+partially or fully outside the frame. For a small object in a large
+frame this is a two-to-three-order-of-magnitude reduction in points
+tested. Closes the sibling gap to the LiDAR/depth-map spatial
+acceleration below -- same underlying problem (an O(image size) pass per
+object), a different (non-ray-casting) algorithm.
+
 Unreleased -- Spatial acceleration for LiDAR/depth-map ray-casting
 -----------------------------------------------------------------------
 
