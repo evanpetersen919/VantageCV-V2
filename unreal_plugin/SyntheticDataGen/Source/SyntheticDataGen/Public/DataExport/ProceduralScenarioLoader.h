@@ -1,5 +1,9 @@
-// UNVERIFIED: never compiled against UE5.4 (no local install). See
-// KNOWN_GAPS_AND_ISSUES.md.
+// Compiles cleanly against a real UE 5.4.4 editor (verified
+// 2026-09-15 -- see KNOWN_GAPS_AND_ISSUES.md). LoadProceduralScenario's
+// own body is still a stub -- nothing calls it yet, since there is no
+// WebSocket JSON-RPC server on the UE5 side to receive
+// backend.py's LoadProceduralScenario RPC and dispatch into it. That
+// bridge still needs to be built.
 //
 // UE5-side counterpart to src/ue5/backend.py: receives the JSON payload
 // that backend.py's UE5Backend.load_scenario() sends over the

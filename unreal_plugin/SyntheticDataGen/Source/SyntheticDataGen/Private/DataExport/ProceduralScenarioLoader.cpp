@@ -1,5 +1,6 @@
-// UNVERIFIED: never compiled against UE5.4 (no local install). See
-// ProceduralScenarioLoader.h and KNOWN_GAPS_AND_ISSUES.md.
+// Compiles cleanly against a real UE 5.4.4 editor (verified
+// 2026-09-15 -- see KNOWN_GAPS_AND_ISSUES.md). See
+// ProceduralScenarioLoader.h for what's still a stub.
 
 #include "DataExport/ProceduralScenarioLoader.h"
 #include "Dom/JsonObject.h"
