@@ -121,24 +121,56 @@ adding it as a dependency would need regenerating `poetry.lock` via
 built in (see the "Poetry install/lint/test flow" entry below). Revisit
 if/when a real Poetry install is confirmed available.
 
-### [DEFERRED] No real multi-node/multi-GPU scaling test
+### [DEFERRED] No real multi-node/multi-GPU scaling test; CPU-core parallelism confirmed sub-linear, root cause still open
 MASTER_PROMPT Section 3.8 lists "Scaling tests (2GPU, 4GPU, 8GPU)" and
 "Scaling efficiency" as a test bullet. Neither is implemented: this
 environment has no GPUs and no multi-node cluster, and (more
 fundamentally) this pipeline's actual workload is pure CPU/NumPy
 geometry generation -- nothing in Phases 1-6 touches a GPU, so GPU-count
 scaling isn't a meaningful axis for this codebase regardless of
-environment. What's implemented instead is genuine CPU-core parallelism
-via Ray's local scheduler (`distributed_runner.py`), verified for
-correctness (output identical to sequential) but not benchmarked for
-efficiency at any real scale -- `tests/integration/test_distributed_runner.py`
-only checks 2-3 scenarios across 2 workers, nowhere near enough to say
-anything meaningful about scaling efficiency even on CPU cores.
-**Action**: if real distributed generation at dataset scale (thousands of
-scenarios) is attempted, benchmark actual wall-clock scaling across
-worker counts before assuming Ray parallelism is paying off -- per-task
-overhead (each scenario currently re-imports/re-serializes its config)
-could dominate for cheap scenarios.
+environment.
+
+What's implemented instead is genuine CPU-core parallelism via Ray's
+local scheduler (`distributed_runner.py`). This entry's own earlier
+"Action" (benchmark actual wall-clock scaling before assuming Ray
+parallelism is paying off) has now been done, via real dogfooding on a
+32-core machine (`generate_dataset` vs. `generate_dataset_distributed`,
+same seed/config, output diffed to confirm byte-identical -- confirmed,
+`images`/`annotations`/`categories` all exactly equal): 4 workers gave
+1.29x speedup at 12 scenarios and 1.82x at 40; 8 workers gave 2.14x at
+40. Real parallelism is genuinely happening (speedup improves with more
+scenarios and more workers, and this is nowhere near CPU-starved on 32
+cores), but it's well short of the 4x/8x linear ceiling the worker count
+alone would suggest -- confirming the risk this entry already predicted
+("per-task overhead... could dominate for cheap scenarios") with real
+measurements, not just a hypothesis.
+**Action**: the specific bottleneck (Ray's own per-task scheduling/IPC
+overhead vs. serialization cost of each scenario's `CocoFrame` return
+value vs. something else) hasn't been isolated -- would need per-task
+profiling (e.g. Ray's own timeline view) to pin down before attempting
+to fix. Revisit if real distributed generation at dataset scale
+(thousands of scenarios, where the fixed overhead matters proportionally
+less) makes this worth optimizing.
+
+### [RESOLVED] Resumable/checkpointed generation verified via a real simulated crash, not just the mocked unit test
+`tests/integration/test_resume_handler.py` already covered this
+correctness claim, but via a test double, not an actual interrupted
+process. Dogfooded for real instead: ran `generate_dataset_resumable`
+for a full 8-scenario dataset as a baseline, then in a separate output
+directory, called it first for only 4 scenarios (a real, deliberate
+stand-in for "the process was killed after 4 scenarios" -- same
+`checkpoint.json`/`*_coco_part.json` files a real crash would leave
+behind), then called it again for all 8 on that same directory (exactly
+what a restarted process pointed at the same `--output-dir` would do).
+The "resumed" call took 2.94s versus the "partial" call's 2.87s -- not
+the uninterrupted baseline's 5.86s -- confirming it genuinely skipped
+regenerating the 4 already-completed scenarios rather than merely
+reproducing the same result a second time. Final output
+(`images`/`annotations`, including post-merge annotation ID
+renumbering) was byte-identical between the uninterrupted and
+interrupted-then-resumed runs. No bug found; this closes the loop on
+"resumable generation was tested, but only against a mock" as a real,
+independently-verified guarantee.
 
 ### [RISK] `pkg_resources` (needed by Ray, via the pinned `setuptools<81`) is slated for removal by setuptools upstream
 The fix above pins `setuptools<81` specifically to keep `pkg_resources`

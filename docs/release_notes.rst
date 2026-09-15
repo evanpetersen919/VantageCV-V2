@@ -1,6 +1,35 @@
 Release Notes
 ==============
 
+Unreleased -- Dogfooding pass: Ray parallelism benchmarked, resumable generation crash-tested
+---------------------------------------------------------------------------------------------------
+
+Second dogfooding round, this time targeting Phase 7's parallel/resumable
+generation paths, which had only ever been correctness-tested at tiny
+scale (2-3 scenarios, 2 workers). Ran
+:func:`src.orchestration.distributed_runner.generate_dataset_distributed`
+against real ``generate_dataset`` baselines on a real 32-core machine:
+1.29x speedup at N=12 (4 workers), 1.82x at N=40 (4 workers), 2.14x at
+N=40 (8 workers) -- consistently sub-linear even with idle cores
+available, root cause not yet isolated (see ``KNOWN_GAPS_AND_ISSUES.md``).
+Output confirmed byte-identical to sequential generation at every point
+measured, not just in the existing small-scale test.
+
+Also simulated a real crash-and-resume of
+:func:`src.orchestration.resume_handler.generate_dataset_resumable`:
+started a full run, killed it after 4 of 8 scenarios (leaving
+``checkpoint.json`` and partial output on disk), then resumed with the
+same arguments for the full count. Confirmed the resumed run only
+regenerated the missing scenarios (by wall-clock time) and that the
+final ``annotations.json`` was byte-identical to an uninterrupted run --
+going beyond the existing mocked call-count unit test. Updated
+:doc:`performance_tuning` with the real numbers from both experiments,
+and to remove two now-stale entries (LiDAR/depth-map and segmentation
+rasterization were listed there as still-unaccelerated brute-force
+costs, but had already been fixed by ``TriangleGrid``/
+``_paint_silhouette`` in earlier work this session -- that doc just
+never got updated when those landed).
+
 Unreleased -- Dogfooding pass: real camera framing bug found and fixed
 --------------------------------------------------------------------------
 
