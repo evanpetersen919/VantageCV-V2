@@ -8,11 +8,11 @@ Reuses the same ray-triangle intersection primitive as
 that pixel (inverse pinhole projection) and record the distance to the
 nearest mesh hit, exactly like a LiDAR sweep but with rays arranged in a
 camera's regular pixel grid instead of a rotating sensor's angular grid.
-
-Performance: O(width * height * triangles), same brute-force
-no-acceleration-structure caveat as ``lidar_model.py`` -- see that
-module's docstring and KNOWN_GAPS_AND_ISSUES.md. Test images are kept
-small for the same reason.
+Also reuses ``lidar_model.py``'s ``TriangleGrid`` spatial index (built
+once per render, queried once per pixel) rather than the brute-force
+``closest_hit_distance`` -- see that module's own docstring for the
+acceleration structure itself. Test images are still kept small (many
+pixels each casting a ray remains real work even accelerated).
 """
 
 from typing import List, Optional
@@ -22,7 +22,7 @@ import numpy.typing as npt
 
 from src.procedural.mesh_factory import Mesh
 from src.sensors.camera_model import Camera
-from src.sensors.lidar_model import closest_hit_distance
+from src.sensors.lidar_model import TriangleGrid
 
 # Depth after noise is clamped to at least this many meters -- Gaussian
 # noise can otherwise push a near-zero true depth negative, which has no
@@ -89,6 +89,7 @@ def render_depth_map(  # pylint: disable=too-many-locals
     rotation = camera.extrinsics.get_rotation_matrix()
 
     depth_map = np.full((height, width), np.inf)
+    grid = TriangleGrid(meshes)
 
     for row in range(height):
         for col in range(width):
@@ -96,17 +97,16 @@ def render_depth_map(  # pylint: disable=too-many-locals
             # K^-1 @ [u, v, 1] = [(u-cx)/fx, (v-cy)/fy, 1] -- the z
             # component is always exactly 1 by construction (K is upper
             # triangular with a 1 in the bottom-right, so is K^-1). That
-            # makes `distance` (from closest_hit_distance, in units of
-            # this direction vector's own length) numerically identical
-            # to the hit point's camera-frame z -- i.e. exactly
-            # Camera.project's own depth convention, with no extra scale
-            # factor needed.
+            # makes `distance` (in units of this direction vector's own
+            # length) numerically identical to the hit point's
+            # camera-frame z -- i.e. exactly Camera.project's own depth
+            # convention, with no extra scale factor needed.
             camera_frame_direction = k_inverse @ pixel_homogeneous
             # World-frame direction: undo the world-to-camera rotation
             # (rotation is orthogonal, so its inverse is its transpose).
             world_direction = rotation.T @ camera_frame_direction
 
-            distance = closest_hit_distance(origin, world_direction, meshes)
+            distance = grid.closest_hit(origin, world_direction)
             if distance is not None:
                 depth_map[row, col] = distance
 

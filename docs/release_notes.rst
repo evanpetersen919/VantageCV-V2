@@ -1,6 +1,22 @@
 Release Notes
 ==============
 
+Unreleased -- Spatial acceleration for LiDAR/depth-map ray-casting
+-----------------------------------------------------------------------
+
+Added ``TriangleGrid`` (:mod:`src.sensors.lidar_model`): a uniform-grid
+spatial index over a scene's triangles, queried via Amanatides & Woo's
+1987 voxel-traversal algorithm. Closes the "no spatial acceleration
+structure" gap that previously forced both ``LidarSensor.scan`` and
+``render_depth_map``'s own tests to keep scenes artificially tiny (both
+were O(rays * triangles) / O(pixels * triangles) brute force). An
+*exact* acceleration structure, not an approximation -- verified directly
+against the brute-force ``closest_hit_distance`` reference across
+hundreds of randomized scenes/rays, explicit axis-aligned-ray cases, and
+a full ``LidarSensor.scan``-level comparison. ``segmentation.py``'s
+per-object rasterization is a different (non-ray-casting) algorithm and
+remains unaccelerated -- see :doc:`architecture`.
+
 Unreleased -- Sensor noise model
 ------------------------------------
 

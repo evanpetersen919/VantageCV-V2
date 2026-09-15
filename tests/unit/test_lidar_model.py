@@ -3,19 +3,23 @@
 Covers QOL_RESEARCH_CHECKLIST.md Section E.2: points within max range, no
 duplicate points, and ray-triangle intersection correctness directly.
 
-Test LiDAR configs use small channel counts / coarse resolution
-deliberately: LidarSensor.scan is brute-force O(rays * triangles) with no
-spatial acceleration structure (see lidar_model.py module docstring and
-KNOWN_GAPS_AND_ISSUES.md) -- a config matching a real sensor (e.g. 64
-channels x ~2000 azimuth samples) against even a modest scene would be
-far too slow for a unit test.
+Test LiDAR configs still use small channel counts / coarse resolution:
+even with TriangleGrid's spatial acceleration (see lidar_model.py module
+docstring), many rays against a real-sensor-scale scan (e.g. 64 channels
+x ~2000 azimuth samples) is still real work a unit test shouldn't pay for.
 """
 
 import numpy as np
 import pytest
 
 from src.procedural.mesh_factory import Mesh
-from src.sensors.lidar_model import LidarConfig, LidarSensor, ray_triangle_intersect
+from src.sensors.lidar_model import (
+    LidarConfig,
+    LidarSensor,
+    TriangleGrid,
+    closest_hit_distance,
+    ray_triangle_intersect,
+)
 
 
 def _ground_plane_mesh(half_extent: float = 50.0) -> Mesh:
@@ -282,3 +286,162 @@ def test_range_noise_can_drop_hits_near_max_range() -> None:
 
     assert len(clean_points) == 1
     assert len(noisy_points) == 0
+
+
+def _random_triangle_mesh(rng: np.random.Generator, num_triangles: int) -> Mesh:
+    """A mesh of ``num_triangles`` unrelated triangles scattered across a
+    -20..20 cube, for randomized TriangleGrid-vs-brute-force comparison."""
+    vertices = []
+    triangles = []
+    for i in range(num_triangles):
+        base = rng.uniform(-20.0, 20.0, size=3)
+        for _ in range(3):
+            vertices.append(base + rng.uniform(-5.0, 5.0, size=3))
+        triangles.extend([3 * i, 3 * i + 1, 3 * i + 2])
+    return Mesh(
+        vertices=np.array(vertices),
+        triangles=np.array(triangles, dtype=np.int64),
+        uvs=np.zeros((len(vertices), 2)),
+        material="test",
+    )
+
+
+def test_triangle_grid_matches_brute_force_on_random_scenes() -> None:
+    """TriangleGrid.closest_hit is an *exact* acceleration structure: for
+    many random scenes and rays, it returns bit-identical results (within
+    floating tolerance) to the brute-force closest_hit_distance, with and
+    without a max_distance cutoff."""
+    rng = np.random.default_rng(0)
+    mismatches = 0
+
+    for _ in range(15):
+        mesh = _random_triangle_mesh(rng, num_triangles=int(rng.integers(1, 20)))
+        grid = TriangleGrid([mesh], target_triangles_per_cell=2.0)
+
+        for _ in range(15):
+            origin = rng.uniform(-30.0, 30.0, size=3)
+            direction = rng.normal(size=3)
+            direction = direction / np.linalg.norm(direction)
+            max_distance = rng.choice([None, float(rng.uniform(1.0, 50.0))])
+
+            expected = closest_hit_distance(origin, direction, [mesh])
+            if expected is not None and max_distance is not None and expected > max_distance:
+                expected = None
+            actual = grid.closest_hit(origin, direction, max_distance=max_distance)
+
+            if expected is None and actual is None:
+                continue
+            if expected is None or actual is None or not np.isclose(expected, actual, atol=1e-6):
+                mismatches += 1
+
+    assert mismatches == 0
+
+
+def test_triangle_grid_matches_brute_force_for_axis_aligned_rays() -> None:
+    """Axis-aligned ray directions (a zero component) are a documented
+    special case in the grid traversal's own stepping logic -- verified
+    directly against brute force."""
+    triangles = [
+        (np.array([0.0, 0.0, 0.0]), np.array([1.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0])),
+        (np.array([5.0, 5.0, -1.0]), np.array([6.0, 5.0, -1.0]), np.array([5.0, 6.0, -1.0])),
+    ]
+    vertices = np.array([v for tri in triangles for v in tri])
+    mesh = Mesh(
+        vertices=vertices,
+        triangles=np.arange(6, dtype=np.int64),
+        uvs=np.zeros((6, 2)),
+        material="test",
+    )
+    grid = TriangleGrid([mesh], target_triangles_per_cell=1.0)
+
+    directions = [
+        np.array([0.0, 0.0, -1.0]),
+        np.array([0.0, 0.0, 1.0]),
+        np.array([1.0, 0.0, 0.0]),
+        np.array([0.0, 1.0, 0.0]),
+    ]
+    origins = [
+        np.array([0.25, 0.25, 5.0]),
+        np.array([0.25, 0.25, -5.0]),
+        np.array([5.5, 5.5, 0.0]),
+        np.array([-10.0, 0.25, 0.1]),
+    ]
+
+    for direction in directions:
+        for origin in origins:
+            expected = closest_hit_distance(origin, direction, [mesh])
+            actual = grid.closest_hit(origin, direction)
+            if expected is None:
+                assert actual is None
+            else:
+                assert actual is not None
+                assert np.isclose(expected, actual, atol=1e-6)
+
+
+def test_triangle_grid_empty_scene_returns_none() -> None:
+    """A grid built from no meshes at all returns None for every query,
+    not an error."""
+    grid = TriangleGrid([])
+    assert grid.closest_hit(np.array([0.0, 0.0, 0.0]), np.array([0.0, 0.0, -1.0])) is None
+
+
+def test_triangle_grid_ray_missing_grid_bbox_entirely() -> None:
+    """A ray that never enters the grid's own bounding box at all (not
+    just missing individual triangles) returns None -- the fast-reject
+    path in _ray_aabb_intersect."""
+    grid = TriangleGrid([_ground_plane_mesh(half_extent=1.0)], target_triangles_per_cell=1.0)
+    origin = np.array([1000.0, 1000.0, 1000.0])
+    direction = np.array([1.0, 0.0, 0.0])
+    assert grid.closest_hit(origin, direction) is None
+
+
+def test_triangle_grid_respects_max_distance() -> None:
+    """A hit that exists but lies beyond max_distance is reported as a
+    miss, exactly like the caller's own post-hoc max_range_m filtering
+    would do -- but found via a bounded search, not a full one."""
+    grid = TriangleGrid([_ground_plane_mesh()])
+    origin = np.array([0.0, 0.0, 5.0])
+    direction = np.array([0.0, 0.0, -1.0])
+
+    assert grid.closest_hit(origin, direction) == pytest.approx(5.0)
+    assert grid.closest_hit(origin, direction, max_distance=4.0) is None
+    assert grid.closest_hit(origin, direction, max_distance=5.5) == pytest.approx(5.0)
+
+
+def test_lidar_sensor_scan_matches_brute_force_reference() -> (
+    None
+):  # pylint: disable=duplicate-code
+    """LidarSensor.scan's grid-accelerated output matches a direct
+    brute-force reimplementation of the same sweep -- confirms the
+    TriangleGrid integration, not just the grid in isolation. The
+    direction-computation loop below is a deliberate independent
+    reimplementation of scan()'s own (to avoid testing the real code
+    tautologically against itself), not an accidental duplicate."""
+    config = LidarConfig(
+        channels=3,
+        horizontal_resolution_deg=30.0,
+        vertical_fov_deg=(-40.0, -10.0),
+        max_range_m=30.0,
+    )
+    origin = np.array([0.0, 0.0, 5.0])
+    meshes = [_ground_plane_mesh()]
+
+    actual_points = LidarSensor(config).scan(origin, meshes)
+
+    azimuths = np.radians(np.linspace(0, 360, config.horizontal_samples, endpoint=False))
+    elevations = np.radians(np.linspace(*config.vertical_fov_deg, config.channels))
+    expected_points = []
+    for elevation in elevations:
+        for azimuth in azimuths:
+            direction = np.array(
+                [
+                    np.cos(elevation) * np.cos(azimuth),
+                    np.cos(elevation) * np.sin(azimuth),
+                    np.sin(elevation),
+                ]
+            )
+            distance = closest_hit_distance(origin, direction, meshes)
+            if distance is not None and distance <= config.max_range_m:
+                expected_points.append(direction * distance)
+
+    assert np.allclose(np.sort(actual_points, axis=0), np.sort(np.array(expected_points), axis=0))

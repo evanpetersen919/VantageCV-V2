@@ -9,10 +9,23 @@ Unlike UE5-dependent phases, this is real physics simulation against the
 same ``Mesh`` triangle buffers ``mesh_factory.py`` already produces for
 roads and buildings -- ray-triangle intersection (Moeller-Trumbore) is
 pure geometry, fully testable without any UE5 install.
+
+Spatial acceleration: ``closest_hit_distance`` (brute-force, tests every
+triangle of every mesh) is kept as the simple/reference implementation,
+but ``LidarSensor.scan`` and ``depth_map.render_depth_map`` both instead
+build one ``TriangleGrid`` per scene and reuse it across every ray of the
+sweep/image -- closing KNOWN_GAPS_AND_ISSUES.md's "no spatial
+acceleration structure" gap, which previously forced both modules' own
+tests to keep scenes artificially tiny. ``TriangleGrid`` is an *exact*
+acceleration structure (Amanatides & Woo's 1987 uniform-grid voxel
+traversal algorithm), not an approximation -- every query is verified
+(directly, in tests) to return bit-identical results to
+``closest_hit_distance`` on the same scene, just without testing
+triangles the ray's own cell-by-cell path never actually passes near.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -147,6 +160,195 @@ def closest_hit_distance(
     return closest
 
 
+Triangle = Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]
+Cell = Tuple[int, int, int]
+
+# Degenerate-direction-component threshold for the grid traversal's own
+# axis stepping (below this, a ray is treated as never crossing a cell
+# boundary along that axis -- same rationale/scale as _EPSILON above).
+_DIRECTION_EPSILON = 1e-12
+
+# A flat/degenerate scene (all triangles coplanar on one axis) would
+# otherwise produce a zero-extent grid dimension; expanded to this
+# minimum so cell-size computation never divides by zero.
+_MIN_GRID_EXTENT_M = 1e-6
+
+
+class TriangleGrid:  # pylint: disable=too-few-public-methods
+    """Uniform-grid spatial index over a scene's triangles, for
+    accelerated nearest-ray-hit queries -- see this module's own
+    docstring for the algorithm and why it exists.
+
+    Exposes a single public entry point (``closest_hit``) by design; the
+    rest of the class is private implementation detail of that operation.
+    """
+
+    def __init__(  # pylint: disable=too-many-locals
+        self, meshes: List[Mesh], target_triangles_per_cell: float = 4.0
+    ) -> None:
+        """Bin every triangle of every mesh into a uniform 3D grid.
+
+        Parameters
+        ----------
+        meshes : List[Mesh]
+            Scene geometry. Built once per scene, then queried many times
+            (one ``TriangleGrid`` per LiDAR sweep or depth-map render,
+            not one per ray).
+        target_triangles_per_cell : float
+            Grid resolution is chosen so each cell holds roughly this
+            many triangles on average (via ``cell_size = (scene_volume /
+            (triangle_count / target)) ** (1/3)``) -- a standard
+            triangle-density heuristic; smaller values mean finer cells
+            (more cells to traverse, fewer triangles tested per cell).
+        """
+        self._triangles: List[Triangle] = [
+            (
+                mesh.vertices[mesh.triangles[i]],
+                mesh.vertices[mesh.triangles[i + 1]],
+                mesh.vertices[mesh.triangles[i + 2]],
+            )
+            for mesh in meshes
+            for i in range(0, len(mesh.triangles), 3)
+        ]
+        if not self._triangles:
+            return
+
+        all_vertices = np.array([vertex for triangle in self._triangles for vertex in triangle])
+        self._bbox_min: npt.NDArray[np.float64] = all_vertices.min(axis=0)
+        bbox_max: npt.NDArray[np.float64] = all_vertices.max(axis=0)
+        extent = np.maximum(bbox_max - self._bbox_min, _MIN_GRID_EXTENT_M)
+
+        target_cells = max(1.0, len(self._triangles) / target_triangles_per_cell)
+        volume = float(extent[0] * extent[1] * extent[2])
+        cell_size = (volume / target_cells) ** (1.0 / 3.0) if volume > 0 else float(extent.max())
+        self._cell_size = max(cell_size, _MIN_GRID_EXTENT_M)
+
+        self._dims: Tuple[int, int, int] = tuple(  # type: ignore[assignment]
+            max(1, int(np.ceil(extent[axis] / self._cell_size))) for axis in range(3)
+        )
+
+        self._cells: Dict[Cell, List[int]] = {}
+        for index, (v0, v1, v2) in enumerate(self._triangles):
+            cell_min = self._to_cell(np.minimum(np.minimum(v0, v1), v2))
+            cell_max = self._to_cell(np.maximum(np.maximum(v0, v1), v2))
+            for cx in range(cell_min[0], cell_max[0] + 1):
+                for cy in range(cell_min[1], cell_max[1] + 1):
+                    for cz in range(cell_min[2], cell_max[2] + 1):
+                        self._cells.setdefault((cx, cy, cz), []).append(index)
+
+    def _to_cell(self, point: npt.NDArray[np.float64]) -> Cell:
+        relative = (point - self._bbox_min) / self._cell_size
+        return (
+            int(np.clip(np.floor(relative[0]), 0, self._dims[0] - 1)),
+            int(np.clip(np.floor(relative[1]), 0, self._dims[1] - 1)),
+            int(np.clip(np.floor(relative[2]), 0, self._dims[2] - 1)),
+        )
+
+    def _ray_aabb_intersect(
+        self, origin: npt.NDArray[np.float64], direction: npt.NDArray[np.float64]
+    ) -> Optional[Tuple[float, float]]:
+        """Slab-method ray/grid-bounding-box intersection. Returns the
+        ``(t_min, t_max)`` interval where the ray is inside the grid's
+        overall bounding box, or ``None`` if it never enters."""
+        t_min, t_max = -np.inf, np.inf
+        bbox_max = self._bbox_min + np.array(self._dims) * self._cell_size
+        for axis in range(3):
+            if abs(direction[axis]) < _DIRECTION_EPSILON:
+                if not self._bbox_min[axis] <= origin[axis] <= bbox_max[axis]:
+                    return None
+                continue
+            t1 = (self._bbox_min[axis] - origin[axis]) / direction[axis]
+            t2 = (bbox_max[axis] - origin[axis]) / direction[axis]
+            if t1 > t2:
+                t1, t2 = t2, t1
+            t_min, t_max = max(t_min, t1), min(t_max, t2)
+        if t_min > t_max:
+            return None
+        return t_min, t_max
+
+    def closest_hit(  # pylint: disable=too-many-locals,too-many-branches
+        self,
+        origin: npt.NDArray[np.float64],
+        direction: npt.NDArray[np.float64],
+        max_distance: Optional[float] = None,
+    ) -> Optional[float]:
+        """The distance to the nearest ray-triangle intersection in this
+        scene, or ``None`` if the ray hits nothing (within
+        ``max_distance``, if given) -- exact same contract as
+        ``closest_hit_distance(origin, direction, meshes)``, just walking
+        only the grid cells the ray actually passes through instead of
+        testing every triangle.
+
+        Parameters
+        ----------
+        origin, direction : npt.NDArray[np.float64]
+            Same convention as ``ray_triangle_intersect``.
+        max_distance : Optional[float]
+            If given, hits beyond this distance are treated as misses --
+            lets a caller that already has its own range cutoff (e.g.
+            ``LidarConfig.max_range_m``) skip searching cells beyond it
+            entirely, rather than finding a far hit and discarding it.
+        """
+        if not self._triangles:
+            return None
+
+        interval = self._ray_aabb_intersect(origin, direction)
+        if interval is None:
+            return None
+        t_min, t_max = interval
+        if max_distance is not None:
+            t_max = min(t_max, max_distance)
+        if t_max < max(t_min, 0.0):
+            return None
+
+        entry_point = origin + max(t_min, 0.0) * direction
+        cell = list(self._to_cell(entry_point))
+
+        step = [0, 0, 0]
+        t_delta = [np.inf, np.inf, np.inf]
+        t_max_axis = [np.inf, np.inf, np.inf]
+        for axis in range(3):
+            if direction[axis] > _DIRECTION_EPSILON:
+                step[axis] = 1
+                boundary = self._bbox_min[axis] + (cell[axis] + 1) * self._cell_size
+                t_max_axis[axis] = (boundary - origin[axis]) / direction[axis]
+                t_delta[axis] = self._cell_size / direction[axis]
+            elif direction[axis] < -_DIRECTION_EPSILON:
+                step[axis] = -1
+                boundary = self._bbox_min[axis] + cell[axis] * self._cell_size
+                t_max_axis[axis] = (boundary - origin[axis]) / direction[axis]
+                t_delta[axis] = self._cell_size / -direction[axis]
+
+        best_hit: Optional[float] = None
+        tested: Set[int] = set()
+        while True:
+            current_cell: Cell = (cell[0], cell[1], cell[2])
+            for triangle_index in self._cells.get(current_cell, []):
+                if triangle_index in tested:
+                    continue
+                tested.add(triangle_index)
+                v0, v1, v2 = self._triangles[triangle_index]
+                hit = ray_triangle_intersect(origin, direction, v0, v1, v2)
+                if hit is not None and hit <= t_max and (best_hit is None or hit < best_hit):
+                    best_hit = hit
+
+            cell_exit_t = min(t_max_axis)
+            if best_hit is not None and best_hit <= cell_exit_t:
+                break
+            if cell_exit_t > t_max:
+                break
+
+            axis = t_max_axis.index(cell_exit_t)
+            if step[axis] == 0:
+                break
+            cell[axis] += step[axis]
+            if not 0 <= cell[axis] < self._dims[axis]:
+                break
+            t_max_axis[axis] += t_delta[axis]
+
+        return best_hit
+
+
 class LidarSensor:  # pylint: disable=too-few-public-methods
     """Simulate one LiDAR sweep via ray-casting against a scene's meshes.
 
@@ -200,6 +402,14 @@ class LidarSensor:  # pylint: disable=too-few-public-methods
                 self.config.channels,
             )
         )
+        grid = TriangleGrid(meshes)
+        # Only bound the grid search by max_range_m when there's no noise:
+        # with range_noise_std_m > 0, a *true* hit just beyond max_range_m
+        # can still be reported if noise happens to pull it back within
+        # range (a real noisy sensor could do the same), so the search
+        # must not be cut off there in that case -- see the noise
+        # docstring note below.
+        search_limit = None if self.config.range_noise_std_m > 0 else self.config.max_range_m
 
         points: List[npt.NDArray[np.float64]] = []
         for elevation in elevations:
@@ -211,7 +421,7 @@ class LidarSensor:  # pylint: disable=too-few-public-methods
                         np.sin(elevation),
                     ]
                 )
-                distance = closest_hit_distance(origin, direction, meshes)
+                distance = grid.closest_hit(origin, direction, max_distance=search_limit)
                 if distance is None:
                     continue
 
