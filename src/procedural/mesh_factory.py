@@ -212,6 +212,9 @@ class MeshFactory:
         footprint extruded straight up by ``building.height``.
 
         No roof geometry beyond a flat top cap; see module docstring.
+        Uses ``building.material`` (set by ``BuildingPlacementGenerator``
+        from ``building.building_type`` -- see building_placement.py's
+        own module docstring) rather than a fixed material name.
 
         Returns
         -------
@@ -242,7 +245,7 @@ class MeshFactory:
             vertices=vertices,
             triangles=triangles,
             uvs=uvs,
-            material="concrete",
+            material=building.material,
         )
 
     @staticmethod

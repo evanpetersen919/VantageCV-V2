@@ -1,6 +1,23 @@
 Release Notes
 ==============
 
+Unreleased -- Building types and materials
+----------------------------------------------
+
+Added ``BuildingType`` (RESIDENTIAL/MIXED_USE/COMMERCIAL -- a taxonomy
+of this codebase's own invention, since MASTER_PROMPT specifies none)
+and per-type material assignment to ``building_placement.py``, closing
+a gap deliberately deferred until the mesh factory existed to consume
+it. Each building's type is derived from where its own sampled height
+falls *relative to* ``config.building_heights``'s own range (bottom
+third residential, middle third mixed-use, top third commercial) rather
+than a fixed threshold, since that range varies enormously across
+scenario templates. ``mesh_factory.py``'s ``build_building_mesh`` now
+uses ``building.material`` instead of a hardcoded ``"concrete"``.
+``Building.building_type``/``material`` both default to the old
+hardcoded behavior, so every pre-existing caller/test kept working
+unchanged.
+
 Unreleased -- Accelerated segmentation mask rasterization
 ----------------------------------------------------------------
 

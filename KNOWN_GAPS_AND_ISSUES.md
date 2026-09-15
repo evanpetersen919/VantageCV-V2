@@ -479,14 +479,31 @@ one. A real per-scenario-type value (e.g. wider setback for
 `urban_sparse`, none for `highway`) would need a new config field added
 deliberately, not invented silently here.
 
-### [DEFERRED] Building types/materials not assigned
-MASTER_PROMPT Section 3.3 lists "assign building types, heights,
-materials" -- heights are implemented (sampled from
-`config.building_heights`); building *type* (residential/commercial/etc.)
-and *materials* are not, since nothing downstream yet consumes them (no
-mesh/rendering phase exists yet) and the spec gives no taxonomy for either.
-Revisit when Phase 3's procedural mesh factory needs a building type to
-pick a mesh/material from.
+### [RESOLVED] Building types/materials were not assigned
+Was: MASTER_PROMPT Section 3.3 lists "assign building types, heights,
+materials" -- heights were implemented (sampled from
+`config.building_heights`); building *type* and *materials* were not,
+deferred until the mesh factory existed to consume them.
+
+Resolved by `building_placement.py`'s `BuildingType` enum (RESIDENTIAL /
+MIXED_USE / COMMERCIAL -- a taxonomy of this module's own invention,
+since the spec gives none) and `_classify_building_type`: each
+building's type is derived from where its own sampled height falls
+*relative to* `config.building_heights`'s `(min, max)` range (bottom
+third RESIDENTIAL, middle third MIXED_USE, top third COMMERCIAL), not a
+fixed absolute threshold -- necessary because that range varies
+enormously across scenario templates (a parking lot's tallest building
+is shorter than urban_dense's shortest), so only a relative split means
+the same thing across every scenario type. A degenerate range (`min ==
+max`) defaults to MIXED_USE rather than dividing by zero. Material is
+then sampled per building from `BUILDING_MATERIALS_BY_TYPE`, a small
+hand-picked plausible set per type (not an exhaustive real-world
+taxonomy). `mesh_factory.py`'s `build_building_mesh` now uses
+`building.material` instead of a hardcoded `"concrete"` string.
+`Building.building_type`/`material` both default (`MIXED_USE`/
+`"concrete"`, matching the old hardcoded behavior exactly) so every
+pre-existing `Building(...)` call site across the test suite kept
+working unchanged.
 
 ### [DEFERRED] Heavy/optional dependencies not yet in `pyproject.toml`
 `open3d==0.17.0`, `ray==2.9.3`, `h5py==3.10.0`, `protobuf==4.25.1`,

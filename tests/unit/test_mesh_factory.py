@@ -159,12 +159,29 @@ def test_building_mesh_no_degenerate_triangles() -> None:
 
 
 def test_building_mesh_material() -> None:
-    """Building meshes use the concrete material."""
+    """A building constructed without an explicit material (the default)
+    produces a mesh using that same default ("concrete")."""
     building = Building(
         building_id=0, center=np.array([0.0, 0.0]), width=10.0, depth=8.0, height=20.0
     )
     mesh = MeshFactory.build_building_mesh(building)
     assert mesh.material == "concrete"
+
+
+def test_building_mesh_uses_buildings_own_material() -> None:
+    """The mesh's material follows building.material, not a hardcoded
+    value -- confirms BuildingPlacementGenerator's per-building
+    type/material assignment actually reaches the mesh."""
+    building = Building(
+        building_id=0,
+        center=np.array([0.0, 0.0]),
+        width=10.0,
+        depth=8.0,
+        height=20.0,
+        material="glass_curtain_wall",
+    )
+    mesh = MeshFactory.build_building_mesh(building)
+    assert mesh.material == "glass_curtain_wall"
 
 
 def _sample_vehicle(heading_rad: float = 0.0) -> Vehicle:
