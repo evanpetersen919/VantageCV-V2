@@ -1,6 +1,21 @@
 Release Notes
 ==============
 
+Unreleased -- Gable roofs for residential buildings
+---------------------------------------------------------
+
+Added ``_gable_roof_mesh_parts`` to ``mesh_factory.py``: RESIDENTIAL
+buildings now get a real gable (pitched) roof (ridge along the
+footprint's longer axis, peak ``RESIDENTIAL_ROOF_HEIGHT_METERS`` above
+the flat-roof-equivalent eave height) instead of the flat cap every
+building previously got regardless of type. MIXED_USE/COMMERCIAL
+buildings are unaffected (still the original 8-vertex/12-triangle
+flat-roofed box) -- real low/mid-rise commercial buildings are
+overwhelmingly flat-roofed, so this is a deliberate type-driven choice.
+10 vertices, 16 true triangles (not fan-triangulated quads, since the 2
+gable-end faces are triangular by construction); every triangle's
+outward-facing winding verified directly for both ridge orientations.
+
 Unreleased -- Configurable road setback
 --------------------------------------------
 

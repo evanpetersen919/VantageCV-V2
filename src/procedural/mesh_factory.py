@@ -41,12 +41,19 @@ import numpy as np
 import numpy.typing as npt
 
 from src.procedural.actor_placement import Pedestrian, Vehicle
-from src.procedural.building_placement import Building
+from src.procedural.building_placement import Building, BuildingType
 from src.procedural.lane_topology import Lane
 
-# Building footprints are extruded straight up by their height; no roof
-# geometry (pitched/flat detail) is generated -- see KNOWN_GAPS_AND_ISSUES.md.
 _BUILDING_BASE_Z = 0.0
+
+# Rise (meters) of a residential building's gable roof peak above its
+# own flat eave height -- a fixed value rather than one proportional to
+# footprint size, matching a real gable roof's rise staying roughly
+# constant regardless of a building's footprint area. MIXED_USE/
+# COMMERCIAL buildings keep the original flat cap (real low/mid-rise
+# commercial buildings are overwhelmingly flat-roofed; pitched roofs are
+# a residential/small-building convention) -- see KNOWN_GAPS_AND_ISSUES.md.
+RESIDENTIAL_ROOF_HEIGHT_METERS = 2.5
 
 # Degenerate-triangle threshold, matching
 # QOL_RESEARCH_CHECKLIST.md Section D.1's own example test.
@@ -110,6 +117,77 @@ def _oriented_box_vertices(  # pylint: disable=too-many-arguments
     base = np.column_stack([world_footprint, np.full(4, base_z)])
     top = np.column_stack([world_footprint, np.full(4, base_z + height)])
     return np.vstack([base, top])
+
+
+def _gable_roof_mesh_parts(  # pylint: disable=too-many-arguments,too-many-locals
+    x_min: float,
+    y_min: float,
+    x_max: float,
+    y_max: float,
+    base_z: float,
+    top_z: float,
+) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
+    """10 vertices (4 base corners + 4 eave corners + 2 ridge peaks) and
+    16 triangles (4 wall + 2 floor + 2 gable-end + 4 roof-slope, all as
+    triangles rather than fan-triangulated quads since the gable ends
+    are triangular by construction) for one building's gable-roofed box.
+
+    The ridge runs along the footprint's *longer* horizontal axis (so
+    the roof slopes down across the shorter one) -- matching a real
+    gable roof, which is always oriented that way, not an arbitrary
+    choice. Ridge peak height is ``top_z + RESIDENTIAL_ROOF_HEIGHT_METERS``.
+    """
+    base_corners = np.array(
+        [
+            [x_min, y_min, base_z],
+            [x_max, y_min, base_z],
+            [x_max, y_max, base_z],
+            [x_min, y_max, base_z],
+        ]
+    )
+    eave_corners = base_corners.copy()
+    eave_corners[:, 2] = top_z
+
+    peak_z = top_z + RESIDENTIAL_ROOF_HEIGHT_METERS
+    width_x, width_y = x_max - x_min, y_max - y_min
+    if width_x >= width_y:
+        mid_y = (y_min + y_max) / 2.0
+        ridge_a = np.array([[x_min, mid_y, peak_z]])
+        ridge_b = np.array([[x_max, mid_y, peak_z]])
+    else:
+        mid_x = (x_min + x_max) / 2.0
+        ridge_a = np.array([[mid_x, y_min, peak_z]])
+        ridge_b = np.array([[mid_x, y_max, peak_z]])
+
+    # Indices: 0-3 base, 4-7 eave (same layout as build_building_mesh's
+    # own flat-roof box), 8 = ridge_a, 9 = ridge_b.
+    vertices = np.vstack([base_corners, eave_corners, ridge_a, ridge_b])
+
+    quad_faces: Tuple[Tuple[int, int, int, int], ...] = (
+        (0, 1, 5, 4),  # wall
+        (1, 2, 6, 5),  # wall
+        (2, 3, 7, 6),  # wall
+        (3, 0, 4, 7),  # wall
+        (0, 1, 2, 3),  # floor
+    )
+    if width_x >= width_y:
+        quad_faces += (
+            (4, 5, 9, 8),  # roof slope, y_min side
+            (6, 7, 8, 9),  # roof slope, y_max side
+        )
+        gable_end_triangles = ((7, 4, 8), (5, 6, 9))
+    else:
+        quad_faces += (
+            (4, 8, 9, 7),  # roof slope, x_min side (ridge_a at y_min)
+            (5, 6, 9, 8),  # roof slope, x_max side
+        )
+        gable_end_triangles = ((4, 5, 8), (6, 7, 9))
+
+    triangles = list(_box_quad_faces_to_triangles(quad_faces))
+    for triangle in gable_end_triangles:
+        triangles.extend(triangle)
+
+    return vertices, np.array(triangles, dtype=np.int64)
 
 
 @dataclass(eq=False)
@@ -208,38 +286,48 @@ class MeshFactory:
 
     @staticmethod
     def build_building_mesh(building: Building) -> Mesh:
-        """Build a simple box mesh for one building: a rectangular
-        footprint extruded straight up by ``building.height``.
+        """Build a box mesh for one building: a rectangular footprint
+        extruded straight up by ``building.height``.
 
-        No roof geometry beyond a flat top cap; see module docstring.
-        Uses ``building.material`` (set by ``BuildingPlacementGenerator``
-        from ``building.building_type`` -- see building_placement.py's
-        own module docstring) rather than a fixed material name.
+        RESIDENTIAL buildings (see ``building_placement.BuildingType``)
+        get a real gable (pitched) roof, ridge along the footprint's
+        longer axis -- matching real-world convention that pitched roofs
+        are a residential/small-building feature, not a commercial one.
+        Every other type keeps a flat top cap. Uses ``building.material``
+        (set by ``BuildingPlacementGenerator`` from
+        ``building.building_type``) rather than a fixed material name.
 
         Returns
         -------
         Mesh
-            8 vertices (4 base corners + 4 top corners), 12 triangles (2
+            Flat-roofed (non-residential): 8 vertices, 12 triangles (2
             per face x 6 faces: 4 walls + floor + roof cap).
+            Gable-roofed (residential): 10 vertices (+2 ridge peaks), 16
+            triangles (4 walls + floor + 2 gable-end + 4 roof-slope, all
+            true triangles -- see ``_gable_roof_mesh_parts``).
         """
         x_min, y_min, x_max, y_max = building.aabb
         base_z = _BUILDING_BASE_Z
         top_z = _BUILDING_BASE_Z + building.height
 
-        base_corners = np.array(
-            [
-                [x_min, y_min, base_z],
-                [x_max, y_min, base_z],
-                [x_max, y_max, base_z],
-                [x_min, y_max, base_z],
-            ]
-        )
-        top_corners = base_corners.copy()
-        top_corners[:, 2] = top_z
+        if building.building_type == BuildingType.RESIDENTIAL:
+            vertices, triangles = _gable_roof_mesh_parts(x_min, y_min, x_max, y_max, base_z, top_z)
+            uvs = np.zeros((10, 2))
+        else:
+            base_corners = np.array(
+                [
+                    [x_min, y_min, base_z],
+                    [x_max, y_min, base_z],
+                    [x_max, y_max, base_z],
+                    [x_min, y_max, base_z],
+                ]
+            )
+            top_corners = base_corners.copy()
+            top_corners[:, 2] = top_z
 
-        vertices = np.vstack([base_corners, top_corners])
-        uvs = np.zeros((8, 2))
-        triangles = _box_quad_faces_to_triangles(_BOX_FACES)
+            vertices = np.vstack([base_corners, top_corners])
+            uvs = np.zeros((8, 2))
+            triangles = _box_quad_faces_to_triangles(_BOX_FACES)
 
         return Mesh(
             vertices=vertices,

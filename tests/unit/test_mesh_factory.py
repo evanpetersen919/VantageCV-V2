@@ -8,9 +8,14 @@ import numpy as np
 import pytest
 
 from src.procedural.actor_placement import Pedestrian, Vehicle
-from src.procedural.building_placement import Building
+from src.procedural.building_placement import Building, BuildingType
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
-from src.procedural.mesh_factory import MIN_TRIANGLE_AREA_SQ_METERS, MeshFactory, _quad_indices_ccw
+from src.procedural.mesh_factory import (
+    MIN_TRIANGLE_AREA_SQ_METERS,
+    RESIDENTIAL_ROOF_HEIGHT_METERS,
+    MeshFactory,
+    _quad_indices_ccw,
+)
 from src.procedural.road_network import RoadNetworkGenerator
 
 # urban_config, bounds fixtures: see tests/conftest.py
@@ -182,6 +187,125 @@ def test_building_mesh_uses_buildings_own_material() -> None:
     )
     mesh = MeshFactory.build_building_mesh(building)
     assert mesh.material == "glass_curtain_wall"
+
+
+def _residential_building(
+    width: float = 10.0, depth: float = 6.0, height: float = 20.0
+) -> Building:
+    return Building(
+        building_id=0,
+        center=np.array([5.0, -3.0]),
+        width=width,
+        depth=depth,
+        height=height,
+        building_type=BuildingType.RESIDENTIAL,
+    )
+
+
+def test_residential_building_mesh_has_gable_roof_vertex_and_triangle_count() -> None:
+    """A residential building's mesh has 10 vertices (8 box corners + 2
+    ridge peaks) and 16 triangles (4 walls + floor + 2 gable-end + 4
+    roof-slope -- all true triangles, not fan-triangulated quads)."""
+    mesh = MeshFactory.build_building_mesh(_residential_building())
+    assert len(mesh.vertices) == 10
+    assert len(mesh.triangles) == 16 * 3
+
+
+def test_non_residential_building_mesh_keeps_flat_roof() -> None:
+    """MIXED_USE and COMMERCIAL buildings are unaffected -- still the
+    original 8-vertex/12-triangle flat-roofed box."""
+    for building_type in (BuildingType.MIXED_USE, BuildingType.COMMERCIAL):
+        building = Building(
+            building_id=0,
+            center=np.array([0.0, 0.0]),
+            width=10.0,
+            depth=8.0,
+            height=20.0,
+            building_type=building_type,
+        )
+        mesh = MeshFactory.build_building_mesh(building)
+        assert len(mesh.vertices) == 8
+        assert len(mesh.triangles) == 12 * 3
+
+
+def test_residential_building_mesh_vertices_finite() -> None:
+    """No NaN or Inf in a gable-roofed building mesh's vertices."""
+    mesh = MeshFactory.build_building_mesh(_residential_building())
+    assert np.isfinite(mesh.vertices).all()
+
+
+def test_residential_building_mesh_ridge_peak_height() -> None:
+    """The two ridge-peak vertices sit RESIDENTIAL_ROOF_HEIGHT_METERS
+    above the eave (flat-roof-equivalent) height, and every other vertex
+    sits at base or eave height -- nothing floats at an arbitrary z."""
+    height = 20.0
+    mesh = MeshFactory.build_building_mesh(_residential_building(height=height))
+
+    z_values = mesh.vertices[:, 2]
+    expected_peak_z = height + RESIDENTIAL_ROOF_HEIGHT_METERS
+    peak_vertices = z_values[np.isclose(z_values, expected_peak_z)]
+    assert len(peak_vertices) == 2
+
+    base_count = np.isclose(z_values, 0.0).sum()
+    eave_count = np.isclose(z_values, height).sum()
+    assert base_count == 4
+    assert eave_count == 4
+
+
+def test_residential_building_mesh_footprint_matches_aabb() -> None:
+    """Base corner x/y coordinates still match the building's AABB
+    exactly, same as the flat-roof case."""
+    building = _residential_building()
+    mesh = MeshFactory.build_building_mesh(building)
+    x_min, y_min, x_max, y_max = building.aabb
+
+    base_xy = mesh.vertices[:4, :2]
+    assert np.isclose(base_xy[:, 0].min(), x_min)
+    assert np.isclose(base_xy[:, 0].max(), x_max)
+    assert np.isclose(base_xy[:, 1].min(), y_min)
+    assert np.isclose(base_xy[:, 1].max(), y_max)
+
+
+def test_residential_building_mesh_no_degenerate_triangles() -> None:
+    """Every one of a gable-roofed building's 16 triangles has non-zero
+    3D area."""
+    mesh = MeshFactory.build_building_mesh(_residential_building())
+    for i in range(0, len(mesh.triangles), 3):
+        v0 = mesh.vertices[mesh.triangles[i]]
+        v1 = mesh.vertices[mesh.triangles[i + 1]]
+        v2 = mesh.vertices[mesh.triangles[i + 2]]
+        area = 0.5 * float(np.linalg.norm(np.cross(v1 - v0, v2 - v0)))
+        assert area > MIN_TRIANGLE_AREA_SQ_METERS, f"Degenerate triangle: area={area}"
+
+
+@pytest.mark.parametrize("width,depth", [(10.0, 6.0), (6.0, 10.0), (10.0, 10.0)])
+def test_residential_building_mesh_faces_point_outward(width: float, depth: float) -> None:
+    """Every triangle except the floor cap (matching the pre-existing,
+    already-shipped flat-roof box's own floor-winding convention -- see
+    KNOWN_GAPS_AND_ISSUES.md) has an outward-pointing normal, for both
+    ridge orientations (ridge-along-x when width >= depth, ridge-along-y
+    otherwise) and the square (width == depth) tie-breaking case."""
+    building = _residential_building(width=width, depth=depth, height=20.0)
+    mesh = MeshFactory.build_building_mesh(building)
+    centroid = building.center.tolist() + [10.0]
+    centroid = np.array(centroid)
+
+    # quad_faces order in _gable_roof_mesh_parts is 4 walls, then floor
+    # (2 triangles each) -- so the floor is triangles 8-9, not 0-1.
+    floor_triangle_indices = {8, 9}
+    for triangle_index in range(len(mesh.triangles) // 3):
+        i = triangle_index * 3
+        v0 = mesh.vertices[mesh.triangles[i]]
+        v1 = mesh.vertices[mesh.triangles[i + 1]]
+        v2 = mesh.vertices[mesh.triangles[i + 2]]
+        normal = np.cross(v1 - v0, v2 - v0)
+        triangle_centroid = (v0 + v1 + v2) / 3.0
+        outward_direction = triangle_centroid - centroid
+        dot = np.dot(normal, outward_direction)
+
+        if triangle_index in floor_triangle_indices:
+            continue
+        assert dot > 0, f"Triangle {triangle_index} normal points inward: {mesh.triangles[i:i+3]}"
 
 
 def _sample_vehicle(heading_rad: float = 0.0) -> Vehicle:
