@@ -1,6 +1,24 @@
 Release Notes
 ==============
 
+Unreleased -- Dogfooding pass: real camera framing bug found and fixed
+--------------------------------------------------------------------------
+
+Generated an actual 50-scenario dataset via ``bin/generate_dataset.py``
+and inspected it directly (COCO schema via ``pycocotools``, category/
+vehicle-mix distributions, and -- since no rendering engine exists to
+eyeball real frames -- a top-down 2D plot of one scenario compared
+side-by-side against ``default_overview_camera``'s own projected 2D
+annotations). Found and fixed a real, visually obvious framing bug: the
+default camera's offset/height ratios left most of the image empty
+(~55% width utilization); retuned to fill the frame far better, with a
+new regression test guarding against it recurring. Also documented,
+explicitly and where a user would actually see it (``user_guide.rst``'s
+CLI section), that this pipeline never produces actual image files --
+``annotations.json``'s own ``file_name`` field references a ``.png``
+that is never written, since no rendering engine exists to produce one.
+See ``KNOWN_GAPS_AND_ISSUES.md`` for both findings in full.
+
 Unreleased -- Gable roofs for residential buildings
 ---------------------------------------------------------
 

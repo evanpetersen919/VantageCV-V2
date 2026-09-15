@@ -67,6 +67,33 @@ def test_render_frame_produces_coco_frame(urban_config, bounds) -> None:
     assert len(frame.bboxes_3d_by_id) == len(set(frame.bboxes_3d_by_id))
 
 
+def test_default_overview_camera_fills_a_reasonable_fraction_of_the_frame(
+    urban_config, bounds
+) -> None:
+    """Regression test for a real framing issue found via dogfooding (no
+    rendering engine exists to eyeball actual frames against, so a
+    top-down scenario plot was compared against this camera's own
+    projected 2D boxes -- see KNOWN_GAPS_AND_ISSUES.md): the original
+    camera placement left most of the image empty, with annotated
+    content confined to a narrow central wedge. The union of every
+    projected 2D box should span a healthy majority of the image in
+    both axes, not just a small fraction of it."""
+    scenario = generate_scenario(42, urban_config, bounds, "s")
+    camera = default_overview_camera(bounds)
+    frame = render_frame(scenario, camera, image_id=0, file_name="frame.png")
+
+    assert frame.bboxes_2d  # sanity: this config/seed produces some
+
+    x_min = min(bbox.x_min for bbox in frame.bboxes_2d)
+    x_max = max(bbox.x_max for bbox in frame.bboxes_2d)
+    y_max = max(bbox.y_max for bbox in frame.bboxes_2d)
+
+    width_fraction = (x_max - x_min) / camera.intrinsics.width
+    height_fraction = y_max / camera.intrinsics.height  # content reaches down to near the bottom
+    assert width_fraction > 0.6, f"content only spans {width_fraction:.0%} of image width"
+    assert height_fraction > 0.6, f"content only spans {height_fraction:.0%} of image height"
+
+
 def test_generate_dataset_end_to_end(urban_config, bounds, tmp_path) -> None:
     """A full multi-scenario dataset generation run: writes real files,
     produces a schema-valid COCO export (pycocotools.COCO can load it),

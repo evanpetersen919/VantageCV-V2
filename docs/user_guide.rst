@@ -229,6 +229,19 @@ files (see the previous section); every other flag maps directly onto
 fails ``ScenarioValidator``; exits 2 (argparse's own convention) for
 missing/malformed arguments.
 
+**No actual image files are produced.** ``--output-dir`` gets
+``annotations.json`` (COCO) and one ``<scenario_id>_metadata.json`` per
+scenario -- nothing else. ``annotations.json``'s own
+``images[].file_name`` (e.g. ``"proc_scenario_0000.png"``) does **not**
+correspond to a real file anywhere: there is no rendering engine in this
+pipeline (no UE5 install exists in any environment this project has been
+built in) to actually produce an image from the generated geometry, only
+the ground-truth annotations *for* an image that was never rendered. If
+you need to inspect a scenario visually, plot its geometry directly (see
+``scenario.nodes``/``edges``/``buildings``/``vehicles``/``pedestrians``,
+all real Python objects from :func:`src.orchestration.dataset_generator.generate_scenario`)
+rather than expecting an image file to exist.
+
 The other ``bin/*.py`` scripts MASTER_PROMPT_PROCEDURAL_AV_DATASET_GENERATOR.md's
 file tree lists (``validate_dataset.py``, ``profile_performance.py``,
 ``visualize_scenarios.py``, ``compare_sim2real.py``) don't exist --

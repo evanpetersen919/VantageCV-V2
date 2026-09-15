@@ -129,12 +129,20 @@ def default_overview_camera(bounds: Bounds, width: int = 1280, height: int = 720
     ``bounds``, looking down at the scenario's center -- a reasonable
     default "establishing shot" vantage point with no scenario-specific
     tuning required.
+
+    Offset/height ratios tuned empirically (found via dogfooding: no
+    rendering engine exists to eyeball actual frames against, so a
+    top-down scenario plot plus this camera's own projected 2D boxes
+    were compared side by side -- see KNOWN_GAPS_AND_ISSUES.md). The
+    original ``0.3``/``0.6`` ratios left most of the frame empty (scene
+    content filled only ~55% of image width); ``0.05``/``0.35`` fill it
+    far better with no meaningful loss in visible annotations.
     """
     x_min, y_min, x_max, y_max = bounds
     center = np.array([(x_min + x_max) / 2.0, (y_min + y_max) / 2.0, 0.0])
     extent = max(x_max - x_min, y_max - y_min)
 
-    camera_position = np.array([x_min - extent * 0.3, y_min - extent * 0.3, extent * 0.6])
+    camera_position = np.array([x_min - extent * 0.05, y_min - extent * 0.05, extent * 0.35])
     intrinsics = CameraIntrinsics.from_fov(horizontal_fov_deg=90.0, width=width, height=height)
     extrinsics = CameraExtrinsics.looking_at(camera_position, center)
     return Camera(intrinsics, extrinsics)
