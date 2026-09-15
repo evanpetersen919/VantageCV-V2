@@ -1,5 +1,9 @@
-// UNVERIFIED: never compiled against UE5.4 (no local install). See
-// ScenarioMeshBuilder.h and KNOWN_GAPS_AND_ISSUES.md.
+// Compiles and loads cleanly against a real UE 5.4.4 editor (verified
+// 2026-09-15 -- see KNOWN_GAPS_AND_ISSUES.md). Runtime behavior of
+// BuildMeshSection itself (does a section actually render as expected
+// once fed real MeshData from the Python side) has not yet been
+// exercised -- only that the module compiles, links, and the plugin
+// loads without error.
 
 #include "ProceduralMesh/ScenarioMeshBuilder.h"
 #include "ProceduralMeshComponent.h"
@@ -28,14 +32,15 @@ bool UScenarioMeshBuilder::BuildMeshSection(
 		return false;
 	}
 
-	// Normals/tangents are left empty here; UE5's CreateMeshSection can
-	// auto-generate them (bCreateCollision=false, bCalculateNormals via
-	// the normals/tangents params being empty triggers a fallback in some
-	// UE5 versions -- this has not been verified against an actual build,
-	// see file header).
+	// Normals/tangents/vertex colors are left empty here -- compiles and
+	// links against UProceduralMeshComponent::CreateMeshSection (real
+	// signature: Vertices/Triangles/Normals/UV0/VertexColors as
+	// TArray<FColor>/Tangents/bCreateCollision), but whether the
+	// resulting section renders/lights correctly with all three left
+	// empty hasn't been visually verified in the editor yet.
 	const TArray<FVector> EmptyNormals;
 	const TArray<FProcMeshTangent> EmptyTangents;
-	TArray<FLinearColor> EmptyVertexColors;
+	const TArray<FColor> EmptyVertexColors;
 
 	TargetComponent->CreateMeshSection(
 		/*SectionIndex=*/0,

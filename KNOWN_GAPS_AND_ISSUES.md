@@ -21,15 +21,18 @@ code): `annotations.json`'s `images[].file_name` field (e.g.
 in `output_dir` -- only `annotations.json` and per-scenario
 `*_metadata.json` files are written. This is not a bug (there is no
 rendering engine anywhere in this pipeline to produce an actual image
-from — no UE5 install exists in any environment this project has been
-built in, per every UE5-related entry elsewhere in this file), but it
-was not previously stated anywhere a user would see it before hitting it
-themselves. A caller expecting a real image-plus-annotations COCO
-dataset (e.g. to train a model, or to visually spot-check output) needs
-to know this up front, not discover it by a missing-file surprise.
+from -- a real UE5.4 install now exists and the plugin compiles/loads
+(see the resolved UE5 entries elsewhere in this file), but nothing in
+`generate_dataset`'s own call path invokes `UE5Backend`/UE5 at all, and
+the UE5-side WebSocket JSON-RPC server needed to receive a real render
+request doesn't exist yet either), but it was not previously stated
+anywhere a user would see it before hitting it themselves. A caller
+expecting a real image-plus-annotations COCO dataset (e.g. to train a
+model, or to visually spot-check output) needs to know this up front,
+not discover it by a missing-file surprise.
 **Action**: documented explicitly in `docs/user_guide.rst`'s CLI section
-and this entry; revisit only if/when a real rendering backend (UE5 or
-otherwise) exists to actually produce `file_name`'s own image.
+and this entry; revisit once the UE5-side WebSocket bridge exists and
+`generate_dataset` actually calls it to render a frame.
 
 ### [RESOLVED] `default_overview_camera` framed scenarios poorly, leaving most of the image empty
 Found via the same dogfooding pass as the entry above: since no
@@ -439,27 +442,64 @@ here, which needs testing on a machine without the same local antivirus
 configuration to confirm the root cause.
 
 ### [DEFERRED] LoadProceduralScenario C++ skeleton doesn't parse into mesh/traffic data yet
-`AProceduralScenarioLoader::LoadProceduralScenario` (unverified, uncompiled --
-see UE5 plugin gaps above) only validates that its input is well-formed
-JSON. It does not dispatch per-mesh `UScenarioMeshBuilder::BuildMeshSection`
-calls, initialize a traffic controller actor (no such class exists yet),
-or implement streaming/culling -- MASTER_PROMPT Section 3.5's other three
-"Procedural Meshes"/"Traffic Network" bullets for this phase. All three
-need either a real UE5 project to build/profile against (streaming/
-culling) or upstream pieces that don't exist yet (a traffic controller
-actor class; Phase 6's orchestration layer, which is what would actually
-produce the JSON payload this function receives). The JSON schema this
-function expects is therefore provisional, not finalized against a real
+`AProceduralScenarioLoader::LoadProceduralScenario` (compiles and loads
+cleanly against a real UE 5.4.4 editor as of 2026-09-15 -- see the
+"[RESOLVED] UE5 plugin compiled and loaded" entry below; this is about
+its own logic, not compilation) only validates that its input is
+well-formed JSON. It does not dispatch per-mesh
+`UScenarioMeshBuilder::BuildMeshSection` calls, initialize a traffic
+controller actor (no such class exists yet), or implement streaming/
+culling -- MASTER_PROMPT Section 3.5's other three "Procedural Meshes"/
+"Traffic Network" bullets for this phase. All three need either
+profiling against a real, populated level (streaming/culling) or
+upstream pieces that don't exist yet (a traffic controller actor class;
+a real WebSocket JSON-RPC server on the UE5 side to actually receive a
+call and invoke this function -- see the D3D12 launch-crash entry
+below for what's still needed there). The JSON schema this function
+expects is therefore still provisional, not finalized against a real
 producer.
 
-### [DEFERRED] No actual UE5 `.uproject` still, and Phase 4's own first bullet (create it) not done
-Same limitation carried from Phase 0/1's KNOWN_GAPS entries: no UE5.4
-install exists in this environment, so nothing under `unreal_plugin/` has
-ever been opened in the Unreal Editor or compiled. Phase 4 was the
-roadmap's designated point to create the actual `.uproject` (MASTER_PROMPT
-3.1.1); still not done, and shouldn't be attempted blind -- do this first,
-manually, once UE5.4 LTS is actually installed somewhere, before trusting
-any of the C++ under `unreal_plugin/`.
+### [RESOLVED] UE5 plugin compiled and loaded into a real UE 5.4.4 editor for the first time
+Every prior entry in this file about `unreal_plugin/` being "unverified"
+or "never compiled" is now stale for the compile/load step specifically
+(runtime behavior of `BuildMeshSection`/`LoadProceduralScenario` is
+still unverified -- see their own entries). Dogfooded for real: UE
+5.4.4 installed, a fresh C++ host project created at
+`F:\UE5Projects\VantageCV_UE5\`, `unreal_plugin/SyntheticDataGen/`
+copied into its `Plugins/` folder, and compiled via a real Visual
+Studio 2022 build -- not guessed at from documentation.
+
+Found and fixed two real bugs the "never compiled" code had accumulated:
+1. `ScenarioMeshBuilder.cpp`'s `BuildMeshSection` declared its empty
+   vertex-colors array as `TArray<FLinearColor>`, but
+   `UProceduralMeshComponent::CreateMeshSection`'s real signature takes
+   `const TArray<FColor>&` (a different overload,
+   `CreateMeshSection_LinearColor`, takes `FLinearColor` instead) --
+   real compile error (`C2665: no overloaded function could convert all
+   the argument types`), not a guess. Fixed by changing the array's
+   element type to `FColor`.
+2. `SyntheticDataGen.uplugin` used the built-in `ProceduralMeshComponent`
+   plugin's module without declaring it as a plugin dependency in the
+   `"Plugins"` array -- UnrealBuildTool warned about this rather than
+   erroring, but it's the kind of thing that can silently break in a
+   packaged build; fixed by adding the dependency entry.
+
+Also required real environment fixes unrelated to this codebase's own
+C++ (Visual Studio 2026 was too new for UE5.4's toolchain detection and
+had to be uninstalled in favor of VS2022; UE5.4 additionally rejects
+VS2022's own default MSVC v143 14.44 toolset with a real compile error
+in Engine/Core headers, fixed by installing the older v14.38 toolset
+and pinning `UnrealBuildTool`'s `BuildConfiguration.xml` to use it) --
+none of that is specific to this project, so not detailed further here.
+
+**Still open, separately**: the editor crashes on normal launch
+(`EXCEPTION_ACCESS_VIOLATION` in the D3D12 shader compiler,
+`UnrealEditor-ShaderPreprocessor.dll`) on this particular machine,
+correlated with a very new (2026-era) NVIDIA driver and Windows 11
+build against a mid-2024 engine. Workaround: launch with the `-d3d11`
+flag. Not yet root-caused or fixed for real; see whoever picks this
+back up for the exact driver/build versions involved before assuming
+it's resolved.
 
 ### [DEFERRED] Master prompt Section 3.4 (Phase 3) contradicts Section 1.1 on which language owns mesh generation
 MASTER_PROMPT_PROCEDURAL_AV_DATASET_GENERATOR.md Section 3.4 labels
@@ -469,11 +509,11 @@ part of the Python-side "PROCEDURAL GENERATION ENGINE" box, distinct from
 UE5's "Procedural Mesh Component (Real-time Generation)" in the C++
 simulation backend. These directly conflict. Resolved in favor of the
 testable interpretation: `src/procedural/mesh_factory.py` computes
-vertex/triangle/UV buffers in Python; a minimal, unverified C++
-`UScenarioMeshBuilder` class exists under
-`unreal_plugin/.../ProceduralMesh/` as the UE5-side consumer of that data
-(never compiled -- no local UE5 install, same limitation as the rest of
-`unreal_plugin/`).
+vertex/triangle/UV buffers in Python; a C++ `UScenarioMeshBuilder` class
+exists under `unreal_plugin/.../ProceduralMesh/` as the UE5-side
+consumer of that data -- now confirmed to actually compile and load
+(see the resolved entry above), though `BuildMeshSection`'s own
+rendering output hasn't been visually verified yet.
 
 ### [DEFERRED] Procedural material generation (asphalt, concrete, brick) and LOD system not implemented
 MASTER_PROMPT Section 3.4 lists both under "Procedural Meshes." `Mesh.material`
@@ -629,23 +669,34 @@ re-run `poetry lock` and verify no version conflicts (open3d in particular has
 had NumPy 2.x incompatibilities historically — must verify against pinned
 NumPy 1.26.3).
 
-### [DEFERRED] UE5 C++ plugin skeleton is unverified — cannot compile locally
-`unreal_plugin/SyntheticDataGen/` (`.uplugin`, `Build.cs`, module
-header/cpp) is structurally standard UE5 module boilerplate but has **never
-been opened in Unreal Editor or compiled**, because UE5.4 is not installed in
-this environment.
-**Risk**: Build.cs dependency names, module loading phase, or C++20 flag could
-be subtly wrong in ways only the UE5 toolchain would catch.
-**Action**: first time someone has UE5.4 LTS installed (Phase 4 per roadmap),
-open the project, add this plugin, and confirm `RunUAT.sh/.bat BuildPlugin`
-succeeds with zero warnings before writing any further C++.
+### [RESOLVED] UE5 C++ plugin skeleton was unverified — now compiled and loaded for real
+Was: `unreal_plugin/SyntheticDataGen/` structurally looked like standard
+UE5 module boilerplate but had never been opened in Unreal Editor or
+compiled, since no UE5 install existed in any environment this project
+had been built in.
 
-### [DEFERRED] No actual UE5 `.uproject` / editor project created
-MASTER_PROMPT 3.1.1 calls for creating the UE5 project itself via
-`RunUAT.sh BuildProject`. Not done — no UE5 installed here, and an empty
-`.uproject` shell has little value without the editor to validate it.
-**Action**: do this as the first step of Phase 4, not before — Phases 1-3 are
-pure Python and don't need it.
+Resolved 2026-09-15: a real UE 5.4.4 install + Visual Studio 2022
+toolchain was set up, the plugin was compiled, and it loads cleanly
+into the editor with no errors. Two real bugs were found and fixed in
+the process (an `FColor`/`FLinearColor` mismatch in
+`CreateMeshSection`'s call site; a missing `ProceduralMeshComponent`
+plugin dependency declaration) -- see the "[RESOLVED] UE5 plugin
+compiled and loaded" entry above for full detail. Confirms the risk
+this entry predicted ("Build.cs dependency names... could be subtly
+wrong in ways only the UE5 toolchain would catch") was real, not
+hypothetical.
+
+### [RESOLVED] No actual UE5 `.uproject` / editor project created
+Was: MASTER_PROMPT 3.1.1 calls for creating the UE5 project itself via
+`RunUAT.sh BuildProject`; not done since no UE5 was installed anywhere
+this project had been worked on.
+
+Resolved 2026-09-15: a real host C++ project now exists at
+`F:\UE5Projects\VantageCV_UE5\` (created via the editor's New Project
+flow rather than `RunUAT BuildProject`, since that's the normal
+interactive path and nothing required the automated one specifically)
+with `unreal_plugin/SyntheticDataGen/` installed into its `Plugins/`
+folder and compiling successfully.
 
 ### [RESOLVED] CI workflow (`.github/workflows/lint_and_test.yml`) had never actually run on GitHub Actions
 Was: written to spec and known to work locally via Poetry, but never
