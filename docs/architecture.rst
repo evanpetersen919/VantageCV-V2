@@ -51,10 +51,11 @@ Layers
    networks (planar straight-line graph via perturbed-grid + Delaunay
    triangulation), per-lane boundary geometry, building placement
    (Delaunay triangles as an approximate city-block partition, each
-   building assigned a type -- residential/mixed-use/commercial, by
-   relative height within ``config.building_heights`` -- and a matching
-   exterior material), traffic control assignment, per-lane turn
-   connectivity across intersections
+   building kept ``config.road_setback_meters`` clear of every road and
+   assigned a type -- residential/mixed-use/commercial, by relative
+   height within ``config.building_heights`` -- and a matching exterior
+   material), traffic control assignment, per-lane turn connectivity
+   across intersections
    (:mod:`src.procedural.lane_connectivity` -- which lane legally feeds
    which other lane, classified straight/left/right from edge geometry
    and ``RoadEdge.allows_turning_left``/``allows_turning_right``),

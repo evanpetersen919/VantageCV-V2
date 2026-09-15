@@ -11,6 +11,7 @@ road_network:
 buildings:
   building_density: 0.8              # coverage ratio
   building_heights: [20.0, 40.0]     # meters
+  road_setback_meters: 2.0           # narrow sidewalk, buildings close to the curb
 
 traffic:
   traffic_density: [0.6, 1.0]

@@ -159,7 +159,7 @@ class ScenarioValidator:  # pylint: disable=too-few-public-methods
         # positions (lane starts, sidewalk offsets), which are
         # themselves never validated against `bounds` either -- see
         # test_traffic_network.py. Unlike buildings (placed with an
-        # explicit ROAD_SETBACK_METERS margin guaranteeing containment),
+        # explicit config.road_setback_meters margin guaranteeing containment),
         # spawn zones near the road network's edge can legitimately sit
         # slightly outside `bounds`; that's a property of the road
         # network's own generation, not a vehicle-placement defect.

@@ -100,3 +100,36 @@ def test_vehicle_mix_within_float_tolerance_accepted() -> None:
     kwargs["vehicle_mix"] = {"sedan": 0.6, "suv": 0.25, "truck": 0.1, "bus": 0.049}
     config = ScenarioTypeConfig(**kwargs)
     assert config.vehicle_mix["bus"] == 0.049
+
+
+def test_road_setback_meters_defaults_to_two() -> None:
+    """A config built without road_setback_meters gets the documented
+    default, matching the fixed constant this field replaced -- every
+    pre-existing caller/test keeps working unchanged."""
+    config = ScenarioTypeConfig(**_base_kwargs())
+    assert config.road_setback_meters == 2.0
+
+
+def test_road_setback_meters_accepts_explicit_value() -> None:
+    """An explicit road_setback_meters overrides the default."""
+    kwargs = _base_kwargs()
+    kwargs["road_setback_meters"] = 5.0
+    config = ScenarioTypeConfig(**kwargs)
+    assert config.road_setback_meters == 5.0
+
+
+def test_road_setback_meters_zero_accepted() -> None:
+    """A zero setback (e.g. for a dense urban template with buildings
+    right up to the curb) is a valid boundary value."""
+    kwargs = _base_kwargs()
+    kwargs["road_setback_meters"] = 0.0
+    config = ScenarioTypeConfig(**kwargs)
+    assert config.road_setback_meters == 0.0
+
+
+def test_road_setback_meters_negative_rejected() -> None:
+    """A negative setback is physically meaningless and rejected."""
+    kwargs = _base_kwargs()
+    kwargs["road_setback_meters"] = -1.0
+    with pytest.raises(ValidationError):
+        ScenarioTypeConfig(**kwargs)

@@ -45,13 +45,6 @@ from scipy.spatial import Delaunay, QhullError  # pylint: disable=no-name-in-mod
 from src.procedural.road_network import RoadEdge, RoadNode
 from src.procedural.scenario import ScenarioTypeConfig
 
-# Setback from a road's centerline within which no building may be placed,
-# beyond the road's own half-width. Represents sidewalk + minimum clearance;
-# a real value would come from config, but no such field exists in
-# ScenarioTypeConfig (see KNOWN_GAPS_AND_ISSUES.md) so a fixed constant is
-# used, matching real-world minimum sidewalk width guidance (~2m).
-ROAD_SETBACK_METERS = 2.0
-
 # Degenerate-triangle threshold: a candidate block below this area is
 # treated as unusable (too thin/sliver to hold a building), not an error.
 MIN_BLOCK_AREA_SQ_METERS = 25.0
@@ -257,8 +250,8 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
         -------
         List[Building]
             All placed buildings, none overlapping each other or
-            encroaching within ``ROAD_SETBACK_METERS`` of their own
-            block's boundary.
+            encroaching within ``config.road_setback_meters`` of their
+            own block's boundary.
         """
         blocks = self._identify_blocks(nodes, edges)
 
@@ -268,14 +261,14 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
         # KNOWN_GAPS_AND_ISSUES.md). Restricting the check to only a
         # block's own 3 triangle edges was tried next and is faster, but
         # is geometrically unsafe: for a skinny/obtuse triangle, a
-        # *different*, non-adjacent real road can still pass within
-        # ROAD_SETBACK_METERS of a point deep inside the block -- this was
-        # caught by test_no_building_within_road_setback actually
-        # failing, not a hypothetical. Fix: precompute each road segment's
-        # own padded bounding box once (cheap), then per-candidate, use a
-        # cheap AABB pre-filter to skip the vast majority of segments
-        # before running the exact (sqrt-based) distance check only on
-        # the few that are actually nearby.
+        # *different*, non-adjacent real road can still pass within the
+        # setback of a point deep inside the block -- this was caught by
+        # test_no_building_within_road_setback actually failing, not a
+        # hypothetical. Fix: precompute each road segment's own padded
+        # bounding box once (cheap), then per-candidate, use a cheap AABB
+        # pre-filter to skip the vast majority of segments before running
+        # the exact (sqrt-based) distance check only on the few that are
+        # actually nearby.
         all_segments_padded = [
             (
                 nodes[e.start_node_id].position,
@@ -283,7 +276,7 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
                 _padded_segment_aabb(
                     nodes[e.start_node_id].position,
                     nodes[e.end_node_id].position,
-                    ROAD_SETBACK_METERS,
+                    self.config.road_setback_meters,
                 ),
             )
             for e in edges.values()
@@ -293,7 +286,7 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
         # just a block's own 3 edges) is what makes it safe to skip an
         # explicit cross-block overlap check: Delaunay triangle interiors
         # never overlap each other, roads are the only boundaries between
-        # them, and a building kept >=ROAD_SETBACK_METERS from every road
+        # them, and a building kept >=road_setback_meters from every road
         # cannot cross into a neighboring block's interior. So two
         # buildings in different blocks geometrically cannot overlap,
         # without checking every prior building on every new placement.
@@ -414,25 +407,26 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
 
         return placed
 
-    @staticmethod
-    def _too_close_to_road(building: Building, padded_segments: List[_PaddedSegment]) -> bool:
-        """True if any road segment passes within ``ROAD_SETBACK_METERS``
-        of ``building``'s footprint -- equivalently, whether the segment
-        intersects the footprint's AABB inflated by the setback distance
-        (see ``_segment_intersects_aabb``'s docstring for why a naive
+    def _too_close_to_road(self, building: Building, padded_segments: List[_PaddedSegment]) -> bool:
+        """True if any road segment passes within
+        ``config.road_setback_meters`` of ``building``'s footprint --
+        equivalently, whether the segment intersects the footprint's AABB
+        inflated by the setback distance (see
+        ``_segment_intersects_aabb``'s docstring for why a naive
         corner-distance check is insufficient).
 
         ``padded_segments`` entries whose precomputed padded AABB doesn't
         even overlap ``building``'s own AABB are skipped first as a cheap
         broad-phase filter -- see ``generate``'s docstring.
         """
+        setback = self.config.road_setback_meters
         building_aabb = building.aabb
         x_min, y_min, x_max, y_max = building_aabb
         inflated_aabb = (
-            x_min - ROAD_SETBACK_METERS,
-            y_min - ROAD_SETBACK_METERS,
-            x_max + ROAD_SETBACK_METERS,
-            y_max + ROAD_SETBACK_METERS,
+            x_min - setback,
+            y_min - setback,
+            x_max + setback,
+            y_max + setback,
         )
         for seg_a, seg_b, padded_aabb in padded_segments:
             if not _aabb_overlap(building_aabb, padded_aabb):

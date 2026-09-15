@@ -11,6 +11,7 @@ road_network:
 buildings:
   building_density: 0.35              # within documented 0.2-0.5 range
   building_heights: [15.0, 30.0]
+  road_setback_meters: 4.0            # wider sidewalks/front yards than urban_dense
 
 traffic:
   traffic_density: [0.2, 0.5]

@@ -82,15 +82,22 @@ def load_scenario_config(path: Union[str, Path]) -> ScenarioTypeConfig:
     buildings = raw["buildings"]
     traffic = raw["traffic"]
 
-    return ScenarioTypeConfig(
-        scenario_type=scenario_type,
-        avg_block_size=tuple(road_network["avg_block_size"]),
-        avg_road_width=road_network["avg_road_width"],
-        num_intersections=tuple(road_network["num_intersections"]),
-        intersection_types=road_network["intersection_types"],
-        building_density=buildings["building_density"],
-        building_heights=tuple(buildings["building_heights"]),
-        traffic_density=tuple(traffic["traffic_density"]),
-        vehicle_mix=traffic["vehicle_mix"],
-        complexity_score=raw["complexity_score"],
-    )
+    kwargs: Dict[str, Any] = {
+        "scenario_type": scenario_type,
+        "avg_block_size": tuple(road_network["avg_block_size"]),
+        "avg_road_width": road_network["avg_road_width"],
+        "num_intersections": tuple(road_network["num_intersections"]),
+        "intersection_types": road_network["intersection_types"],
+        "building_density": buildings["building_density"],
+        "building_heights": tuple(buildings["building_heights"]),
+        "traffic_density": tuple(traffic["traffic_density"]),
+        "vehicle_mix": traffic["vehicle_mix"],
+        "complexity_score": raw["complexity_score"],
+    }
+    # Optional: omitted entirely (not defaulted to a literal here) so a
+    # template that doesn't set it gets ScenarioTypeConfig's own default
+    # from one single place, not two copies of "2.0" that could drift.
+    if "road_setback_meters" in buildings:
+        kwargs["road_setback_meters"] = buildings["road_setback_meters"]
+
+    return ScenarioTypeConfig(**kwargs)

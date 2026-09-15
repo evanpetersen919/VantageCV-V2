@@ -9,7 +9,6 @@ import numpy as np
 
 from src.procedural.building_placement import (
     BUILDING_MATERIALS_BY_TYPE,
-    ROAD_SETBACK_METERS,
     Building,
     BuildingPlacementGenerator,
     BuildingType,
@@ -48,8 +47,8 @@ def test_no_building_to_building_overlap(urban_config, bounds) -> None:
 def test_no_building_within_road_setback(  # pylint: disable=too-many-locals
     urban_config, bounds
 ) -> None:
-    """No building footprint corner comes within ROAD_SETBACK_METERS of a
-    road centerline."""
+    """No building footprint corner comes within
+    config.road_setback_meters of a road centerline."""
     road_gen = RoadNetworkGenerator(42, urban_config)
     nodes, edges = road_gen.generate(bounds)
 
@@ -57,6 +56,7 @@ def test_no_building_within_road_setback(  # pylint: disable=too-many-locals
     road_segments = [
         (nodes[e.start_node_id].position, nodes[e.end_node_id].position) for e in edges.values()
     ]
+    setback = urban_config.road_setback_meters
 
     for building in buildings:
         x_min, y_min, x_max, y_max = building.aabb
@@ -69,10 +69,41 @@ def test_no_building_within_road_setback(  # pylint: disable=too-many-locals
         for seg_a, seg_b in road_segments:
             for corner in corners:
                 dist = _point_segment_distance(corner, seg_a, seg_b)
-                assert dist >= ROAD_SETBACK_METERS - 1e-6, (
+                assert dist >= setback - 1e-6, (
                     f"Building {building.building_id} corner {corner} is {dist}m "
-                    f"from a road, closer than the {ROAD_SETBACK_METERS}m setback"
+                    f"from a road, closer than the {setback}m setback"
                 )
+
+
+def test_custom_road_setback_meters_is_actually_respected(  # pylint: disable=too-many-locals
+    urban_config, bounds
+) -> None:
+    """A non-default road_setback_meters genuinely changes generated
+    placement, not just validated and then silently ignored in favor of
+    a hardcoded value -- the exact regression this field's own addition
+    was meant to close (see KNOWN_GAPS_AND_ISSUES.md)."""
+    wide_setback_config = urban_config.model_copy(update={"road_setback_meters": 8.0})
+    road_gen = RoadNetworkGenerator(42, wide_setback_config)
+    nodes, edges = road_gen.generate(bounds)
+
+    buildings = BuildingPlacementGenerator(42, wide_setback_config).generate(nodes, edges)
+    assert buildings  # sanity: this config/seed still places some
+
+    road_segments = [
+        (nodes[e.start_node_id].position, nodes[e.end_node_id].position) for e in edges.values()
+    ]
+    for building in buildings:
+        x_min, y_min, x_max, y_max = building.aabb
+        corners = [
+            np.array([x_min, y_min]),
+            np.array([x_min, y_max]),
+            np.array([x_max, y_min]),
+            np.array([x_max, y_max]),
+        ]
+        for seg_a, seg_b in road_segments:
+            for corner in corners:
+                dist = _point_segment_distance(corner, seg_a, seg_b)
+                assert dist >= 8.0 - 1e-6
 
 
 def test_building_heights_within_config_range(urban_config, bounds) -> None:
