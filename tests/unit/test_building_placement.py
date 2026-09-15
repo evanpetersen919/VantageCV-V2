@@ -8,9 +8,13 @@ roughly matches config.
 import numpy as np
 
 from src.procedural.building_placement import (
+    BUILDING_MATERIALS_BY_TYPE,
     ROAD_SETBACK_METERS,
+    Building,
     BuildingPlacementGenerator,
+    BuildingType,
     _aabb_overlap,
+    _classify_building_type,
     _point_segment_distance,
     _polygon_area,
     _polygon_contains_point,
@@ -287,3 +291,89 @@ def test_point_segment_distance_degenerate_segment() -> None:
     seg_a = np.array([0.0, 0.0])
     seg_b = np.array([0.0, 0.0])
     assert np.isclose(_point_segment_distance(point, seg_a, seg_b), 5.0)
+
+
+def test_classify_building_type_bottom_third_is_residential() -> None:
+    """Heights in the bottom third of the configured range classify RESIDENTIAL."""
+    assert _classify_building_type(10.0, (10.0, 40.0)) == BuildingType.RESIDENTIAL
+    assert _classify_building_type(19.9, (10.0, 40.0)) == BuildingType.RESIDENTIAL
+
+
+def test_classify_building_type_middle_third_is_mixed_use() -> None:
+    """Heights in the middle third of the configured range classify MIXED_USE."""
+    assert _classify_building_type(20.0, (10.0, 40.0)) == BuildingType.MIXED_USE
+    assert _classify_building_type(25.0, (10.0, 40.0)) == BuildingType.MIXED_USE
+
+
+def test_classify_building_type_top_third_is_commercial() -> None:
+    """Heights in the top third of the configured range classify COMMERCIAL."""
+    assert _classify_building_type(30.0, (10.0, 40.0)) == BuildingType.COMMERCIAL
+    assert _classify_building_type(40.0, (10.0, 40.0)) == BuildingType.COMMERCIAL
+
+
+def test_classify_building_type_degenerate_range_defaults_to_mixed_use() -> None:
+    """A config with min == max building height has no meaningful
+    relative position -- defaults to the taxonomy's neutral category
+    rather than dividing by zero."""
+    assert _classify_building_type(15.0, (15.0, 15.0)) == BuildingType.MIXED_USE
+
+
+def test_every_building_type_has_at_least_one_material() -> None:
+    """Every BuildingType has a real, non-empty material set defined."""
+    for building_type in BuildingType:
+        assert building_type in BUILDING_MATERIALS_BY_TYPE
+        assert len(BUILDING_MATERIALS_BY_TYPE[building_type]) > 0
+
+
+def test_generated_buildings_have_type_and_material_consistent_with_height(
+    urban_config, bounds
+) -> None:
+    """Every generated building's type matches its own height's relative
+    position in config.building_heights, and its material is one this
+    codebase actually declares for that type."""
+    road_gen = RoadNetworkGenerator(42, urban_config)
+    nodes, edges = road_gen.generate(bounds)
+    buildings = BuildingPlacementGenerator(42, urban_config).generate(nodes, edges)
+
+    assert buildings  # sanity: this config/seed places some
+    for building in buildings:
+        expected_type = _classify_building_type(building.height, urban_config.building_heights)
+        assert building.building_type == expected_type
+        assert building.material in BUILDING_MATERIALS_BY_TYPE[building.building_type]
+
+
+def test_generated_building_types_are_not_all_the_same(urban_config, bounds) -> None:
+    """A real scenario's buildings span more than one type -- confirms
+    the height-driven classification actually varies, not just that it
+    runs without error."""
+    road_gen = RoadNetworkGenerator(42, urban_config)
+    nodes, edges = road_gen.generate(bounds)
+    buildings = BuildingPlacementGenerator(42, urban_config).generate(nodes, edges)
+
+    observed_types = {b.building_type for b in buildings}
+    assert len(observed_types) > 1
+
+
+def test_building_type_and_material_deterministic_across_seeds(urban_config, bounds) -> None:
+    """Same seed produces identical building_type/material assignments."""
+    road_gen = RoadNetworkGenerator(7, urban_config)
+    nodes, edges = road_gen.generate(bounds)
+
+    buildings1 = BuildingPlacementGenerator(7, urban_config).generate(nodes, edges)
+    buildings2 = BuildingPlacementGenerator(7, urban_config).generate(nodes, edges)
+
+    assert len(buildings1) == len(buildings2)
+    for b1, b2 in zip(buildings1, buildings2):
+        assert b1.building_type == b2.building_type
+        assert b1.material == b2.material
+
+
+def test_building_default_type_and_material() -> None:
+    """A Building constructed without explicit building_type/material
+    (e.g. in tests that only care about geometry) gets the documented
+    defaults -- every pre-existing caller keeps working unchanged."""
+    building = Building(
+        building_id=0, center=np.array([0.0, 0.0]), width=10.0, depth=10.0, height=20.0
+    )
+    assert building.building_type == BuildingType.MIXED_USE
+    assert building.material == "concrete"

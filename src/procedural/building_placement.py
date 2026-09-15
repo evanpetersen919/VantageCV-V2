@@ -18,9 +18,24 @@ city block. This is an approximation -- real city blocks are often
 quadrilateral-ish regions spanning multiple triangles -- but it is a
 correct, non-overlapping partition of the scenario's interior, which is
 what building placement actually needs.
+
+Building type/material: MASTER_PROMPT Section 3.3 lists "assign building
+types, heights, materials" but gives no taxonomy for either, and this
+gap was deliberately left deferred until a mesh/material consumer
+existed (see KNOWN_GAPS_AND_ISSUES.md) -- `mesh_factory.py` now is that
+consumer. Type is derived from where a building's own sampled height
+falls within `config.building_heights`'s own ``(min, max)`` range
+(bottom third RESIDENTIAL, middle third MIXED_USE, top third
+COMMERCIAL) rather than a fixed absolute threshold, since that range
+varies enormously across scenario templates (a parking lot's tallest
+building is shorter than urban_dense's shortest) -- a relative split is
+the only classification that means the same thing across every scenario
+type. Material is then sampled from that type's own plausible material
+set.
 """
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Dict, List, Set, Tuple
 
 import numpy as np
@@ -61,6 +76,49 @@ _PaddedSegment = Tuple[
 ]
 
 
+class BuildingType(str, Enum):
+    """Coarse building-use taxonomy, classified by relative height within
+    a scenario's own ``config.building_heights`` range -- see module
+    docstring for why a relative (not absolute) split is used."""
+
+    RESIDENTIAL = "residential"
+    MIXED_USE = "mixed_use"
+    COMMERCIAL = "commercial"
+
+
+# Plausible exterior materials per building type, sampled uniformly per
+# building. Not exhaustive real-world taxonomy -- a reasonable, varied
+# default set with no rendering/material-authoring phase to validate
+# against yet (see KNOWN_GAPS_AND_ISSUES.md's procedural-materials entry).
+BUILDING_MATERIALS_BY_TYPE: Dict[BuildingType, Tuple[str, ...]] = {
+    BuildingType.RESIDENTIAL: ("brick", "wood_siding", "stucco"),
+    BuildingType.MIXED_USE: ("brick", "concrete", "glass_curtain_wall"),
+    BuildingType.COMMERCIAL: ("glass_curtain_wall", "concrete", "metal_panel"),
+}
+
+
+def _classify_building_type(height: float, height_range: Tuple[float, float]) -> BuildingType:
+    """Classify a building's type from where ``height`` falls within
+    ``height_range`` (``config.building_heights``): bottom third
+    RESIDENTIAL, middle third MIXED_USE, top third COMMERCIAL.
+
+    A degenerate range (``min == max``, e.g. a scenario config with a
+    single fixed height) has no meaningful relative position -- defaults
+    to MIXED_USE, the taxonomy's own neutral middle category.
+    """
+    min_height, max_height = height_range
+    span = max_height - min_height
+    if span < 1e-9:
+        return BuildingType.MIXED_USE
+
+    relative_height = (height - min_height) / span
+    if relative_height < 1.0 / 3.0:
+        return BuildingType.RESIDENTIAL
+    if relative_height < 2.0 / 3.0:
+        return BuildingType.MIXED_USE
+    return BuildingType.COMMERCIAL
+
+
 @dataclass(eq=False)
 class Building:
     """A single procedurally placed building footprint."""
@@ -70,6 +128,8 @@ class Building:
     width: float
     depth: float
     height: float
+    building_type: BuildingType = BuildingType.MIXED_USE
+    material: str = "concrete"
 
     def __hash__(self) -> int:
         return hash(self.building_id)
@@ -325,6 +385,8 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
                 depth = self.rng.uniform(*BUILDING_FOOTPRINT_SIDE_METERS)
                 center = np.array([self.rng.uniform(x_min, x_max), self.rng.uniform(y_min, y_max)])
                 height = self.rng.uniform(*self.config.building_heights)
+                building_type = _classify_building_type(height, self.config.building_heights)
+                material = str(self.rng.choice(BUILDING_MATERIALS_BY_TYPE[building_type]))
 
                 candidate = Building(
                     building_id=self._building_counter,
@@ -332,6 +394,8 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
                     width=width,
                     depth=depth,
                     height=height,
+                    building_type=building_type,
+                    material=material,
                 )
 
                 if not _polygon_contains_point(block, center):
