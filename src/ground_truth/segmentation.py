@@ -20,12 +20,17 @@ building blocking part of itself from certain angles) doesn't arise for
 a convex shape, so per-object center-depth ordering is sufficient --
 that would not hold for concave geometry.
 
-Performance: mask rasterization is O(width * height) per object (a full
-per-pixel point-in-polygon test via ``matplotlib.path.Path``, vectorized
-across the whole image but still one full-image pass per object). Fine
-for test-sized images; a real HD-resolution frame with many buildings
-would be considerably slower than a proper GPU/renderer-based approach --
-see KNOWN_GAPS_AND_ISSUES.md.
+Performance: each object's point-in-polygon test (via
+``matplotlib.path.Path.contains_points``) only runs over its own
+projected silhouette's pixel bounding box, clipped to the image -- not
+the full ``width * height`` image, since every pixel outside that box is
+trivially outside the (convex) silhouette too. An *exact* optimization,
+not an approximation (verified directly against a brute-force
+full-image reference in tests): for a small object in a large frame this
+is a two-to-three-order-of-magnitude reduction in points tested, closing
+the gap KNOWN_GAPS_AND_ISSUES.md flagged here (this was previously one
+full-image pass per object regardless of how much screen space it
+actually covered).
 """
 
 from typing import Dict, List, Optional
@@ -71,6 +76,34 @@ def compute_silhouette(camera: Camera, bbox_3d: BoundingBox3D) -> Optional[npt.N
     return np.asarray(points[hull.vertices], dtype=np.float64)
 
 
+def _paint_silhouette(
+    owner: npt.NDArray[np.int64],
+    silhouette: npt.NDArray[np.float64],
+    object_id: int,
+    width: int,
+    height: int,
+) -> None:
+    """Assign ``object_id`` into ``owner`` (in place) at every pixel
+    inside ``silhouette``, testing only ``silhouette``'s own projected
+    pixel bounding box (clipped to the image) rather than every pixel of
+    the full image -- every point outside that box is trivially outside
+    a convex silhouette too, so this is exact, not approximate (see
+    module docstring)."""
+    x_min = max(0, int(np.floor(silhouette[:, 0].min())))
+    x_max = min(width, int(np.ceil(silhouette[:, 0].max())))
+    y_min = max(0, int(np.floor(silhouette[:, 1].min())))
+    y_max = min(height, int(np.ceil(silhouette[:, 1].max())))
+    if x_min >= x_max or y_min >= y_max:
+        return  # silhouette's bbox doesn't overlap the image at all
+
+    xx, yy = np.meshgrid(np.arange(x_min, x_max) + 0.5, np.arange(y_min, y_max) + 0.5)
+    pixel_centers = np.column_stack([xx.ravel(), yy.ravel()])
+
+    path = Path(silhouette)
+    inside = path.contains_points(pixel_centers).reshape(y_max - y_min, x_max - x_min)
+    owner[y_min:y_max, x_min:x_max][inside] = object_id
+
+
 def rasterize_instance_masks(  # pylint: disable=too-many-locals
     camera: Camera, bboxes_3d: List[BoundingBox3D]
 ) -> Dict[int, npt.NDArray[np.bool_]]:
@@ -104,14 +137,9 @@ def rasterize_instance_masks(  # pylint: disable=too-many-locals
     # overwrites a farther object already painted at the same pixel.
     objects_with_depth.sort(key=lambda entry: -entry[0])
 
-    xx, yy = np.meshgrid(np.arange(width) + 0.5, np.arange(height) + 0.5)
-    pixel_centers = np.column_stack([xx.ravel(), yy.ravel()])
-
     owner = np.full((height, width), -1, dtype=np.int64)
     for _, object_id, silhouette in objects_with_depth:
-        path = Path(silhouette)
-        inside = path.contains_points(pixel_centers).reshape(height, width)
-        owner[inside] = object_id
+        _paint_silhouette(owner, silhouette, object_id, width, height)
 
     masks: Dict[int, npt.NDArray[np.bool_]] = {}
     for _, object_id, _ in objects_with_depth:

@@ -6,9 +6,14 @@ this module's painter's-algorithm design.
 """
 
 import numpy as np
+from matplotlib.path import Path
 
 from src.ground_truth.bbox_3d import BoundingBox3D
-from src.ground_truth.segmentation import compute_silhouette, rasterize_instance_masks
+from src.ground_truth.segmentation import (
+    _paint_silhouette,
+    compute_silhouette,
+    rasterize_instance_masks,
+)
 from src.sensors.camera_model import Camera, CameraExtrinsics, CameraIntrinsics
 
 
@@ -164,3 +169,84 @@ def test_rasterize_mask_shape_matches_camera_resolution() -> None:
     )
     masks = rasterize_instance_masks(camera, [bbox])
     assert masks[1].shape == (48, 64)
+
+
+def _brute_force_inside_mask(silhouette: np.ndarray, width: int, height: int) -> np.ndarray:
+    """Reference implementation: full-image point-in-polygon test, no
+    bounding-box clipping -- what rasterize_instance_masks's own
+    per-object painting used to do before it was accelerated."""
+    xx, yy = np.meshgrid(np.arange(width) + 0.5, np.arange(height) + 0.5)
+    pixel_centers = np.column_stack([xx.ravel(), yy.ravel()])
+    path = Path(silhouette)
+    return path.contains_points(pixel_centers).reshape(height, width)
+
+
+def test_bbox_clipped_rasterization_matches_brute_force_full_image() -> None:
+    """The bounding-box-clipped rasterization used internally by
+    rasterize_instance_masks produces bit-identical results to a
+    brute-force full-image point-in-polygon test, across many randomized
+    convex polygon shapes and positions (including partially/fully
+    outside the image) -- confirms the optimization is exact, not an
+    approximation."""
+    rng = np.random.default_rng(0)
+    width, height = 64, 48
+    mismatches = 0
+
+    for _ in range(100):
+        num_vertices = int(rng.integers(3, 8))
+        center_x = rng.uniform(-30.0, width + 30.0)
+        center_y = rng.uniform(-30.0, height + 30.0)
+        radius = rng.uniform(1.0, 60.0)
+        angles = np.sort(rng.uniform(0.0, 2.0 * np.pi, num_vertices))
+        silhouette = np.column_stack(
+            [center_x + radius * np.cos(angles), center_y + radius * np.sin(angles)]
+        )
+
+        expected = _brute_force_inside_mask(silhouette, width, height)
+
+        owner = np.full((height, width), -1, dtype=np.int64)
+        _paint_silhouette(owner, silhouette, 1, width, height)
+        actual = owner == 1
+
+        if not np.array_equal(expected, actual):
+            mismatches += 1
+
+    assert mismatches == 0
+
+
+def test_silhouette_entirely_outside_image_produces_no_pixels() -> None:
+    """A silhouette whose bounding box never overlaps the image at all
+    (the x_min >= x_max / y_min >= y_max early-return path) contributes
+    no pixels, not an error."""
+    silhouette = np.array([[1000.0, 1000.0], [1010.0, 1000.0], [1010.0, 1010.0]])
+    owner = np.full((48, 64), -1, dtype=np.int64)
+    _paint_silhouette(owner, silhouette, 1, 64, 48)
+    assert (owner == 1).sum() == 0
+
+
+def test_rasterize_object_partially_outside_frame_still_correct() -> None:
+    """An object whose silhouette extends past the image edge still
+    produces a correctly-clipped mask -- the bbox-clip optimization must
+    not lose pixels that are legitimately inside both the polygon and the
+    image."""
+    camera = _small_camera()
+    # A large box near the camera, offset so its silhouette spills off
+    # the right/bottom edges of the small (64x48) image.
+    bbox = BoundingBox3D(
+        object_id=1, center=np.array([3.0, 2.0, 5.0]), dimensions=np.array([6.0, 6.0, 6.0])
+    )
+
+    masks = rasterize_instance_masks(camera, [bbox])
+
+    assert 1 in masks
+    assert masks[1].any()
+    # Confirms the silhouette really does spill past at least one edge
+    # (otherwise this test isn't exercising the clipping path at all).
+    silhouette = compute_silhouette(camera, bbox)
+    assert silhouette is not None
+    assert (
+        silhouette[:, 0].min() < 0
+        or silhouette[:, 0].max() > camera.intrinsics.width
+        or silhouette[:, 1].min() < 0
+        or silhouette[:, 1].max() > camera.intrinsics.height
+    )

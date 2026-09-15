@@ -80,9 +80,10 @@ Layers
    ``LidarConfig.range_noise_std_m``), depth map rendering (same
    ``TriangleGrid`` acceleration, optionally with Gaussian depth noise --
    ``render_depth_map``'s own ``noise_std_m``), and 3D/2D bounding box +
-   instance segmentation
-   extraction (segmentation exploits that a building is a convex box: its
-   silhouette is exactly the convex hull of its projected corners).
+   instance segmentation extraction (segmentation exploits that a
+   building is a convex box: its silhouette is exactly the convex hull
+   of its projected corners, and each object's mask is painted only over
+   its own projected pixel bounding box rather than the full image).
 
 **Export & validation** (``src/export/``, ``src/validation/``, Phase 6)
    COCO JSON export (schema-validated against the real ``pycocotools``
@@ -119,13 +120,6 @@ What is deliberately not implemented
   NuScenes' schema is built around temporal sequences of dynamic
   objects, which this pipeline doesn't generate; sim2real analysis needs
   real reference data, which doesn't exist in this project.
-- **Accelerated segmentation mask rasterization**: LiDAR ray-casting and
-  depth-map rendering both gained a spatial index
-  (:class:`src.sensors.lidar_model.TriangleGrid`, a uniform-grid ray
-  traversal), but ``segmentation.py``'s per-object rasterization is a
-  different algorithm entirely (a full-image polygon-fill pass per
-  object, not ray-triangle intersection) and is still O(width * height)
-  per object, unaccelerated.
 - **GPU-count scaling tests** (Phase 7): this pipeline's workload is
   pure CPU/NumPy; nothing in it uses a GPU, so GPU-count scaling isn't a
   meaningful axis regardless of environment.
