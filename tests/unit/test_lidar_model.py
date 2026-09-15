@@ -187,7 +187,7 @@ def test_lidar_hit_points_lie_on_ground_plane() -> None:
     sensor = LidarSensor(config)
     points = sensor.scan(origin, [_ground_plane_mesh()])
 
-    assert len(points) > 0
+    assert len(points) == config.channels * config.horizontal_samples
     world_z = origin[2] + points[:, 2]
     assert np.allclose(world_z, 0.0, atol=1e-6)
 
@@ -406,6 +406,53 @@ def test_triangle_grid_respects_max_distance() -> None:
     assert grid.closest_hit(origin, direction) == pytest.approx(5.0)
     assert grid.closest_hit(origin, direction, max_distance=4.0) is None
     assert grid.closest_hit(origin, direction, max_distance=5.5) == pytest.approx(5.0)
+
+
+def test_triangle_grid_finds_hits_grazing_flat_scene_boundary() -> (
+    None
+):  # pylint: disable=duplicate-code
+    """Regression test for a real bug found via CI (passed on Windows,
+    failed on Linux -- see KNOWN_GAPS_AND_ISSUES.md): a flat mesh (every
+    vertex at the same z) makes the grid's own z-extent collapse to a
+    single thin cell, so the geometry sits exactly on that cell's
+    boundary. A ray grazing that boundary can compute a hit distance via
+    Moeller-Trumbore that's a few ULPs *greater* than the grid's own
+    AABB-slab-derived traversal bound for the same geometric point (two
+    different formulas for what should be the same number) -- rejecting
+    such a hit against that self-referential bound would silently drop a
+    real, exact hit. `closest_hit` must accept it (checked only against
+    the caller's own `max_distance`, never the grid's internal traversal
+    bound) exactly like `closest_hit_distance` (brute force) does.
+
+    This specific config (channels=3, 45-degree azimuth step, -45..-20
+    degree elevation, over a huge flat ground plane) is the exact one
+    that exposed the bug in CI."""
+    mesh = _ground_plane_mesh()
+    grid = TriangleGrid([mesh])
+    origin = np.array([0.0, 0.0, 5.0])
+    config = LidarConfig(
+        channels=3,
+        horizontal_resolution_deg=45.0,
+        vertical_fov_deg=(-45.0, -20.0),
+        max_range_m=50.0,
+    )
+
+    azimuths = np.radians(np.linspace(0, 360, config.horizontal_samples, endpoint=False))
+    elevations = np.radians(np.linspace(*config.vertical_fov_deg, config.channels))
+    for elevation in elevations:
+        for azimuth in azimuths:
+            direction = np.array(
+                [
+                    np.cos(elevation) * np.cos(azimuth),
+                    np.cos(elevation) * np.sin(azimuth),
+                    np.sin(elevation),
+                ]
+            )
+            expected = closest_hit_distance(origin, direction, [mesh])
+            actual = grid.closest_hit(origin, direction, max_distance=config.max_range_m)
+            assert expected is not None, "test setup should guarantee every ray hits"
+            assert actual is not None, f"grid missed a real hit for direction {direction}"
+            assert actual == pytest.approx(expected)
 
 
 def test_lidar_sensor_scan_matches_brute_force_reference() -> (

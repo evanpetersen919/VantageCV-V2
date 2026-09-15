@@ -295,10 +295,23 @@ class TriangleGrid:  # pylint: disable=too-few-public-methods
         interval = self._ray_aabb_intersect(origin, direction)
         if interval is None:
             return None
-        t_min, t_max = interval
-        if max_distance is not None:
-            t_max = min(t_max, max_distance)
-        if t_max < max(t_min, 0.0):
+        t_min, aabb_t_max = interval
+        # Two different bounds, deliberately kept separate: `traversal_limit`
+        # (derived from the grid's own AABB-slab math) only decides when to
+        # stop visiting new cells; `accept_limit` (the caller's own
+        # max_distance, or unbounded) decides whether a *found* triangle
+        # hit counts. They must not be conflated: when geometry sits
+        # exactly on a grid boundary (a flat ground/road plane at a fixed
+        # z, extremely common in this codebase), the AABB-slab formula and
+        # Moeller-Trumbore's own formula can disagree by a few ULPs for a
+        # ray that grazes that boundary -- rejecting a real hit against
+        # the grid's own approximate bound would silently drop valid,
+        # exact hits (found and fixed via a real cross-platform CI
+        # failure: a flat ground-plane test passed on Windows but failed
+        # on Linux, for exactly this reason).
+        traversal_limit = aabb_t_max if max_distance is None else min(aabb_t_max, max_distance)
+        accept_limit = float("inf") if max_distance is None else max_distance
+        if traversal_limit < max(t_min, 0.0):
             return None
 
         entry_point = origin + max(t_min, 0.0) * direction
@@ -329,13 +342,13 @@ class TriangleGrid:  # pylint: disable=too-few-public-methods
                 tested.add(triangle_index)
                 v0, v1, v2 = self._triangles[triangle_index]
                 hit = ray_triangle_intersect(origin, direction, v0, v1, v2)
-                if hit is not None and hit <= t_max and (best_hit is None or hit < best_hit):
+                if hit is not None and hit <= accept_limit and (best_hit is None or hit < best_hit):
                     best_hit = hit
 
             cell_exit_t = min(t_max_axis)
             if best_hit is not None and best_hit <= cell_exit_t:
                 break
-            if cell_exit_t > t_max:
+            if cell_exit_t > traversal_limit:
                 break
 
             axis = t_max_axis.index(cell_exit_t)
