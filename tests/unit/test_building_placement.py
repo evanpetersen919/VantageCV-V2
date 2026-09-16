@@ -6,6 +6,8 @@ roughly matches config.
 """
 
 import numpy as np
+from shapely.geometry import Polygon
+from shapely.ops import unary_union
 
 from src.procedural.building_placement import (
     BUILDING_MATERIALS_BY_TYPE,
@@ -19,6 +21,8 @@ from src.procedural.building_placement import (
     _polygon_contains_point,
     _segment_intersects_aabb,
 )
+from src.procedural.lane_topology import LaneTopologyGenerator
+from src.procedural.mesh_factory import MeshFactory
 from src.procedural.road_network import (
     IntersectionType,
     RoadEdge,
@@ -104,6 +108,55 @@ def test_custom_road_setback_meters_is_actually_respected(  # pylint: disable=to
             for corner in corners:
                 dist = _point_segment_distance(corner, seg_a, seg_b)
                 assert dist >= 8.0 - 1e-6
+
+
+def test_no_building_overlaps_actual_lane_pavement(  # pylint: disable=too-many-locals
+    urban_config, bounds
+) -> None:
+    """No building footprint overlaps the real, rendered lane-mesh
+    geometry (not just a fixed distance from the road centerline).
+
+    Regression test for a real bug found via UE5 dogfooding: with only
+    `config.road_setback_meters` (a small fixed margin, 2-4m for this
+    project's templates) enforced from the centerline, buildings could
+    -- and in a real generated scenario, did (194 of 283 buildings, ~69%)
+    -- end up standing inside a multi-lane road's actual paved area,
+    since a road's real physical half-width from centerline is
+    `edge.num_lanes * LANE_WIDTH_METERS` (up to 14m for a 4-lane edge),
+    not just the fixed setback margin. Fixed by adding each edge's own
+    lane half-width to the setback enforced against it. This test
+    checks the real, rendered geometry (via Shapely, unioning actual
+    mesh triangles), not just a reimplementation of the fixed-distance
+    formula the bug was in.
+    """
+    road_gen = RoadNetworkGenerator(42, urban_config)
+    nodes, edges = road_gen.generate(bounds)
+    lanes = LaneTopologyGenerator().generate(nodes, edges)
+    buildings = BuildingPlacementGenerator(42, urban_config).generate(nodes, edges)
+    assert buildings  # sanity: this config/seed still places some
+
+    lane_shapes = []
+    for lane in lanes.values():
+        mesh = MeshFactory.build_road_mesh(lane)
+        triangles = []
+        vertices_2d = mesh.vertices[:, :2]
+        for i in range(0, len(mesh.triangles), 3):
+            a, b, c = mesh.triangles[i : i + 3]
+            triangle = Polygon([vertices_2d[a], vertices_2d[b], vertices_2d[c]])
+            if triangle.area > 1e-9:
+                triangles.append(triangle)
+        if triangles:
+            lane_shapes.append(unary_union(triangles))
+    all_lane_area = unary_union(lane_shapes)
+
+    for building in buildings:
+        x_min, y_min, x_max, y_max = building.aabb
+        footprint = Polygon([(x_min, y_min), (x_max, y_min), (x_max, y_max), (x_min, y_max)])
+        overlap = footprint.intersection(all_lane_area)
+        assert overlap.area < 0.1, (
+            f"Building {building.building_id} overlaps {overlap.area:.2f} sq m of real "
+            "lane pavement"
+        )
 
 
 def test_building_heights_within_config_range(urban_config, bounds) -> None:

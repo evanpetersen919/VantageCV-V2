@@ -42,6 +42,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.spatial import Delaunay, QhullError  # pylint: disable=no-name-in-module
 
+from src.procedural.lane_topology import LANE_WIDTH_METERS
 from src.procedural.road_network import RoadEdge, RoadNode
 from src.procedural.scenario import ScenarioTypeConfig
 
@@ -62,10 +63,15 @@ MAX_PLACEMENT_ATTEMPTS_PER_BLOCK = 50
 # slots at full attempt cost. See _place_buildings_in_block's docstring.
 MAX_CONSECUTIVE_FULL_FAILURES = 5
 
-# (segment start, segment end, padded AABB) -- see generate()'s docstring
-# for why the padded AABB is precomputed once rather than per-candidate.
+# (segment start, segment end, padded AABB, this segment's own setback
+# distance) -- see generate()'s docstring for why the padded AABB is
+# precomputed once rather than per-candidate, and _too_close_to_road's
+# docstring for why the setback distance is per-segment, not global.
 _PaddedSegment = Tuple[
-    npt.NDArray[np.float64], npt.NDArray[np.float64], Tuple[float, float, float, float]
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+    Tuple[float, float, float, float],
+    float,
 ]
 
 
@@ -269,6 +275,17 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
         # pre-filter to skip the vast majority of segments before running
         # the exact (sqrt-based) distance check only on the few that are
         # actually nearby.
+        # Setback is measured from the road *centerline*, but the actual
+        # paved surface extends up to `e.num_lanes * LANE_WIDTH_METERS`
+        # from that centerline on this edge's own (right-hand) side --
+        # config.road_setback_meters alone (a small fixed margin, e.g.
+        # 2-4m) doesn't account for that, so on any multi-lane road a
+        # building could pass this check while still standing inside the
+        # actual lane pavement. Confirmed as a real, large-scale problem
+        # via dogfooding (a real generated scenario had 194 of 283
+        # buildings, ~69%, overlapping real lane geometry -- see
+        # KNOWN_GAPS_AND_ISSUES.md), not a hypothetical. Fixed by adding
+        # each edge's own lane half-width to the setback used against it.
         all_segments_padded = [
             (
                 nodes[e.start_node_id].position,
@@ -276,8 +293,9 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
                 _padded_segment_aabb(
                     nodes[e.start_node_id].position,
                     nodes[e.end_node_id].position,
-                    self.config.road_setback_meters,
+                    self.config.road_setback_meters + e.num_lanes * LANE_WIDTH_METERS,
                 ),
+                self.config.road_setback_meters + e.num_lanes * LANE_WIDTH_METERS,
             )
             for e in edges.values()
         ]
@@ -408,29 +426,30 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
         return placed
 
     def _too_close_to_road(self, building: Building, padded_segments: List[_PaddedSegment]) -> bool:
-        """True if any road segment passes within
-        ``config.road_setback_meters`` of ``building``'s footprint --
-        equivalently, whether the segment intersects the footprint's AABB
-        inflated by the setback distance (see
-        ``_segment_intersects_aabb``'s docstring for why a naive
-        corner-distance check is insufficient).
+        """True if any road segment passes within its own effective
+        setback distance (``config.road_setback_meters`` plus that edge's
+        own lane pavement half-width -- see ``generate``'s docstring on
+        why this is per-segment, not a single global value) of
+        ``building``'s footprint -- equivalently, whether the segment
+        intersects the footprint's AABB inflated by that segment's own
+        setback distance (see ``_segment_intersects_aabb``'s docstring
+        for why a naive corner-distance check is insufficient).
 
         ``padded_segments`` entries whose precomputed padded AABB doesn't
         even overlap ``building``'s own AABB are skipped first as a cheap
         broad-phase filter -- see ``generate``'s docstring.
         """
-        setback = self.config.road_setback_meters
         building_aabb = building.aabb
         x_min, y_min, x_max, y_max = building_aabb
-        inflated_aabb = (
-            x_min - setback,
-            y_min - setback,
-            x_max + setback,
-            y_max + setback,
-        )
-        for seg_a, seg_b, padded_aabb in padded_segments:
+        for seg_a, seg_b, padded_aabb, setback in padded_segments:
             if not _aabb_overlap(building_aabb, padded_aabb):
                 continue
+            inflated_aabb = (
+                x_min - setback,
+                y_min - setback,
+                x_max + setback,
+                y_max + setback,
+            )
             if _segment_intersects_aabb(seg_a, seg_b, inflated_aabb):
                 return True
         return False

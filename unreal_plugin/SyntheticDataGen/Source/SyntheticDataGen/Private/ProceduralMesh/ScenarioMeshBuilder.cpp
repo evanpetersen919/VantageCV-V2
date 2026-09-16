@@ -1,12 +1,14 @@
 // Compiles and loads cleanly against a real UE 5.4.4 editor (verified
-// 2026-09-15 -- see KNOWN_GAPS_AND_ISSUES.md). Runtime behavior of
-// BuildMeshSection itself (does a section actually render as expected
-// once fed real MeshData from the Python side) has not yet been
-// exercised -- only that the module compiles, links, and the plugin
-// loads without error.
+// 2026-09-15 -- see KNOWN_GAPS_AND_ISSUES.md). Runtime rendering
+// verified visually 2026-09-16 against a real 840-mesh scenario;
+// empty normals/tangents (this file's original approach) produced
+// visibly broken/noisy lighting on large flat surfaces (roads) --
+// fixed below by computing real ones via
+// UKismetProceduralMeshLibrary::CalculateTangentsForMesh.
 
 #include "ProceduralMesh/ScenarioMeshBuilder.h"
 #include "ProceduralMeshComponent.h"
+#include "KismetProceduralMeshLibrary.h"
 
 UScenarioMeshBuilder::UScenarioMeshBuilder()
 {
@@ -32,24 +34,29 @@ bool UScenarioMeshBuilder::BuildMeshSection(
 		return false;
 	}
 
-	// Normals/tangents/vertex colors are left empty here -- compiles and
-	// links against UProceduralMeshComponent::CreateMeshSection (real
-	// signature: Vertices/Triangles/Normals/UV0/VertexColors as
-	// TArray<FColor>/Tangents/bCreateCollision), but whether the
-	// resulting section renders/lights correctly with all three left
-	// empty hasn't been visually verified in the editor yet.
-	const TArray<FVector> EmptyNormals;
-	const TArray<FProcMeshTangent> EmptyTangents;
+	// Vertex colors are left empty (UProceduralMeshComponent tolerates
+	// this -- defaults to white, confirmed by the real visual test
+	// referenced in this file's header comment). Normals/tangents are
+	// NOT left empty: an earlier version did, and on a real generated
+	// scenario that produced visibly broken/noisy lighting on large
+	// flat surfaces (roads) -- computed here instead via the engine's
+	// own tangent-calculation utility, the standard approach for
+	// procedural meshes with well-formed vertex/triangle/UV data.
+	TArray<FVector> Normals;
+	TArray<FProcMeshTangent> Tangents;
+	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(
+		MeshData.Vertices, MeshData.Triangles, MeshData.UVs, Normals, Tangents);
+
 	const TArray<FColor> EmptyVertexColors;
 
 	TargetComponent->CreateMeshSection(
 		/*SectionIndex=*/0,
 		MeshData.Vertices,
 		MeshData.Triangles,
-		EmptyNormals,
+		Normals,
 		MeshData.UVs,
 		EmptyVertexColors,
-		EmptyTangents,
+		Tangents,
 		/*bCreateCollision=*/true);
 
 	return true;
