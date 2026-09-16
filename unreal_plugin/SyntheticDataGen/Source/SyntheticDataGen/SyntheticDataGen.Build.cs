@@ -27,6 +27,7 @@ public class SyntheticDataGen : ModuleRules
 			"Sockets",
 			"Json",
 			"JsonUtilities",
+			"WebSocketNetworking",
 		});
 	}
 }

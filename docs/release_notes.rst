@@ -1,6 +1,41 @@
 Release Notes
 ==============
 
+Unreleased -- Real UE5.4 integration: plugin compiles, WebSocket JSON-RPC bridge works
+---------------------------------------------------------------------------------------------------
+
+Set up a real UE 5.4.4 + Visual Studio 2022 environment and, for the
+first time in this project's history, actually compiled and ran
+``unreal_plugin/SyntheticDataGen/`` against a live editor rather than
+treating it as an unverified skeleton. Fixed two real compile bugs
+found this way (an ``FColor``/``FLinearColor`` mismatch in
+``ScenarioMeshBuilder``'s ``CreateMeshSection`` call; a missing
+``ProceduralMeshComponent`` plugin dependency declaration).
+
+Built the piece that made :mod:`src.ue5.backend` untestable against
+anything real: ``USyntheticDataGenRpcSubsystem``, a
+``UGameInstanceSubsystem`` hosting a WebSocket JSON-RPC server (via the
+engine's own ``WebSocketNetworking`` plugin) that answers ``Ping`` and
+``LoadProceduralScenario``. Verified with a real, non-mocked round
+trip: ``UE5Backend("ws://localhost:8765").ping()`` run from this repo
+against a live Play-In-Editor session, succeeding repeatedly. Getting a
+clean compile took three wrong turns worth remembering (see
+``KNOWN_GAPS_AND_ISSUES.md``'s "[RESOLVED] WebSocket JSON-RPC bridge"
+entry for the full detail) -- all stemming from a ``UCLASS`` holding a
+``TUniquePtr`` member of a type only forward-declared in its header;
+resolved by using a raw pointer with manual cleanup instead, which
+sidesteps the whole category of problem (implicit destructors, and a
+separate UnrealHeaderTool-generated hot-reload constructor, both
+independently needing the complete type).
+
+Also found a real, still-open latency oddity: the same ~2-second
+round-trip variance previously seen only against the *mock* server
+(suspected antivirus interference on new local socket connections) now
+also appears against the *real* UE5 server, at nearly the same value --
+a second independent data point supporting that theory. A related
+quirk (``localhost`` connects fine; explicit ``127.0.0.1``/``::1`` are
+both refused) remains unexplained.
+
 Unreleased -- Dogfooding pass: Ray parallelism benchmarked, resumable generation crash-tested
 ---------------------------------------------------------------------------------------------------
 
