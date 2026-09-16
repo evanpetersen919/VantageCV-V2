@@ -2,13 +2,14 @@
 
 Mirrors the test cases specified in MASTER_PROMPT Section 3.2.2, adjusted
 for the Generator/PCG64 seeding change and eq=False dataclasses documented
-in road_network.py's module docstring.
+in road_network.py's module docstring, and for the switch from
+perturbed-grid + Delaunay triangulation to a plain orthogonal grid (see
+that module's own docstring for why).
 """
 
 import time
 from collections import deque
 
-import numpy as np
 import pytest
 
 from src.procedural.road_network import (
@@ -19,12 +20,6 @@ from src.procedural.road_network import (
 )
 
 # urban_config, bounds fixtures: see tests/conftest.py
-
-# Tests below exercise generator internals (_find_or_create_node,
-# _connect_nodes, _nodes) directly to isolate specific algorithmic
-# behaviors (merging, degeneracy handling) from the full generate()
-# pipeline -- see MASTER_PROMPT/CLAUDE_SKILLS_AND_PROMPTS.md Skill 5.
-# pylint: disable=protected-access
 
 
 def _bfs_reachable_count(nodes, edges, start_node_id: int) -> int:
@@ -86,12 +81,17 @@ def test_network_connectivity(urban_config, bounds) -> None:
 
 
 def test_all_node_positions_within_bounds(urban_config, bounds) -> None:
-    """Every node's position stays within the declared bounds, even after
-    Gaussian perturbation. Regression test: grid generation can overshoot
-    by up to one spacing per axis, and perturbation can push a point
-    further out; both went unchecked until ScenarioValidator (Phase 4)
-    caught nodes up to ~70m outside a 500m-wide bounds region on a
-    real generated scenario. See KNOWN_GAPS_AND_ISSUES.md."""
+    """Every node's position stays within the declared bounds. Regression
+    test: the earlier perturbed-grid + Delaunay approach's grid generation
+    could overshoot by up to one spacing per axis, and Gaussian
+    perturbation could push a point further out still; both went
+    unchecked until ScenarioValidator (Phase 4) caught nodes up to ~70m
+    outside a 500m-wide bounds region on a real generated scenario. The
+    current plain-grid approach (see road_network.py's module docstring)
+    has no perturbation step and constructs each axis to land exactly on
+    its own bounds -- kept as a regression test since bounds containment
+    is a real invariant either implementation must satisfy. See
+    KNOWN_GAPS_AND_ISSUES.md."""
     gen = RoadNetworkGenerator(42, urban_config)
     nodes, _ = gen.generate(bounds)
 
@@ -105,7 +105,7 @@ def test_all_node_positions_within_bounds(urban_config, bounds) -> None:
 @pytest.mark.parametrize("seed", range(20))
 def test_all_node_positions_within_bounds_across_seeds(urban_config, bounds, seed) -> None:
     """Bounds containment holds across many seeds, not just one lucky
-    case (reflection math should be seed-independent)."""
+    case (grid-axis construction should be seed-independent)."""
     gen = RoadNetworkGenerator(seed, urban_config)
     nodes, _ = gen.generate(bounds)
 
@@ -269,10 +269,9 @@ def test_zero_area_bounds_raises_isolated_node_error(urban_config) -> None:
 
     Note: bounds with x_max > x_min always yield >= 2 grid points per axis
     regardless of how small the extent is relative to block spacing --
-    ``np.arange(x_min, x_max + spacing, spacing)`` always includes both
-    ``x_min`` and ``x_min + spacing`` whenever ``x_max > x_min``. Only a
-    literal zero-width/zero-height region collapses to one point. See
-    KNOWN_GAPS_AND_ISSUES.md.
+    ``RoadNetworkGenerator._axis_coords`` always includes both endpoints
+    whenever ``hi > lo``. Only a literal zero-width/zero-height region
+    degenerates to one point. See KNOWN_GAPS_AND_ISSUES.md.
     """
     zero_area_bounds = (5.0, 5.0, 5.0, 5.0)
     gen = RoadNetworkGenerator(42, urban_config)
@@ -281,43 +280,22 @@ def test_zero_area_bounds_raises_isolated_node_error(urban_config) -> None:
         gen.generate(zero_area_bounds)
 
 
-def test_nearby_points_merge_into_single_node(urban_config) -> None:
-    """Two points within MIN_INTERSECTION_DISTANCE_METERS merge into one
-    node rather than creating a duplicate intersection. See
-    QOL_RESEARCH_CHECKLIST.md Section A.1."""
+def test_grid_has_only_right_angle_intersections(urban_config, bounds) -> None:
+    """Every edge is exactly axis-aligned (horizontal or vertical) --
+    straight roads, square intersections only, by deliberate design (see
+    road_network.py's module docstring). Regression test for the switch
+    away from Delaunay triangulation, which could connect nodes at
+    arbitrary angles."""
     gen = RoadNetworkGenerator(42, urban_config)
+    _, edges = gen.generate(bounds)
 
-    node_id1 = gen._find_or_create_node(np.array([100.0, 200.0]))
-    node_id2 = gen._find_or_create_node(np.array([100.0 + 1e-7, 200.0]))
-
-    assert node_id1 == node_id2, "Points within tolerance should merge into the same node"
-    assert len(gen._nodes) == 1
-
-
-def test_points_beyond_merge_distance_stay_separate(urban_config) -> None:
-    """Two points farther apart than MIN_INTERSECTION_DISTANCE_METERS do
-    not merge."""
-    gen = RoadNetworkGenerator(42, urban_config)
-
-    node_id1 = gen._find_or_create_node(np.array([0.0, 0.0]))
-    node_id2 = gen._find_or_create_node(np.array([50.0, 0.0]))
-
-    assert node_id1 != node_id2
-    assert len(gen._nodes) == 2
-
-
-def test_collinear_points_raise_value_error_not_qhull_error(urban_config) -> None:
-    """Perfectly collinear node positions make Delaunay triangulation fail
-    (Qhull cannot construct a simplex from < 3-dimensional input); this is
-    wrapped as a ValueError rather than leaking QhullError. This is a real
-    limitation of Delaunay-based connectivity for straight-line layouts
-    (e.g. highway scenarios) -- see KNOWN_GAPS_AND_ISSUES.md."""
-    gen = RoadNetworkGenerator(42, urban_config)
-    for x in (0.0, 10.0, 20.0, 30.0):
-        gen._find_or_create_node(np.array([x, 0.0]))
-
-    with pytest.raises(ValueError, match="Delaunay triangulation failed"):
-        gen._connect_nodes()
+    for edge in edges.values():
+        dx, dy = edge.centerline[-1] - edge.centerline[0]
+        is_horizontal = abs(dy) < 1e-6
+        is_vertical = abs(dx) < 1e-6
+        assert (
+            is_horizontal or is_vertical
+        ), f"Edge {edge.edge_id} is not axis-aligned: dx={dx}, dy={dy}"
 
 
 def test_two_node_network_creates_bidirectional_edge_pair(urban_config) -> None:

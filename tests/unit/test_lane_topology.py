@@ -5,7 +5,9 @@ import pytest
 
 from src.procedural.lane_topology import LANE_WIDTH_METERS, LaneTopologyGenerator
 from src.procedural.math_utils import compute_perpendicular
+from src.procedural.mesh_factory import MeshFactory
 from src.procedural.road_network import RoadNetworkGenerator
+from tests.conftest import mesh_to_shapely_footprint
 
 # urban_config, bounds fixtures: see tests/conftest.py
 
@@ -103,10 +105,11 @@ def test_lanes_are_trimmed_short_of_intersections(urban_config, bounds) -> None:
     so different edges' lanes overlapped heavily wherever multiple roads
     converged. Fixed by trimming each lane short of each endpoint node by
     the widest connecting road's own lane half-width (see
-    LaneTopologyGenerator._compute_node_clearance) -- not a complete fix
-    for sharp/near-parallel intersection angles (see that method's own
-    docstring), but this test only asserts the trim itself actually
-    happens, which is unconditional.
+    LaneTopologyGenerator._compute_node_clearance). This test only
+    asserts the trim itself actually happens; see
+    test_no_lane_overlaps_at_intersections for the real-geometry, exact
+    zero-overlap property this trim makes possible now that
+    road_network.py only generates square (90-degree) intersections.
     """
     road_gen = RoadNetworkGenerator(42, urban_config)
     nodes, edges = road_gen.generate(bounds)
@@ -135,6 +138,41 @@ def test_lanes_are_trimmed_short_of_intersections(urban_config, bounds) -> None:
             f"Lane {lane.lane_id} (edge {lane.edge_id}) ends exactly at node "
             f"{edge.end_node_id} -- not trimmed at all"
         )
+
+
+def test_no_lane_overlaps_at_intersections(urban_config, bounds) -> None:
+    """No two lane meshes' real, rendered geometry overlaps anywhere --
+    checked against actual mesh triangles (via Shapely), not a
+    reimplementation of the trim formula the original bug was in.
+
+    Now a real, exact guarantee, not merely reduced: the per-node trim
+    (see test_lanes_are_trimmed_short_of_intersections) alone couldn't
+    fully eliminate overlap for sharp/near-parallel intersection angles,
+    which the old perturbed-grid + Delaunay-triangulation road network
+    could produce. road_network.py now generates only straight roads
+    with square (90-degree) intersections (see its own module
+    docstring for why), which makes this trim mathematically exact:
+    perpendicular roads trimmed back by their own half-width cannot
+    overlap. Confirmed directly on a real generated scenario: 0
+    overlapping pairs (previously 3,538 with the old road network, then
+    963 after the trim fix alone -- see KNOWN_GAPS_AND_ISSUES.md for
+    the full history).
+    """
+    road_gen = RoadNetworkGenerator(42, urban_config)
+    nodes, edges = road_gen.generate(bounds)
+    lanes = LaneTopologyGenerator().generate(nodes, edges)
+    assert lanes  # sanity: this config/seed produces some
+
+    lane_shapes = []
+    for lane in lanes.values():
+        shape = mesh_to_shapely_footprint(MeshFactory.build_road_mesh(lane))
+        if shape is not None:
+            lane_shapes.append(shape)
+
+    for i, shape_a in enumerate(lane_shapes):
+        for shape_b in lane_shapes[i + 1 :]:
+            overlap = shape_a.intersection(shape_b)
+            assert overlap.area < 0.05, f"Two lane meshes overlap by {overlap.area:.2f} sq m"
 
 
 def test_missing_node_raises_value_error(urban_config, bounds) -> None:

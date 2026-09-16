@@ -1,6 +1,35 @@
 Release Notes
 ==============
 
+Unreleased -- Road network rearchitected to an orthogonal grid: eliminates lane z-fighting entirely
+---------------------------------------------------------------------------------------------------
+
+Follow-up to the lane/building overlap fixes below, which reduced but
+explicitly couldn't fully eliminate lane self-overlap at intersections
+(a uniform per-node trim can't clear sharp/near-parallel intersection
+angles). Rather than build an angle-aware miter, rearchitected
+``road_network.py`` from perturbed-grid + Delaunay triangulation to a
+plain orthogonal grid -- straight roads, square (90-degree)
+intersections only. This makes the existing lane-trim fix
+mathematically exact: verified 0 overlapping lane-mesh pairs on the
+same real scenario shape used throughout this investigation (down from
+3,538 originally, 963 after the trim-only fix).
+
+Real, explicit tradeoff: loses the organic, arbitrary-angle street
+variety the old approach produced. Diagonal roads may return later as
+an additional connection strategy layered on the grid, not a revival of
+the old approach.
+
+Real downstream break, caught and fixed immediately: ``building_placement.py``'s
+block identification used to re-triangulate node positions internally
+and keep only triangles whose edges all survived -- with no diagonal
+edges left anywhere in the road graph, every triangle failed that
+check, and 5 existing tests immediately caught zero buildings being
+placed. Fixed by replacing the triangle *approximation* with exact
+rectangular grid-cell block identification -- genuinely more correct
+than before, since real city blocks in a grid city are rectangles, not
+triangles. Full test suite (441 tests) and lint clean throughout.
+
 Unreleased -- Fixed two real geometry bugs found by actually looking at rendered output
 ---------------------------------------------------------------------------------------------------
 

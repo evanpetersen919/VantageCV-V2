@@ -30,6 +30,7 @@ from src.procedural.road_network import (
     RoadNode,
     RoadType,
 )
+from tests.conftest import mesh_to_shapely_footprint
 
 # urban_config, bounds fixtures: see tests/conftest.py
 
@@ -135,18 +136,13 @@ def test_no_building_overlaps_actual_lane_pavement(  # pylint: disable=too-many-
     buildings = BuildingPlacementGenerator(42, urban_config).generate(nodes, edges)
     assert buildings  # sanity: this config/seed still places some
 
-    lane_shapes = []
-    for lane in lanes.values():
-        mesh = MeshFactory.build_road_mesh(lane)
-        triangles = []
-        vertices_2d = mesh.vertices[:, :2]
-        for i in range(0, len(mesh.triangles), 3):
-            a, b, c = mesh.triangles[i : i + 3]
-            triangle = Polygon([vertices_2d[a], vertices_2d[b], vertices_2d[c]])
-            if triangle.area > 1e-9:
-                triangles.append(triangle)
-        if triangles:
-            lane_shapes.append(unary_union(triangles))
+    lane_shapes = [
+        shape
+        for shape in (
+            mesh_to_shapely_footprint(MeshFactory.build_road_mesh(lane)) for lane in lanes.values()
+        )
+        if shape is not None
+    ]
     all_lane_area = unary_union(lane_shapes)
 
     for building in buildings:

@@ -1,9 +1,26 @@
-"""Procedural road network generation via perturbed-grid + Delaunay filtering.
+"""Procedural road network generation via an orthogonal grid.
 
 Implements MASTER_PROMPT Section 3.2: road networks are modeled as Planar
 Straight-Line Graphs (PSLG) — vertices are intersection nodes, edges are road
 segments, and the graph is planar (no crossing edges except at intersections)
 and connected.
+
+Straight roads, square (90-degree) intersections only, by deliberate
+choice: every node connects only to its immediate grid neighbors (one
+step in +x/-x/+y/-y), so every intersection is a clean axis-aligned
+crossing. This replaced an earlier perturbed-grid + Delaunay-
+triangulation approach (still visible in git history) that produced
+organic, arbitrary-angle streets, including diagonal/off-grid roads and
+acute-angle intersections. That approach was scrapped because
+acute-angle intersections have no exact fix for lane-mesh self-overlap
+short of a full angle-aware miter computation (see
+KNOWN_GAPS_AND_ISSUES.md's lane-overlap entries for the real, measured
+z-fighting this caused when rendered in UE5) -- square intersections
+make the existing per-node lane-trim fix (see lane_topology.py) exact
+instead of a partial mitigation, at the cost of losing organic street
+variety. Diagonal roads may be added back later as an explicit,
+additional connection strategy layered on top of this grid, not a
+revival of the old point-cloud/Delaunay approach.
 
 Deviations from the master prompt's reference implementation (see
 KNOWN_GAPS_AND_ISSUES.md for the full rationale of each):
@@ -32,19 +49,11 @@ from typing import Dict, Optional, Set, Tuple
 
 import numpy as np
 import numpy.typing as npt
-from scipy.spatial import Delaunay, QhullError  # pylint: disable=no-name-in-module
 
 from src.procedural.scenario import ScenarioTypeConfig
 
-# QhullError is exported dynamically by scipy.spatial (confirmed at runtime,
-# scipy 1.11.4); pylint's static analysis of the compiled extension module
-# can't see it.
-
-
 # Constants (immutable, globally defined). See MASTER_PROMPT Section 3.2.1.
 MAX_ROAD_LENGTH_METERS = 500.0
-MIN_INTERSECTION_DISTANCE_METERS = 10.0
-GRID_PERTURBATION_RATIO = 0.15
 
 # Tolerance rationale: 1e-6 m is smaller than GPS precision (0.01 m) and
 # smaller than any road-scale quantity of interest; safe for geometric
@@ -125,7 +134,7 @@ class RoadEdge:  # pylint: disable=too-many-instance-attributes
         return hash(self.edge_id)
 
 
-class RoadNetworkGenerator:  # pylint: disable=too-few-public-methods
+class RoadNetworkGenerator:  # pylint: disable=too-few-public-methods,too-many-instance-attributes
     """Generate procedural road networks using PSLG theory.
 
     Exposes a single public entry point (``generate``) by design; the rest
@@ -133,9 +142,9 @@ class RoadNetworkGenerator:  # pylint: disable=too-few-public-methods
 
     Notes
     -----
-    Time complexity: O(N log N) dominated by Delaunay triangulation, where N
-    is the number of grid points. Space complexity: O(N) for node/edge
-    storage.
+    Time complexity: O(N) in the number of grid points (node/edge creation
+    plus one connection check per grid-adjacent pair). Space complexity:
+    O(N) for node/edge storage.
     """
 
     def __init__(self, seed: int, config: ScenarioTypeConfig) -> None:
@@ -156,6 +165,7 @@ class RoadNetworkGenerator:  # pylint: disable=too-few-public-methods
         self._edge_counter = 0
         self._nodes: Dict[int, RoadNode] = {}
         self._edges: Dict[int, RoadEdge] = {}
+        self._grid_node_ids: npt.NDArray[np.int64] = np.empty((0, 0), dtype=np.int64)
 
     def generate(
         self, bounds: Tuple[float, float, float, float]
@@ -177,181 +187,84 @@ class RoadNetworkGenerator:  # pylint: disable=too-few-public-methods
         ValueError
             If the generated network fails topological validation.
         """
-        grid_points = self._generate_grid_points(bounds)
-        perturbed_points = self._perturb_grid(grid_points)
-        contained_points = self._keep_within_bounds(perturbed_points, bounds)
-        self._create_nodes_from_points(contained_points)
-        self._connect_nodes()
+        x_coords, y_coords = self._generate_grid_axes(bounds)
+        self._create_grid_nodes(x_coords, y_coords)
+        self._connect_grid_nodes()
         self._assign_road_attributes()
         self._validate_network()
 
         return self._nodes, self._edges
 
-    def _generate_grid_points(
+    def _generate_grid_axes(
         self, bounds: Tuple[float, float, float, float]
-    ) -> npt.NDArray[np.float64]:
-        """Generate a regular grid of points spanning ``bounds``.
+    ) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Generate the x and y coordinate lines of a regular grid spanning
+        ``bounds`` exactly (both axes always include their own ``lo`` and
+        ``hi`` endpoint, unlike a plain ``arange`` which can overshoot),
+        with ``spacing ~ U(min_block, max_block)`` between interior lines.
 
-        Mathematical formula::
-
-            x_i = x_min + i * spacing, for i in {0, ..., num_x}
-            y_j = y_min + j * spacing, for j in {0, ..., num_y}
-
-        where ``spacing ~ U(min_block, max_block)``.
+        The final interval on either axis may be shorter than ``spacing``
+        (to land exactly on the ``hi`` endpoint without overshoot) rather
+        than reflected/clipped -- there is no Delaunay triangulation left
+        to protect from collinear/degenerate input, so there is no reason
+        to distort point spacing to avoid it.
         """
         x_min, y_min, x_max, y_max = bounds
-
         spacing = self.rng.uniform(
             self.config.avg_block_size[0],
             self.config.avg_block_size[1],
         )
-
-        x_coords = np.arange(x_min, x_max + spacing, spacing)
-        y_coords = np.arange(y_min, y_max + spacing, spacing)
-
-        xx, yy = np.meshgrid(x_coords, y_coords)
-        grid_points = np.column_stack((xx.ravel(), yy.ravel()))
-
-        return grid_points
-
-    def _perturb_grid(self, grid_points: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
-        """Add Gaussian perturbation to grid points.
-
-        Mathematical formula::
-
-            p'_i = p_i + N(0, sigma^2 * I)
-            sigma = GRID_PERTURBATION_RATIO * spacing
-
-        Purpose: remove artificial regularity, create an organic street
-        layout.
-        """
-        if len(grid_points) < 2:
-            return grid_points
-
-        dists = np.linalg.norm(np.diff(grid_points, axis=0), axis=1)
-        avg_spacing = np.median(dists)
-
-        sigma = GRID_PERTURBATION_RATIO * avg_spacing
-
-        perturbation = self.rng.normal(0, sigma, grid_points.shape)
-        perturbed_points = grid_points + perturbation
-
-        return perturbed_points
+        return self._axis_coords(x_min, x_max, spacing), self._axis_coords(y_min, y_max, spacing)
 
     @staticmethod
-    def _keep_within_bounds(
-        points: npt.NDArray[np.float64], bounds: Tuple[float, float, float, float]
-    ) -> npt.NDArray[np.float64]:
-        """Fold any point that fell outside ``bounds`` back inside it by
-        reflection at the violated edge(s), falling back to a hard clip
-        for the rare case reflection alone doesn't suffice.
+    def _axis_coords(lo: float, hi: float, spacing: float) -> npt.NDArray[np.float64]:
+        """Coordinate line from ``lo`` to ``hi`` inclusive, spaced by
+        ``spacing`` except possibly the last interval. Degenerates to a
+        single point ``[lo]`` when ``hi <= lo`` (zero/negative-width
+        axis)."""
+        if hi <= lo:
+            return np.array([lo], dtype=np.float64)
 
-        Both grid generation (``_generate_grid_points`` can overshoot by
-        up to one full ``spacing`` per axis by construction -- see
-        KNOWN_GAPS_AND_ISSUES.md) and Gaussian perturbation
-        (``_perturb_grid``) can push a point outside the caller's declared
-        ``bounds``. This was never checked or corrected before
-        ScenarioValidator's bounds-containment check caught it on a real
-        generated scenario: e.g. a node at (-271.6, -234.4) with
-        bounds=(-250, -250, 250, 250).
+        coords = list(np.arange(lo, hi, spacing))
+        if coords[-1] < hi - POSITION_TOLERANCE:
+            coords.append(hi)
+        return np.array(coords, dtype=np.float64)
 
-        Reflection ("bounce back off the wall"), not a hard clip, is used
-        because a hard clip collapses every overshooting point on the
-        same side onto one exact boundary line -- for 3+ points that is
-        an *exactly collinear* configuration, which crashes Delaunay
-        triangulation in ``_connect_nodes`` (a real, previously
-        established failure mode -- see
-        test_collinear_points_raise_value_error_not_qhull_error).
-        Reflection preserves each point's relative offset, so
-        overshooting points stay spread out rather than collapsing onto a
-        line. The final ``np.clip`` is a safety net only, for the
-        practically-unreachable case where a single reflection isn't
-        enough to bring a point back in range.
-        """
-        x_min, y_min, x_max, y_max = bounds
-        reflected = points.copy()
+    def _create_grid_nodes(
+        self, x_coords: npt.NDArray[np.float64], y_coords: npt.NDArray[np.float64]
+    ) -> None:
+        """Create one ``RoadNode`` per (x, y) grid coordinate pair, and
+        record each one's (row, col) grid position in ``_grid_node_ids``
+        for ``_connect_grid_nodes`` to look up orthogonal neighbors by
+        index rather than by nearest-neighbor search."""
+        self._grid_node_ids = np.empty((len(y_coords), len(x_coords)), dtype=np.int64)
+        for row, y in enumerate(y_coords):
+            for col, x in enumerate(x_coords):
+                node_id = self._node_counter
+                self._nodes[node_id] = RoadNode(
+                    node_id=node_id,
+                    position=np.array([x, y], dtype=np.float64),
+                    node_type=IntersectionType.ISOLATED,
+                )
+                self._grid_node_ids[row, col] = node_id
+                self._node_counter += 1
 
-        for axis, (lo, hi) in enumerate(((x_min, x_max), (y_min, y_max))):
-            below = reflected[:, axis] < lo
-            reflected[below, axis] = lo + (lo - reflected[below, axis])
-            above = reflected[:, axis] > hi
-            reflected[above, axis] = hi - (reflected[above, axis] - hi)
-
-        reflected[:, 0] = np.clip(reflected[:, 0], x_min, x_max)
-        reflected[:, 1] = np.clip(reflected[:, 1], y_min, y_max)
-
-        return reflected
-
-    def _create_nodes_from_points(self, points: npt.NDArray[np.float64]) -> None:
-        """Create ``RoadNode`` objects from a point cloud, merging points
-        within ``MIN_INTERSECTION_DISTANCE_METERS`` of an existing node.
-        """
-        for point in points:
-            self._find_or_create_node(point)
-
-    def _find_or_create_node(self, position: npt.NDArray[np.float64]) -> int:
-        """Find an existing node near ``position``, or create a new one.
-
-        Uses linear search (O(N)); acceptable at the scenario sizes this
-        generator targets (hundreds of nodes). A KDTree would reduce this
-        to O(log N) if profiling in Phase 1 performance tests shows it's a
-        bottleneck (see KNOWN_GAPS_AND_ISSUES.md).
-        """
-        for node_id, node in self._nodes.items():
-            distance = np.linalg.norm(node.position - position)
-            if distance < MIN_INTERSECTION_DISTANCE_METERS:
-                return node_id
-
-        node_id = self._node_counter
-        self._nodes[node_id] = RoadNode(
-            node_id=node_id,
-            position=position.astype(np.float64),
-            node_type=IntersectionType.ISOLATED,
-        )
-        self._node_counter += 1
-
-        return node_id
-
-    def _connect_nodes(self) -> None:
-        """Connect nodes with edges using Delaunay triangulation.
-
-        Delaunay triangulation maximizes the minimum angle across all
-        triangles, giving a natural connectivity pattern for urban streets
-        while guaranteeing planarity (triangle edges never cross).
-        """
-        if len(self._nodes) < 3:
-            self._connect_small_network()
-            return
-
-        node_ids = sorted(self._nodes.keys())
-        positions = np.array([self._nodes[nid].position for nid in node_ids])
-
-        try:
-            tri = Delaunay(positions)
-        except QhullError as exc:
-            raise ValueError(f"Delaunay triangulation failed: {exc}") from exc
-
-        for idx1, idx2 in self._extract_triangulation_edges(tri):
-            self._connect_if_within_max_length(node_ids[idx1], node_ids[idx2])
-
-    def _connect_small_network(self) -> None:
-        """Handle the 0/1/2-node case, where Delaunay triangulation (which
-        requires >=3 non-collinear points) does not apply."""
-        if len(self._nodes) != 2:
-            return
-        node_id1, node_id2 = sorted(self._nodes.keys())
-        self._connect_if_within_max_length(node_id1, node_id2)
-
-    @staticmethod
-    def _extract_triangulation_edges(tri: Delaunay) -> Set[Tuple[int, int]]:
-        """Extract the unique undirected edge set from a Delaunay
-        triangulation's simplices, as (point_index, point_index) pairs."""
-        edges_set: Set[Tuple[int, int]] = set()
-        for triangle in tri.simplices:
-            for i in range(3):
-                p1, p2 = int(triangle[i]), int(triangle[(i + 1) % 3])
-                edges_set.add((min(p1, p2), max(p1, p2)))
-        return edges_set
+    def _connect_grid_nodes(self) -> None:
+        """Connect every node to its immediate right (+x) and below (+y)
+        grid neighbor only -- straight roads, square intersections, by
+        design (see module docstring)."""
+        num_rows, num_cols = self._grid_node_ids.shape
+        for row in range(num_rows):
+            for col in range(num_cols):
+                node_id = int(self._grid_node_ids[row, col])
+                if col + 1 < num_cols:
+                    self._connect_if_within_max_length(
+                        node_id, int(self._grid_node_ids[row, col + 1])
+                    )
+                if row + 1 < num_rows:
+                    self._connect_if_within_max_length(
+                        node_id, int(self._grid_node_ids[row + 1, col])
+                    )
 
     def _connect_if_within_max_length(self, node_id1: int, node_id2: int) -> None:
         """Create a bidirectional edge pair between two nodes, unless doing
