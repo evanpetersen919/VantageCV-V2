@@ -16,7 +16,36 @@ DEFINE_LOG_CATEGORY_STATIC(LogProceduralScenarioLoader, Log, All);
 
 namespace
 {
-	// Parses a JSON array of [x, y, z] triples into an FVector array.
+	// src/procedural/mesh_factory.py generates all geometry in meters
+	// (matching ScenarioTypeConfig's own bounds/road-width/building-height
+	// units), but Unreal's native unit is centimeters (1 Unreal unit =
+	// 1cm) -- this is the boundary where that conversion needs to happen,
+	// since every mesh entering this function came from that Python-side
+	// meter-scale pipeline. Confirmed necessary via a real visual check:
+	// without this factor, a real scenario's buildings/roads rendered at
+	// 1/100th their intended size.
+	constexpr double MetersToUnrealUnits = 100.0;
+
+	// src/procedural/mesh_factory.py's own module docstring documents
+	// this exactly: its geometry is right-handed (CCW front-face
+	// winding), but UE5 is left-handed (CW front-face winding as seen
+	// from outside) -- "reconciling the two is Phase 4's job (the
+	// coordinate transform happens at the JSON-RPC boundary when
+	// loading into UE5, not here)". This is that boundary. Negating one
+	// axis (Y) both flips handedness and reverses every triangle's
+	// perceived winding in one step (a mirror transform reverses
+	// orientation), so no separate triangle-index swap is needed.
+	// Confirmed necessary via a real visual check: without this,
+	// buildings rendered with one or more walls missing (their normals
+	// pointed inward, so UE5's default backface culling hid them when
+	// viewed from outside).
+	FVector ApplyCoordinateConvention(double X, double Y, double Z)
+	{
+		return FVector(X, -Y, Z) * MetersToUnrealUnits;
+	}
+
+	// Parses a JSON array of [x, y, z] triples (in meters, right-handed)
+	// into an FVector array (in Unreal units/centimeters, left-handed).
 	bool ParseVector3Array(const TArray<TSharedPtr<FJsonValue>>& Json, TArray<FVector>& OutVertices)
 	{
 		OutVertices.Reserve(Json.Num());
@@ -27,7 +56,7 @@ namespace
 			{
 				return false;
 			}
-			OutVertices.Add(FVector(
+			OutVertices.Add(ApplyCoordinateConvention(
 				(*Triple)[0]->AsNumber(), (*Triple)[1]->AsNumber(), (*Triple)[2]->AsNumber()));
 		}
 		return true;

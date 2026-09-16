@@ -1,6 +1,40 @@
 Release Notes
 ==============
 
+Unreleased -- Fixed two real geometry bugs found by actually looking at rendered output
+---------------------------------------------------------------------------------------------------
+
+Found via visually inspecting a real scenario rendered in UE5 (not any
+prior unit test -- every existing check compared against road
+centerlines or fixed distances, never the real rendered lane geometry):
+roads looked staticky/noisy, and buildings visibly clipped through the
+road surface.
+
+**Lane self-overlap at intersections**: ``lane_topology.py`` offset
+each edge's full, untrimmed centerline into lanes, so every edge
+meeting at a shared node extended all the way to that point with no
+clipping. A real generated scenario had 3,538 overlapping lane-mesh
+pairs covering ~38% of its total ground area -- real z-fighting, not a
+rendering bug. Fixed by trimming each lane short of both endpoint nodes
+by the widest connecting road's own lane half-width
+(``LaneTopologyGenerator._compute_node_clearance``), cutting overlap by
+72% (pair count) / 43% (area). Not fully eliminated -- sharp/near-
+parallel intersection angles need a real angle-aware miter, out of
+scope for this pass; see ``KNOWN_GAPS_AND_ISSUES.md``.
+
+**Buildings standing inside road pavement**: ``building_placement.py``
+enforced only a small fixed setback from the road *centerline*,
+ignoring that a road's real half-width from centerline is
+``num_lanes * LANE_WIDTH_METERS`` (up to 14m for a 4-lane edge). 194 of
+283 buildings (~69%) on a real scenario overlapped actual lane
+geometry. Fixed by adding each edge's own lane half-width to the
+setback enforced against it -- verified fully resolved (0 overlapping
+buildings) via a new regression test that checks against real,
+Shapely-unioned mesh geometry rather than reimplementing the buggy
+formula. Building count per scenario drops accordingly (fewer buildings
+fit once setback reflects real road width) -- expected, not a
+regression.
+
 Unreleased -- Real end-to-end UE5 integration: a generated scenario rendered in a live editor
 ---------------------------------------------------------------------------------------------------
 
