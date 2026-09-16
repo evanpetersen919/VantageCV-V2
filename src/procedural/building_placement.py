@@ -8,16 +8,16 @@ designed from scratch, informed by QOL_RESEARCH_CHECKLIST.md Section B.3.
 See KNOWN_GAPS_AND_ISSUES.md for the block-identification simplification
 this module makes (deliberate, and documented there).
 
-Block identification: a general planar-graph face-finding algorithm (to
-recover the actual bounded regions enclosed by roads) is a substantially
-larger undertaking than anything else specified for this phase. Instead,
-this module reuses the same Delaunay triangulation `RoadNetworkGenerator`
-already computes internally: each triangle whose all three edges survived
-length-filtering (i.e. still exist in the road graph) is treated as one
-city block. This is an approximation -- real city blocks are often
-quadrilateral-ish regions spanning multiple triangles -- but it is a
-correct, non-overlapping partition of the scenario's interior, which is
-what building placement actually needs.
+Block identification: since `RoadNetworkGenerator` now generates a plain
+orthogonal grid (straight roads, square intersections only -- see that
+module's docstring for why), each block is identified directly as one
+rectangular grid cell: the 4 nodes at a cell's corners, provided all 4
+connecting edges actually exist (an edge can be missing if
+`MAX_ROAD_LENGTH_METERS` dropped it). This used to be a triangle-based
+*approximation* of city blocks (reusing `RoadNetworkGenerator`'s own,
+now-removed, Delaunay triangulation and keeping only triangles whose
+edges all survived length-filtering) -- real city blocks in a grid city
+genuinely are rectangles, so this is now exact, not an approximation.
 
 Building type/material: MASTER_PROMPT Section 3.3 lists "assign building
 types, heights, materials" but gives no taxonomy for either, and this
@@ -40,11 +40,17 @@ from typing import Dict, List, Set, Tuple
 
 import numpy as np
 import numpy.typing as npt
-from scipy.spatial import Delaunay, QhullError  # pylint: disable=no-name-in-module
 
 from src.procedural.lane_topology import LANE_WIDTH_METERS
 from src.procedural.road_network import RoadEdge, RoadNode
 from src.procedural.scenario import ScenarioTypeConfig
+
+# Grid coordinates within this tolerance of each other are treated as the
+# same axis line when reconstructing the road grid's rows/columns in
+# _identify_blocks -- generous relative to POSITION_TOLERANCE-scale
+# concerns since block identification only needs to distinguish genuinely
+# different grid lines, not sub-millimeter precision.
+GRID_COORDINATE_DECIMALS = 6
 
 # Degenerate-triangle threshold: a candidate block below this area is
 # treated as unusable (too thin/sliver to hold a building), not an error.
@@ -313,22 +319,38 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
             buildings.extend(self._place_buildings_in_block(block, all_segments_padded))
         return buildings
 
-    def _identify_blocks(
+    def _identify_blocks(  # pylint: disable=too-many-locals
         self, nodes: Dict[int, RoadNode], edges: Dict[int, RoadEdge]
     ) -> List[npt.NDArray[np.float64]]:
-        """Re-triangulate node positions and keep triangles whose three
-        edges all still exist in the (length-filtered) road graph -- see
-        module docstring for why this approximates city blocks."""
-        if len(nodes) < 3:
+        """Identify each rectangular grid cell of the road network as one
+        city block: the 4 nodes at a cell's corners, in order around the
+        rectangle, provided all 4 connecting edges actually exist (an
+        edge can be missing if ``MAX_ROAD_LENGTH_METERS`` dropped it --
+        see ``RoadNetworkGenerator``). See module docstring for why this
+        is exact, not an approximation, now that the road network itself
+        is a plain orthogonal grid.
+
+        Reconstructs the grid's rows/columns purely from node positions
+        (this module only receives the generic ``nodes``/``edges`` dicts,
+        not ``RoadNetworkGenerator``'s own internal grid-index array) --
+        every node in the same grid row/column shares the exact same
+        y/x float value by construction (``RoadNetworkGenerator`` reuses
+        the same coordinate array element for every node in a row/column,
+        rather than recomputing it), so grouping by a rounded coordinate
+        is a safe, simple way to recover axis lines generically.
+        """
+        if len(nodes) < 4:
             return []
 
-        node_ids = sorted(nodes.keys())
-        positions = np.array([nodes[nid].position for nid in node_ids])
-
-        try:
-            tri = Delaunay(positions)
-        except QhullError:
-            return []
+        node_by_position: Dict[Tuple[float, float], int] = {
+            (
+                round(float(n.position[0]), GRID_COORDINATE_DECIMALS),
+                round(float(n.position[1]), GRID_COORDINATE_DECIMALS),
+            ): nid
+            for nid, n in nodes.items()
+        }
+        x_coords = sorted({pos[0] for pos in node_by_position})
+        y_coords = sorted({pos[1] for pos in node_by_position})
 
         existing_undirected_edges: Set[Tuple[int, int]] = {
             (min(e.start_node_id, e.end_node_id), max(e.start_node_id, e.end_node_id))
@@ -336,24 +358,36 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
         }
 
         blocks = []
-        for triangle in tri.simplices:
-            triangle_node_ids = [node_ids[idx] for idx in triangle]
-            triangle_edges = {
-                (min(a, b), max(a, b))
-                for a, b in (
-                    (triangle_node_ids[0], triangle_node_ids[1]),
-                    (triangle_node_ids[1], triangle_node_ids[2]),
-                    (triangle_node_ids[2], triangle_node_ids[0]),
-                )
-            }
-            if not triangle_edges.issubset(existing_undirected_edges):
-                continue
+        for row in range(len(y_coords) - 1):
+            for col in range(len(x_coords) - 1):
+                corners = [
+                    (x_coords[col], y_coords[row]),
+                    (x_coords[col + 1], y_coords[row]),
+                    (x_coords[col + 1], y_coords[row + 1]),
+                    (x_coords[col], y_coords[row + 1]),
+                ]
+                resolved_corner_ids: List[int] = []
+                for corner in corners:
+                    node_id = node_by_position.get(corner)
+                    if node_id is None:
+                        break
+                    resolved_corner_ids.append(node_id)
+                if len(resolved_corner_ids) != 4:
+                    continue  # a corner node here got dropped/merged; skip this cell
+                corner_ids = resolved_corner_ids
 
-            polygon = np.array([nodes[nid].position for nid in triangle_node_ids])
-            if _polygon_area(polygon) < MIN_BLOCK_AREA_SQ_METERS:
-                continue
+                cell_edges = {
+                    (min(a, b), max(a, b))
+                    for a, b in zip(corner_ids, corner_ids[1:] + corner_ids[:1])
+                }
+                if not cell_edges.issubset(existing_undirected_edges):
+                    continue  # an edge here was dropped (e.g. exceeded MAX_ROAD_LENGTH_METERS)
 
-            blocks.append(polygon)
+                polygon = np.array([nodes[cid].position for cid in corner_ids])
+                if _polygon_area(polygon) < MIN_BLOCK_AREA_SQ_METERS:
+                    continue
+
+                blocks.append(polygon)
 
         return blocks
 

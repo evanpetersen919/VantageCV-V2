@@ -48,10 +48,18 @@ Layers
 
 **Procedural generation** (``src/procedural/``, Phases 1-3)
    Deterministic, seed-driven generation of the scenario's geometry: road
-   networks (planar straight-line graph via perturbed-grid + Delaunay
-   triangulation), per-lane boundary geometry, building placement
-   (Delaunay triangles as an approximate city-block partition, each
-   building kept ``config.road_setback_meters`` clear of every road and
+   networks (planar straight-line graph, a plain orthogonal grid --
+   straight roads, square 90-degree intersections only, by deliberate
+   choice; an earlier perturbed-grid + Delaunay-triangulation approach
+   produced organic but arbitrary-angle streets whose acute-angle
+   intersections had no exact fix for real, measured lane-mesh
+   self-overlap in UE5 -- see :mod:`src.procedural.road_network`'s own
+   module docstring and ``KNOWN_GAPS_AND_ISSUES.md``), per-lane boundary
+   geometry (trimmed short of each intersection, now exact rather than a
+   partial mitigation now that every intersection is square), building
+   placement (each grid cell is an exact rectangular city block, each
+   building kept clear of every road's real lane-pavement width -- not
+   just ``config.road_setback_meters`` from the centerline -- and
    assigned a type -- residential/mixed-use/commercial, by relative
    height within ``config.building_heights`` -- and a matching exterior
    material), traffic control assignment, per-lane turn connectivity
