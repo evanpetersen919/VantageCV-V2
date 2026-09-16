@@ -112,12 +112,19 @@ Layers
 
 **UE5 integration** (``unreal_plugin/``, ``src/ue5/``, Phase 4)
    :mod:`src.ue5.backend` is a genuine, tested JSON-RPC-over-WebSocket
-   client (tested against a local mock server). The C++ side
-   (``unreal_plugin/SyntheticDataGen/``) is a structurally-standard but
-   **never compiled** UE5 plugin skeleton -- no UE5.4 install exists in
-   any environment this project has been built in. Treat everything
-   under ``unreal_plugin/`` as unverified until someone with UE5.4
-   actually opens and builds it.
+   client -- verified 2026-09-15 against both a local mock server *and*
+   a real, live UE 5.4.4 editor (a real ``Ping`` round trip, not just
+   the mock). The C++ side (``unreal_plugin/SyntheticDataGen/``) now
+   compiles and loads cleanly against a real UE 5.4.4 install, including
+   ``USyntheticDataGenRpcSubsystem``, a ``WebSocketNetworking``-based
+   JSON-RPC server that answers ``Ping``/``LoadProceduralScenario`` --
+   see ``KNOWN_GAPS_AND_ISSUES.md`` for the three real, non-obvious C++
+   compile failures fixed along the way (all related to a
+   ``TUniquePtr`` member of a forward-declared type inside a
+   ``UCLASS``) and what's still open (``LoadProceduralScenario``'s own
+   dispatch logic past JSON validation is still a stub; a D3D12
+   shader-compiler crash on this machine needs a ``-d3d11`` launch
+   workaround).
 
 What is deliberately not implemented
 --------------------------------------

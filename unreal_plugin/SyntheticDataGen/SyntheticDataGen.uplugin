@@ -20,6 +20,10 @@
     {
       "Name": "ProceduralMeshComponent",
       "Enabled": true
+    },
+    {
+      "Name": "WebSocketNetworking",
+      "Enabled": true
     }
   ]
 }
