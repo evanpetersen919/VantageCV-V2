@@ -1,6 +1,30 @@
 Release Notes
 ==============
 
+Unreleased -- Real end-to-end UE5 integration: a generated scenario rendered in a live editor
+---------------------------------------------------------------------------------------------------
+
+Closed the loop on the WebSocket JSON-RPC bridge from the previous
+entry: implemented real mesh-section dispatch in
+``AProceduralScenarioLoader::LoadProceduralScenario`` (parses the
+payload's ``"meshes"`` array -- vertices/triangles/uvs/material,
+matching :mod:`src.procedural.mesh_factory`'s ``Mesh`` dataclass field
+for field -- and calls ``UScenarioMeshBuilder::BuildMeshSection`` once
+per mesh), replacing what was previously a stub that only validated
+JSON.
+
+Verified with a real, full-scale end-to-end test, not a toy payload:
+generated one real ``urban_dense`` scenario via this repo's own
+:func:`src.orchestration.dataset_generator.generate_scenario` (840
+meshes), sent it over the real WebSocket bridge to a live UE 5.4.4
+editor with Play-In-Editor running, confirmed via the editor's own log
+that all 840 mesh sections built successfully, and then confirmed
+**visually** in the PIE viewport that real geometry was actually
+there. This is the first time anything this pipeline has generated has
+been seen rendered by an actual engine, rather than only plotted via
+matplotlib or asserted correct by a unit test -- the culmination of
+this session's UE5 dogfooding work.
+
 Unreleased -- Real UE5.4 integration: plugin compiles, WebSocket JSON-RPC bridge works
 ---------------------------------------------------------------------------------------------------
 
