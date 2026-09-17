@@ -1,10 +1,13 @@
-// UNVERIFIED: never compiled against UE5.4 (no local install). Structurally
-// standard ProceduralMeshComponent usage; see KNOWN_GAPS_AND_ISSUES.md.
+// Compiles cleanly against a real UE 5.4.4 editor and confirmed
+// rendering real geometry in a live standalone session (verified
+// 2026-09-16 -- see KNOWN_GAPS_AND_ISSUES.md's "[RESOLVED]
+// LoadProceduralScenario now dispatches real mesh sections" entry).
 //
 // Consumes the vertex/triangle/UV/material data produced by the Python-side
-// src/procedural/mesh_factory.py (road and building meshes) once Phase 4's
-// JSON-RPC layer delivers it into the running UE5 scene, and builds it as
-// runtime ProceduralMeshComponent sections.
+// src/procedural/mesh_factory.py (road and building meshes), delivered
+// over the real WebSocket JSON-RPC bridge, and builds it as runtime
+// ProceduralMeshComponent sections, resolving Material via
+// FMaterialResolver.
 
 #pragma once
 
