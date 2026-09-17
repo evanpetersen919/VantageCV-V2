@@ -137,13 +137,23 @@ Layers
    "id"}``, for real City Sample content this project spawns rather than
    builds as a procedural box). As of the City Sample asset integration's
    Phase 1, vehicles are the first ``"assets"`` category populated --
-   each ``Vehicle`` samples a real City Sample vehicle Blueprint path
-   deterministically (:mod:`src.procedural.city_sample_assets`) instead
-   of feeding a box mesh into ``ScenarioResult.meshes``; ground truth is
-   unaffected, since bounding boxes are still derived from ``Vehicle``'s
-   own placement-time fields, not from mesh geometry. Props and landmark
-   buildings are planned to populate their own ``"assets"`` categories in
-   later phases of that same effort.
+   each ``Vehicle`` samples a real City Sample vehicle *skeletal mesh*
+   path deterministically (:mod:`src.procedural.city_sample_assets`)
+   instead of feeding a box mesh into ``ScenarioResult.meshes``; ground
+   truth is unaffected, since bounding boxes are still derived from
+   ``Vehicle``'s own placement-time fields, not from mesh geometry.
+   Props and landmark buildings are planned to populate their own
+   ``"assets"`` categories in later phases of that same effort.
+
+   Note this is deliberately a plain skeletal mesh, not City Sample's
+   own driveable-vehicle Blueprint (``BP_veh*_Sandbox``): a real live
+   spawn attempt found every such Blueprint's parent chain depends on
+   ``ACitySampleVehicleBase``, a native C++ class living in CitySample's
+   own game-project source (Mass AI traffic control, Enhanced Input, a
+   custom UI system) rather than portable content -- see
+   ``KNOWN_GAPS_AND_ISSUES.md`` for the full investigation. A minimal
+   mesh-only actor was the chosen fix, since scenarios are frozen-frame
+   captures with no need for any of that gameplay logic.
 
    :mod:`src.ue5.backend` is a genuine, tested JSON-RPC-over-WebSocket
    client -- verified 2026-09-15/16 against a local mock server, a real
@@ -166,10 +176,11 @@ Layers
    aren't implemented; a D3D12 shader-compiler crash on this machine
    needs a ``-d3d11`` launch workaround). Phase 1's C++ ``"assets"``
    parsing/spawning (``ParseAssetData`` in ``ProceduralScenarioLoader.cpp``,
-   ``UVehicleActorSpawner`` in the new ``ActorSpawn/`` module) compiles
-   cleanly against the real UE 5.4.4 install, but has not yet been
-   PIE-verified -- pending migrating the real vehicle Blueprint assets
-   into ``VantageCV_UE5``'s Content via Epic's Migrate tool.
+   ``UVehicleActorSpawner`` in the new ``ActorSpawn/`` module) is fully
+   verified against a real live standalone UE5 session: all 14 migrated
+   vehicle skeletal meshes spawn successfully (a real 112-mesh scenario
+   producing 50 spawned vehicle actors, 0 skipped, confirmed via the
+   engine's own log).
 
 What is deliberately not implemented
 --------------------------------------

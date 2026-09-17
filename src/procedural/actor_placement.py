@@ -60,7 +60,7 @@ PEDESTRIAN_DENSITY_FRACTION_OF_TRAFFIC = 0.3
 class Vehicle:  # pylint: disable=too-many-instance-attributes
     """A single procedurally placed vehicle.
 
-    ``asset_path`` is a real City Sample vehicle Blueprint path (see
+    ``asset_path`` is a real City Sample vehicle skeletal mesh path (see
     ``city_sample_assets.py``), sampled deterministically alongside
     ``vehicle_type``. ``length``/``width``/``height`` remain the
     placement-time computed box dimensions -- kept as the ground-truth
