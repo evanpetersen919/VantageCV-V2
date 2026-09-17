@@ -1,6 +1,30 @@
 Release Notes
 ==============
 
+Unreleased -- City Sample asset integration, Phase 0: real scenario serializer, investigation complete
+---------------------------------------------------------------------------------------------------------
+
+First phase of a new, planned multi-phase effort (``feature/city-sample-asset-integration``
+branch) to replace today's flat-gray procedural boxes with real assets
+from Epic's free City Sample project, while keeping this project's own
+procedural placement and ground-truth logic entirely unchanged.
+
+Found and fixed a real gap: no committed code converted a
+``ScenarioResult`` into the JSON shape UE5 actually expects -- every
+real UE5 verification earlier this session ran through an uncommitted
+scratchpad script. Added :func:`src.orchestration.scenario_serializer.serialize_scenario`
+(real round-trip tests) and ``bin/send_scenario_to_ue5.py`` (a real,
+permanent CLI replacing that scratchpad script, tested against a local
+mock WebSocket server covering success/error/timeout paths).
+
+Resolved both open investigation questions with real file-level
+evidence from City Sample's installed content, no guessing: vehicles
+are genuine Blueprint actors with Chaos physics/skeletal animation, not
+simple static meshes; pedestrians have a real standalone
+``BP_CrowdCharacter`` Blueprint (6 male + 6 female variants, weight
+variants, accessories) suggesting they're spawnable the same way, final
+confirmation deferred to Phase 1's manual PIE pass.
+
 Unreleased -- Road network rearchitected to an orthogonal grid: eliminates lane z-fighting entirely
 ---------------------------------------------------------------------------------------------------
 
