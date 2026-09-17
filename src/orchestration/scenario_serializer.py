@@ -22,6 +22,7 @@ from typing import Any, Dict, List
 
 from src.orchestration.dataset_generator import ScenarioResult
 from src.procedural.actor_placement import Vehicle
+from src.procedural.city_sample_assets import VEHICLE_PART_PATHS
 from src.procedural.mesh_factory import Mesh
 
 
@@ -43,19 +44,38 @@ def _mesh_to_json(mesh: Mesh) -> Dict[str, Any]:
     }
 
 
+def _vehicle_folder_name(asset_path: str) -> str:
+    """Extract the vehicle folder name (e.g. ``"vehCar_vehicle02"``) from
+    a real City Sample asset path of the form
+    ``"/Game/Vehicle/<folder>/Mesh/..."`` -- the path segment
+    ``VEHICLE_PART_PATHS`` is keyed by.
+    """
+    parts = asset_path.split("/")
+    # ["", "Game", "Vehicle", "<folder>", "Mesh", ...] -- index 3.
+    return parts[3] if len(parts) > 3 else ""
+
+
 def _vehicle_to_asset_json(vehicle: Vehicle) -> Dict[str, Any]:
     """One ``Vehicle`` as an ``"assets"`` entry: asset reference +
     transform, per the City Sample integration plan's schema
-    (``{"category", "asset_path", "position", "rotation_rad", "id"}``).
+    (``{"category", "asset_path", "position", "rotation_rad", "id"}``),
+    plus ``"part_paths"`` -- the same vehicle's real wheel/door/glass/
+    interior static meshes (see ``city_sample_assets.py``'s
+    ``VEHICLE_PART_PATHS`` for why these need no per-part offset), spawned
+    alongside the body at the exact same position/rotation. A vehicle
+    folder with no ``VEHICLE_PART_PATHS`` entry gets an empty list here,
+    not an error -- see that module's own docstring.
 
     ``vehicle.center`` is a 2D (x, y) ground-plane point (see
     ``ActorPlacementGenerator``); z is always 0.0 here since every
     vehicle is placed on the flat road surface.
     """
     x, y = vehicle.center
+    folder = _vehicle_folder_name(vehicle.asset_path)
     return {
         "category": "vehicle",
         "asset_path": vehicle.asset_path,
+        "part_paths": VEHICLE_PART_PATHS.get(folder, []),
         "position": [float(x), float(y), 0.0],
         "rotation_rad": float(vehicle.heading_rad),
         "id": vehicle.vehicle_id,

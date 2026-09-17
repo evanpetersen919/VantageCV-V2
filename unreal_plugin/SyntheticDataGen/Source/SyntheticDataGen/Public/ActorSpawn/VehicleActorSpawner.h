@@ -1,5 +1,6 @@
 // City Sample asset integration Phase 1: spawns a plain actor holding a
-// real City Sample vehicle body mesh at a fixed pose.
+// real City Sample vehicle's body mesh plus its wheels/doors/glass/
+// interior/steering-wheel, all as sibling components at a fixed pose.
 //
 // This is NOT City Sample's own driveable-vehicle Blueprint
 // (BP_veh*_Sandbox). A real live PIE check (2026-09-16) found every
@@ -17,7 +18,13 @@
 // without an AnimBlueprint actively posing them, the reference pose
 // doesn't show the intact body. Switched to each vehicle's static
 // "SM_Frame_<name>" body-shell mesh instead, which has no such
-// dependency and renders unconditionally.
+// dependency and renders unconditionally. The body alone is wheel/door/
+// glass-less; a real live test (2026-09-16) confirmed each of those
+// parts' own static meshes are pre-modeled in their final assembled
+// position already (a common modular-kit convention), so spawning them
+// as sibling components at the exact same actor transform as the body
+// -- no offset math needed at all -- produces a correctly assembled
+// vehicle. See city_sample_assets.py's VEHICLE_PART_PATHS.
 
 #pragma once
 
@@ -27,8 +34,8 @@
 
 // Mirrors one entry of the JSON "assets" array (scenario_serializer.py's
 // _vehicle_to_asset_json / the City Sample integration plan's schema:
-// {"category", "asset_path", "position", "rotation_rad", "id"}).
-// Position/Rotation are already in UE5 space here -- the caller
+// {"category", "asset_path", "part_paths", "position", "rotation_rad",
+// "id"}). Position/Rotation are already in UE5 space here -- the caller
 // (AProceduralScenarioLoader) owns that conversion via
 // ApplyCoordinateConvention, the same split FScenarioMeshData's
 // Vertices already use for mesh geometry.
@@ -42,6 +49,15 @@ struct FScenarioAssetData
 
 	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
 	FString AssetPath;
+
+	// Additional static meshes (wheels/doors/glass/interior/steering
+	// wheel) spawned as sibling components at this same entry's
+	// Position/Rotation -- see this file's own header comment for why
+	// no per-part offset is needed. Empty for asset categories that
+	// don't have parts (or a vehicle folder city_sample_assets.py's
+	// VEHICLE_PART_PATHS has no entry for).
+	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
+	TArray<FString> PartPaths;
 
 	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
 	FVector Position = FVector::ZeroVector;

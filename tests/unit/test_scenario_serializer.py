@@ -11,6 +11,7 @@ import json
 
 from src.orchestration.dataset_generator import generate_scenario
 from src.orchestration.scenario_serializer import serialize_scenario
+from src.procedural.city_sample_assets import VEHICLE_PART_PATHS
 
 # urban_config, bounds fixtures: see tests/conftest.py
 
@@ -46,6 +47,21 @@ def test_serialize_scenario_preserves_vehicle_asset_data_exactly(urban_config, b
         assert asset["position"] == [float(vehicle.center[0]), float(vehicle.center[1]), 0.0]
         assert asset["rotation_rad"] == float(vehicle.heading_rad)
         assert asset["id"] == vehicle.vehicle_id
+
+
+def test_serialize_scenario_populates_vehicle_part_paths(urban_config, bounds) -> None:
+    """Every vehicle's "part_paths" matches VEHICLE_PART_PATHS's real
+    entry for that vehicle's own folder -- the wheels/doors/glass/
+    interior spawned alongside the body (see city_sample_assets.py)."""
+    scenario = generate_scenario(42, urban_config, bounds, "serializer_test")
+    assert scenario.vehicles
+
+    payload = serialize_scenario(scenario)
+
+    for vehicle, asset in zip(scenario.vehicles, payload["assets"]):
+        folder = vehicle.asset_path.split("/")[3]
+        assert asset["part_paths"] == VEHICLE_PART_PATHS[folder]
+        assert asset["part_paths"], f"Expected real parts for {folder!r}"
 
 
 def test_serialize_scenario_preserves_mesh_data_exactly(urban_config, bounds) -> None:
