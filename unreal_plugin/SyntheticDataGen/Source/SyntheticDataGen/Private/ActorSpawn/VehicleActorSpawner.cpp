@@ -78,5 +78,16 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 	SpawnedActor->SetRootComponent(MeshComponent);
 	MeshComponent->SetSimulatePhysics(false);
 
+	// Real bug found via dogfooding (vehicles spawned but were never
+	// visible in a live session): SpawnActor's SpawnTransform argument
+	// only takes effect by being applied to a RootComponent, and a bare
+	// AActor::StaticClass() has none at spawn time -- so AssetData's
+	// position/rotation was silently dropped, and the mesh component
+	// added afterward started at its own default (world origin)
+	// instead. Every vehicle was spawning stacked at (0,0,0), not at
+	// its procedurally-computed position. Fixed by setting the actor's
+	// transform explicitly now that a real root component exists.
+	SpawnedActor->SetActorLocationAndRotation(AssetData.Position, AssetData.Rotation);
+
 	return SpawnedActor;
 }

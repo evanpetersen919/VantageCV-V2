@@ -14,6 +14,7 @@ import pytest
 
 from src.procedural.road_network import (
     MAX_ROAD_LENGTH_METERS,
+    UNIFORM_LANE_COUNT,
     IntersectionType,
     RoadNetworkGenerator,
     RoadType,
@@ -53,20 +54,27 @@ def test_grid_generation_deterministic(urban_config, bounds) -> None:
 
 
 def test_different_seeds_produce_different_networks(urban_config, bounds) -> None:
-    """Different seeds produce different (but valid) networks."""
-    gen1 = RoadNetworkGenerator(42, urban_config)
-    gen2 = RoadNetworkGenerator(43, urban_config)
+    """Different seeds generally produce different (but valid) networks.
 
-    nodes1, _ = gen1.generate(bounds)
-    nodes2, _ = gen2.generate(bounds)
+    Checked across a spread of seeds rather than any two specific
+    adjacent ones: since ``_axis_coords`` now quantizes each axis to a
+    whole number of equal-width intervals (see its own docstring for
+    why -- fixes a real thin-leftover-block bug), two seeds whose
+    randomly sampled spacing rounds to the same interval count produce
+    an *identical* grid by design, not a bug (confirmed for seeds
+    42/43 at this fixture's bounds/block-size combination). Requiring
+    variety across several seeds, not every pairwise comparison, is
+    robust to that legitimate quantization collision.
+    """
+    seeds = [1, 2, 3, 4, 5, 6, 7, 8]
+    node_sets = []
+    for seed in seeds:
+        gen = RoadNetworkGenerator(seed, urban_config)
+        nodes, _ = gen.generate(bounds)
+        node_sets.append({node_id: tuple(node.position) for node_id, node in nodes.items()})
 
-    common_ids = set(nodes1) & set(nodes2)
-    assert common_ids, "Expected at least one shared node id to compare"
-
-    total_diff = sum(
-        float(((nodes1[n].position - nodes2[n].position) ** 2).sum()) ** 0.5 for n in common_ids
-    )
-    assert total_diff > 0.0, "Different seeds produced identical positions"
+    distinct_layouts = {tuple(sorted(positions.values())) for positions in node_sets}
+    assert len(distinct_layouts) > 1, "Every seed in the spread produced an identical grid"
 
 
 def test_network_connectivity(urban_config, bounds) -> None:
@@ -175,6 +183,42 @@ def test_road_attributes_assigned(urban_config, bounds) -> None:
         assert edge.road_type in RoadType
         assert edge.num_lanes >= 1
         assert edge.speed_limit_kmh >= 20
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3, 42, 99])
+def test_every_edge_has_the_same_lane_count(urban_config, bounds, seed) -> None:
+    """Every edge has exactly UNIFORM_LANE_COUNT lanes, regardless of
+    road hierarchy -- real dogfooding finding: since rendered pavement
+    width is num_lanes * LANE_WIDTH_METERS (lane_topology.py), a varying
+    lane count produced visibly inconsistent road widths across one
+    scenario. Deliberately pinned at this stage of the project rather
+    than sampled. See KNOWN_GAPS_AND_ISSUES.md."""
+    gen = RoadNetworkGenerator(seed, urban_config)
+    _, edges = gen.generate(bounds)
+
+    lane_counts = {edge.num_lanes for edge in edges.values()}
+    assert lane_counts == {UNIFORM_LANE_COUNT}
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3, 42, 99])
+def test_grid_spacing_is_uniform_per_axis(urban_config, bounds, seed) -> None:
+    """Every interval between adjacent grid lines on a given axis is the
+    same width -- real dogfooding finding: the previous ``_axis_coords``
+    implementation could leave a much-shorter "leftover" interval at the
+    high end of an axis (down to a fraction of a meter in the worst
+    case), which looked like two same-direction roads jammed close
+    together with an unrealistically thin strip of buildings between
+    them. See KNOWN_GAPS_AND_ISSUES.md."""
+    gen = RoadNetworkGenerator(seed, urban_config)
+    nodes, _ = gen.generate(bounds)
+
+    x_coords = sorted({round(float(n.position[0]), 6) for n in nodes.values()})
+    y_coords = sorted({round(float(n.position[1]), 6) for n in nodes.values()})
+
+    for coords in (x_coords, y_coords):
+        spacings = [coords[i + 1] - coords[i] for i in range(len(coords) - 1)]
+        if len(spacings) > 1:
+            assert max(spacings) - min(spacings) < 1e-6, f"Uneven grid spacing: {spacings}"
 
 
 def test_forward_reverse_edge_attributes_match(urban_config, bounds) -> None:

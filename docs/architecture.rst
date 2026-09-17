@@ -54,7 +54,25 @@ Layers
    produced organic but arbitrary-angle streets whose acute-angle
    intersections had no exact fix for real, measured lane-mesh
    self-overlap in UE5 -- see :mod:`src.procedural.road_network`'s own
-   module docstring and ``KNOWN_GAPS_AND_ISSUES.md``), per-lane boundary
+   module docstring and ``KNOWN_GAPS_AND_ISSUES.md``). Each grid axis is
+   quantized to a whole number of *equal*-width intervals rather than
+   letting a leftover remainder interval be shorter than the rest (a
+   real bug found via dogfooding -- see ``KNOWN_GAPS_AND_ISSUES.md``),
+   and every road has the same lane count
+   (``UNIFORM_LANE_COUNT``, deliberately pinned rather than varied by
+   hierarchy at this stage of the project, since rendered pavement width
+   scales with lane count). A plain uniform grid is a known, reasonable
+   simplification for this stage -- real AV simulation/synthetic-data
+   tools (CARLA, NVIDIA DRIVE Sim/Omniverse, Applied Intuition, Waabi,
+   Parallel Domain) generally favor hand-authored or real-world
+   OpenStreetMap-derived road networks over synthetic grid generation
+   for realism, with tensor-field-based procedural street generation
+   (as in CityEngine-style tools) as the standard *procedural*
+   alternative when neither hand-authoring nor real-map import is used;
+   see ``KNOWN_GAPS_AND_ISSUES.md`` for the full research summary and
+   why variable block spacing / occasional T-junctions (still within
+   this grid framework) is the identified next-highest-value step
+   before considering either of those larger changes. Per-lane boundary
    geometry (trimmed short of each intersection, now exact rather than a
    partial mitigation now that every intersection is square), building
    placement (each grid cell is an exact rectangular city block, each

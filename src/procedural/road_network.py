@@ -55,10 +55,17 @@ from src.procedural.scenario import ScenarioTypeConfig
 # Constants (immutable, globally defined). See MASTER_PROMPT Section 3.2.1.
 MAX_ROAD_LENGTH_METERS = 500.0
 
-# Tolerance rationale: 1e-6 m is smaller than GPS precision (0.01 m) and
-# smaller than any road-scale quantity of interest; safe for geometric
-# equality checks. See QOL_RESEARCH_CHECKLIST.md Section A.1.
-POSITION_TOLERANCE = 1e-6
+# Every road has this many lanes per direction, regardless of hierarchy
+# (residential/minor/major) -- deliberately pinned rather than sampled,
+# so every road in a scenario renders at the same physical width (see
+# lane_topology.py: visual pavement width is num_lanes * LANE_WIDTH_METERS,
+# so a varying lane count directly produces visually inconsistent road
+# widths, confirmed as a real dogfooding finding, not a hypothetical --
+# see KNOWN_GAPS_AND_ISSUES.md). Road hierarchy still varies via
+# road_type/speed_limit_kmh; only lane count (and therefore width) is
+# fixed at this stage of the project. Revisit once uneven road widths are
+# an intentional feature rather than a visual inconsistency to eliminate.
+UNIFORM_LANE_COUNT = 2
 
 
 class RoadType(str, Enum):
@@ -218,17 +225,31 @@ class RoadNetworkGenerator:  # pylint: disable=too-few-public-methods,too-many-i
 
     @staticmethod
     def _axis_coords(lo: float, hi: float, spacing: float) -> npt.NDArray[np.float64]:
-        """Coordinate line from ``lo`` to ``hi`` inclusive, spaced by
-        ``spacing`` except possibly the last interval. Degenerates to a
-        single point ``[lo]`` when ``hi <= lo`` (zero/negative-width
-        axis)."""
+        """Coordinate line from ``lo`` to ``hi`` inclusive, divided into
+        equal-width intervals as close to ``spacing`` as an integer
+        interval count allows. Degenerates to a single point ``[lo]``
+        when ``hi <= lo`` (zero/negative-width axis).
+
+        Real bug fixed here (found via dogfooding -- see
+        KNOWN_GAPS_AND_ISSUES.md): the previous implementation
+        (``np.arange(lo, hi, spacing)`` plus an appended ``hi``) let the
+        final interval be whatever was left over after fitting as many
+        full-``spacing`` steps as possible, which could be far shorter
+        than every other interval on the axis -- in the worst case,
+        arbitrarily close to zero. Visually this
+        produced two adjacent same-direction roads separated by a razor-
+        thin strip of buildings, which doesn't happen in a real street
+        grid. Quantizing to the nearest whole number of equal intervals
+        instead guarantees every block on a given axis is the same
+        width -- still randomized scenario-to-scenario (``spacing`` is
+        sampled per scenario within ``config.avg_block_size``), just
+        internally consistent within one scenario's grid.
+        """
         if hi <= lo:
             return np.array([lo], dtype=np.float64)
 
-        coords = list(np.arange(lo, hi, spacing))
-        if coords[-1] < hi - POSITION_TOLERANCE:
-            coords.append(hi)
-        return np.array(coords, dtype=np.float64)
+        num_intervals = max(1, round((hi - lo) / spacing))
+        return np.linspace(lo, hi, num_intervals + 1)
 
     def _create_grid_nodes(
         self, x_coords: npt.NDArray[np.float64], y_coords: npt.NDArray[np.float64]
@@ -346,6 +367,10 @@ class RoadNetworkGenerator:  # pylint: disable=too-few-public-methods,too-many-i
         bug, not hypothetical: 76 of 118 edges in a routine test scenario
         had mismatched forward/reverse lane counts before this fix. See
         KNOWN_GAPS_AND_ISSUES.md.
+
+        ``num_lanes`` is now always ``UNIFORM_LANE_COUNT`` (see that
+        constant's own docstring) rather than sampled per road hierarchy
+        -- a deliberate simplification, not a forgotten TODO.
         """
         node_connection_counts = {
             nid: (len(node.incoming_edges) + len(node.outgoing_edges)) // 2
@@ -369,31 +394,27 @@ class RoadNetworkGenerator:  # pylint: disable=too-few-public-methods,too-many-i
 
             if edge.length < 100:
                 road_type = RoadType.RESIDENTIAL
-                num_lanes = 2
                 speed_limit_kmh = 30
             elif edge.length < 300:
                 if start_connections >= 3:
                     road_type = RoadType.MAJOR
-                    num_lanes = int(self.rng.choice([2, 3, 4]))
                     speed_limit_kmh = 50
                 else:
                     road_type = RoadType.MINOR
-                    num_lanes = 2
                     speed_limit_kmh = 40
             else:
                 road_type = RoadType.MAJOR
-                num_lanes = int(self.rng.choice([3, 4]))
                 speed_limit_kmh = 60
 
             edge.road_type = road_type
-            edge.num_lanes = num_lanes
+            edge.num_lanes = UNIFORM_LANE_COUNT
             edge.speed_limit_kmh = speed_limit_kmh
             processed_edge_ids.add(edge.edge_id)
 
             if edge.reverse_edge_id is not None:
                 reverse_edge = self._edges[edge.reverse_edge_id]
                 reverse_edge.road_type = road_type
-                reverse_edge.num_lanes = num_lanes
+                reverse_edge.num_lanes = UNIFORM_LANE_COUNT
                 reverse_edge.speed_limit_kmh = speed_limit_kmh
                 processed_edge_ids.add(reverse_edge.edge_id)
 
