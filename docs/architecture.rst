@@ -251,6 +251,27 @@ Layers
    coordinates, so without this the camera never looks at the generated
    content at all.
 
+   Building/road procedural mesh sections previously rendered with
+   UE5's default material regardless of their ``Mesh.material`` tag
+   (``ScenarioMeshBuilder.cpp`` never called ``SetMaterial`` at all).
+   ``configs/material_tags.json`` is now the single source of truth for
+   every material tag string the Python side can emit (brick,
+   wood_siding, stucco, concrete, glass_curtain_wall, metal_panel,
+   asphalt, plus the two dead/deferred vehicle_paint and pedestrian
+   tags), each mapped to a real, dependency-traced City Sample asset
+   path. The C++ side (``FMaterialResolver`` in
+   ``unreal_plugin/.../ProceduralMesh/MaterialResolver.{h,cpp}``) is a
+   small, hand-kept-in-sync (not runtime-parsed, not codegenned --
+   deliberate, see that file's own comments) tag-to-path ``TMap``, with
+   a cached ``LoadObject`` lookup; ``ScenarioMeshBuilder::BuildMeshSection``
+   now resolves and applies it. An unmapped tag or a not-yet-migrated
+   asset is not fatal -- the section keeps its default material and a
+   warning is logged, verified via a real live session (mesh still
+   rendered correctly with the fallback material; the warning appeared
+   exactly as expected). The real material assets themselves still need
+   the same one-time manual Migrate-tool step as Vehicle/Traffic content
+   -- see ``KNOWN_GAPS_AND_ISSUES.md``.
+
 What is deliberately not implemented
 --------------------------------------
 

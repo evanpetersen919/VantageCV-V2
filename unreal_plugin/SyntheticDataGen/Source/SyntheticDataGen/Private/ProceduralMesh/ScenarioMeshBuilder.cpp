@@ -7,8 +7,10 @@
 // UKismetProceduralMeshLibrary::CalculateTangentsForMesh.
 
 #include "ProceduralMesh/ScenarioMeshBuilder.h"
+#include "ProceduralMesh/MaterialResolver.h"
 #include "ProceduralMeshComponent.h"
 #include "KismetProceduralMeshLibrary.h"
+#include "Materials/MaterialInterface.h"
 
 UScenarioMeshBuilder::UScenarioMeshBuilder()
 {
@@ -58,6 +60,19 @@ bool UScenarioMeshBuilder::BuildMeshSection(
 		EmptyVertexColors,
 		Tangents,
 		/*bCreateCollision=*/true);
+
+	// Resolves MeshData.Material (e.g. "brick", "asphalt" -- the same
+	// tag strings mesh_factory.py/building_placement.py emit) to a real
+	// migrated City Sample material via FMaterialResolver. An
+	// unresolvable tag (unmapped, or its asset not yet migrated into
+	// this project) is not fatal -- the section keeps
+	// CreateMeshSection's own default material and a warning is logged
+	// by FMaterialResolver itself, the same fail-soft convention every
+	// other asset-loading path in this plugin already follows.
+	if (UMaterialInterface* ResolvedMaterial = FMaterialResolver::Resolve(MeshData.Material))
+	{
+		TargetComponent->SetMaterial(0, ResolvedMaterial);
+	}
 
 	return true;
 }

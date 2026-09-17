@@ -1,6 +1,24 @@
 Release Notes
 ==============
 
+Unreleased -- Building/road meshes now resolve real materials (pending one-time asset migration)
+-------------------------------------------------------------------------------------------------------------------
+
+Building and road procedural mesh sections previously always rendered
+with UE5's default material -- ``ScenarioMeshBuilder`` built real
+geometry but never called ``SetMaterial``. Added
+``configs/material_tags.json`` (the single source of truth mapping
+every material tag the Python side can emit -- brick, wood_siding,
+stucco, concrete, glass_curtain_wall, metal_panel, asphalt -- to a
+real, dependency-checked City Sample asset) and a new C++
+``FMaterialResolver`` that resolves and applies it, falling back
+gracefully (default material plus a logged warning, no crash) for any
+tag whose asset isn't migrated yet. Verified via a real live session:
+the fallback path behaves exactly as designed. Real textured rendering
+still needs a one-time manual Editor Migrate step (same category as
+the existing Vehicle/Traffic content) -- see
+``KNOWN_GAPS_AND_ISSUES.md`` for the exact assets and steps.
+
 Unreleased -- Debug/overview camera pawn no longer casts a shadow into the scene
 -------------------------------------------------------------------------------------------------------------------
 
