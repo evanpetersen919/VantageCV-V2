@@ -119,6 +119,17 @@ Layers
    own YAML files.
 
 **UE5 integration** (``unreal_plugin/``, ``src/ue5/``, Phase 4)
+   :func:`src.orchestration.scenario_serializer.serialize_scenario`
+   converts a ``ScenarioResult`` into the plain-JSON shape
+   ``UE5Backend.load_scenario``/``ProceduralScenarioLoader.cpp`` expect
+   -- the real, previously-missing bridge between Python-side generation
+   and the UE5-side pipeline described below (earlier real-UE5
+   verification ran through an ad hoc scratchpad script; this is that
+   logic made real, committed, and tested). ``bin/send_scenario_to_ue5.py``
+   is a thin CLI wrapper tying ``generate_scenario`` → ``serialize_scenario``
+   → :meth:`src.ue5.backend.UE5Backend.load_scenario` together, replacing
+   that scratchpad script.
+
    :mod:`src.ue5.backend` is a genuine, tested JSON-RPC-over-WebSocket
    client -- verified 2026-09-15/16 against a local mock server, a real
    live UE 5.4.4 editor (``Ping``), and a full real scenario
