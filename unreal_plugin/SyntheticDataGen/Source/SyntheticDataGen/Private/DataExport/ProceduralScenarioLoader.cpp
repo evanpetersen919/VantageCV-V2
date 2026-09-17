@@ -129,14 +129,18 @@ namespace
 
 	// Parses one entry of the "assets" array into an FScenarioAssetData,
 	// matching scenario_serializer.py's asset-entry schema
-	// ({"category", "asset_path", "position", "rotation_rad", "id"} --
-	// "id" isn't needed here, it exists for the Python side's own
-	// bookkeeping). Position is converted to UE5 space via the same
-	// ApplyCoordinateConvention used for mesh vertices above.
-	// rotation_rad's sign is negated for the same reason: mirroring the
-	// Y axis reverses the sense of rotation, so the angle measured in
-	// the transformed space is the negation of the one Python computed
-	// -- converted from radians to the degrees FRotator::Yaw expects.
+	// ({"category", "asset_path", "part_paths", "position",
+	// "rotation_rad", "id"} -- "id" isn't needed here, it exists for the
+	// Python side's own bookkeeping). Position is converted to UE5 space
+	// via the same ApplyCoordinateConvention used for mesh vertices
+	// above. rotation_rad's sign is negated for the same reason:
+	// mirroring the Y axis reverses the sense of rotation, so the angle
+	// measured in the transformed space is the negation of the one
+	// Python computed -- converted from radians to the degrees
+	// FRotator::Yaw expects. "part_paths" is optional (missing/absent
+	// treated as empty, not a parse failure) for forward/backward
+	// compatibility with any future asset category that doesn't have
+	// per-vehicle parts.
 	bool ParseAssetData(const FJsonObject& AssetObject, FScenarioAssetData& OutAssetData)
 	{
 		const TArray<TSharedPtr<FJsonValue>>* PositionJson = nullptr;
@@ -155,6 +159,21 @@ namespace
 
 		OutAssetData.Category = Category;
 		OutAssetData.AssetPath = AssetPath;
+
+		OutAssetData.PartPaths.Reset();
+		const TArray<TSharedPtr<FJsonValue>>* PartPathsJson = nullptr;
+		if (AssetObject.TryGetArrayField(TEXT("part_paths"), PartPathsJson))
+		{
+			for (const TSharedPtr<FJsonValue>& PartPathValue : *PartPathsJson)
+			{
+				FString PartPath;
+				if (PartPathValue->TryGetString(PartPath))
+				{
+					OutAssetData.PartPaths.Add(PartPath);
+				}
+			}
+		}
+
 		OutAssetData.Position = ApplyCoordinateConvention(
 			(*PositionJson)[0]->AsNumber(), (*PositionJson)[1]->AsNumber(), (*PositionJson)[2]->AsNumber());
 		OutAssetData.Rotation = FRotator(0.0, -FMath::RadiansToDegrees(RotationRad), 0.0);

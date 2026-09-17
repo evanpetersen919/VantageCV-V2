@@ -151,17 +151,26 @@ Layers
    The serialized payload carries two top-level arrays: ``"meshes"``
    (roads, and non-hero building/pedestrian box geometry -- raw
    vertex/triangle/UV data) and ``"assets"`` (asset-reference + transform
-   entries: ``{"category", "asset_path", "position", "rotation_rad",
-   "id"}``, for real City Sample content this project spawns rather than
-   builds as a procedural box). As of the City Sample asset integration's
-   Phase 1, vehicles are the first ``"assets"`` category populated --
-   each ``Vehicle`` samples a real City Sample vehicle *static body-shell
-   mesh* path deterministically (:mod:`src.procedural.city_sample_assets`)
-   instead of feeding a box mesh into ``ScenarioResult.meshes``; ground
-   truth is unaffected, since bounding boxes are still derived from
-   ``Vehicle``'s own placement-time fields, not from mesh geometry.
-   Props and landmark buildings are planned to populate their own
-   ``"assets"`` categories in later phases of that same effort.
+   entries: ``{"category", "asset_path", "part_paths", "position",
+   "rotation_rad", "id"}``, for real City Sample content this project
+   spawns rather than builds as a procedural box). As of the City Sample
+   asset integration's Phase 1, vehicles are the first ``"assets"``
+   category populated -- each ``Vehicle`` samples a real City Sample
+   vehicle *static body-shell mesh* path deterministically
+   (:mod:`src.procedural.city_sample_assets`) instead of feeding a box
+   mesh into ``ScenarioResult.meshes``; ground truth is unaffected, since
+   bounding boxes are still derived from ``Vehicle``'s own placement-time
+   fields, not from mesh geometry. ``"part_paths"`` carries that same
+   vehicle's real wheel/door/glass/interior/steering-wheel static
+   meshes, derived from its body path via
+   :data:`src.procedural.city_sample_assets.VEHICLE_PART_PATHS` and
+   spawned as sibling components at the exact same transform as the
+   body -- confirmed via a real live test that every part's own mesh
+   data is pre-modeled in its final assembled position already (a
+   common modular-vehicle-kit convention), so no per-part offset/socket
+   computation is needed. Props and landmark buildings are planned to
+   populate their own ``"assets"`` categories in later phases of that
+   same effort.
 
    Note this went through two real, screenshot-confirmed dead ends
    before landing on a static mesh, not City Sample's own driveable-
@@ -174,12 +183,15 @@ Layers
    Sample's rigs drive a runtime damage-state system that needs an
    active ``AnimBlueprint`` to show the intact body). Each vehicle's
    static ``SM_Frame_<name>`` body-shell mesh has no such dependency and
-   renders unconditionally -- confirmed via direct screenshot comparison
-   -- at the cost of a real, documented limitation (body shell only, no
-   wheels/doors/interior). See ``KNOWN_GAPS_AND_ISSUES.md`` for the full
-   investigation, including two new permanent debugging RPC methods
-   (``TakeScreenshot``, ``DebugMoveCameraTo``) built specifically because
-   diagnostic logs alone proved insufficient to catch either dead end.
+   renders unconditionally -- confirmed via direct screenshot comparison.
+   Real, still-open limitation: vehicle paint materials/textures --
+   City Sample's real paint material system depends on Epic's separate
+   MassTraffic plugin (not portable content), so UE5 falls back to its
+   default flat material for every affected slot. See
+   ``KNOWN_GAPS_AND_ISSUES.md`` for the full investigation, including
+   two permanent debugging RPC methods (``TakeScreenshot``,
+   ``DebugMoveCameraTo``) built specifically because diagnostic logs
+   alone proved insufficient to catch either dead end.
 
    :mod:`src.ue5.backend` is a genuine, tested JSON-RPC-over-WebSocket
    client -- verified 2026-09-15/16 against a local mock server, a real

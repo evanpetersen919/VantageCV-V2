@@ -21,11 +21,20 @@
 // mesh instead -- confirmed present for all 14 vehicles (unlike the
 // skeletal "SKM_Exterior_<name>" variant only some have), and, being a
 // plain static mesh with no skeleton at all, has no pose dependency:
-// renders its authored geometry unconditionally. Real limitation, not
-// hidden: this is the body shell only (no wheels/doors/interior detail,
-// those are separate SM_Wheel_*/SM_Door_* meshes) -- correctly visible
-// and recognizably vehicle-shaped, which is what this fixed, not full
-// visual fidelity.
+// renders its authored geometry unconditionally.
+//
+// The body alone is wheel/door/glass/interior-less (those are separate
+// SM_Wheel_*/SM_Door_*/SM_All_Trans_*/SM_Frame_Interior_* meshes). A
+// real live test (2026-09-16) confirmed each of those parts' own mesh
+// data is pre-modeled in its final assembled position already -- a
+// common modular-vehicle-kit convention -- so spawning them as sibling
+// UStaticMeshComponents at the exact same actor transform as the body,
+// with no offset at all, produces a correctly assembled vehicle
+// (confirmed via a real screenshot: wheels at all four corners, a
+// correctly placed door with handle, glass, and a visible interior).
+// See city_sample_assets.py's VEHICLE_PART_PATHS for the real,
+// per-vehicle part lists (genuinely not uniform -- e.g. dual-rear-axle
+// trucks have 6 wheels, the trailer has no doors/glass/interior).
 
 #include "ActorSpawn/VehicleActorSpawner.h"
 #include "Components/StaticMeshComponent.h"
@@ -99,6 +108,41 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 	// straight to SpawnActor instead: every vehicle spawned stacked at
 	// world origin, not its procedurally-computed position.
 	SpawnedActor->SetActorLocationAndRotation(AssetData.Position, AssetData.Rotation);
+
+	// Wheels/doors/glass/interior/steering-wheel -- see this file's
+	// header comment. Each one is its own sibling component at the
+	// actor's own (already correct) root transform, i.e. zero relative
+	// offset -- confirmed correct via a real screenshot, not assumed.
+	// An individual part failing to load is logged and skipped, not
+	// fatal to the whole vehicle (mirrors the body's own
+	// fail-soft behavior above).
+	for (const FString& PartPath : AssetData.PartPaths)
+	{
+		UStaticMesh* PartMesh = LoadObject<UStaticMesh>(nullptr, *PartPath);
+		if (PartMesh == nullptr)
+		{
+			UE_LOG(
+				LogVehicleActorSpawner,
+				Warning,
+				TEXT("SpawnVehicle: failed to load part static mesh %s"),
+				*PartPath);
+			continue;
+		}
+
+		// KeepRelativeTransform, not KeepWorldTransform: a freshly
+		// created component's relative transform defaults to identity,
+		// and identity-relative-to-the-body is exactly the (confirmed
+		// correct) placement every part needs -- KeepWorldTransform
+		// would instead preserve the component's current *world*
+		// transform (world origin, since it was just created), which
+		// would leave every part sitting at (0,0,0) instead of on the
+		// vehicle.
+		UStaticMeshComponent* PartComponent = NewObject<UStaticMeshComponent>(SpawnedActor);
+		PartComponent->SetStaticMesh(PartMesh);
+		PartComponent->RegisterComponent();
+		PartComponent->AttachToComponent(MeshComponent, FAttachmentTransformRules::KeepRelativeTransform);
+		PartComponent->SetSimulatePhysics(false);
+	}
 
 	return SpawnedActor;
 }

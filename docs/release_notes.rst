@@ -1,6 +1,34 @@
 Release Notes
 ==============
 
+Unreleased -- Vehicles fully assembled: wheels, doors, glass, interior, steering wheel
+----------------------------------------------------------------------------------------
+
+Vehicles were body-shell-only (``SM_Frame_<name>`` alone -- no wheels,
+doors, windows, or interior). Real live testing confirmed every
+vehicle's own wheel/door/glass/interior/steering-wheel static meshes
+are pre-modeled in their final assembled position already, so spawning
+each as a sibling component at the exact same transform as the body
+(no offset/socket math needed) produces a correctly assembled vehicle
+-- confirmed via a sequence of real screenshots.
+
+``city_sample_assets.py`` gained ``VEHICLE_PART_PATHS``, a real
+per-vehicle part catalog (genuinely non-uniform across the 14 vehicles
+-- the two dual-rear-axle trucks have 6 wheels, the trailer has 6
+wheels and no doors/glass/interior, the bus has 4 wheels and no doors).
+``scenario_serializer.py`` now emits a ``"part_paths"`` field per
+vehicle asset entry; ``UVehicleActorSpawner`` spawns each part as its
+own ``UStaticMeshComponent``. A real, documented near-bug was fixed
+along the way: parts must attach with ``KeepRelativeTransform``, not
+``KeepWorldTransform``, or every part lands at world origin instead of
+on the vehicle.
+
+Verified end-to-end through the real pipeline (``bin/send_scenario_to_ue5.py``,
+not hand-crafted test JSON): all 14 vehicles' full assemblies spawn
+with 0 skips, confirmed via engine log and a real screenshot. Still
+open: vehicle paint materials/textures (a separate, deeper City Sample
+plugin-dependency problem -- see ``KNOWN_GAPS_AND_ISSUES.md``).
+
 Unreleased -- Three real bugs found via live dogfooding: invisible vehicles, inconsistent road widths, thin blocks
 --------------------------------------------------------------------------------------------------------------------
 
