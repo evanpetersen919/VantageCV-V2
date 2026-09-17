@@ -9,6 +9,7 @@
 #include "ActorSpawn/VehicleActorSpawner.h"
 #include "ProceduralMesh/ScenarioMeshBuilder.h"
 #include "ProceduralMeshComponent.h"
+#include "Components/PrimitiveComponent.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -195,6 +196,36 @@ namespace
 	// src/orchestration/dataset_generator.py (offset above and outside
 	// one corner, looking at the center) for consistency with the
 	// Python-side COCO-frame camera.
+	// Real bug found via dogfooding (2026-09-17 -- see
+	// KNOWN_GAPS_AND_ISSUES.md): SetActorHiddenInGame(true) alone does
+	// NOT stop a character Pawn's mesh from casting a shadow --
+	// third-person/first-person character meshes commonly have
+	// bCastHiddenShadow = true set explicitly (so a first-person view
+	// that hides its own body mesh still shows that body's shadow in
+	// the world), which is exactly this project's default Pawn.
+	// Confirmed via a real screenshot: hiding the pawn alone left its
+	// shadow unchanged on a vehicle positioned underneath it. Forcing
+	// SetCastShadow(false) on every primitive component is what
+	// actually stops it.
+	void HideActorAndItsShadow(AActor* Actor)
+	{
+		if (Actor == nullptr)
+		{
+			return;
+		}
+		Actor->SetActorHiddenInGame(true);
+
+		TArray<UPrimitiveComponent*> PrimitiveComponents;
+		Actor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
+		for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
+		{
+			if (PrimitiveComponent != nullptr)
+			{
+				PrimitiveComponent->SetCastShadow(false);
+			}
+		}
+	}
+
 	void RepositionOverviewCamera(UWorld* World, const FVector2D& BoundsMin, const FVector2D& BoundsMax)
 	{
 		if (World == nullptr)
@@ -230,6 +261,20 @@ namespace
 			// immediately rather than on the next input event.
 			PlayerController->SetControlRotation(LookRotation);
 		}
+
+		// Real bug found via dogfooding (2026-09-17 -- see
+		// KNOWN_GAPS_AND_ISSUES.md): this Pawn is the level's actual
+		// gameplay character/spectator mesh, repurposed here as a
+		// flying overview camera. Left visible, it still casts a
+		// real-time dynamic shadow from the sun even though it's never
+		// in its own captured frame -- at the close/overhead angles
+		// this function's own positioning produces, that shadow lands
+		// squarely on the generated vehicles, showing up as a jagged
+		// dark patch that looks like a broken paint texture but is
+		// really just the pawn's own silhouette. See
+		// HideActorAndItsShadow's own comment for why hiding alone
+		// isn't enough.
+		HideActorAndItsShadow(Pawn);
 	}
 } // namespace
 

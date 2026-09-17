@@ -1,6 +1,20 @@
 Release Notes
 ==============
 
+Unreleased -- Debug/overview camera pawn no longer casts a shadow into the scene
+-------------------------------------------------------------------------------------------------------------------
+
+Both ``DebugMoveCameraTo`` and the production overview-camera reposition
+repurpose the level's actual gameplay Pawn as a flying camera. Confirmed
+via a real screenshot that ``SetActorHiddenInGame(true)`` alone does not
+stop that pawn's mesh from casting a shadow (its mesh has
+``bCastHiddenShadow = true``, common for player character meshes), which
+could land on generated content and look like a broken texture. Fixed
+by also forcing ``SetCastShadow(false)`` on every one of the pawn's
+components. A separately-reported "glitched" police vehicle turned out
+to be that vehicle's own normal directional-light shadow, not a texture
+bug -- see ``KNOWN_GAPS_AND_ISSUES.md`` for the full investigation.
+
 Unreleased -- Vehicle paint materials fixed: real root cause was a missing content mount, not MassTraffic itself
 -------------------------------------------------------------------------------------------------------------------
 

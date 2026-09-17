@@ -11,6 +11,7 @@
 #include "Dom/JsonValue.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "Components/PrimitiveComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -24,6 +25,36 @@ DEFINE_LOG_CATEGORY_STATIC(LogSyntheticDataGenRpc, Log, All);
 
 namespace
 {
+	// Real bug found via dogfooding (2026-09-17 -- see
+	// KNOWN_GAPS_AND_ISSUES.md): SetActorHiddenInGame(true) alone does
+	// NOT stop a character Pawn's mesh from casting a shadow --
+	// third-person/first-person character meshes commonly have
+	// bCastHiddenShadow = true set explicitly (so a first-person view
+	// that hides its own body mesh still shows that body's shadow in
+	// the world), which is exactly this project's default Pawn. Confirmed
+	// via a real screenshot: hiding the pawn alone left its shadow
+	// unchanged on a vehicle positioned underneath it. Forcing
+	// SetCastShadow(false) on every primitive component is what
+	// actually stops it.
+	void HideActorAndItsShadow(AActor* Actor)
+	{
+		if (Actor == nullptr)
+		{
+			return;
+		}
+		Actor->SetActorHiddenInGame(true);
+
+		TArray<UPrimitiveComponent*> PrimitiveComponents;
+		Actor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
+		for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
+		{
+			if (PrimitiveComponent != nullptr)
+			{
+				PrimitiveComponent->SetCastShadow(false);
+			}
+		}
+	}
+
 	FString SerializeResponse(const TSharedRef<FJsonObject>& Response)
 	{
 		FString Out;
@@ -314,6 +345,19 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 		const FRotator LookRotation = UKismetMathLibrary::FindLookAtRotation(CameraPosition, Target);
 		Pawn->SetActorLocationAndRotation(CameraPosition, LookRotation);
 		PlayerController->SetControlRotation(LookRotation);
+
+		// Real bug found via dogfooding (2026-09-17): this repurposes the
+		// level's actual gameplay Pawn (a visible character/spectator
+		// mesh) as a flying camera. That mesh still casts a real-time
+		// dynamic shadow from the sun even though it's never in frame
+		// (the screenshot is taken from its own first-person view) --
+		// close/overhead debug positions routinely land that shadow
+		// directly on the vehicle being inspected, producing a jagged
+		// dark patch on its roof/body that looks exactly like a broken
+		// paint texture but is actually just the pawn's own silhouette.
+		// See HideActorAndItsShadow's own comment for why hiding alone
+		// isn't enough.
+		HideActorAndItsShadow(Pawn);
 
 		return BuildResultResponse(RequestId, MakeShared<FJsonValueBoolean>(true));
 	}
