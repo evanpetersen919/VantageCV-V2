@@ -26,10 +26,13 @@ class AProceduralScenarioLoader;
  * Play-In-Editor session, or one per running packaged instance);
  * starts listening in Initialize(), stops in Deinitialize().
  *
- * Answers "Ping" (no-op, proves the wire protocol works) and
+ * Answers "Ping" (no-op, proves the wire protocol works),
  * "LoadProceduralScenario" (dispatches to
  * AProceduralScenarioLoader::LoadProceduralScenario, spawning a loader
- * actor in the current world if none exists yet).
+ * actor in the current world if none exists yet), "TakeScreenshot"
+ * (real visual debugging aid -- see its own comment in the .cpp for why
+ * this exists) and "DebugMoveCameraTo" (moves the local player's pawn
+ * for close-up visual verification, alongside TakeScreenshot).
  */
 UCLASS()
 class SYNTHETICDATAGEN_API USyntheticDataGenRpcSubsystem final : public UGameInstanceSubsystem

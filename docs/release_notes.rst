@@ -34,6 +34,41 @@ scenario per session.
 
 See ``KNOWN_GAPS_AND_ISSUES.md`` for full root-cause detail on each bug.
 
+Unreleased -- Vehicles still invisible after the above fix: two more real bugs found via actual screenshots
+-----------------------------------------------------------------------------------------------------------
+
+The vehicle-position fix above was real but not sufficient -- vehicles
+were still not visible. Diagnostic logging showed everything looked
+correct (matching position, valid non-degenerate mesh bounds,
+``visible=1``), which turned out to be actively misleading: two new
+permanent RPC debugging methods (``TakeScreenshot``,
+``DebugMoveCameraTo``) were built to get real visual ground truth, and
+found:
+
+1. The camera was never pointed at the generated content at all -- a
+   screenshot showed the current level's own default template geometry.
+   The level's default ``PlayerStart`` has no relationship to a
+   generated scenario's coordinates. Fixed: ``LoadProceduralScenario``
+   now repositions the local player's pawn to overlook the real bounds
+   of whatever was just built, mirroring
+   ``default_overview_camera()``'s own logic in ``dataset_generator.py``.
+2. Even with the camera fixed, vehicles rendered as only a tiny sliver
+   of their true geometry -- City Sample's combined skeletal vehicle
+   rigs drive a runtime damage-state system that needs an active
+   ``AnimBlueprint`` to show the intact body, confirmed by testing
+   alternate mesh variants directly against the same position. Fixed:
+   ``UVehicleActorSpawner`` now loads each vehicle's static
+   ``SM_Frame_<name>`` body-shell mesh instead (no skeleton, no pose
+   dependency, renders unconditionally) -- ``city_sample_assets.py``'s
+   ``VEHICLE_ASSET_PATHS`` repointed accordingly for all 14 vehicles.
+   Real, documented limitation: body shell only, no wheels/doors.
+
+A final overview screenshot confirms multiple real, recognizable
+vehicle silhouettes correctly positioned along the generated roads.
+See ``KNOWN_GAPS_AND_ISSUES.md`` for the full investigation and the
+lesson recorded there: a clean engine log is not evidence of a correct
+render.
+
 Unreleased -- City Sample asset integration, Phase 0: real scenario serializer, investigation complete
 ---------------------------------------------------------------------------------------------------------
 
