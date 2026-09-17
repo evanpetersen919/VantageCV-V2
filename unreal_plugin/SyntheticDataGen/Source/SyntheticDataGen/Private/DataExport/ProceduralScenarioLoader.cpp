@@ -164,6 +164,29 @@ AProceduralScenarioLoader::AProceduralScenarioLoader()
 	PrimaryActorTick.bCanEverTick = false;
 }
 
+void AProceduralScenarioLoader::ClearPreviousScenario()
+{
+	TArray<UProceduralMeshComponent*> MeshComponents;
+	GetComponents<UProceduralMeshComponent>(MeshComponents);
+	for (UProceduralMeshComponent* MeshComponent : MeshComponents)
+	{
+		if (MeshComponent != nullptr)
+		{
+			MeshComponent->DestroyComponent();
+		}
+	}
+	SetRootComponent(nullptr);
+
+	for (const TObjectPtr<AActor>& SpawnedActor : SpawnedAssetActors)
+	{
+		if (SpawnedActor != nullptr)
+		{
+			SpawnedActor->Destroy();
+		}
+	}
+	SpawnedAssetActors.Reset();
+}
+
 bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJson)
 {
 	TSharedPtr<FJsonObject> Root;
@@ -172,6 +195,13 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 	{
 		return false;
 	}
+
+	// Each call fully replaces the previously loaded scenario rather
+	// than accumulating on top of it -- real requirement once this is
+	// called repeatedly against one running session (e.g. cycling
+	// through several procedurally generated city layouts live), not
+	// just once per editor session.
+	ClearPreviousScenario();
 
 	// Traffic controller initialization and streaming/culling setup
 	// (MASTER_PROMPT Section 3.5's other "Procedural Meshes"/"Traffic
@@ -259,8 +289,10 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 			}
 
 			UVehicleActorSpawner* Spawner = NewObject<UVehicleActorSpawner>(this);
-			if (Spawner->SpawnVehicle(GetWorld(), AssetData) != nullptr)
+			AActor* SpawnedVehicle = Spawner->SpawnVehicle(GetWorld(), AssetData);
+			if (SpawnedVehicle != nullptr)
 			{
+				SpawnedAssetActors.Add(SpawnedVehicle);
 				++SpawnedCount;
 			}
 			else

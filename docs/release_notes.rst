@@ -1,6 +1,39 @@
 Release Notes
 ==============
 
+Unreleased -- Three real bugs found via live dogfooding: invisible vehicles, inconsistent road widths, thin blocks
+--------------------------------------------------------------------------------------------------------------------
+
+Found by watching several procedurally generated city layouts cycle live
+in a real standalone UE5 session:
+
+1. Vehicles spawned successfully (confirmed by the engine log) but were
+   never visible -- ``SpawnActor``'s transform was silently dropped
+   because a bare ``AActor`` has no root component at spawn time, so
+   every vehicle landed at world origin. Fixed in
+   ``UVehicleActorSpawner::SpawnVehicle`` by setting the actor's
+   transform explicitly once its real root component exists.
+2. Road widths visibly varied scenario-to-scenario -- ``num_lanes`` was
+   sampled randomly (2-4) per road, and rendered pavement width is
+   ``num_lanes * LANE_WIDTH_METERS``. Pinned to a new
+   ``UNIFORM_LANE_COUNT = 2`` constant for this stage of the project;
+   road hierarchy/speed limit still vary.
+3. Two same-direction roads could end up separated by an unrealistically
+   thin sliver of buildings -- ``RoadNetworkGenerator._axis_coords``
+   let the final grid interval on an axis be whatever leftover distance
+   remained after fitting full-size blocks, which could be far shorter
+   than every other block. Fixed by quantizing each axis to a whole
+   number of *equal*-width intervals instead, so every block on one
+   axis is now the same size.
+
+Also added ``AProceduralScenarioLoader::ClearPreviousScenario``
+(destroys prior mesh sections and spawned vehicles before loading a new
+scenario), needed once a running session started being reused to cycle
+through multiple generated layouts live rather than loading exactly one
+scenario per session.
+
+See ``KNOWN_GAPS_AND_ISSUES.md`` for full root-cause detail on each bug.
+
 Unreleased -- City Sample asset integration, Phase 0: real scenario serializer, investigation complete
 ---------------------------------------------------------------------------------------------------------
 

@@ -29,6 +29,11 @@
 /**
  * Parses and loads one generated scenario (as JSON from the Python-side
  * orchestration layer) into the current UE5 level.
+ *
+ * Each call fully replaces whatever scenario was loaded previously
+ * (ClearPreviousScenario) -- safe to call repeatedly against one
+ * running session, e.g. to cycle through several procedurally
+ * generated city layouts live without restarting the editor/game.
  */
 UCLASS()
 class SYNTHETICDATAGEN_API AProceduralScenarioLoader final : public AActor
@@ -65,4 +70,23 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "SyntheticDataGen")
 	bool LoadProceduralScenario(const FString& ScenarioJson);
+
+private:
+	/**
+	 * Destroys every mesh section component and spawned vehicle actor
+	 * left over from a previous LoadProceduralScenario call, so each
+	 * call fully replaces the scene instead of accumulating overlapping
+	 * geometry on top of it. Called at the start of
+	 * LoadProceduralScenario, once the incoming JSON is confirmed
+	 * well-formed (so a malformed payload never wipes an already-loaded
+	 * scenario).
+	 */
+	void ClearPreviousScenario();
+
+	/** Vehicles spawned by the most recent LoadProceduralScenario call
+	 * (mesh sections are components of this actor and don't need
+	 * separate tracking; spawned vehicles are independent actors in the
+	 * world and do). */
+	UPROPERTY()
+	TArray<TObjectPtr<AActor>> SpawnedAssetActors;
 };
