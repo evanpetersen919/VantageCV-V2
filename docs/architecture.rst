@@ -130,6 +130,21 @@ Layers
    → :meth:`src.ue5.backend.UE5Backend.load_scenario` together, replacing
    that scratchpad script.
 
+   The serialized payload carries two top-level arrays: ``"meshes"``
+   (roads, and non-hero building/pedestrian box geometry -- raw
+   vertex/triangle/UV data) and ``"assets"`` (asset-reference + transform
+   entries: ``{"category", "asset_path", "position", "rotation_rad",
+   "id"}``, for real City Sample content this project spawns rather than
+   builds as a procedural box). As of the City Sample asset integration's
+   Phase 1, vehicles are the first ``"assets"`` category populated --
+   each ``Vehicle`` samples a real City Sample vehicle Blueprint path
+   deterministically (:mod:`src.procedural.city_sample_assets`) instead
+   of feeding a box mesh into ``ScenarioResult.meshes``; ground truth is
+   unaffected, since bounding boxes are still derived from ``Vehicle``'s
+   own placement-time fields, not from mesh geometry. Props and landmark
+   buildings are planned to populate their own ``"assets"`` categories in
+   later phases of that same effort.
+
    :mod:`src.ue5.backend` is a genuine, tested JSON-RPC-over-WebSocket
    client -- verified 2026-09-15/16 against a local mock server, a real
    live UE 5.4.4 editor (``Ping``), and a full real scenario
@@ -149,7 +164,8 @@ Layers
    non-obvious C++ compile failures fixed along the way and what's
    still open (traffic-controller initialization and streaming/culling
    aren't implemented; a D3D12 shader-compiler crash on this machine
-   needs a ``-d3d11`` launch workaround).
+   needs a ``-d3d11`` launch workaround; the C++ side of Phase 1's
+   ``"assets"`` parsing/spawning is not yet implemented).
 
 What is deliberately not implemented
 --------------------------------------

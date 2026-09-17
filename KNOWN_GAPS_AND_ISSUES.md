@@ -26,6 +26,52 @@ Also added `bin/send_scenario_to_ue5.py` -- a real, permanent, tested CLI (gener
 
 Full suite (451 tests, up from 441) and lint clean.
 
+### [RESOLVED] City Sample asset integration Phase 1 (Python side): vehicles sample real City Sample asset paths, no longer build box meshes
+Follow-up to the Phase 0 entry above. Vehicles are the highest-priority
+category in the integration plan (confirmed-compatible, ~13 real
+models, most visually impactful fix) and the first to actually swap
+away from procedural box geometry.
+
+`src/procedural/city_sample_assets.py` (new) catalogs real
+`VEHICLE_ASSET_PATHS`, keyed by the same vehicle-type strings
+`ActorPlacementGenerator` already samples from `vehicle_mix`
+(sedan/suv/truck/bus) -- confirmed real (not guessed) via direct
+inspection of City Sample's installed content: every non-hero vehicle
+folder has a `BP_veh*_Sandbox.uasset` Blueprint. The sedan/suv split is
+a documented, deliberately-flagged-as-unverified assignment (City
+Sample's folder names don't distinguish body types); flagged for
+revisit during this phase's manual PIE verification pass.
+
+`Vehicle` (`actor_placement.py`) gained an `asset_path: str` field,
+sampled deterministically alongside `vehicle_type` via the actor's
+existing seeded RNG. `dataset_generator.py`'s `generate_scenario` no
+longer builds a box mesh per vehicle (`MeshFactory.build_vehicle_mesh`
+still exists, used by its own tests and as a documented fallback shape,
+just no longer feeds `ScenarioResult.meshes`); ground truth is
+unaffected, since `extract_bboxes_3d_vehicles` derives boxes from
+`Vehicle`'s own placement-time fields, not from mesh geometry --
+confirmed via reading `validator.py`'s `_validate_meshes` (no
+cross-check against vehicle count) and grepping the test suite for any
+exact-mesh-count assertion that would have broken.
+
+`scenario_serializer.py`'s `"assets"` array (present but empty since
+Phase 0) is now populated with one entry per vehicle:
+`{"category": "vehicle", "asset_path", "position", "rotation_rad",
+"id"}` -- the schema decided in the integration plan.
+
+**Still open, tracked for this phase's completion**: the C++ side
+(`VehicleActorSpawner`, parsing `"assets"` and spawning real Blueprint
+actors via `LoadClass<AActor>`/`SpawnActor`, applying
+`ApplyCoordinateConvention`, freezing physics post-spawn) is not yet
+written. Manual steps also still open: migrating the ~13-14 chosen
+`veh*_Sandbox` Blueprints into `VantageCV_UE5`'s Content via Epic's
+Migrate tool, rebuilding, and PIE-verifying real vehicles spawn at
+correct positions/headings with physics frozen -- plus the bbox-
+precision spot-check that decides whether Phase 7 needs pulling
+forward.
+
+Full suite (458 tests, up from 451) and lint clean.
+
 ### [RESOLVED] Road network rearchitected to a plain orthogonal grid -- eliminates the remaining lane-overlap z-fighting entirely
 Follow-up to the "[RESOLVED] Two real geometry-overlap bugs" entry
 below: that entry's lane-trim fix reduced overlap by 72%/43% but

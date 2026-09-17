@@ -140,6 +140,7 @@ def _sample_vehicle(vehicle_type: str = "sedan") -> Vehicle:
     return Vehicle(
         vehicle_id=3,
         vehicle_type=vehicle_type,
+        asset_path="/Game/Vehicle/vehCar_vehicle02/BP_vehCar_vehicle02_Sandbox",
         center=np.array([10.0, -5.0]),
         heading_rad=np.pi / 4,
         length=4.6,
@@ -183,6 +184,7 @@ def test_extract_bboxes_3d_vehicles_preserves_count_and_offset() -> None:
         Vehicle(
             vehicle_id=i,
             vehicle_type="sedan",
+            asset_path="/Game/Vehicle/vehCar_vehicle02/BP_vehCar_vehicle02_Sandbox",
             center=np.array([float(i), 0.0]),
             heading_rad=0.0,
             length=4.6,

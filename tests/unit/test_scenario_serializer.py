@@ -18,15 +18,34 @@ from src.orchestration.scenario_serializer import serialize_scenario
 def test_serialize_scenario_produces_meshes_and_assets_keys(urban_config, bounds) -> None:
     """A serialized scenario has exactly the top-level shape
     ProceduralScenarioLoader.cpp parses: "meshes" (populated) and
-    "assets" (present, empty -- populated by later City Sample
-    integration phases, not yet)."""
+    "assets" (one entry per vehicle, as of Phase 1 of the City Sample
+    integration work -- props/hero buildings still empty, added by
+    later phases)."""
     scenario = generate_scenario(42, urban_config, bounds, "serializer_test")
+    assert scenario.vehicles  # sanity: this config/seed places some
 
     payload = serialize_scenario(scenario)
 
     assert set(payload.keys()) == {"meshes", "assets"}
-    assert not payload["assets"]
+    assert len(payload["assets"]) == len(scenario.vehicles)
     assert len(payload["meshes"]) == len(scenario.meshes)
+
+
+def test_serialize_scenario_preserves_vehicle_asset_data_exactly(urban_config, bounds) -> None:
+    """Every vehicle's asset path, position, heading, and id survive
+    into its "assets" entry exactly -- the real invariant Phase 1 of the
+    City Sample integration work exists to guarantee."""
+    scenario = generate_scenario(42, urban_config, bounds, "serializer_test")
+    assert scenario.vehicles
+
+    payload = serialize_scenario(scenario)
+
+    for vehicle, asset in zip(scenario.vehicles, payload["assets"]):
+        assert asset["category"] == "vehicle"
+        assert asset["asset_path"] == vehicle.asset_path
+        assert asset["position"] == [float(vehicle.center[0]), float(vehicle.center[1]), 0.0]
+        assert asset["rotation_rad"] == float(vehicle.heading_rad)
+        assert asset["id"] == vehicle.vehicle_id
 
 
 def test_serialize_scenario_preserves_mesh_data_exactly(urban_config, bounds) -> None:
@@ -66,12 +85,13 @@ def test_serialize_scenario_is_json_serializable(urban_config, bounds) -> None:
 
 
 def test_serialize_scenario_handles_empty_meshes() -> None:
-    """A ScenarioResult with no meshes serializes to an empty (not
-    missing, not erroring) "meshes" list -- exercised directly via a
-    minimal fake, since every real generated scenario has meshes."""
+    """A ScenarioResult with no meshes/vehicles serializes to empty (not
+    missing, not erroring) "meshes"/"assets" lists -- exercised directly
+    via a minimal fake, since every real generated scenario has both."""
 
     class _FakeResult:  # pylint: disable=too-few-public-methods
         meshes: list = []
+        vehicles: list = []
 
     payload = serialize_scenario(_FakeResult())  # type: ignore[arg-type]
 

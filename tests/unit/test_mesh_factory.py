@@ -312,6 +312,7 @@ def _sample_vehicle(heading_rad: float = 0.0) -> Vehicle:
     return Vehicle(
         vehicle_id=0,
         vehicle_type="sedan",
+        asset_path="/Game/Vehicle/vehCar_vehicle02/BP_vehCar_vehicle02_Sandbox",
         center=np.array([10.0, -5.0]),
         heading_rad=heading_rad,
         length=4.6,

@@ -29,6 +29,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import numpy.typing as npt
 
+from src.procedural.city_sample_assets import VEHICLE_ASSET_PATHS
 from src.procedural.road_network import RoadEdge
 from src.procedural.scenario import ScenarioTypeConfig
 from src.procedural.traffic_network import SpawnZone, SpawnZoneType, TrafficNetwork
@@ -56,11 +57,22 @@ PEDESTRIAN_DENSITY_FRACTION_OF_TRAFFIC = 0.3
 
 
 @dataclass(eq=False)
-class Vehicle:
-    """A single procedurally placed vehicle."""
+class Vehicle:  # pylint: disable=too-many-instance-attributes
+    """A single procedurally placed vehicle.
+
+    ``asset_path`` is a real City Sample vehicle Blueprint path (see
+    ``city_sample_assets.py``), sampled deterministically alongside
+    ``vehicle_type``. ``length``/``width``/``height`` remain the
+    placement-time computed box dimensions -- kept as the ground-truth
+    bounding box for now (not the real spawned asset's own bounds; see
+    KNOWN_GAPS_AND_ISSUES.md's bbox-precision decision), and still used
+    for the AABB overlap pre-check below regardless of which asset ends
+    up spawned.
+    """
 
     vehicle_id: int
     vehicle_type: str
+    asset_path: str
     center: npt.NDArray[np.float64]
     heading_rad: float
     length: float
@@ -114,6 +126,16 @@ def _sample_vehicle_type(rng: np.random.Generator, vehicle_mix: Dict[str, float]
     weights = np.array([vehicle_mix[t] for t in types])
     weights = weights / weights.sum()  # renormalize: mix sums to ~1.0, not exactly
     return str(rng.choice(types, p=weights))
+
+
+def _sample_asset_path(rng: np.random.Generator, vehicle_type: str) -> str:
+    """Sample one real City Sample asset path for ``vehicle_type``,
+    uniformly from ``VEHICLE_ASSET_PATHS[vehicle_type]`` -- deterministic
+    given the same ``rng`` state, same as every other sampling step in
+    this module."""
+    paths = VEHICLE_ASSET_PATHS[vehicle_type]
+    index = int(rng.integers(0, len(paths)))
+    return paths[index]
 
 
 class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
@@ -178,12 +200,14 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             return None
 
         vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
+        asset_path = _sample_asset_path(self.rng, vehicle_type)
         length, width, height = VEHICLE_DIMENSIONS[vehicle_type]
         heading = _edge_heading(edges[zone.edge_id])
 
         candidate = Vehicle(
             vehicle_id=self._vehicle_counter,
             vehicle_type=vehicle_type,
+            asset_path=asset_path,
             center=zone.position.copy(),
             heading_rad=heading,
             length=length,

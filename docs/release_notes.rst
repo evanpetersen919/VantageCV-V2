@@ -25,6 +25,26 @@ simple static meshes; pedestrians have a real standalone
 variants, accessories) suggesting they're spawnable the same way, final
 confirmation deferred to Phase 1's manual PIE pass.
 
+Unreleased -- City Sample asset integration, Phase 1: vehicles sample real City Sample assets (Python side)
+--------------------------------------------------------------------------------------------------------------
+
+Follow-up to Phase 0 above. Vehicles no longer feed box geometry into
+``ScenarioResult.meshes``: :class:`src.procedural.actor_placement.Vehicle`
+gained a deterministically-sampled ``asset_path`` field pointing at a
+real City Sample vehicle Blueprint (new
+:mod:`src.procedural.city_sample_assets` catalog, confirmed real via
+direct inspection of City Sample's installed content -- ~13 non-hero
+``veh*_Sandbox`` models across sedan/suv/truck/bus). Ground truth is
+unaffected: bounding boxes still derive from ``Vehicle``'s own
+placement-time fields, not from mesh data.
+:func:`src.orchestration.scenario_serializer.serialize_scenario`'s
+``"assets"`` array (present but empty since Phase 0) now carries one
+``category: "vehicle"`` entry per placed vehicle.
+
+Still open for this phase: the C++ spawn path (parsing ``"assets"``,
+spawning real Blueprint actors, freezing physics) and the manual
+asset-migration/PIE-verification steps -- see ``KNOWN_GAPS_AND_ISSUES.md``.
+
 Unreleased -- Road network rearchitected to an orthogonal grid: eliminates lane z-fighting entirely
 ---------------------------------------------------------------------------------------------------
 
