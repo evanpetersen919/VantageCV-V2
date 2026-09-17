@@ -10,18 +10,18 @@ an ad hoc, uncommitted scratchpad script, not through anything covered by
 the test suite or reusable by future phases. See
 KNOWN_GAPS_AND_ISSUES.md.
 
-Only the existing ``"meshes"`` array (roads, and non-hero building/
-vehicle/pedestrian box geometry) is produced here. The ``"assets"`` array
-(asset-reference + transform entries for real City Sample vehicles/props/
-landmark buildings) is added incrementally by later phases of that same
-integration work -- kept present but empty here so
-``ProceduralScenarioLoader.cpp``'s parsing of it (once that parsing
-exists) never has to distinguish "no assets field" from "no assets".
+The ``"meshes"`` array (roads, and non-hero building/pedestrian box
+geometry) is produced here, alongside the ``"assets"`` array --
+asset-reference + transform entries for real City Sample content. As of
+Phase 1 of that integration work, vehicles are the first category
+populated into ``"assets"`` (``category: "vehicle"``); props and landmark
+buildings are added incrementally by later phases of the same effort.
 """
 
 from typing import Any, Dict, List
 
 from src.orchestration.dataset_generator import ScenarioResult
+from src.procedural.actor_placement import Vehicle
 from src.procedural.mesh_factory import Mesh
 
 
@@ -43,6 +43,25 @@ def _mesh_to_json(mesh: Mesh) -> Dict[str, Any]:
     }
 
 
+def _vehicle_to_asset_json(vehicle: Vehicle) -> Dict[str, Any]:
+    """One ``Vehicle`` as an ``"assets"`` entry: asset reference +
+    transform, per the City Sample integration plan's schema
+    (``{"category", "asset_path", "position", "rotation_rad", "id"}``).
+
+    ``vehicle.center`` is a 2D (x, y) ground-plane point (see
+    ``ActorPlacementGenerator``); z is always 0.0 here since every
+    vehicle is placed on the flat road surface.
+    """
+    x, y = vehicle.center
+    return {
+        "category": "vehicle",
+        "asset_path": vehicle.asset_path,
+        "position": [float(x), float(y), 0.0],
+        "rotation_rad": float(vehicle.heading_rad),
+        "id": vehicle.vehicle_id,
+    }
+
+
 def serialize_scenario(result: ScenarioResult) -> Dict[str, Any]:
     """Convert one generated scenario into the JSON-serializable dict
     :meth:`UE5Backend.load_scenario` sends as its ``"scenario"`` RPC
@@ -57,10 +76,11 @@ def serialize_scenario(result: ScenarioResult) -> Dict[str, Any]:
     Returns
     -------
     Dict[str, Any]
-        ``{"meshes": [...], "assets": []}``, safe to pass directly to
+        ``{"meshes": [...], "assets": [...]}``, safe to pass directly to
         ``json.dumps`` (see :func:`_mesh_to_json`'s docstring on why the
         numpy-to-plain-Python conversion matters) and to
         ``UE5Backend.load_scenario``.
     """
     meshes: List[Dict[str, Any]] = [_mesh_to_json(mesh) for mesh in result.meshes]
-    return {"meshes": meshes, "assets": []}
+    assets: List[Dict[str, Any]] = [_vehicle_to_asset_json(v) for v in result.vehicles]
+    return {"meshes": meshes, "assets": assets}

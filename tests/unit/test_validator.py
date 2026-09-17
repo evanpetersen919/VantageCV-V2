@@ -192,6 +192,7 @@ def test_vehicle_non_finite_center_flagged() -> None:
     vehicle = Vehicle(
         vehicle_id=0,
         vehicle_type="sedan",
+        asset_path="/Game/Vehicle/vehCar_vehicle02/BP_vehCar_vehicle02_Sandbox",
         center=np.array([np.nan, 0.0]),
         heading_rad=0.0,
         length=4.6,
@@ -211,6 +212,7 @@ def test_vehicle_non_finite_heading_flagged() -> None:
     vehicle = Vehicle(
         vehicle_id=0,
         vehicle_type="sedan",
+        asset_path="/Game/Vehicle/vehCar_vehicle02/BP_vehCar_vehicle02_Sandbox",
         center=np.array([50.0, 50.0]),
         heading_rad=np.nan,
         length=4.6,
@@ -233,6 +235,7 @@ def test_vehicle_outside_bounds_not_flagged() -> None:
     vehicle = Vehicle(
         vehicle_id=0,
         vehicle_type="sedan",
+        asset_path="/Game/Vehicle/vehCar_vehicle02/BP_vehCar_vehicle02_Sandbox",
         center=np.array([500.0, 500.0]),
         heading_rad=0.0,
         length=4.6,

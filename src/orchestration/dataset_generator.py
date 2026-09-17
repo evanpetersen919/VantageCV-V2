@@ -96,9 +96,17 @@ def generate_scenario(
     lane_connectivity = LaneConnectivityGenerator().generate(nodes, edges, lanes)
     vehicles, pedestrians = ActorPlacementGenerator(seed, config).generate(edges, traffic)
 
+    # Vehicles are deliberately NOT built into box meshes here as of the
+    # City Sample asset integration's Phase 1 (see KNOWN_GAPS_AND_ISSUES.md):
+    # UE5 now spawns a real vehicle Blueprint asset per Vehicle.asset_path
+    # instead (see scenario_serializer.py's "assets" array), not a raw
+    # mesh. MeshFactory.build_vehicle_mesh itself still exists (used by
+    # its own tests, and as a documented fallback shape), just no longer
+    # feeds ScenarioResult.meshes. Ground truth is unaffected either way
+    # -- extract_bboxes_3d_vehicles derives boxes from Vehicle's own
+    # fields, not from meshes.
     meshes: List[Mesh] = [MeshFactory.build_road_mesh(lane) for lane in lanes.values()]
     meshes += [MeshFactory.build_building_mesh(building) for building in buildings]
-    meshes += [MeshFactory.build_vehicle_mesh(vehicle) for vehicle in vehicles]
     meshes += [MeshFactory.build_pedestrian_mesh(pedestrian) for pedestrian in pedestrians]
 
     validation_report = ScenarioValidator().validate(

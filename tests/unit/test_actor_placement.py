@@ -24,6 +24,7 @@ from src.procedural.actor_placement import (
     _edge_heading,
     _sample_vehicle_type,
 )
+from src.procedural.city_sample_assets import VEHICLE_ASSET_PATHS
 from src.procedural.lane_topology import LaneTopologyGenerator
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadType
 from src.procedural.traffic_network import SpawnZoneType, TrafficNetwork, TrafficNetworkGenerator
@@ -77,6 +78,31 @@ def test_vehicle_types_are_from_vehicle_mix(urban_config, bounds) -> None:
         assert (vehicle.length, vehicle.width, vehicle.height) == VEHICLE_DIMENSIONS[
             vehicle.vehicle_type
         ]
+
+
+def test_vehicle_asset_path_matches_its_own_vehicle_type(urban_config, bounds) -> None:
+    """Every placed vehicle's asset_path is one of the real City Sample
+    paths registered for its own vehicle_type -- never a mismatch (e.g.
+    a "sedan" vehicle_type resolving to a "bus" asset)."""
+    edges, traffic = _generate_full_network(42, urban_config, bounds)
+
+    vehicles, _ = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
+
+    assert vehicles  # sanity: this config/seed actually places some
+    for vehicle in vehicles:
+        assert vehicle.asset_path in VEHICLE_ASSET_PATHS[vehicle.vehicle_type]
+
+
+def test_vehicle_asset_path_deterministic_across_runs(urban_config, bounds) -> None:
+    """Same seed gives the same asset_path per vehicle, not just the
+    same vehicle_type -- the asset sampling step is deterministic too."""
+    edges1, traffic1 = _generate_full_network(42, urban_config, bounds)
+    edges2, traffic2 = _generate_full_network(42, urban_config, bounds)
+
+    vehicles1, _ = ActorPlacementGenerator(42, urban_config).generate(edges1, traffic1)
+    vehicles2, _ = ActorPlacementGenerator(42, urban_config).generate(edges2, traffic2)
+
+    assert [v.asset_path for v in vehicles1] == [v.asset_path for v in vehicles2]
 
 
 def test_vehicle_ids_unique(urban_config, bounds) -> None:
@@ -272,6 +298,7 @@ def test_vehicle_aabb_axis_aligned_matches_half_extents() -> None:
     vehicle = Vehicle(
         vehicle_id=0,
         vehicle_type="sedan",
+        asset_path="/Game/Vehicle/vehCar_vehicle02/BP_vehCar_vehicle02_Sandbox",
         center=np.array([10.0, 20.0]),
         heading_rad=0.0,
         length=4.6,
@@ -291,6 +318,7 @@ def test_vehicle_aabb_rotated_swaps_extents() -> None:
     vehicle = Vehicle(
         vehicle_id=0,
         vehicle_type="sedan",
+        asset_path="/Game/Vehicle/vehCar_vehicle02/BP_vehCar_vehicle02_Sandbox",
         center=np.array([0.0, 0.0]),
         heading_rad=np.pi / 2,
         length=4.6,
