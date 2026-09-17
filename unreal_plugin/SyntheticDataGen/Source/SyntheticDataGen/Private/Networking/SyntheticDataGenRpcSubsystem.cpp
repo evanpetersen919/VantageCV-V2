@@ -14,6 +14,11 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "Misc/Paths.h"
+#include "UnrealClient.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSyntheticDataGenRpc, Log, All);
 
@@ -230,6 +235,85 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 		{
 			return BuildErrorResponse(RequestId, -32000, TEXT("LoadProceduralScenario rejected the payload"));
 		}
+
+		return BuildResultResponse(RequestId, MakeShared<FJsonValueBoolean>(true));
+	}
+
+	if (Method == TEXT("TakeScreenshot"))
+	{
+		// Real debugging capability, kept permanently (not removed
+		// after the investigation that motivated it -- see
+		// KNOWN_GAPS_AND_ISSUES.md): diagnostic logs alone proved
+		// insufficient to root-cause vehicles being reported invisible
+		// despite correct positions/valid mesh bounds -- only an actual
+		// screenshot revealed the real problem (the camera looking at
+		// the wrong place, then a skeletal-mesh rendering issue).
+		// Useful for the same kind of visual verification in later
+		// phases. FScreenshotRequest is the direct engine API the
+		// "Shot"/"HighResShot" console commands themselves call --
+		// calling it directly here (an earlier attempt routed through
+		// GEngine->Exec("HighResShot ..."), which produced no file and
+		// no log trace at all, so it never reached the actual capture
+		// code) guarantees the exact same capture path without
+		// depending on console-command dispatch. The request is
+		// fulfilled by the next real frame the running game renders
+		// (this is a live, still-rendering session, not headless), so
+		// no explicit "wait a frame" is needed here.
+		UGameInstance* Instance = GetGameInstance();
+		UWorld* World = Instance != nullptr ? Instance->GetWorld() : nullptr;
+		if (World == nullptr)
+		{
+			return BuildErrorResponse(RequestId, -32000, TEXT("No world available to take a screenshot"));
+		}
+
+		const FString Filename = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("rpc_debug_screenshot.png"));
+		FScreenshotRequest::RequestScreenshot(Filename, /*bInShowUI=*/false, /*bAddFilenameSuffix=*/false);
+		return BuildResultResponse(RequestId, MakeShared<FJsonValueString>(Filename));
+	}
+
+	if (Method == TEXT("DebugMoveCameraTo"))
+	{
+		// Real debugging capability, kept permanently alongside
+		// TakeScreenshot (see that method's own comment above): the
+		// overview camera frames the whole scenario, which can leave
+		// individual small objects (a single vehicle) too small in
+		// frame to conclusively confirm visually. Takes an explicit
+		// camera position and look-at target (both full x/y/z in
+		// Unreal units) so both can be iterated from the Python side
+		// without rebuilding the plugin each time.
+		const TSharedPtr<FJsonObject>* Params = nullptr;
+		double CamX = 0.0;
+		double CamY = 0.0;
+		double CamZ = 0.0;
+		double TargetX = 0.0;
+		double TargetY = 0.0;
+		double TargetZ = 0.0;
+		if (!Root->TryGetObjectField(TEXT("params"), Params)
+			|| !(*Params)->TryGetNumberField(TEXT("cam_x"), CamX)
+			|| !(*Params)->TryGetNumberField(TEXT("cam_y"), CamY)
+			|| !(*Params)->TryGetNumberField(TEXT("cam_z"), CamZ)
+			|| !(*Params)->TryGetNumberField(TEXT("target_x"), TargetX)
+			|| !(*Params)->TryGetNumberField(TEXT("target_y"), TargetY)
+			|| !(*Params)->TryGetNumberField(TEXT("target_z"), TargetZ))
+		{
+			return BuildErrorResponse(
+				RequestId, -32602, TEXT("Invalid params: expected numeric cam_x/y/z and target_x/y/z"));
+		}
+
+		UGameInstance* Instance = GetGameInstance();
+		UWorld* World = Instance != nullptr ? Instance->GetWorld() : nullptr;
+		APlayerController* PlayerController = World != nullptr ? UGameplayStatics::GetPlayerController(World, 0) : nullptr;
+		APawn* Pawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+		if (Pawn == nullptr)
+		{
+			return BuildErrorResponse(RequestId, -32000, TEXT("No pawn available to move"));
+		}
+
+		const FVector CameraPosition(CamX, CamY, CamZ);
+		const FVector Target(TargetX, TargetY, TargetZ);
+		const FRotator LookRotation = UKismetMathLibrary::FindLookAtRotation(CameraPosition, Target);
+		Pawn->SetActorLocationAndRotation(CameraPosition, LookRotation);
+		PlayerController->SetControlRotation(LookRotation);
 
 		return BuildResultResponse(RequestId, MakeShared<FJsonValueBoolean>(true));
 	}

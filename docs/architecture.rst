@@ -155,23 +155,31 @@ Layers
    "id"}``, for real City Sample content this project spawns rather than
    builds as a procedural box). As of the City Sample asset integration's
    Phase 1, vehicles are the first ``"assets"`` category populated --
-   each ``Vehicle`` samples a real City Sample vehicle *skeletal mesh*
-   path deterministically (:mod:`src.procedural.city_sample_assets`)
+   each ``Vehicle`` samples a real City Sample vehicle *static body-shell
+   mesh* path deterministically (:mod:`src.procedural.city_sample_assets`)
    instead of feeding a box mesh into ``ScenarioResult.meshes``; ground
    truth is unaffected, since bounding boxes are still derived from
    ``Vehicle``'s own placement-time fields, not from mesh geometry.
    Props and landmark buildings are planned to populate their own
    ``"assets"`` categories in later phases of that same effort.
 
-   Note this is deliberately a plain skeletal mesh, not City Sample's
-   own driveable-vehicle Blueprint (``BP_veh*_Sandbox``): a real live
-   spawn attempt found every such Blueprint's parent chain depends on
-   ``ACitySampleVehicleBase``, a native C++ class living in CitySample's
-   own game-project source (Mass AI traffic control, Enhanced Input, a
-   custom UI system) rather than portable content -- see
-   ``KNOWN_GAPS_AND_ISSUES.md`` for the full investigation. A minimal
-   mesh-only actor was the chosen fix, since scenarios are frozen-frame
-   captures with no need for any of that gameplay logic.
+   Note this went through two real, screenshot-confirmed dead ends
+   before landing on a static mesh, not City Sample's own driveable-
+   vehicle Blueprint (``BP_veh*_Sandbox``, whose parent chain depends on
+   ``ACitySampleVehicleBase`` -- native C++ in CitySample's own game
+   project, not portable content) and not each vehicle's combined
+   skeletal rig either (loads and spawns without error, correct
+   position, valid mesh bounds -- but a real screenshot showed it
+   rendering as only a tiny sliver of its true geometry, since City
+   Sample's rigs drive a runtime damage-state system that needs an
+   active ``AnimBlueprint`` to show the intact body). Each vehicle's
+   static ``SM_Frame_<name>`` body-shell mesh has no such dependency and
+   renders unconditionally -- confirmed via direct screenshot comparison
+   -- at the cost of a real, documented limitation (body shell only, no
+   wheels/doors/interior). See ``KNOWN_GAPS_AND_ISSUES.md`` for the full
+   investigation, including two new permanent debugging RPC methods
+   (``TakeScreenshot``, ``DebugMoveCameraTo``) built specifically because
+   diagnostic logs alone proved insufficient to catch either dead end.
 
    :mod:`src.ue5.backend` is a genuine, tested JSON-RPC-over-WebSocket
    client -- verified 2026-09-15/16 against a local mock server, a real
@@ -195,10 +203,21 @@ Layers
    needs a ``-d3d11`` launch workaround). Phase 1's C++ ``"assets"``
    parsing/spawning (``ParseAssetData`` in ``ProceduralScenarioLoader.cpp``,
    ``UVehicleActorSpawner`` in the new ``ActorSpawn/`` module) is fully
-   verified against a real live standalone UE5 session: all 14 migrated
-   vehicle skeletal meshes spawn successfully (a real 112-mesh scenario
-   producing 50 spawned vehicle actors, 0 skipped, confirmed via the
-   engine's own log).
+   verified against a real live standalone UE5 session, including real
+   screenshots showing correctly-positioned, recognizable vehicle
+   silhouettes -- not just a spawn-succeeded log line, which two real
+   bugs (camera pointed at the wrong content; a skeletal mesh rendering
+   almost nothing) proved is not sufficient evidence on its own. See
+   ``KNOWN_GAPS_AND_ISSUES.md``.
+
+   ``AProceduralScenarioLoader`` also repositions the local player's
+   pawn to overlook a generated scenario's real bounds after loading it
+   (``RepositionOverviewCamera``, mirroring
+   ``default_overview_camera()``'s own positioning logic in
+   ``dataset_generator.py``) -- the current level's own default
+   ``PlayerStart`` has no relationship to a generated scenario's
+   coordinates, so without this the camera never looks at the generated
+   content at all.
 
 What is deliberately not implemented
 --------------------------------------

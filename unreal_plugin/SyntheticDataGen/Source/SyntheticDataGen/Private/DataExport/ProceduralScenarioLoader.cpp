@@ -12,6 +12,9 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetMathLibrary.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogProceduralScenarioLoader, Log, All);
 
@@ -157,6 +160,58 @@ namespace
 		OutAssetData.Rotation = FRotator(0.0, -FMath::RadiansToDegrees(RotationRad), 0.0);
 		return true;
 	}
+
+	// Real root cause found via a live screenshot (not guessed -- see
+	// KNOWN_GAPS_AND_ISSUES.md): vehicles/roads/buildings were never
+	// invisible or misplaced. The player's camera was sitting wherever
+	// the current level's own default PlayerStart happens to be (in
+	// this project, the empty /Engine/Maps/Templates/OpenWorld
+	// template), which has no relationship at all to a generated
+	// scenario's own coordinates -- a screenshot confirmed the camera
+	// was looking at that template's own default checkered floor and
+	// mountains, nowhere near the real generated content. Repositions
+	// the local player's pawn to overlook the real bounds of whatever
+	// was actually just built, mirroring
+	// default_overview_camera()'s own positioning logic in
+	// src/orchestration/dataset_generator.py (offset above and outside
+	// one corner, looking at the center) for consistency with the
+	// Python-side COCO-frame camera.
+	void RepositionOverviewCamera(UWorld* World, const FVector2D& BoundsMin, const FVector2D& BoundsMax)
+	{
+		if (World == nullptr)
+		{
+			return;
+		}
+
+		APlayerController* PlayerController = UGameplayStatics::GetPlayerController(World, 0);
+		APawn* Pawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+		if (Pawn == nullptr)
+		{
+			return;
+		}
+
+		const FVector2D Center = (BoundsMin + BoundsMax) * 0.5;
+		const double Extent = FMath::Max(BoundsMax.X - BoundsMin.X, BoundsMax.Y - BoundsMin.Y);
+		if (Extent <= 0.0)
+		{
+			return;
+		}
+
+		const FVector CameraPosition(
+			BoundsMin.X - Extent * 0.05, BoundsMin.Y - Extent * 0.05, Extent * 0.35);
+		const FVector LookTarget(Center.X, Center.Y, 0.0);
+		const FRotator LookRotation = UKismetMathLibrary::FindLookAtRotation(CameraPosition, LookTarget);
+
+		Pawn->SetActorLocationAndRotation(CameraPosition, LookRotation);
+		if (PlayerController->PlayerCameraManager != nullptr)
+		{
+			// A SpectatorPawn/DefaultPawn's camera follows its own
+			// control rotation, not just the actor's rotation -- set
+			// both so the view actually turns to face the scenario
+			// immediately rather than on the next input event.
+			PlayerController->SetControlRotation(LookRotation);
+		}
+	}
 } // namespace
 
 AProceduralScenarioLoader::AProceduralScenarioLoader()
@@ -219,6 +274,10 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 	int32 BuiltCount = 0;
 	int32 SkippedCount = 0;
 
+	FVector2D BoundsMin(TNumericLimits<double>::Max(), TNumericLimits<double>::Max());
+	FVector2D BoundsMax(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Lowest());
+	bool bHasAnyVertex = false;
+
 	for (const TSharedPtr<FJsonValue>& MeshValue : *MeshesJson)
 	{
 		const TSharedPtr<FJsonObject>* MeshObject = nullptr;
@@ -227,6 +286,15 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 		{
 			++SkippedCount;
 			continue;
+		}
+
+		for (const FVector& Vertex : MeshData.Vertices)
+		{
+			BoundsMin.X = FMath::Min(BoundsMin.X, Vertex.X);
+			BoundsMin.Y = FMath::Min(BoundsMin.Y, Vertex.Y);
+			BoundsMax.X = FMath::Max(BoundsMax.X, Vertex.X);
+			BoundsMax.Y = FMath::Max(BoundsMax.Y, Vertex.Y);
+			bHasAnyVertex = true;
 		}
 
 		UProceduralMeshComponent* Component = NewObject<UProceduralMeshComponent>(this);
@@ -282,6 +350,17 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 				continue;
 			}
 
+			// Include every parsed asset's position in the overview
+			// camera's bounds, not just mesh vertices -- vehicle
+			// positions should already fall within the road meshes'
+			// own extent in practice, but this removes the dependency
+			// entirely rather than assuming it always holds.
+			BoundsMin.X = FMath::Min(BoundsMin.X, AssetData.Position.X);
+			BoundsMin.Y = FMath::Min(BoundsMin.Y, AssetData.Position.Y);
+			BoundsMax.X = FMath::Max(BoundsMax.X, AssetData.Position.X);
+			BoundsMax.Y = FMath::Max(BoundsMax.Y, AssetData.Position.Y);
+			bHasAnyVertex = true;
+
 			if (AssetData.Category != TEXT("vehicle"))
 			{
 				++SpawnSkippedCount;
@@ -308,6 +387,11 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 		TEXT("LoadProceduralScenario: spawned %d asset(s), skipped %d"),
 		SpawnedCount,
 		SpawnSkippedCount);
+
+	if (bHasAnyVertex)
+	{
+		RepositionOverviewCamera(GetWorld(), BoundsMin, BoundsMax);
+	}
 
 	return true;
 }

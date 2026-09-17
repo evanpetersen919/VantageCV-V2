@@ -1,5 +1,5 @@
 // City Sample asset integration Phase 1: spawns a plain actor holding a
-// real City Sample vehicle skeletal mesh at a fixed pose.
+// real City Sample vehicle body mesh at a fixed pose.
 //
 // This is NOT City Sample's own driveable-vehicle Blueprint
 // (BP_veh*_Sandbox). A real live PIE check (2026-09-16) found every
@@ -10,8 +10,14 @@
 // Enhanced Input, a custom UI/menu system, photo mode,
 // ACitySampleCharacter). None of that is needed here: scenarios are
 // frozen-frame captures, not driveable, so this spawns a minimal actor
-// with just the real skeletal mesh -- genuinely portable content with
-// no such dependency -- instead. See KNOWN_GAPS_AND_ISSUES.md.
+// instead. A first attempt used each vehicle's real skeletal mesh, but
+// a real live screenshot (2026-09-16, see KNOWN_GAPS_AND_ISSUES.md)
+// showed it rendering as only a tiny sliver of its true geometry --
+// City Sample's skeletal rigs drive a runtime damage-state system, and
+// without an AnimBlueprint actively posing them, the reference pose
+// doesn't show the intact body. Switched to each vehicle's static
+// "SM_Frame_<name>" body-shell mesh instead, which has no such
+// dependency and renders unconditionally.
 
 #pragma once
 
@@ -45,11 +51,27 @@ struct FScenarioAssetData
 };
 
 /**
- * Spawns a plain AActor with a USkeletalMeshComponent set to a real
- * City Sample vehicle skeletal mesh, from one FScenarioAssetData entry.
- * No vehicle movement component, no physics simulation -- scenarios are
+ * Spawns a plain AActor with a UStaticMeshComponent set to a real City
+ * Sample vehicle body mesh, from one FScenarioAssetData entry. No
+ * vehicle movement component, no physics simulation -- scenarios are
  * deterministic frozen-frame captures, so the mesh only needs to sit at
  * its procedurally-computed pose, not drive.
+ *
+ * Uses each vehicle's static "SM_Frame_<name>" body-shell mesh, not the
+ * combined "SKM_<name>" skeletal rig City Sample itself uses. Real live
+ * screenshots (2026-09-16, see KNOWN_GAPS_AND_ISSUES.md) showed the
+ * combined skeletal mesh renders as only a tiny sliver of its true
+ * geometry without an AnimBlueprint actively driving it -- City
+ * Sample's vehicles are rigged for a runtime damage-state system
+ * (Sandbox/Destruction/Deformable), and the reference pose alone
+ * doesn't show the intact body. A plain static mesh has no such
+ * dependency and renders its authored geometry unconditionally;
+ * "SM_Frame_<name>" (confirmed present for all 14 vehicles, unlike the
+ * skeletal "SKM_Exterior_<name>" variant some but not all vehicles
+ * have) is the body shell without wheels/doors/interior detail -- a
+ * real known limitation (see this class's .cpp), not the full vehicle,
+ * but correctly visible and recognizably vehicle-shaped, unlike the
+ * skeletal mesh it replaced.
  */
 UCLASS(ClassGroup = (SyntheticDataGen), meta = (BlueprintSpawnableComponent))
 class SYNTHETICDATAGEN_API UVehicleActorSpawner final : public UActorComponent
@@ -60,15 +82,15 @@ public:
 	UVehicleActorSpawner();
 
 	/**
-	 * Loads AssetData.AssetPath as a USkeletalMesh and spawns a plain
-	 * actor holding it (via a USkeletalMeshComponent) into World at
+	 * Loads AssetData.AssetPath as a UStaticMesh and spawns a plain
+	 * actor holding it (via a UStaticMeshComponent) into World at
 	 * AssetData.Position/Rotation.
 	 *
 	 * @param World      World to spawn into; must be non-null.
 	 * @param AssetData  One vehicle entry, with Position/Rotation
 	 *        already converted to UE5 space by the caller.
 	 * @return The spawned actor, or nullptr if AssetPath didn't resolve
-	 *         to a loadable skeletal mesh or spawning otherwise failed.
+	 *         to a loadable static mesh or spawning otherwise failed.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "SyntheticDataGen")
 	AActor* SpawnVehicle(UWorld* World, const FScenarioAssetData& AssetData) const;

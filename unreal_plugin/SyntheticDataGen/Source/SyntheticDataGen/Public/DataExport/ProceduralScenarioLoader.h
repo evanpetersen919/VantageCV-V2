@@ -67,6 +67,15 @@ public:
 	 * @return true if the payload was well-formed JSON (individual
 	 *         malformed mesh/asset entries are skipped and logged, not
 	 *         fatal).
+	 *
+	 * Also repositions the local player's pawn to overlook the real
+	 * bounds of whatever was just built (see this .cpp's
+	 * RepositionOverviewCamera) -- a real fix, not a nicety: the
+	 * level's own default PlayerStart has no relationship to a
+	 * generated scenario's coordinates, confirmed via a real screenshot
+	 * showing the camera looking at the current level's own default
+	 * geometry instead of the generated city. See
+	 * KNOWN_GAPS_AND_ISSUES.md.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "SyntheticDataGen")
 	bool LoadProceduralScenario(const FString& ScenarioJson);

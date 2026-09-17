@@ -4,22 +4,37 @@ Phase 1 of the City Sample asset integration
 (``feature/city-sample-asset-integration``); props and Hero landmark
 buildings in later phases of that same effort.
 
-These are combined skeletal mesh assets (``SKM_<vehicle folder>``), not
-the ``BP_veh*_Sandbox`` driveable-vehicle Blueprints City Sample itself
-uses. Real, live PIE verification (2026-09-16, see
-KNOWN_GAPS_AND_ISSUES.md) found that every ``_Sandbox`` Blueprint's
-parent chain ultimately depends on ``ACitySampleVehicleBase`` -- a
-native C++ class defined in CitySample's own game-project *source*
-(``Source/CitySample/Vehicles/CitySampleVehicleBase.h``), not portable
-content. That class is itself deeply wired into CitySample's own
-gameplay framework (Mass AI traffic control, Enhanced Input, a custom
-UI/menu system, photo mode, ``ACitySampleCharacter``) -- none of which
-this project needs (scenarios are frozen-frame captures, not
-driveable), and porting it would mean dragging in a large, open-ended
-slice of CitySample's game framework for no benefit. The skeletal mesh
-itself, by contrast, is genuine portable content with no such
-dependency -- confirmed via direct inspection of every migrated
-vehicle's ``Content/Vehicle/<folder>/Mesh/`` subfolder.
+These are each vehicle's static body-shell mesh (``SM_Frame_<vehicle
+folder>``), not the ``BP_veh*_Sandbox`` driveable-vehicle Blueprints
+City Sample itself uses, and not that vehicle's combined skeletal rig
+either. Both alternatives were tried first and real-screenshot-confirmed
+broken (see KNOWN_GAPS_AND_ISSUES.md for the full investigation):
+
+1. The ``_Sandbox`` Blueprints' parent chain ultimately depends on
+   ``ACitySampleVehicleBase`` -- a native C++ class defined in
+   CitySample's own game-project *source*
+   (``Source/CitySample/Vehicles/CitySampleVehicleBase.h``), not
+   portable content, and itself deeply wired into CitySample's gameplay
+   framework (Mass AI traffic control, Enhanced Input, a custom UI/menu
+   system, photo mode, ``ACitySampleCharacter``) that this project has
+   no use for.
+2. Each vehicle's combined skeletal mesh (``SKM_<folder>``) loaded and
+   spawned without error, with correct position/valid mesh bounds -- but
+   a real live screenshot showed it rendering as only a tiny sliver of
+   its true geometry. City Sample's skeletal rigs drive a runtime
+   damage-state system (Sandbox/Destruction/Deformable); without an
+   AnimBlueprint actively posing them, the reference pose alone doesn't
+   show the intact body.
+
+``SM_Frame_<folder>`` -- a plain static mesh with no skeleton at all --
+has no such pose dependency and renders its authored geometry
+unconditionally; confirmed present for all 14 vehicles (unlike the
+skeletal ``SKM_Exterior_<folder>`` variant only some vehicles have,
+which would have required two different code paths). Real, known
+limitation: this is the body shell only, without wheels/doors/interior
+detail (those are separate ``SM_Wheel_*``/``SM_Door_*`` meshes) -- a
+visibly correct, recognizable vehicle silhouette, not full visual
+fidelity; a real future improvement, not attempted here.
 
 Paths point at where these assets need to be migrated to inside
 ``VantageCV_UE5``'s own ``Content/`` (Epic's Migrate tool, from the
@@ -45,25 +60,25 @@ from typing import Dict, List
 # (closer in size/role to a passenger SUV than to a cargo truck).
 VEHICLE_ASSET_PATHS: Dict[str, List[str]] = {
     "sedan": [
-        "/Game/Vehicle/vehCar_vehicle02/Mesh/SKM_vehCar_vehicle02",
-        "/Game/Vehicle/vehCar_vehicle03/Mesh/SKM_vehCar_vehicle03",
-        "/Game/Vehicle/vehCar_vehicle05/Mesh/SKM_vehCar_vehicle05",
-        "/Game/Vehicle/vehCar_vehicle06/Mesh/SKM_vehCar_vehicle06",
-        "/Game/Vehicle/vehCar_vehicle07/Mesh/SKM_vehCar_vehicle07",
+        "/Game/Vehicle/vehCar_vehicle02/Mesh/SM_Frame_vehCar_vehicle02",
+        "/Game/Vehicle/vehCar_vehicle03/Mesh/SM_Frame_vehCar_vehicle03",
+        "/Game/Vehicle/vehCar_vehicle05/Mesh/SM_Frame_vehCar_vehicle05",
+        "/Game/Vehicle/vehCar_vehicle06/Mesh/SM_Frame_vehCar_vehicle06",
+        "/Game/Vehicle/vehCar_vehicle07/Mesh/SM_Frame_vehCar_vehicle07",
     ],
     "suv": [
-        "/Game/Vehicle/vehCar_vehicle12/Mesh/SKM_vehCar_vehicle12",
-        "/Game/Vehicle/vehCar_vehicle13/Mesh/SKM_vehCar_vehicle13",
-        "/Game/Vehicle/vehVan_vehicle01/Mesh/SKM_vehVan_vehicle01",
-        "/Game/Vehicle/vehVan_vehicle09/Mesh/SKM_vehVan_vehicle09",
+        "/Game/Vehicle/vehCar_vehicle12/Mesh/SM_Frame_vehCar_vehicle12",
+        "/Game/Vehicle/vehCar_vehicle13/Mesh/SM_Frame_vehCar_vehicle13",
+        "/Game/Vehicle/vehVan_vehicle01/Mesh/SM_Frame_vehVan_vehicle01",
+        "/Game/Vehicle/vehVan_vehicle09/Mesh/SM_Frame_vehVan_vehicle09",
     ],
     "truck": [
-        "/Game/Vehicle/vehTruck_vehicle04/Mesh/SKM_vehTruck_vehicle04",
-        "/Game/Vehicle/vehTruck_vehicle08/Mesh/SKM_vehTruck_vehicle08",
-        "/Game/Vehicle/vehTruck_vehicle11/Mesh/SKM_vehTruck_vehicle11",
-        "/Game/Vehicle/vehTruck_trailer01/Mesh/SKM_vehTruck_trailer01",
+        "/Game/Vehicle/vehTruck_vehicle04/Mesh/SM_Frame_vehTruck_vehicle04",
+        "/Game/Vehicle/vehTruck_vehicle08/Mesh/SM_Frame_vehTruck_vehicle08",
+        "/Game/Vehicle/vehTruck_vehicle11/Mesh/SM_Frame_vehTruck_vehicle11",
+        "/Game/Vehicle/vehTruck_trailer01/Mesh/SM_Frame_vehTruck_trailer01",
     ],
     "bus": [
-        "/Game/Vehicle/vehBus_vehicle10/Mesh/SKM_vehBus_vehicle10",
+        "/Game/Vehicle/vehBus_vehicle10/Mesh/SM_Frame_vehBus_vehicle10",
     ],
 }
