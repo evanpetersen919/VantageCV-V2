@@ -184,14 +184,34 @@ Layers
    active ``AnimBlueprint`` to show the intact body). Each vehicle's
    static ``SM_Frame_<name>`` body-shell mesh has no such dependency and
    renders unconditionally -- confirmed via direct screenshot comparison.
-   Real, still-open limitation: vehicle paint materials/textures --
-   City Sample's real paint material system depends on Epic's separate
-   MassTraffic plugin (not portable content), so UE5 falls back to its
-   default flat material for every affected slot. See
-   ``KNOWN_GAPS_AND_ISSUES.md`` for the full investigation, including
+
+   Vehicle paint materials/textures initially looked like a deeper,
+   unfixable dependency on Epic's separate MassTraffic plugin (a full
+   Mass/ZoneGraph AI traffic system) -- City Sample's real paint
+   materials reference a material function
+   (``MF_UnpackTrafficVehicleInstanceCustomData``) that lives in that
+   plugin's own content mount, and UE5 fell back to its default flat
+   material for every affected slot when it couldn't resolve. Heavily
+   re-investigated (decoding the real ``.uasset`` binary directly) and
+   found the actual dependency is much narrower: that one material
+   function's own real dependencies are only standard engine packages
+   (``/Script/CoreUObject``/``Engine``/``UnrealEd``) and built-in
+   material expression node types, not anything MassTraffic's own C++
+   source defines -- it's pure content that happens to be organized
+   inside that plugin's folder. Fixed with a new, minimal, content-only
+   plugin (committed at ``unreal_plugin/Traffic/Traffic.uplugin``, no
+   ``Modules``/``Source`` at all -- deliberately not a copy of the real
+   MassTraffic plugin) that registers the same ``/Traffic/`` mount point
+   City Sample's already-migrated materials already hard-reference, so
+   no material graph editing was needed. Verified via a real live
+   session: "Missing Material Function" warnings dropped from many to
+   zero across the whole log, and real screenshots show genuine distinct
+   paint colors and a real taillight lens color, not a uniform fallback.
+   See ``KNOWN_GAPS_AND_ISSUES.md`` for the full investigation, including
    two permanent debugging RPC methods (``TakeScreenshot``,
    ``DebugMoveCameraTo``) built specifically because diagnostic logs
-   alone proved insufficient to catch either dead end.
+   alone proved insufficient to catch the earlier vehicle-visibility
+   dead ends.
 
    :mod:`src.ue5.backend` is a genuine, tested JSON-RPC-over-WebSocket
    client -- verified 2026-09-15/16 against a local mock server, a real

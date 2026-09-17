@@ -1,6 +1,32 @@
 Release Notes
 ==============
 
+Unreleased -- Vehicle paint materials fixed: real root cause was a missing content mount, not MassTraffic itself
+-------------------------------------------------------------------------------------------------------------------
+
+Vehicle paint materials previously fell back to UE5's default flat
+material because City Sample's real ``M_Veh_CarPaint``/``MI_Veh_*``
+materials reference a material function
+(``MF_UnpackTrafficVehicleInstanceCustomData``) living in Epic's
+separate MassTraffic plugin's content mount, which was never migrated.
+Heavily re-investigated by decoding the real ``.uasset`` binary
+directly rather than guessing: that function's own only dependencies
+are standard engine packages and built-in material expression node
+types -- nothing from MassTraffic's actual C++ traffic-AI source. It's
+pure content that merely lives inside that plugin's folder.
+
+Fixed with a new, minimal, content-only plugin (committed at
+``unreal_plugin/Traffic/Traffic.uplugin``, no ``Modules``/``Source`` at
+all -- deliberately not a copy of the real MassTraffic plugin) that
+registers the same ``/Traffic/`` mount point City Sample's
+already-migrated materials already hard-reference, so no material graph
+editing was needed. Verified via a real live session: "Missing Material
+Function" warnings dropped from many to zero across the whole log, and
+real screenshots show genuine distinct paint colors and a real
+taillight lens color across 5 different vehicles, not a uniform
+fallback. See ``KNOWN_GAPS_AND_ISSUES.md`` for the full investigation
+and the manual steps needed to reproduce this on a fresh setup.
+
 Unreleased -- Vehicles fully assembled: wheels, doors, glass, interior, steering wheel
 ----------------------------------------------------------------------------------------
 
