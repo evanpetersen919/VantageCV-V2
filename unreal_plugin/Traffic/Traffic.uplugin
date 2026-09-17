@@ -1,0 +1,18 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "Traffic",
+	"Description": "Content-only plugin providing the /Traffic/ mount point for MF_UnpackTrafficVehicleInstanceCustomData, a material function City Sample's vehicle paint materials (M_Veh_CarPaint etc.) reference via a hard path. Deliberately NOT the real Epic MassTraffic plugin (no Mass AI traffic simulation, no C++ modules, no ChaosVehiclesPlugin/ZoneGraph/MassAI dependency) -- confirmed via direct binary inspection that MF_UnpackTrafficVehicleInstanceCustomData's own only dependencies are /Script/CoreUObject, /Script/Engine, and /Script/UnrealEd (standard engine classes), and it uses only built-in material expression node types (MaterialExpressionCustom, MaterialExpressionPerInstanceCustomData), not anything defined by MassTraffic's own C++ source. See KNOWN_GAPS_AND_ISSUES.md.",
+	"Category": "Content",
+	"CreatedBy": "",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EnabledByDefault": true,
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false
+}
