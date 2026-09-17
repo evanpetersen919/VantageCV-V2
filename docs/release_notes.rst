@@ -41,9 +41,11 @@ placement-time fields, not from mesh data.
 ``"assets"`` array (present but empty since Phase 0) now carries one
 ``category: "vehicle"`` entry per placed vehicle.
 
-Still open for this phase: the C++ spawn path (parsing ``"assets"``,
-spawning real Blueprint actors, freezing physics) and the manual
-asset-migration/PIE-verification steps -- see ``KNOWN_GAPS_AND_ISSUES.md``.
+The C++ spawn path (``UVehicleActorSpawner``: parses ``"assets"``,
+spawns real Blueprint actors via ``LoadClass``/``SpawnActor``, freezes
+physics on every primitive component) is written and compiles cleanly
+against the real UE 5.4.4 install. Still open for this phase: manual
+asset migration and PIE verification -- see ``KNOWN_GAPS_AND_ISSUES.md``.
 
 Unreleased -- Road network rearchitected to an orthogonal grid: eliminates lane z-fighting entirely
 ---------------------------------------------------------------------------------------------------

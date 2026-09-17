@@ -11,12 +11,14 @@
 // that backend.py's UE5Backend.load_scenario() sends over the
 // LoadProceduralScenario JSON-RPC method, and dispatches one
 // UScenarioMeshBuilder::BuildMeshSection call per entry in the
-// payload's "meshes" array. Traffic controller initialization and
-// streaming/culling (MASTER_PROMPT Section 3.5's remaining "Procedural
-// Meshes"/"Traffic Network" bullets for this phase) are still not
-// implemented -- there's no traffic-controller actor class yet to
-// initialize, and streaming/culling needs profiling against a real,
-// populated level.
+// payload's "meshes" array, plus (as of City Sample asset integration
+// Phase 1) one UVehicleActorSpawner::SpawnVehicle call per
+// category:"vehicle" entry in the payload's "assets" array. Traffic
+// controller initialization and streaming/culling (MASTER_PROMPT
+// Section 3.5's remaining "Procedural Meshes"/"Traffic Network" bullets
+// for this phase) are still not implemented -- there's no
+// traffic-controller actor class yet to initialize, and
+// streaming/culling needs profiling against a real, populated level.
 
 #pragma once
 
@@ -38,18 +40,28 @@ public:
 
 	/**
 	 * Parses ScenarioJson (the payload UE5Backend.load_scenario() sends)
-	 * and builds one mesh section per entry in its "meshes" array.
+	 * and builds one mesh section per entry in its "meshes" array, plus
+	 * spawns one vehicle actor per category:"vehicle" entry in its
+	 * "assets" array.
 	 *
-	 * @param ScenarioJson  UTF-8 JSON with a top-level "meshes" array;
-	 *        each entry has "vertices" ([[x,y,z], ...]), "triangles"
-	 *        (flat int list), "uvs" ([[u,v], ...]), and "material"
-	 *        (string), matching src/procedural/mesh_factory.py's Mesh
-	 *        dataclass field-for-field. A missing "meshes" field is
-	 *        treated as a valid, empty scenario, not an error.
-	 *        Traffic-network data (nodes/edges/lanes/traffic) is not
-	 *        yet part of this schema -- see KNOWN_GAPS_AND_ISSUES.md.
+	 * @param ScenarioJson  UTF-8 JSON with top-level "meshes" and
+	 *        "assets" arrays. Each "meshes" entry has "vertices"
+	 *        ([[x,y,z], ...]), "triangles" (flat int list), "uvs"
+	 *        ([[u,v], ...]), and "material" (string), matching
+	 *        src/procedural/mesh_factory.py's Mesh dataclass
+	 *        field-for-field. Each "assets" entry has "category",
+	 *        "asset_path", "position" ([x,y,z]), "rotation_rad", and
+	 *        "id", matching scenario_serializer.py's asset-entry
+	 *        schema -- only "category": "vehicle" is spawned so far;
+	 *        "prop"/"hero_building" entries are skipped, not fatal,
+	 *        until later City Sample integration phases add them.
+	 *        Missing "meshes"/"assets" fields are each treated as a
+	 *        valid, empty scenario, not an error. Traffic-network data
+	 *        (nodes/edges/lanes/traffic) is not yet part of this
+	 *        schema -- see KNOWN_GAPS_AND_ISSUES.md.
 	 * @return true if the payload was well-formed JSON (individual
-	 *         malformed mesh entries are skipped and logged, not fatal).
+	 *         malformed mesh/asset entries are skipped and logged, not
+	 *         fatal).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "SyntheticDataGen")
 	bool LoadProceduralScenario(const FString& ScenarioJson);
