@@ -4,16 +4,22 @@ Phase 1 of the City Sample asset integration
 (``feature/city-sample-asset-integration``); props and Hero landmark
 buildings in later phases of that same effort.
 
-Confirmed real (not guessed) via direct inspection of City Sample's
-installed content at ``F:\\UE5Projects\\CitySample\\Content\\Vehicle\\``:
-every non-hero vehicle folder has a ``BP_veh*_Sandbox.uasset`` Blueprint
--- the ``_Sandbox`` variant specifically, not the base/``_Destruction``/
-``_Deformable`` variants, since a frozen-frame synthetic scenario has no
-use for damage/deformation simulation and it likely sidesteps that
-complexity. See KNOWN_GAPS_AND_ISSUES.md's Phase 0 investigation entry
-for the full evidence (skeletal mesh + Animation Blueprint + Chaos
-vehicle base classes confirm these are real Blueprint actors, not plain
-static meshes).
+These are combined skeletal mesh assets (``SKM_<vehicle folder>``), not
+the ``BP_veh*_Sandbox`` driveable-vehicle Blueprints City Sample itself
+uses. Real, live PIE verification (2026-09-16, see
+KNOWN_GAPS_AND_ISSUES.md) found that every ``_Sandbox`` Blueprint's
+parent chain ultimately depends on ``ACitySampleVehicleBase`` -- a
+native C++ class defined in CitySample's own game-project *source*
+(``Source/CitySample/Vehicles/CitySampleVehicleBase.h``), not portable
+content. That class is itself deeply wired into CitySample's own
+gameplay framework (Mass AI traffic control, Enhanced Input, a custom
+UI/menu system, photo mode, ``ACitySampleCharacter``) -- none of which
+this project needs (scenarios are frozen-frame captures, not
+driveable), and porting it would mean dragging in a large, open-ended
+slice of CitySample's game framework for no benefit. The skeletal mesh
+itself, by contrast, is genuine portable content with no such
+dependency -- confirmed via direct inspection of every migrated
+vehicle's ``Content/Vehicle/<folder>/Mesh/`` subfolder.
 
 Paths point at where these assets need to be migrated to inside
 ``VantageCV_UE5``'s own ``Content/`` (Epic's Migrate tool, from the
@@ -27,8 +33,7 @@ distinguish sedan vs. SUV by name -- the split below is a reasonable,
 deliberately-flagged-as-unverified assignment (not a visual
 classification), giving both categories real variety consistent with
 ``vehicle_mix``'s own weighting (sedan is the dominant category in
-every scenario template). Revisit once these assets are actually seen
-in the editor during Phase 1's manual PIE verification pass.
+every scenario template).
 """
 
 from typing import Dict, List
@@ -40,25 +45,25 @@ from typing import Dict, List
 # (closer in size/role to a passenger SUV than to a cargo truck).
 VEHICLE_ASSET_PATHS: Dict[str, List[str]] = {
     "sedan": [
-        "/Game/Vehicle/vehCar_vehicle02/BP_vehCar_vehicle02_Sandbox",
-        "/Game/Vehicle/vehCar_vehicle03/BP_vehCar_vehicle03_Sandbox",
-        "/Game/Vehicle/vehCar_vehicle05/BP_vehCar_vehicle05_Sandbox",
-        "/Game/Vehicle/vehCar_vehicle06/BP_vehCar_vehicle06_Sandbox",
-        "/Game/Vehicle/vehCar_vehicle07/BP_vehCar_vehicle07_Sandbox",
+        "/Game/Vehicle/vehCar_vehicle02/Mesh/SKM_vehCar_vehicle02",
+        "/Game/Vehicle/vehCar_vehicle03/Mesh/SKM_vehCar_vehicle03",
+        "/Game/Vehicle/vehCar_vehicle05/Mesh/SKM_vehCar_vehicle05",
+        "/Game/Vehicle/vehCar_vehicle06/Mesh/SKM_vehCar_vehicle06",
+        "/Game/Vehicle/vehCar_vehicle07/Mesh/SKM_vehCar_vehicle07",
     ],
     "suv": [
-        "/Game/Vehicle/vehCar_vehicle12/BP_vehCar_vehicle12_Sandbox",
-        "/Game/Vehicle/vehCar_vehicle13/BP_vehCar_vehicle13_Sandbox",
-        "/Game/Vehicle/vehVan_vehicle01/BP_vehVan_vehicle01_Sandbox",
-        "/Game/Vehicle/vehVan_vehicle09/BP_vehVan_vehicle09_Sandbox",
+        "/Game/Vehicle/vehCar_vehicle12/Mesh/SKM_vehCar_vehicle12",
+        "/Game/Vehicle/vehCar_vehicle13/Mesh/SKM_vehCar_vehicle13",
+        "/Game/Vehicle/vehVan_vehicle01/Mesh/SKM_vehVan_vehicle01",
+        "/Game/Vehicle/vehVan_vehicle09/Mesh/SKM_vehVan_vehicle09",
     ],
     "truck": [
-        "/Game/Vehicle/vehTruck_vehicle04/BP_vehTruck_vehicle04_Sandbox",
-        "/Game/Vehicle/vehTruck_vehicle08/BP_vehTruck_vehicle08_Sandbox",
-        "/Game/Vehicle/vehTruck_vehicle11/BP_vehTruck_vehicle11_Sandbox",
-        "/Game/Vehicle/vehTruck_trailer01/BP_vehTruck_trailer01_Sandbox",
+        "/Game/Vehicle/vehTruck_vehicle04/Mesh/SKM_vehTruck_vehicle04",
+        "/Game/Vehicle/vehTruck_vehicle08/Mesh/SKM_vehTruck_vehicle08",
+        "/Game/Vehicle/vehTruck_vehicle11/Mesh/SKM_vehTruck_vehicle11",
+        "/Game/Vehicle/vehTruck_trailer01/Mesh/SKM_vehTruck_trailer01",
     ],
     "bus": [
-        "/Game/Vehicle/vehBus_vehicle10/BP_vehBus_vehicle10_Sandbox",
+        "/Game/Vehicle/vehBus_vehicle10/Mesh/SKM_vehBus_vehicle10",
     ],
 }

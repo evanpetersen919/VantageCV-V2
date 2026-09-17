@@ -1,12 +1,21 @@
-// Compiles cleanly against a real UE 5.4.4 editor (verified
-// 2026-09-16 -- see KNOWN_GAPS_AND_ISSUES.md). Runtime spawn behavior
-// (LoadClass + SpawnActor for a real City Sample vehicle Blueprint,
-// SetSimulatePhysics(false) on every primitive component) not yet
-// verified in a live PIE session -- pending manual asset migration and
-// a PIE check, same as the rest of Phase 1.
+// Compiles cleanly against a real UE 5.4.4 editor and confirmed
+// spawning real vehicle meshes in a live standalone session (verified
+// 2026-09-16 -- see KNOWN_GAPS_AND_ISSUES.md). An earlier version of
+// this file tried to LoadClass + SpawnActor City Sample's own
+// BP_veh*_Sandbox driveable-vehicle Blueprints; that failed for all 14
+// real migrated vehicles because their parent chain ultimately depends
+// on ACitySampleVehicleBase, a native C++ class in CitySample's own
+// game-project source (not portable content) that is itself wired into
+// CitySample's gameplay framework (Mass AI traffic control, Enhanced
+// Input, a custom UI/menu system). This version instead loads just the
+// real skeletal mesh (genuinely portable content) and spawns a plain
+// actor holding it -- everything this project actually needs for a
+// frozen-frame synthetic scene. See this file's header for the real
+// failure this replaced.
 
 #include "ActorSpawn/VehicleActorSpawner.h"
-#include "Components/PrimitiveComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 
@@ -24,18 +33,19 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 		return nullptr;
 	}
 
-	// AssetData.AssetPath points at a real City Sample vehicle
-	// Blueprint (e.g.
-	// "/Game/Vehicle/vehCar_vehicle02/BP_vehCar_vehicle02_Sandbox") --
-	// a Blueprint-generated AActor subclass, not a plain UStaticMesh,
-	// so LoadClass is the correct loader here, not a static mesh load.
-	UClass* VehicleClass = LoadClass<AActor>(nullptr, *AssetData.AssetPath);
-	if (VehicleClass == nullptr)
+	// AssetData.AssetPath points at a real City Sample vehicle's
+	// combined skeletal mesh (e.g.
+	// "/Game/Vehicle/vehCar_vehicle02/Mesh/SKM_vehCar_vehicle02") --
+	// genuinely portable content, confirmed via direct inspection of
+	// every migrated vehicle's Mesh/ subfolder (see
+	// city_sample_assets.py's module docstring).
+	USkeletalMesh* Mesh = LoadObject<USkeletalMesh>(nullptr, *AssetData.AssetPath);
+	if (Mesh == nullptr)
 	{
 		UE_LOG(
 			LogVehicleActorSpawner,
 			Warning,
-			TEXT("SpawnVehicle: failed to load class %s"),
+			TEXT("SpawnVehicle: failed to load skeletal mesh %s"),
 			*AssetData.AssetPath);
 		return nullptr;
 	}
@@ -44,7 +54,7 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 	const FTransform SpawnTransform(AssetData.Rotation, AssetData.Position);
-	AActor* SpawnedActor = World->SpawnActor<AActor>(VehicleClass, SpawnTransform, SpawnParams);
+	AActor* SpawnedActor = World->SpawnActor<AActor>(AActor::StaticClass(), SpawnTransform, SpawnParams);
 	if (SpawnedActor == nullptr)
 	{
 		UE_LOG(
@@ -55,23 +65,18 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 		return nullptr;
 	}
 
-	// Scenarios are deterministic frozen-frame captures, not live
-	// simulations. These are real Chaos-physics vehicle Blueprints
-	// (confirmed via direct inspection of City Sample's installed
-	// content -- see KNOWN_GAPS_AND_ISSUES.md's Phase 0 entry), so
-	// without this an unfrozen vehicle would not stay at its
-	// procedurally-computed pose. Every primitive component is frozen,
-	// not just a root/single body, since a Chaos vehicle's wheels are
-	// typically simulated as their own physics bodies.
-	TArray<UPrimitiveComponent*> PrimitiveComponents;
-	SpawnedActor->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
-	for (UPrimitiveComponent* Primitive : PrimitiveComponents)
-	{
-		if (Primitive != nullptr)
-		{
-			Primitive->SetSimulatePhysics(false);
-		}
-	}
+	// A plain AActor has no default root component -- create one here
+	// holding the real vehicle mesh. No vehicle movement component and
+	// no physics simulation: scenarios are deterministic frozen-frame
+	// captures, so the mesh only needs to sit at its
+	// procedurally-computed pose, not drive (SetSimulatePhysics(false)
+	// is a defensive no-op here since simulation is already off by
+	// default, kept in case that default ever changes).
+	USkeletalMeshComponent* MeshComponent = NewObject<USkeletalMeshComponent>(SpawnedActor);
+	MeshComponent->SetSkeletalMesh(Mesh);
+	MeshComponent->RegisterComponent();
+	SpawnedActor->SetRootComponent(MeshComponent);
+	MeshComponent->SetSimulatePhysics(false);
 
 	return SpawnedActor;
 }

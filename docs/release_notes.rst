@@ -25,27 +25,33 @@ simple static meshes; pedestrians have a real standalone
 variants, accessories) suggesting they're spawnable the same way, final
 confirmation deferred to Phase 1's manual PIE pass.
 
-Unreleased -- City Sample asset integration, Phase 1: vehicles sample real City Sample assets (Python side)
---------------------------------------------------------------------------------------------------------------
+Unreleased -- City Sample asset integration, Phase 1: real vehicles spawning and verified live
+--------------------------------------------------------------------------------------------------
 
 Follow-up to Phase 0 above. Vehicles no longer feed box geometry into
 ``ScenarioResult.meshes``: :class:`src.procedural.actor_placement.Vehicle`
 gained a deterministically-sampled ``asset_path`` field pointing at a
-real City Sample vehicle Blueprint (new
-:mod:`src.procedural.city_sample_assets` catalog, confirmed real via
-direct inspection of City Sample's installed content -- ~13 non-hero
-``veh*_Sandbox`` models across sedan/suv/truck/bus). Ground truth is
-unaffected: bounding boxes still derive from ``Vehicle``'s own
-placement-time fields, not from mesh data.
+real City Sample vehicle skeletal mesh (new
+:mod:`src.procedural.city_sample_assets` catalog -- 14 non-hero vehicle
+models across sedan/suv/truck/bus). Ground truth is unaffected:
+bounding boxes still derive from ``Vehicle``'s own placement-time
+fields, not from mesh data.
 :func:`src.orchestration.scenario_serializer.serialize_scenario`'s
 ``"assets"`` array (present but empty since Phase 0) now carries one
 ``category: "vehicle"`` entry per placed vehicle.
 
-The C++ spawn path (``UVehicleActorSpawner``: parses ``"assets"``,
-spawns real Blueprint actors via ``LoadClass``/``SpawnActor``, freezes
-physics on every primitive component) is written and compiles cleanly
-against the real UE 5.4.4 install. Still open for this phase: manual
-asset migration and PIE verification -- see ``KNOWN_GAPS_AND_ISSUES.md``.
+The C++ spawn path (``UVehicleActorSpawner``) went through a real
+architectural pivot mid-verification: City Sample's own driveable
+``BP_veh*_Sandbox`` Blueprints turned out to depend on
+``ACitySampleVehicleBase``, native C++ living in CitySample's own game
+project (Mass AI traffic control, Enhanced Input, a custom UI system)
+rather than portable content -- unusable here and not worth porting for
+a frozen-frame scene. Rewritten to spawn a plain actor holding just the
+real skeletal mesh instead. Fully verified against a live standalone
+UE5 session: a real 112-mesh scenario produced 50 spawned vehicle
+actors, 0 skipped. See ``KNOWN_GAPS_AND_ISSUES.md`` for the full story,
+including a real ``LoadClass`` object-path bug found and fixed along
+the way.
 
 Unreleased -- Road network rearchitected to an orthogonal grid: eliminates lane z-fighting entirely
 ---------------------------------------------------------------------------------------------------
