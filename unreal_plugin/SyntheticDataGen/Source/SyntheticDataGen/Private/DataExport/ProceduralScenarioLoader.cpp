@@ -6,6 +6,7 @@
 // LoadProceduralScenario now dispatches real mesh sections" entry.
 
 #include "DataExport/ProceduralScenarioLoader.h"
+#include "ActorSpawn/VehicleActorSpawner.h"
 #include "ProceduralMesh/ScenarioMeshBuilder.h"
 #include "ProceduralMeshComponent.h"
 #include "Dom/JsonObject.h"
@@ -122,6 +123,40 @@ namespace
 		OutMeshData.Material = Material;
 		return true;
 	}
+
+	// Parses one entry of the "assets" array into an FScenarioAssetData,
+	// matching scenario_serializer.py's asset-entry schema
+	// ({"category", "asset_path", "position", "rotation_rad", "id"} --
+	// "id" isn't needed here, it exists for the Python side's own
+	// bookkeeping). Position is converted to UE5 space via the same
+	// ApplyCoordinateConvention used for mesh vertices above.
+	// rotation_rad's sign is negated for the same reason: mirroring the
+	// Y axis reverses the sense of rotation, so the angle measured in
+	// the transformed space is the negation of the one Python computed
+	// -- converted from radians to the degrees FRotator::Yaw expects.
+	bool ParseAssetData(const FJsonObject& AssetObject, FScenarioAssetData& OutAssetData)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* PositionJson = nullptr;
+		FString Category;
+		FString AssetPath;
+		double RotationRad = 0.0;
+
+		if (!AssetObject.TryGetStringField(TEXT("category"), Category)
+			|| !AssetObject.TryGetStringField(TEXT("asset_path"), AssetPath)
+			|| !AssetObject.TryGetArrayField(TEXT("position"), PositionJson)
+			|| PositionJson->Num() != 3
+			|| !AssetObject.TryGetNumberField(TEXT("rotation_rad"), RotationRad))
+		{
+			return false;
+		}
+
+		OutAssetData.Category = Category;
+		OutAssetData.AssetPath = AssetPath;
+		OutAssetData.Position = ApplyCoordinateConvention(
+			(*PositionJson)[0]->AsNumber(), (*PositionJson)[1]->AsNumber(), (*PositionJson)[2]->AsNumber());
+		OutAssetData.Rotation = FRotator(0.0, -FMath::RadiansToDegrees(RotationRad), 0.0);
+		return true;
+	}
 } // namespace
 
 AProceduralScenarioLoader::AProceduralScenarioLoader()
@@ -192,6 +227,55 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 		TEXT("LoadProceduralScenario: built %d mesh section(s), skipped %d"),
 		BuiltCount,
 		SkippedCount);
+
+	// "assets" (asset-reference + transform entries for real City
+	// Sample content this project spawns rather than builds as a
+	// procedural box) is a City Sample asset integration Phase 1
+	// addition -- see the "assets" schema documented in
+	// scenario_serializer.py and docs/architecture.rst. Only the
+	// "vehicle" category is implemented so far; "prop"/"hero_building"
+	// entries are skipped (not a parse failure) until later phases of
+	// that same integration work add them.
+	const TArray<TSharedPtr<FJsonValue>>* AssetsJson = nullptr;
+	int32 SpawnedCount = 0;
+	int32 SpawnSkippedCount = 0;
+
+	if (Root->TryGetArrayField(TEXT("assets"), AssetsJson))
+	{
+		for (const TSharedPtr<FJsonValue>& AssetValue : *AssetsJson)
+		{
+			const TSharedPtr<FJsonObject>* AssetObject = nullptr;
+			FScenarioAssetData AssetData;
+			if (!AssetValue->TryGetObject(AssetObject) || !ParseAssetData(**AssetObject, AssetData))
+			{
+				++SpawnSkippedCount;
+				continue;
+			}
+
+			if (AssetData.Category != TEXT("vehicle"))
+			{
+				++SpawnSkippedCount;
+				continue;
+			}
+
+			UVehicleActorSpawner* Spawner = NewObject<UVehicleActorSpawner>(this);
+			if (Spawner->SpawnVehicle(GetWorld(), AssetData) != nullptr)
+			{
+				++SpawnedCount;
+			}
+			else
+			{
+				++SpawnSkippedCount;
+			}
+		}
+	}
+
+	UE_LOG(
+		LogProceduralScenarioLoader,
+		Display,
+		TEXT("LoadProceduralScenario: spawned %d asset(s), skipped %d"),
+		SpawnedCount,
+		SpawnSkippedCount);
 
 	return true;
 }

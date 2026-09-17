@@ -164,8 +164,12 @@ Layers
    non-obvious C++ compile failures fixed along the way and what's
    still open (traffic-controller initialization and streaming/culling
    aren't implemented; a D3D12 shader-compiler crash on this machine
-   needs a ``-d3d11`` launch workaround; the C++ side of Phase 1's
-   ``"assets"`` parsing/spawning is not yet implemented).
+   needs a ``-d3d11`` launch workaround). Phase 1's C++ ``"assets"``
+   parsing/spawning (``ParseAssetData`` in ``ProceduralScenarioLoader.cpp``,
+   ``UVehicleActorSpawner`` in the new ``ActorSpawn/`` module) compiles
+   cleanly against the real UE 5.4.4 install, but has not yet been
+   PIE-verified -- pending migrating the real vehicle Blueprint assets
+   into ``VantageCV_UE5``'s Content via Epic's Migrate tool.
 
 What is deliberately not implemented
 --------------------------------------

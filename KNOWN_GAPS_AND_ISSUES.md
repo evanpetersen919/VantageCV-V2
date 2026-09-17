@@ -59,16 +59,29 @@ Phase 0) is now populated with one entry per vehicle:
 `{"category": "vehicle", "asset_path", "position", "rotation_rad",
 "id"}` -- the schema decided in the integration plan.
 
-**Still open, tracked for this phase's completion**: the C++ side
-(`VehicleActorSpawner`, parsing `"assets"` and spawning real Blueprint
-actors via `LoadClass<AActor>`/`SpawnActor`, applying
-`ApplyCoordinateConvention`, freezing physics post-spawn) is not yet
-written. Manual steps also still open: migrating the ~13-14 chosen
-`veh*_Sandbox` Blueprints into `VantageCV_UE5`'s Content via Epic's
-Migrate tool, rebuilding, and PIE-verifying real vehicles spawn at
-correct positions/headings with physics frozen -- plus the bbox-
-precision spot-check that decides whether Phase 7 needs pulling
-forward.
+**C++ side**: `UVehicleActorSpawner` (new `unreal_plugin/.../ActorSpawn/VehicleActorSpawner.{h,cpp}`)
+loads `AssetPath` via `LoadClass<AActor>` (these are real Blueprint
+actors, not static meshes -- confirmed in Phase 0), spawns via
+`World->SpawnActor`, then calls `SetSimulatePhysics(false)` on every
+`UPrimitiveComponent` (not just the root -- a Chaos vehicle's wheels
+are typically their own physics bodies). `ProceduralScenarioLoader.cpp`
+gained `ParseAssetData` (parses one `"assets"` entry, converting
+`position` via the existing `ApplyCoordinateConvention` and negating
+`rotation_rad`'s sign for the same mirror-transform reason Y is
+negated) and a dispatch loop that spawns one vehicle per
+`category: "vehicle"` entry; `"prop"`/`"hero_building"` entries are
+skipped (not fatal) until later phases add them. **Compiled cleanly
+against the real UE 5.4.4 install** (verified 2026-09-16 via a real
+`Build.bat` invocation against `VantageCV_UE5Editor`: "0 failed").
+
+**Still open, tracked for this phase's completion**: real PIE spawn
+verification (compile success doesn't confirm correct runtime
+behavior). Manual steps: migrating the ~13-14 chosen `veh*_Sandbox`
+Blueprints into `VantageCV_UE5`'s Content via Epic's Migrate tool
+(required before `LoadClass` can resolve `AssetPath` to anything),
+PIE-verifying real vehicles spawn at correct positions/headings with
+physics frozen -- plus the bbox-precision spot-check that decides
+whether Phase 7 needs pulling forward.
 
 Full suite (458 tests, up from 451) and lint clean.
 
