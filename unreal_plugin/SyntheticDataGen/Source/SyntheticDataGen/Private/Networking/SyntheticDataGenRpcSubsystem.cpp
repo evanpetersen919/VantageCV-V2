@@ -14,6 +14,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshSocket.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
@@ -398,6 +399,128 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 		ResultObject->SetNumberField(TEXT("extent_x"), Bounds.BoxExtent.X);
 		ResultObject->SetNumberField(TEXT("extent_y"), Bounds.BoxExtent.Y);
 		ResultObject->SetNumberField(TEXT("extent_z"), Bounds.BoxExtent.Z);
+		return BuildResultResponse(RequestId, MakeShared<FJsonValueObject>(ResultObject));
+	}
+
+	if (Method == TEXT("GetStaticMeshSockets"))
+	{
+		// Real modular kit assets (this one included) are normally authored
+		// with explicit UStaticMeshSocket snap points (e.g. "corner_in"/
+		// "corner_out"/"wall_end") marking the EXACT point/rotation another
+		// piece's pivot should be placed at to tile flush -- the actual
+		// ground truth the kit's own artists used, vs. inferring a tiling
+		// offset from the mesh's overall axis-aligned bounding box (which
+		// this session found is NOT reliable for an asymmetric L-shaped
+		// corner piece: its bbox includes a large non-structural overhang
+		// that doesn't represent the true snap point, confirmed via
+		// repeated live-screenshot mismatches). If real sockets exist,
+		// they are the authoritative source; if none exist, the returned
+		// array is simply empty and bbox-based inference remains the
+		// fallback.
+		const TSharedPtr<FJsonObject>* Params = nullptr;
+		FString AssetPath;
+		if (!Root->TryGetObjectField(TEXT("params"), Params) || !(*Params)->TryGetStringField(TEXT("asset_path"), AssetPath))
+		{
+			return BuildErrorResponse(RequestId, -32602, TEXT("Invalid params: expected a string 'asset_path'"));
+		}
+
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *AssetPath);
+		if (Mesh == nullptr)
+		{
+			return BuildErrorResponse(
+				RequestId, -32000, FString::Printf(TEXT("Failed to load static mesh %s"), *AssetPath));
+		}
+
+		TArray<TSharedPtr<FJsonValue>> SocketsArray;
+		for (UStaticMeshSocket* Socket : Mesh->Sockets)
+		{
+			if (Socket == nullptr)
+			{
+				continue;
+			}
+			const TSharedRef<FJsonObject> SocketObject = MakeShared<FJsonObject>();
+			SocketObject->SetStringField(TEXT("name"), Socket->SocketName.ToString());
+			SocketObject->SetNumberField(TEXT("location_x"), Socket->RelativeLocation.X);
+			SocketObject->SetNumberField(TEXT("location_y"), Socket->RelativeLocation.Y);
+			SocketObject->SetNumberField(TEXT("location_z"), Socket->RelativeLocation.Z);
+			SocketObject->SetNumberField(TEXT("rotation_pitch"), Socket->RelativeRotation.Pitch);
+			SocketObject->SetNumberField(TEXT("rotation_yaw"), Socket->RelativeRotation.Yaw);
+			SocketObject->SetNumberField(TEXT("rotation_roll"), Socket->RelativeRotation.Roll);
+			SocketsArray.Add(MakeShared<FJsonValueObject>(SocketObject));
+		}
+		return BuildResultResponse(RequestId, MakeShared<FJsonValueArray>(SocketsArray));
+	}
+
+	if (Method == TEXT("GetStaticMeshFootprintAtHeight"))
+	{
+		// GetStaticMeshBounds' own overall AABB proved unreliable for
+		// tiling this specific kit's wall/corner pieces (see
+		// GetStaticMeshSockets' comment above) -- confirmed via repeated
+		// live-screenshot mismatches this session that its bbox mixes
+		// together whatever is at the TALLEST/WIDEST point of the WHOLE
+		// mesh (a roof coping / balcony overhang near the top) with the
+		// actual ground-level wall-plane footprint the tiling math
+		// actually needs. This reads the REAL raw vertex buffer (LOD0,
+		// not a coarse proxy) and returns the min/max X/Y among only the
+		// vertices whose local Z falls within [z_min, z_max] -- i.e. the
+		// mesh's true footprint at a specific height slice, letting the
+		// Python side isolate "ground floor plan" from "roof overhang"
+		// instead of guessing which part of an asymmetric AABB is which.
+		const TSharedPtr<FJsonObject>* Params = nullptr;
+		FString AssetPath;
+		double ZMin = 0.0;
+		double ZMax = 0.0;
+		if (!Root->TryGetObjectField(TEXT("params"), Params) || !(*Params)->TryGetStringField(TEXT("asset_path"), AssetPath)
+			|| !(*Params)->TryGetNumberField(TEXT("z_min"), ZMin) || !(*Params)->TryGetNumberField(TEXT("z_max"), ZMax))
+		{
+			return BuildErrorResponse(RequestId, -32602, TEXT("Invalid params: expected 'asset_path', 'z_min', 'z_max'"));
+		}
+
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *AssetPath);
+		if (Mesh == nullptr)
+		{
+			return BuildErrorResponse(
+				RequestId, -32000, FString::Printf(TEXT("Failed to load static mesh %s"), *AssetPath));
+		}
+
+		const FStaticMeshRenderData* RenderData = Mesh->GetRenderData();
+		if (RenderData == nullptr || RenderData->LODResources.Num() == 0)
+		{
+			return BuildErrorResponse(RequestId, -32000, TEXT("Mesh has no LOD0 render data"));
+		}
+
+		const FPositionVertexBuffer& PositionBuffer = RenderData->LODResources[0].VertexBuffers.PositionVertexBuffer;
+		const uint32 NumVertices = PositionBuffer.GetNumVertices();
+
+		double MinX = TNumericLimits<double>::Max();
+		double MaxX = TNumericLimits<double>::Lowest();
+		double MinY = TNumericLimits<double>::Max();
+		double MaxY = TNumericLimits<double>::Lowest();
+		int32 MatchedVertexCount = 0;
+		for (uint32 Index = 0; Index < NumVertices; ++Index)
+		{
+			const FVector3f Position = PositionBuffer.VertexPosition(Index);
+			if (Position.Z < ZMin || Position.Z > ZMax)
+			{
+				continue;
+			}
+			++MatchedVertexCount;
+			MinX = FMath::Min(MinX, static_cast<double>(Position.X));
+			MaxX = FMath::Max(MaxX, static_cast<double>(Position.X));
+			MinY = FMath::Min(MinY, static_cast<double>(Position.Y));
+			MaxY = FMath::Max(MaxY, static_cast<double>(Position.Y));
+		}
+
+		const TSharedRef<FJsonObject> ResultObject = MakeShared<FJsonObject>();
+		ResultObject->SetNumberField(TEXT("matched_vertex_count"), MatchedVertexCount);
+		ResultObject->SetNumberField(TEXT("total_vertex_count"), static_cast<double>(NumVertices));
+		if (MatchedVertexCount > 0)
+		{
+			ResultObject->SetNumberField(TEXT("min_x"), MinX);
+			ResultObject->SetNumberField(TEXT("max_x"), MaxX);
+			ResultObject->SetNumberField(TEXT("min_y"), MinY);
+			ResultObject->SetNumberField(TEXT("max_y"), MaxY);
+		}
 		return BuildResultResponse(RequestId, MakeShared<FJsonValueObject>(ResultObject));
 	}
 

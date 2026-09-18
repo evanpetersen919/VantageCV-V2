@@ -12,6 +12,7 @@ asserting no entrance asset ever appears.
 """
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 from src.procedural.building_facade import generate_building_facade_pieces
@@ -118,3 +119,47 @@ def test_facade_wall_pieces_spaced_one_module_apart_along_edge() -> None:
     for earlier, later in zip(wall_run, wall_run[1:]):
         gap = np.linalg.norm(later.position[:2] - earlier.position[:2])
         assert gap == pytest.approx(FACADE_WALL_MODULE_METERS)
+
+
+def _true_edge_direction_for(
+    position: npt.NDArray[np.float64], building: Building
+) -> npt.NDArray[np.float64]:
+    """The real geometric direction of the edge starting at whichever true
+    footprint vertex ``position`` (a corner piece's pivot) is nearest to."""
+    x_min, y_min, x_max, y_max = building.aabb
+    vertices = [
+        np.array([x_min, y_max]),
+        np.array([x_min, y_min]),
+        np.array([x_max, y_min]),
+        np.array([x_max, y_max]),
+    ]
+    nearest_index = int(np.argmin([np.linalg.norm(position - v) for v in vertices]))
+    direction = vertices[(nearest_index + 1) % 4] - vertices[nearest_index]
+    normalized: npt.NDArray[np.float64] = direction / np.linalg.norm(direction)
+    return normalized
+
+
+def test_corner_piece_rotation_matches_its_own_edge_direction() -> None:
+    """Each corner's rotation_rad must make a wall placed at that same
+    rotation tile along the REAL geometric direction of the edge starting
+    at that corner -- the absolute-correctness check the older
+    spacing/count tests didn't cover (they kept passing even when a real
+    rotation-sign bug had every corner's rotation backwards, since
+    spacing between consecutive same-rotation walls stays correct
+    regardless of which absolute direction "forward" is)."""
+    building = _quantized_building(0, wall_count_x=1, wall_count_y=1, floors=1)
+    pieces = generate_building_facade_pieces(building, KIT)
+    corners = [p for p in pieces if p.asset_path == KIT.corner_asset_path]
+    assert len(corners) == 4
+
+    # A wall placed with rotation_rad=0 is confirmed (this module's own
+    # docstring) to tile along world (0, -1); rotating that by
+    # rotation_rad (the corrected, non-negated convention -- see
+    # building_facade._rotate_2d's own docstring) must reproduce each
+    # corner's real edge direction.
+    for corner in corners:
+        true_direction = _true_edge_direction_for(corner.position[:2], building)
+        cos_r, sin_r = np.cos(corner.rotation_rad), np.sin(corner.rotation_rad)
+        rotation_matrix = np.array([[cos_r, -sin_r], [sin_r, cos_r]])
+        predicted_direction = rotation_matrix @ np.array([0.0, -1.0])
+        assert np.allclose(predicted_direction, true_direction, atol=1e-6)
