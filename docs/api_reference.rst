@@ -25,6 +25,9 @@ Procedural Generation (Phases 1-3)
 .. automodule:: src.procedural.building_placement
    :members:
 
+.. automodule:: src.procedural.building_facade
+   :members:
+
 .. automodule:: src.procedural.traffic_network
    :members:
 

@@ -107,7 +107,15 @@ class UE5Backend:
         request = build_request(method, params or {}, request_id)
 
         try:
-            async with websockets.connect(self.uri) as connection:
+            # max_size=None: the websockets library defaults to a 1 MiB
+            # per-message cap, sized for arbitrary untrusted servers --
+            # this is a local, trusted connection to our own UE5 plugin,
+            # and a real generated scenario's "assets" array (one entry
+            # per building facade piece, tens of pieces per building) can
+            # legitimately exceed 1 MiB. Confirmed necessary via a real
+            # test failure (websockets.exceptions.PayloadTooBig) once
+            # building facade pieces started populating "assets".
+            async with websockets.connect(self.uri, max_size=None) as connection:
                 await asyncio.wait_for(
                     connection.send(json.dumps(request)), timeout=self.timeout_seconds
                 )

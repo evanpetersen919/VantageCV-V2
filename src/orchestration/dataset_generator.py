@@ -25,7 +25,9 @@ from src.ground_truth.bbox_3d import (
     extract_bboxes_3d_vehicles,
 )
 from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
+from src.procedural.building_facade import FacadePiece, generate_building_facade_pieces
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
+from src.procedural.city_sample_assets import BUILDING_KITS
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
@@ -59,6 +61,7 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     vehicles: List[Vehicle]
     pedestrians: List[Pedestrian]
     meshes: List[Mesh]
+    building_facade_pieces: List[FacadePiece]
     validation_report: ValidationReport
 
 
@@ -74,7 +77,7 @@ class DatasetGenerationResult:
     elapsed_seconds: float
 
 
-def generate_scenario(
+def generate_scenario(  # pylint: disable=too-many-locals
     seed: int, config: ScenarioTypeConfig, bounds: Bounds, scenario_id: str
 ) -> ScenarioResult:
     """Run the full Phase 1-4 procedural pipeline for one scenario:
@@ -105,9 +108,23 @@ def generate_scenario(
     # feeds ScenarioResult.meshes. Ground truth is unaffected either way
     # -- extract_bboxes_3d_vehicles derives boxes from Vehicle's own
     # fields, not from meshes.
+    #
+    # Buildings are, as of this same integration effort's next phase,
+    # deliberately NOT built into a flat box mesh either -- UE5 now spawns
+    # real City Sample modular wall/corner/entrance pieces per building
+    # instead (see building_facade.py, scenario_serializer.py's
+    # "static_asset" entries). MeshFactory.build_building_mesh stays for
+    # its own tests/validator coverage, same precedent as
+    # build_vehicle_mesh. Ground truth is unaffected -- extract_bboxes_3d
+    # derives boxes from Building.aabb/.height directly, never from mesh
+    # or facade-piece geometry.
     meshes: List[Mesh] = [MeshFactory.build_road_mesh(lane) for lane in lanes.values()]
-    meshes += [MeshFactory.build_building_mesh(building) for building in buildings]
     meshes += [MeshFactory.build_pedestrian_mesh(pedestrian) for pedestrian in pedestrians]
+
+    kit = BUILDING_KITS["CHA_L1"]
+    building_facade_pieces: List[FacadePiece] = []
+    for building in buildings:
+        building_facade_pieces += generate_building_facade_pieces(building, kit)
 
     validation_report = ScenarioValidator().validate(
         bounds, nodes, edges, lanes, buildings, meshes, vehicles, pedestrians, lane_connectivity
@@ -128,6 +145,7 @@ def generate_scenario(
         vehicles=vehicles,
         pedestrians=pedestrians,
         meshes=meshes,
+        building_facade_pieces=building_facade_pieces,
         validation_report=validation_report,
     )
 

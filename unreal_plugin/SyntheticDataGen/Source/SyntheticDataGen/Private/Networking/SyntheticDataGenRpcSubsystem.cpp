@@ -13,6 +13,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Components/PrimitiveComponent.h"
 #include "Engine/GameInstance.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
@@ -360,6 +361,44 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 		HideActorAndItsShadow(Pawn);
 
 		return BuildResultResponse(RequestId, MakeShared<FJsonValueBoolean>(true));
+	}
+
+	if (Method == TEXT("GetStaticMeshBounds"))
+	{
+		// Real, reusable debugging capability (kept permanently alongside
+		// TakeScreenshot/DebugMoveCameraTo -- same rationale): tiling
+		// modular kit assets (building wall/corner segments, sidewalk/curb
+		// pieces, props) against each other requires their real
+		// world-space size and pivot offset, which is not knowable from
+		// the Python side at all (no editor access, asset dimensions
+		// aren't exported anywhere) -- guessing at spacing produces
+		// gapped or overlapping tiling. Returns the same
+		// origin/box-extent/sphere-radius a UE5 editor's own "Bounds"
+		// display shows, in centimeters (Unreal's native unit), so the
+		// Python side can compute exact tiling offsets.
+		const TSharedPtr<FJsonObject>* Params = nullptr;
+		FString AssetPath;
+		if (!Root->TryGetObjectField(TEXT("params"), Params) || !(*Params)->TryGetStringField(TEXT("asset_path"), AssetPath))
+		{
+			return BuildErrorResponse(RequestId, -32602, TEXT("Invalid params: expected a string 'asset_path'"));
+		}
+
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *AssetPath);
+		if (Mesh == nullptr)
+		{
+			return BuildErrorResponse(
+				RequestId, -32000, FString::Printf(TEXT("Failed to load static mesh %s"), *AssetPath));
+		}
+
+		const FBoxSphereBounds Bounds = Mesh->GetBounds();
+		const TSharedRef<FJsonObject> ResultObject = MakeShared<FJsonObject>();
+		ResultObject->SetNumberField(TEXT("origin_x"), Bounds.Origin.X);
+		ResultObject->SetNumberField(TEXT("origin_y"), Bounds.Origin.Y);
+		ResultObject->SetNumberField(TEXT("origin_z"), Bounds.Origin.Z);
+		ResultObject->SetNumberField(TEXT("extent_x"), Bounds.BoxExtent.X);
+		ResultObject->SetNumberField(TEXT("extent_y"), Bounds.BoxExtent.Y);
+		ResultObject->SetNumberField(TEXT("extent_z"), Bounds.BoxExtent.Z);
+		return BuildResultResponse(RequestId, MakeShared<FJsonValueObject>(ResultObject));
 	}
 
 	return BuildErrorResponse(RequestId, -32601, FString::Printf(TEXT("Method not found: %s"), *Method));

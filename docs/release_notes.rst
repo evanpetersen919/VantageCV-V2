@@ -1,6 +1,34 @@
 Release Notes
 ==============
 
+Unreleased -- Buildings now assembled from real City Sample modular kit pieces (walls, corners)
+-------------------------------------------------------------------------------------------------------------------
+
+Buildings were flat textured boxes -- real materials, but no windows,
+floors, or trim. Heavily researched whether UE5 5.4.4's PCG framework
+could generate real facades: it can't cleanly (still beta at this engine
+version; the real shape-grammar tooling only exists in Epic's separate
+5.7/5.8 City Sample rebuild). Found a better alternative instead: City
+Sample ships genuine modular building-kit pieces meant to be tiled
+edge-to-edge. Proved this live before writing any implementation code --
+4 wall pieces tiled via pure position math produced a seamless real
+facade; corner pieces placed at a rectangle's 4 corners with a
+90-degrees-per-corner rotation scheme showed correct geometry.
+
+Buildings now quantize their width/depth/height to exact kit-module
+multiples at generation time (same precedent as the existing road-grid
+quantization fix) and ``building_facade.py`` tiles the real wall/corner
+pieces around each building's perimeter, per floor -- verified live at
+both single-building and full 24-building dense-scenario scale: real
+multi-story facades with consistent windows and trim, no gaps. A real bug
+was found and fixed during that verification, not shipped broken: the
+kit's entrance piece renders with a wrong flat gold material (isolated to
+that one asset, cause not yet diagnosed), so entrances are deliberately
+not used in v1 -- every wall slot, including the ground floor, uses the
+plain wall piece instead. See ``KNOWN_GAPS_AND_ISSUES.md`` for the real
+investigation and the accepted v1 limitations (every floor reuses the
+same single migrated kit style; no separate roof cap).
+
 Unreleased -- Building/road meshes now resolve real materials (pending one-time asset migration)
 -------------------------------------------------------------------------------------------------------------------
 

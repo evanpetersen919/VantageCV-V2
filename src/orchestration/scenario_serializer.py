@@ -10,18 +10,20 @@ an ad hoc, uncommitted scratchpad script, not through anything covered by
 the test suite or reusable by future phases. See
 KNOWN_GAPS_AND_ISSUES.md.
 
-The ``"meshes"`` array (roads, and non-hero building/pedestrian box
-geometry) is produced here, alongside the ``"assets"`` array --
-asset-reference + transform entries for real City Sample content. As of
-Phase 1 of that integration work, vehicles are the first category
-populated into ``"assets"`` (``category: "vehicle"``); props and landmark
-buildings are added incrementally by later phases of the same effort.
+The ``"meshes"`` array (roads and pedestrian box geometry) is produced here,
+alongside the ``"assets"`` array -- asset-reference + transform entries for
+real City Sample content. Vehicles (``category: "vehicle"``, Phase 1) and
+building facade pieces (``category: "static_asset"``, the next phase of the
+same effort -- real modular wall/corner/entrance meshes tiled per building,
+see ``building_facade.py``) both populate ``"assets"``; street props are a
+deliberate later fast-follow, not part of this effort yet.
 """
 
 from typing import Any, Dict, List
 
 from src.orchestration.dataset_generator import ScenarioResult
 from src.procedural.actor_placement import Vehicle
+from src.procedural.building_facade import FacadePiece
 from src.procedural.city_sample_assets import VEHICLE_PART_PATHS
 from src.procedural.mesh_factory import Mesh
 
@@ -82,6 +84,27 @@ def _vehicle_to_asset_json(vehicle: Vehicle) -> Dict[str, Any]:
     }
 
 
+def _facade_piece_to_asset_json(piece: FacadePiece, piece_id: int) -> Dict[str, Any]:
+    """One ``FacadePiece`` (a real City Sample wall/corner/entrance static
+    mesh) as an ``"assets"`` entry: ``category: "static_asset"``, no
+    ``part_paths`` -- unlike a vehicle, each facade piece is its own
+    independent spawn, not a body with attached sub-parts.
+    ``ProceduralScenarioLoader.cpp`` routes any recognized category
+    (``"vehicle"`` or ``"static_asset"``) through the same
+    ``UVehicleActorSpawner::SpawnVehicle``, which already handles an
+    empty ``PartPaths`` list gracefully.
+    """
+    x, y, z = piece.position
+    return {
+        "category": "static_asset",
+        "asset_path": piece.asset_path,
+        "part_paths": [],
+        "position": [float(x), float(y), float(z)],
+        "rotation_rad": float(piece.rotation_rad),
+        "id": piece_id,
+    }
+
+
 def serialize_scenario(result: ScenarioResult) -> Dict[str, Any]:
     """Convert one generated scenario into the JSON-serializable dict
     :meth:`UE5Backend.load_scenario` sends as its ``"scenario"`` RPC
@@ -103,4 +126,8 @@ def serialize_scenario(result: ScenarioResult) -> Dict[str, Any]:
     """
     meshes: List[Dict[str, Any]] = [_mesh_to_json(mesh) for mesh in result.meshes]
     assets: List[Dict[str, Any]] = [_vehicle_to_asset_json(v) for v in result.vehicles]
+    assets += [
+        _facade_piece_to_asset_json(piece, piece_id)
+        for piece_id, piece in enumerate(result.building_facade_pieces)
+    ]
     return {"meshes": meshes, "assets": assets}
