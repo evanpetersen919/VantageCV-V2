@@ -81,12 +81,15 @@ exceptions, fully independent of building footprint size. The real,
 evidenced fix for the visible gap is the corner-stacking and Column
 changes above, not a constant change here.
 
-Our own generator eliminates the far-corner reservation remainder
-(present in Epic's real buildings, since each edge otherwise tiles
-independently from its own corner) by quantizing footprint sides to
-exact ``corner_to_first_wall_m + N*wall_pitch_m``
-multiples (see ``building_placement.py``'s ``_quantize_footprint_side``),
-so every edge here closes exactly on its far corner's true vertex.
+Real edges reserve one corner reach at BOTH ends: the last wall ends
+exactly ``corner_to_first_wall_m`` short of the far vertex (measured on
+48 of 48 real CHA and CHH edges, zero error), so an edge holding N walls
+is ``2C + N*W + (N-1)*P`` long. Our generator quantizes footprint sides
+to exactly that (see ``building_placement.py``'s
+``_quantize_footprint_side`` and ``BuildingStyle.edge_length_for_wall_count``),
+so every edge closes exactly and the far corner's reach is left for the
+far corner piece. (An earlier ``C + N*(W+P)`` formula overlapped the far
+corner by 0.25m for CHA, invisibly.)
 
 The corner-index-to-rotation formula is ``+edge_index * 90`` degrees,
 and every position offset (corner placement, wall tiling-direction
@@ -116,7 +119,7 @@ building with no distinct entrance at all, so this module never selects
 to revisit this once the material issue is actually diagnosed.
 
 Building.aabb/.height must already be quantized to exact
-``BuildingStyle`` grid multiples (``corner_to_first_wall_m + N*wall_pitch_m``)
+``BuildingStyle`` grid fits (``2C + N*W + (N-1)*P`` per edge)
 and whole-floor-stack heights (BuildingPlacementGenerator does
 this at generation time -- see that module) for the tiling below to close
 without a gap or overlap.
@@ -254,7 +257,7 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
     corners = _corner_points(building)
     num_floors = style.floor_count_for_height(building.height)
     corner_reach = style.corner_to_first_wall_m
-    wall_pitch = style.wall_pitch_m
+    wall_pitch = style.wall_pitch_m  # wall pivot to next wall pivot along an edge
 
     pieces: List[FacadePiece] = []
     for floor_index in range(num_floors):
@@ -314,17 +317,11 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
 
             edge_vector = corners[(edge_index + 1) % 4] - start
             edge_length = float(np.linalg.norm(edge_vector))
-            # Reserve corner_to_first_wall_m only at THIS
-            # edge's own start corner (see this module's own docstring:
-            # the real point-cloud evidence shows a corner only
-            # guarantees flush connection to the edge that starts at it,
-            # matching its own rotation -- the far corner is reached
-            # exactly, zero remainder, because
+            # Wall count from the exact edge-length formula
+            # (2C + N*W + (N-1)*P, see this module's own docstring);
             # BuildingPlacementGenerator quantizes footprint sides to
-            # exact corner_to_first_wall_m + N*wall_pitch_m
-            # multiples).
-            usable_length = edge_length - corner_reach
-            wall_count = max(0, round(usable_length / wall_pitch))
+            # exactly those lengths, so the rounding here is exact.
+            wall_count = max(0, style.wall_count_for_edge_length(edge_length))
 
             for wall_index in range(wall_count):
                 # Real, measured wall-to-wall spacing (this module's own
