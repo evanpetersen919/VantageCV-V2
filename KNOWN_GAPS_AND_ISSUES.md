@@ -13,6 +13,19 @@ later phase, tracked so it isn't forgotten).
 
 ## Open
 
+### [REFERENCE] Building facade tiling is DONE and verified -- read this before touching `building_facade.py` again
+This entry is a quick-reference index for the three detailed entries directly below it (kept in full per this file's own "never delete a closed entry" rule) -- read this one first, then dig into the others only if you need the specific real measurements/evidence trail.
+
+**Current, final state (as of the three entries below)**: buildings tile real City Sample modular kit pieces into flush, correctly-closed, correctly-oriented rectangles, with no visible gap or seam at any corner or along any wall run, live-screenshot-confirmed and covered by geometric-invariant unit tests. This was hard-won across several sessions of real ground-truth investigation (see below) -- do not casually change any constant or rule in `building_facade.py`/`building_placement.py`/`city_sample_assets.py` without re-reading the full evidence trail first, or this problem will very likely come back.
+
+**Per real vertex**: one plain `corner_asset_path` piece, position = the true rectangle vertex exactly (no offset), rendered rotation = the edge-starting-there tiling rotation plus one extra quarter turn (the `CornerEx` mesh's own local orientation convention).
+
+**Per edge, between that corner and the next one**: `wall_asset_path` pieces tiled every `FACADE_WALL_MODULE_METERS` (4.5m) starting `FACADE_CORNER_TO_FIRST_WALL_METERS` (1.5m) from the vertex, rendered rotation = the tiling rotation plus one extra half turn (the wall mesh's own local orientation convention, decoupled from the position math which uses the un-flipped rotation), with one `column_asset_path` pilaster piece after every wall except the last on that edge, `FACADE_WALL_REAL_WIDTH_METERS` (3.25m) further along.
+
+**Every one of these six numbers/rules traces to a specific real measurement** in the actual CitySample project (Houdini BDF config, the real per-instance point cloud, or a hand-placed reference assembly) or a specific falsifiable live UE5 screenshot test -- never guessed. See `src/procedural/building_facade.py`'s and `src/procedural/building_placement.py`'s own module docstrings for the exact real numbers and sources, restated inline next to the code they justify (the most convenient reference for day-to-day work); see the three entries immediately below for the full historical debugging narrative (what was wrong, how it was found, in what order) if you need it.
+
+**Known, deliberately-not-implemented real limitation**: one real CitySample building variant (no entrances) non-uniformly SCALES its wall modules to fill an edge with zero remainder instead of using fixed-period walls+columns. This project's `FacadePiece`/scenario-serializer convention has no per-instance mesh-scale field, so that variant isn't represented -- a real, flagged gap for a future session, not a silent one.
+
 ### [RESOLVED] Buildings were flat textured boxes -- now real modular City Sample facades (walls/corners, tiled), closing into genuine rectangles
 **Reopened, then re-investigated from real ground truth (not inference)**, after a user-reported "walls not lined up, corners in the wrong spot" regression, and after this file's own previous entry here turned out to have been marked resolved prematurely. Module spacing, placement convention, AND the corner-to-perpendicular-wall join are now all converged from **real sources found directly in the actual CitySample project** (not this repo's migrated-assets-only copy, and not inferred from mesh bounding boxes, which was tried first and produced wrong values):
 1. `Content/Building/HDA/Bldg/BDF/CHA_primary.bdf` -- Epic's own real Houdini building-definition config (plain JSON). Gives the real authored module width for the plain exterior corner (`Mod_Dim=[1.5, 5.0]`).
