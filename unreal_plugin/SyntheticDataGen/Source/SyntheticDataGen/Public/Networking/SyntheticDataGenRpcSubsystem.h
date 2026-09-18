@@ -31,8 +31,13 @@ class AProceduralScenarioLoader;
  * AProceduralScenarioLoader::LoadProceduralScenario, spawning a loader
  * actor in the current world if none exists yet), "TakeScreenshot"
  * (real visual debugging aid -- see its own comment in the .cpp for why
- * this exists) and "DebugMoveCameraTo" (moves the local player's pawn
- * for close-up visual verification, alongside TakeScreenshot).
+ * this exists), "DebugMoveCameraTo" (moves the local player's pawn
+ * for close-up visual verification, alongside TakeScreenshot), and
+ * "GetStaticMeshBounds" (returns a static mesh asset's real
+ * world-space origin/extent in centimeters -- needed to compute exact
+ * tiling offsets for modular kit assets like building wall segments or
+ * sidewalk pieces, since asset dimensions aren't knowable from the
+ * Python side any other way).
  */
 UCLASS()
 class SYNTHETICDATAGEN_API USyntheticDataGenRpcSubsystem final : public UGameInstanceSubsystem

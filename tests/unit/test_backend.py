@@ -50,7 +50,11 @@ def test_parse_response_raises_on_malformed() -> None:
 async def _run_against_mock_server(handler, client_fn):
     """Start `handler` as a local WebSocket server on an OS-assigned port,
     run `client_fn(uri)`, and return its result."""
-    async with websockets.serve(handler, "localhost", 0) as server:
+    # max_size=None: matches UE5Backend's own real client-side setting
+    # (see backend.py) so this mock server behaves like a real UE5
+    # connection, not the websockets library's 1 MiB untrusted-server
+    # default.
+    async with websockets.serve(handler, "localhost", 0, max_size=None) as server:
         port = server.sockets[0].getsockname()[1]
         uri = f"ws://localhost:{port}"
         return await client_fn(uri)

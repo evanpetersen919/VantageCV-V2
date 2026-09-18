@@ -6,11 +6,15 @@ roughly matches config.
 """
 
 import numpy as np
+import pytest
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
 from src.procedural.building_placement import (
     BUILDING_MATERIALS_BY_TYPE,
+    FACADE_CORNER_MODULE_METERS,
+    FACADE_FLOOR_HEIGHT_METERS,
+    FACADE_WALL_MODULE_METERS,
     Building,
     BuildingPlacementGenerator,
     BuildingType,
@@ -19,6 +23,8 @@ from src.procedural.building_placement import (
     _point_segment_distance,
     _polygon_area,
     _polygon_contains_point,
+    _quantize_footprint_side,
+    _quantize_height,
     _segment_intersects_aabb,
 )
 from src.procedural.lane_topology import LaneTopologyGenerator
@@ -179,6 +185,52 @@ def test_building_dimensions_are_positive(urban_config, bounds) -> None:
         assert building.width > 0
         assert building.depth > 0
         assert building.height > 0
+
+
+def test_building_width_and_depth_are_exact_facade_module_multiples(urban_config, bounds) -> None:
+    """Every real generated building's width/depth land on an exact
+    ``2*corner + N*wall`` fit -- the real condition building_facade.py's
+    tiling needs to close without a gap or overlap (see
+    KNOWN_GAPS_AND_ISSUES.md's quantization entry)."""
+    road_gen = RoadNetworkGenerator(42, urban_config)
+    nodes, edges = road_gen.generate(bounds)
+
+    buildings = BuildingPlacementGenerator(42, urban_config).generate(nodes, edges)
+    assert len(buildings) > 0
+
+    for building in buildings:
+        for side in (building.width, building.depth):
+            usable = side - 2.0 * FACADE_CORNER_MODULE_METERS
+            wall_count = usable / FACADE_WALL_MODULE_METERS
+            assert wall_count == pytest.approx(round(wall_count), abs=1e-6)
+
+
+def test_building_height_is_exact_floor_module_multiple(urban_config, bounds) -> None:
+    """Every real generated building's height is an exact whole number
+    of FACADE_FLOOR_HEIGHT_METERS floors."""
+    road_gen = RoadNetworkGenerator(42, urban_config)
+    nodes, edges = road_gen.generate(bounds)
+
+    buildings = BuildingPlacementGenerator(42, urban_config).generate(nodes, edges)
+    assert len(buildings) > 0
+
+    for building in buildings:
+        floor_count = building.height / FACADE_FLOOR_HEIGHT_METERS
+        assert floor_count == pytest.approx(round(floor_count), abs=1e-6)
+
+
+def test_quantize_footprint_side_never_shrinks_input() -> None:
+    """Quantization only rounds up -- never produces a side shorter than
+    what was sampled, preserving density/setback assumptions."""
+    for sampled in (8.0, 10.06, 15.5, 25.0):
+        assert _quantize_footprint_side(sampled) >= sampled
+
+
+def test_quantize_height_never_shrinks_input() -> None:
+    """Quantization only rounds up -- never produces a height shorter
+    than what was sampled."""
+    for sampled in (1.0, 4.9, 20.0, 39.9):
+        assert _quantize_height(sampled) >= sampled
 
 
 def test_building_ids_unique(urban_config, bounds) -> None:

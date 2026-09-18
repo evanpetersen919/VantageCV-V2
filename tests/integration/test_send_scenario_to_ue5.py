@@ -47,7 +47,11 @@ async def _run_cli_against_mock_server(handler, args: list) -> subprocess.Comple
     """Start `handler` as a local WebSocket server on an OS-assigned
     port, run the real CLI as a subprocess pointed at it, and return the
     completed process."""
-    async with websockets.serve(handler, "localhost", 0) as server:
+    # max_size=None: matches UE5Backend's own real client-side setting --
+    # see backend.py's comment on why the websockets library's 1 MiB
+    # default is too small for a real scenario's "assets" array once
+    # building facade pieces populate it.
+    async with websockets.serve(handler, "localhost", 0, max_size=None) as server:
         port = server.sockets[0].getsockname()[1]
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(

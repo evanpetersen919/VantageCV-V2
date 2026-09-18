@@ -60,6 +60,38 @@ MIN_BLOCK_AREA_SQ_METERS = 25.0
 # independently in this range, giving varied but plausible footprints.
 BUILDING_FOOTPRINT_SIDE_METERS = (8.0, 25.0)
 
+# Real City Sample "Kit_Bldg_CHA_L1_A" modular kit dimensions (meters),
+# measured via the live UE5 GetStaticMeshBounds debug RPC, not guessed --
+# see KNOWN_GAPS_AND_ISSUES.md. A building's width/depth/height must land on
+# exact multiples of these for building_facade.py's wall/corner/floor tiling
+# to close without a gap or overlap, so quantization happens here at
+# generation time -- the same precedent as RoadNetworkGenerator._axis_coords'
+# grid-cell quantization fix (see that module's docstring), not as a
+# rendering-time workaround.
+FACADE_WALL_MODULE_METERS = 3.25
+FACADE_CORNER_MODULE_METERS = 1.78
+FACADE_FLOOR_HEIGHT_METERS = 5.0
+
+
+def _quantize_footprint_side(sampled_side: float) -> float:
+    """Round a sampled width/depth up to the nearest exact
+    ``2*corner + N*wall`` module fit (smallest ``N >= 1`` covering
+    ``sampled_side``) -- rounding up, never down, so a quantized building is
+    never smaller than what density/setback logic already assumed when
+    ``sampled_side`` was drawn from ``BUILDING_FOOTPRINT_SIDE_METERS``.
+    """
+    usable_after_corners = sampled_side - 2.0 * FACADE_CORNER_MODULE_METERS
+    wall_count = max(1, int(np.ceil(usable_after_corners / FACADE_WALL_MODULE_METERS)))
+    return 2.0 * FACADE_CORNER_MODULE_METERS + wall_count * FACADE_WALL_MODULE_METERS
+
+
+def _quantize_height(sampled_height: float) -> float:
+    """Round a sampled height up to the nearest whole number of
+    ``FACADE_FLOOR_HEIGHT_METERS`` floors (at least 1)."""
+    floor_count = max(1, int(np.ceil(sampled_height / FACADE_FLOOR_HEIGHT_METERS)))
+    return floor_count * FACADE_FLOOR_HEIGHT_METERS
+
+
 # Maximum placement attempts per candidate slot before giving up on that
 # slot (keeps generation bounded even for a very dense config).
 MAX_PLACEMENT_ATTEMPTS_PER_BLOCK = 50
@@ -426,10 +458,10 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
 
             placed_this_slot = False
             for _attempt in range(MAX_PLACEMENT_ATTEMPTS_PER_BLOCK):
-                width = self.rng.uniform(*BUILDING_FOOTPRINT_SIDE_METERS)
-                depth = self.rng.uniform(*BUILDING_FOOTPRINT_SIDE_METERS)
+                width = _quantize_footprint_side(self.rng.uniform(*BUILDING_FOOTPRINT_SIDE_METERS))
+                depth = _quantize_footprint_side(self.rng.uniform(*BUILDING_FOOTPRINT_SIDE_METERS))
                 center = np.array([self.rng.uniform(x_min, x_max), self.rng.uniform(y_min, y_max)])
-                height = self.rng.uniform(*self.config.building_heights)
+                height = _quantize_height(self.rng.uniform(*self.config.building_heights))
                 building_type = _classify_building_type(height, self.config.building_heights)
                 material = str(self.rng.choice(BUILDING_MATERIALS_BY_TYPE[building_type]))
 

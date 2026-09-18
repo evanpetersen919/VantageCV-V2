@@ -88,9 +88,25 @@ Layers
    vehicle/pedestrian placement at :mod:`src.procedural.traffic_network`'s
    own spawn zones (:mod:`src.procedural.actor_placement` -- oriented,
    heading-aware boxes sampled from ``config.vehicle_mix``), and mesh
-   generation (road surface strips, vehicle/pedestrian boxes, and
-   buildings -- a flat-roofed box for MIXED_USE/COMMERCIAL, a real gable
-   roof for RESIDENTIAL).
+   generation (road surface strips and pedestrian boxes -- vehicles and
+   buildings are spawned as real City Sample assets instead, see below).
+
+   Buildings no longer render as procedural boxes at all --
+   :mod:`src.procedural.building_facade` tiles each building's
+   width/depth/height (quantized at generation time in
+   :mod:`src.procedural.building_placement` to exact
+   ``FACADE_WALL_MODULE_METERS``/``FACADE_CORNER_MODULE_METERS``/
+   ``FACADE_FLOOR_HEIGHT_METERS`` multiples, the same precedent as the
+   road-grid quantization fix below) with real, dimension-measured City
+   Sample modular wall/corner kit pieces (:mod:`src.procedural.city_sample_assets`'s
+   ``BUILDING_KITS``), per floor -- confirmed live in UE5 before
+   implementation (4 tiled wall pieces produced a seamless real facade;
+   corner pieces at a rectangle's 4 corners showed correct geometry) and
+   re-verified afterward at full dense-scenario scale. The kit's entrance
+   piece is deliberately not used (a real, isolated material bug found
+   during that verification, not shipped broken -- see
+   ``KNOWN_GAPS_AND_ISSUES.md``); every floor reuses one migrated floor
+   style (a real, accepted v1 limitation, not a silent gap).
 
    Determinism: every generator owns an isolated
    ``numpy.random.Generator(numpy.random.PCG64(seed))`` -- not the legacy
@@ -271,6 +287,17 @@ Layers
    exactly as expected). The real material assets themselves still need
    the same one-time manual Migrate-tool step as Vehicle/Traffic content
    -- see ``KNOWN_GAPS_AND_ISSUES.md``.
+
+   ``ProceduralScenarioLoader.cpp``'s ``"assets"`` category dispatch now
+   also accepts ``"static_asset"`` (real building facade pieces -- see
+   ``src.procedural.building_facade``'s own architecture entry above)
+   alongside ``"vehicle"``, both routed through the same
+   ``UVehicleActorSpawner::SpawnVehicle``. A new permanent debug RPC,
+   ``GetStaticMeshBounds`` (``SyntheticDataGenRpcSubsystem.cpp``,
+   alongside ``TakeScreenshot``/``DebugMoveCameraTo``), returns a real
+   static mesh asset's measured world-space origin/extent -- the only way
+   to get an unguessed real dimension for tiling modular kit pieces, used
+   to derive the facade module constants above.
 
 What is deliberately not implemented
 --------------------------------------

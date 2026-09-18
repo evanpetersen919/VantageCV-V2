@@ -394,10 +394,10 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 	// Sample content this project spawns rather than builds as a
 	// procedural box) is a City Sample asset integration Phase 1
 	// addition -- see the "assets" schema documented in
-	// scenario_serializer.py and docs/architecture.rst. Only the
-	// "vehicle" category is implemented so far; "prop"/"hero_building"
-	// entries are skipped (not a parse failure) until later phases of
-	// that same integration work add them.
+	// scenario_serializer.py and docs/architecture.rst. "vehicle" and
+	// "static_asset" (real building wall/corner/entrance pieces) are
+	// implemented; "prop" entries are skipped (not a parse failure)
+	// until a later phase of that same integration work adds them.
 	const TArray<TSharedPtr<FJsonValue>>* AssetsJson = nullptr;
 	int32 SpawnedCount = 0;
 	int32 SpawnSkippedCount = 0;
@@ -425,7 +425,15 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 			BoundsMax.Y = FMath::Max(BoundsMax.Y, AssetData.Position.Y);
 			bHasAnyVertex = true;
 
-			if (AssetData.Category != TEXT("vehicle"))
+			// "vehicle" (Phase 1) and "static_asset" (real building
+			// wall/corner/entrance pieces -- see
+			// scenario_serializer.py's _facade_piece_to_asset_json) both
+			// route through the same UVehicleActorSpawner::SpawnVehicle:
+			// it already handles an empty PartPaths list gracefully (a
+			// standalone facade piece has no sub-parts), so no separate
+			// spawn path is needed for the new category. "prop" is not
+			// implemented yet (deliberate fast-follow, not this phase).
+			if (AssetData.Category != TEXT("vehicle") && AssetData.Category != TEXT("static_asset"))
 			{
 				++SpawnSkippedCount;
 				continue;

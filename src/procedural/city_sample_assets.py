@@ -64,6 +64,7 @@ classification), giving both categories real variety consistent with
 every scenario template).
 """
 
+from dataclasses import dataclass
 from typing import Dict, List
 
 # Keys must match ActorPlacementGenerator's own VEHICLE_DIMENSIONS keys
@@ -308,4 +309,40 @@ VEHICLE_PART_PATHS: Dict[str, List[str]] = {
         "/Game/Vehicle/vehBus_vehicle10/Mesh/SM_Frame_Interior_vehBus_vehicle10",
         "/Game/Vehicle/vehBus_vehicle10/Mesh/SM_Steering_Wheel_vehBus_vehicle10",
     ],
+}
+
+
+@dataclass(frozen=True)
+class BuildingKit:
+    """One City Sample modular building kit's real wall/corner/entrance
+    asset paths, plus the real dimensions (meters) those pieces were
+    measured at via the live UE5 ``GetStaticMeshBounds`` debug RPC (not
+    guessed) -- see ``building_placement.py``'s own
+    ``FACADE_WALL_MODULE_METERS``/``FACADE_CORNER_MODULE_METERS``/
+    ``FACADE_FLOOR_HEIGHT_METERS``, which every ``BuildingKit`` must match
+    exactly for ``building_facade.py``'s tiling math to close without a
+    gap or overlap. Wall and entrance pieces share the same width/pivot
+    convention (pivot at one width-edge, extending toward the other) so
+    an entrance can substitute directly into any wall slot.
+    """
+
+    wall_asset_path: str
+    corner_asset_path: str
+    entrance_asset_path: str
+
+
+# Only one real kit is migrated so far (Kit_Bldg_CHA_L1_A -- a single
+# "Level 1" floor style; City Sample ships many more, e.g.
+# Kit_Bldg_CHA_L2_A through L21_A, for real per-floor variety, deliberately
+# not migrated yet -- see KNOWN_GAPS_AND_ISSUES.md for the real, accepted
+# v1 limitation this creates: every floor of a multi-floor building reuses
+# this same style).
+_CHA_L1_BASE = "/Game/Building/CH/A/Kit_Bldg_CHA_L1_A/Mesh/SM_BLDG_CHA_L01_A"
+
+BUILDING_KITS: Dict[str, BuildingKit] = {
+    "CHA_L1": BuildingKit(
+        wall_asset_path=f"{_CHA_L1_BASE}_Wall_01_N1",
+        corner_asset_path=f"{_CHA_L1_BASE}_CornerEx_01_N1",
+        entrance_asset_path=f"{_CHA_L1_BASE}_Entrance_01_N1",
+    ),
 }
