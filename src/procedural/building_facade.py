@@ -1,10 +1,13 @@
 """Tile a building's quantized footprint with real City Sample modular
-building-kit pieces (wall/corner), instead of a flat procedural box.
+building-kit pieces (wall/corner/column), instead of a flat procedural
+box.
 
 **Module spacing and placement convention are converged from THREE
 independent real sources in the actual CitySample project** (not
 inferred from bounding boxes -- see ``building_placement.py``'s own
-module-constants comment for the full derivation):
+module-constants comment for the full derivation, including this
+session's rigorous re-query of source 2 across every real building):
+
 1. ``CHA_primary.bdf``, Epic's real Houdini building-definition config.
 2. ``All_Buildings_Lineup_pc``, the real per-instance transform point
    cloud behind Epic's actual generator output, read directly via the
@@ -13,14 +16,75 @@ module-constants comment for the full derivation):
 
 A corner's pivot IS the building's true rectangle vertex (no
 pivot-to-vertex offset), and no perpendicular offset is needed for
-either walls or corners (source 3, cross-checked against source 2). A
-corner ONLY guarantees a flush connection to the edge that starts at it
-(matching its own rotation) -- not to the perpendicular edge that also
-touches it (source 2: the real point cloud's "far" corner connection is
-just whatever remainder a real building's actual dimensions leave, not
-a second fixed reservation). Our own generator eliminates that
-remainder entirely by quantizing footprint sides to exact
-``FACADE_CORNER_TO_FIRST_WALL_METERS + N*FACADE_WALL_MODULE_METERS``
+either walls or corners (source 3, cross-checked against source 2).
+
+**One plain corner piece per vertex** (``kit.corner_asset_path``,
+rotated to match the edge that starts there). An earlier version of this
+module emitted a stacked ``CornerExL``+``CornerExR`` pair at every
+vertex instead, reasoning from a single real point-cloud vertex where
+Epic's own generator did exactly that. This session re-queried the point
+cloud rigorously across every real ``Kit_Bldg_CHA_L1_A`` instance in the
+whole point cloud (4 real buildings, 16 real corner-vertex instances,
+332 real points total -- not one cherry-picked sample) and found the
+plain ``CornerEx`` asset is what Epic's generator actually uses 15/16
+of the time; ``CornerExR`` appears only once, ``CornerExL`` never, and
+no real vertex stacks two corner pieces. The earlier "single CornerEx
+can't flush-match both edges, proven via least-squares" conclusion is
+therefore very likely an artifact of a wrong/incomplete local-bounds
+measurement, not a real geometric fact about the asset -- reverted back
+to the single-piece placement that matches the real majority usage.
+``BuildingKit.corner_l_asset_path``/``corner_r_asset_path`` are kept
+(real asset paths, real evidence that Epic uses them at least
+occasionally) for a future session that gets enough real samples to
+determine what actually distinguishes the rare non-plain case -- not
+enough evidence exists yet to guess a rule for when to use them, so this
+module does not.
+
+**The corner's STORED (rendered) rotation is its own-edge tiling
+rotation plus one extra quarter turn** (see the inline comment at this
+piece's construction below for the full reasoning) -- a real,
+live-screenshot-confirmed fix (user-reported: "the corners are the only
+thing that's not perfect", visually verified via a top-down shot showing
+the corner's outer trim not wrapping flush around the vertex without
+this offset, and wrapping exactly flush with it) for the ``CornerEx``
+mesh's own local orientation convention being a quarter turn off from
+the tiling-direction convention the rest of this module uses. This is
+the same class of fix as the wall's own ``+ math.pi`` below, just a
+different real offset for a different mesh's own local convention.
+
+**A real Column piece (``kit.column_asset_path``, BDF module "P1") is
+now placed between every pair of consecutive same-edge wall pieces.**
+This session's real point-cloud re-measurement found that the "450cm
+wall-to-wall spacing, ~125cm larger than the wall mesh's own 325cm
+bounding box" figure earlier sessions had written off as "a deliberate
+reveal/gap... not a bug to close up" (see git history / this module's
+own prior revisions) was based on an incomplete reading: real Epic
+buildings do not leave that 125cm empty. They fill it with a real
+Column mesh, at an exact, zero-exception 325cm(wall)/125cm(column)
+alternation across 128 real column instances and 152 real wall
+instances (see ``building_placement.py``'s own module-constants comment
+for the full real numbers). Omitting that Column was very likely
+contributing to this project's own generated buildings looking visibly
+"unfinished" along straight wall runs even where the corner-to-wall
+join itself was already exact (see below) -- fixed here by placing one
+``kit.column_asset_path`` piece after every wall except the last one on
+each edge (no real vertex ever showed a column directly adjacent to a
+corner).
+
+**The corner-to-first-wall join was NOT the bug.** This session's
+specific re-measurement task was to check whether the visible top-down
+gap at every corner turn (reported after live screenshot verification)
+was because ``FACADE_CORNER_TO_FIRST_WALL_METERS`` (1.5m) didn't match
+real data. It does, exactly: 16/16 real corner-vertex-to-first-owned-
+wall measurements in the point cloud came back at precisely 150cm, zero
+exceptions, fully independent of building footprint size. The real,
+evidenced fix for the visible gap is the corner-stacking and Column
+changes above, not a constant change here.
+
+Our own generator eliminates the far-corner reservation remainder
+(present in Epic's real buildings, since each edge otherwise tiles
+independently from its own corner) by quantizing footprint sides to
+exact ``FACADE_CORNER_TO_FIRST_WALL_METERS + N*FACADE_WALL_MODULE_METERS``
 multiples (see ``building_placement.py``'s ``_quantize_footprint_side``),
 so every edge here closes exactly on its far corner's true vertex.
 
@@ -56,6 +120,21 @@ Building.aabb/.height must already be quantized to exact
 ``FACADE_FLOOR_HEIGHT_METERS`` multiples (BuildingPlacementGenerator does
 this at generation time -- see that module) for the tiling below to close
 without a gap or overlap.
+
+**Wall pieces store ``rotation_rad + pi``, not the plain per-edge
+rotation.** Confirmed live via a marker placed at the building's true
+geometric center: with the plain (un-flipped) rotation, every wall's
+window/trim face pointed INWARD, toward that center marker, not outward
+toward the street. The wall MESH's decorative face is on the opposite
+local side from what the position-tiling convention above assumes, so
+only the piece's final, RENDERED rotation needs the extra ``pi`` --
+``direction``/``wall_position`` above must keep using the original,
+unmodified ``rotation_rad``, since that math (tiling step direction,
+which edge a wall belongs to) was independently validated and the flip
+would silently break closure if applied there too. A follow-up close-up
+screenshot at a corner-wall junction (flipped wall next to an unflipped
+corner) showed no seam or orientation mismatch, so corner pieces are not
+flipped -- their own local geometry already faces outward as placed.
 """
 
 import math
@@ -69,6 +148,7 @@ from src.procedural.building_placement import (
     FACADE_CORNER_TO_FIRST_WALL_METERS,
     FACADE_FLOOR_HEIGHT_METERS,
     FACADE_WALL_MODULE_METERS,
+    FACADE_WALL_REAL_WIDTH_METERS,
     Building,
 )
 from src.procedural.city_sample_assets import BuildingKit
@@ -153,8 +233,8 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
     building: Building, kit: BuildingKit
 ) -> List[FacadePiece]:
     """Tile ``building``'s quantized footprint, per floor, with ``kit``'s
-    real wall/corner pieces (``kit.entrance_asset_path`` is deliberately
-    not used yet -- see this module's own docstring).
+    real wall/corner/column pieces (``kit.entrance_asset_path`` is
+    deliberately not used yet -- see this module's own docstring).
 
     Deterministic and RNG-free: footprint/height already fully determine
     every piece's position once quantized (see ``building_placement.py``).
@@ -194,18 +274,42 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
             rotation_rad = edge_index * _QUARTER_TURN_RAD
             direction = _rotate_2d(_BASE_TILING_DIRECTION, rotation_rad)
 
-            # The corner piece's pivot IS the true rectangle vertex --
-            # real, artist-placed reference-building evidence (see this
-            # module's own docstring) shows no pivot-to-vertex offset is
-            # used at all, unlike an earlier version of this module which
-            # (reasoning only from the mesh's own bounding box, with no
-            # real placement to check against) applied a real but wrong
-            # offset here.
+            # ONE plain corner piece per vertex, rotated to match the
+            # edge that starts there -- reverted this session from an
+            # earlier version that stacked CornerExL+CornerExR at every
+            # vertex. That stacking was real (Epic's generator does do
+            # it, at least once), but was generalized from a single
+            # cherry-picked real point-cloud vertex without checking how
+            # common it actually is. A rigorous re-query this session
+            # (see building_placement.py's own module-constants comment
+            # for the full real numbers) found the plain ``CornerEx``
+            # asset used at 15 of 16 real corner-vertex instances across
+            # 4 real buildings, ``CornerExR`` at only 1/16, and
+            # ``CornerExL`` at 0/16 -- no real vertex ever stacks two
+            # corner pieces. The pivot IS the true rectangle vertex --
+            # no pivot-to-vertex offset (real reference-building
+            # evidence, this module's own docstring).
+            #
+            # The extra `+ _QUARTER_TURN_RAD` on the STORED (rendered)
+            # rotation is the same class of fix as the wall's own
+            # `+ math.pi` above: the corner mesh's own local orientation
+            # convention is a quarter turn off from the own-edge tiling
+            # rotation this loop otherwise computes. Live-screenshot-
+            # confirmed: without this offset, a top-down shot showed the
+            # corner's outer trim NOT wrapping flush around the true
+            # vertex (a visible seam against both adjoining walls); with
+            # it, the same shot shows the trim wrapping the corner
+            # exactly flush, matching real Epic buildings. There is no
+            # separate position computation for a corner piece (its
+            # position is always just the vertex itself), so unlike the
+            # wall's `direction`/`wall_position` split, this offset is
+            # safe to apply directly to `rotation_rad` here with no
+            # separate quantity left unflipped.
             pieces.append(
                 FacadePiece(
                     asset_path=kit.corner_asset_path,
                     position=np.array([start[0], start[1], z]),
-                    rotation_rad=rotation_rad,
+                    rotation_rad=rotation_rad + _QUARTER_TURN_RAD,
                 )
             )
 
@@ -232,12 +336,50 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
                 # coordinate.
                 offset = FACADE_CORNER_TO_FIRST_WALL_METERS + wall_index * FACADE_WALL_MODULE_METERS
                 wall_position = start + direction * offset
+                # The wall mesh's decorative/window face is on the OPPOSITE
+                # local side from the tiling-direction convention validated
+                # above: rendering it at plain `rotation_rad` puts that face
+                # toward the building's interior instead of the exterior --
+                # confirmed live (a marker placed at the building's true
+                # center showed every wall's window recess facing that
+                # center, not away from it). Adding pi to the RENDERED
+                # rotation only (not to `direction`/`wall_position` above,
+                # which must keep using the validated, unmodified
+                # rotation_rad to preserve correct tiling/closure) flips
+                # only which face is outward, confirmed live: windows and
+                # trim now face away from the building's interior, with
+                # closure unaffected since position math is untouched.
                 pieces.append(
                     FacadePiece(
                         asset_path=kit.wall_asset_path,
                         position=np.array([wall_position[0], wall_position[1], z]),
-                        rotation_rad=rotation_rad,
+                        rotation_rad=rotation_rad + math.pi,
                     )
                 )
+
+                # A real Column piece fills the real 125cm gap between
+                # THIS wall and the next one on the same edge (BDF module
+                # "P1", real evidence: an exact, zero-exception 325cm/
+                # 125cm Wall/Column alternation across 128 real column +
+                # 152 real wall point-cloud instances -- see
+                # building_placement.py's own module-constants comment).
+                # No column after the LAST wall on this edge: real data
+                # never shows a column immediately before a corner (the
+                # real join there is either a plain corner-owned 150cm
+                # gap or a stretchy, non-uniformly-scaled wall this
+                # project's data model does not represent -- see the
+                # same comment). Uses the same rendered
+                # (rotation_rad + pi) as the wall it follows -- real data
+                # shows a real Column's own yaw always matches its
+                # neighboring walls' yaw on that edge.
+                if wall_index < wall_count - 1:
+                    column_position = wall_position + direction * FACADE_WALL_REAL_WIDTH_METERS
+                    pieces.append(
+                        FacadePiece(
+                            asset_path=kit.column_asset_path,
+                            position=np.array([column_position[0], column_position[1], z]),
+                            rotation_rad=rotation_rad + math.pi,
+                        )
+                    )
 
     return pieces
