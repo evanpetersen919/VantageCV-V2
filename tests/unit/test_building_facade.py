@@ -13,6 +13,7 @@ material bug that gated this) -- covered here by asserting no entrance
 asset ever appears.
 """
 
+import dataclasses
 import math
 
 import numpy as np
@@ -20,16 +21,15 @@ import numpy.typing as npt
 import pytest
 
 from src.procedural.building_facade import generate_building_facade_pieces
-from src.procedural.building_placement import (
-    FACADE_CORNER_TO_FIRST_WALL_METERS,
-    FACADE_FLOOR_HEIGHT_METERS,
-    FACADE_WALL_MODULE_METERS,
-    FACADE_WALL_REAL_WIDTH_METERS,
-    Building,
-)
-from src.procedural.city_sample_assets import BUILDING_KITS
+from src.procedural.building_placement import Building
+from src.procedural.city_sample_assets import BUILDING_KITS, BuildingStyle
 
 KIT = BUILDING_KITS["CHA_L1"]
+STYLE = BuildingStyle(name="CHA_L1_ONLY", levels=(KIT,))
+CORNER_REACH = KIT.corner_to_first_wall_m
+WALL_PITCH = KIT.wall_pitch_m
+WALL_WIDTH = KIT.wall_width_m
+FLOOR_HEIGHT = KIT.floor_height_m
 
 
 def _quantized_building(
@@ -37,9 +37,9 @@ def _quantized_building(
 ) -> Building:
     """A Building whose width/depth/height are exact module multiples --
     matches what BuildingPlacementGenerator's quantization guarantees."""
-    width = FACADE_CORNER_TO_FIRST_WALL_METERS + wall_count_x * FACADE_WALL_MODULE_METERS
-    depth = FACADE_CORNER_TO_FIRST_WALL_METERS + wall_count_y * FACADE_WALL_MODULE_METERS
-    height = floors * FACADE_FLOOR_HEIGHT_METERS
+    width = CORNER_REACH + wall_count_x * WALL_PITCH
+    depth = CORNER_REACH + wall_count_y * WALL_PITCH
+    height = floors * FLOOR_HEIGHT
     return Building(
         building_id=building_id,
         center=np.array([0.0, 0.0]),
@@ -53,8 +53,8 @@ def test_facade_pieces_deterministic() -> None:
     """The same Building + kit always produces the exact same piece
     list -- a pure function, no RNG."""
     building = _quantized_building(0, wall_count_x=2, wall_count_y=3, floors=2)
-    first = generate_building_facade_pieces(building, KIT)
-    second = generate_building_facade_pieces(building, KIT)
+    first = generate_building_facade_pieces(building, STYLE)
+    second = generate_building_facade_pieces(building, STYLE)
 
     assert len(first) == len(second)
     for piece_a, piece_b in zip(first, second):
@@ -77,7 +77,7 @@ def test_facade_pieces_correct_count_per_floor() -> None:
     wall_count_x, wall_count_y, floors = 2, 3, 2
     building = _quantized_building(0, wall_count_x, wall_count_y, floors)
 
-    pieces = generate_building_facade_pieces(building, KIT)
+    pieces = generate_building_facade_pieces(building, STYLE)
 
     corners = [p for p in pieces if p.asset_path == KIT.corner_asset_path]
     walls = [p for p in pieces if p.asset_path == KIT.wall_asset_path]
@@ -99,7 +99,7 @@ def test_facade_pieces_no_duplicate_positions() -> None:
     all pieces, since different asset types (e.g. a wall and a column)
     are never expected to share a position anyway."""
     building = _quantized_building(0, wall_count_x=2, wall_count_y=2, floors=3)
-    pieces = generate_building_facade_pieces(building, KIT)
+    pieces = generate_building_facade_pieces(building, STYLE)
 
     positions_by_asset: dict[str, list[tuple[float, ...]]] = {}
     for p in pieces:
@@ -115,20 +115,20 @@ def test_facade_pieces_floor_count_matches_height() -> None:
     and the highest floor's z matches (num_floors - 1) * FLOOR_HEIGHT."""
     floors = 4
     building = _quantized_building(0, wall_count_x=1, wall_count_y=1, floors=floors)
-    pieces = generate_building_facade_pieces(building, KIT)
+    pieces = generate_building_facade_pieces(building, STYLE)
 
     z_values = sorted({round(float(p.position[2]), 6) for p in pieces})
-    expected = [round(i * FACADE_FLOOR_HEIGHT_METERS, 6) for i in range(floors)]
+    expected = [round(i * FLOOR_HEIGHT, 6) for i in range(floors)]
     assert z_values == expected
 
 
 def test_facade_wall_pieces_spaced_one_module_apart_along_edge() -> None:
     """Consecutive wall pieces along one straight edge (same rotation,
-    same z) are separated by exactly FACADE_WALL_MODULE_METERS -- the
+    same z) are separated by exactly WALL_PITCH -- the
     real geometric condition for seamless tiling confirmed live in UE5
     (see this module's own docstring)."""
     building = _quantized_building(0, wall_count_x=1, wall_count_y=3, floors=1)
-    pieces = generate_building_facade_pieces(building, KIT)
+    pieces = generate_building_facade_pieces(building, STYLE)
 
     # Wall pieces store rotation_rad + pi (the outward-facing orientation
     # fix -- see building_facade.py's module docstring), but their
@@ -148,7 +148,7 @@ def test_facade_wall_pieces_spaced_one_module_apart_along_edge() -> None:
     assert len(wall_run) == 3
     for earlier, later in zip(wall_run, wall_run[1:]):
         gap = np.linalg.norm(later.position[:2] - earlier.position[:2])
-        assert gap == pytest.approx(FACADE_WALL_MODULE_METERS)
+        assert gap == pytest.approx(WALL_PITCH)
 
 
 def _true_edge_direction_for(
@@ -203,28 +203,28 @@ def test_corner_piece_rotation_matches_its_own_edge_direction() -> None:
     walls stays correct regardless of which absolute direction "forward"
     is)."""
     building = _quantized_building(0, wall_count_x=1, wall_count_y=1, floors=1)
-    pieces = generate_building_facade_pieces(building, KIT)
+    pieces = generate_building_facade_pieces(building, STYLE)
     corners = [p for p in pieces if p.asset_path == KIT.corner_asset_path]
     assert len(corners) == 4
 
     for corner in corners:
         true_direction = _true_edge_direction_for(corner.position[:2], building, incoming=False)
-        own_edge_rotation = corner.rotation_rad - (math.pi / 2.0)
+        own_edge_rotation = corner.rotation_rad - KIT.corner_yaw_offset_rad
         assert np.allclose(_predicted_direction(own_edge_rotation), true_direction, atol=1e-6)
 
 
 def test_facade_column_pieces_sit_in_the_real_gap_between_consecutive_walls() -> None:
     """Each Column piece's position must be exactly
-    FACADE_WALL_REAL_WIDTH_METERS along the tiling direction from the
+    WALL_WIDTH along the tiling direction from the
     wall immediately before it, and exactly
-    (FACADE_WALL_MODULE_METERS - FACADE_WALL_REAL_WIDTH_METERS) before
+    (WALL_PITCH - WALL_WIDTH) before
     the next wall -- the real, point-cloud-measured 325cm/125cm
     Wall/Column alternation this session found real City Sample
     buildings use (see this module's own docstring), and the real fix
     for the visible reveal gap this project's own generator used to
     leave empty."""
     building = _quantized_building(0, wall_count_x=1, wall_count_y=3, floors=1)
-    pieces = generate_building_facade_pieces(building, KIT)
+    pieces = generate_building_facade_pieces(building, STYLE)
 
     # Same edge-selection convention as
     # test_facade_wall_pieces_spaced_one_module_apart_along_edge.
@@ -249,9 +249,63 @@ def test_facade_column_pieces_sit_in_the_real_gap_between_consecutive_walls() ->
 
     for wall, column in zip(walls, columns):
         gap_after_wall = np.linalg.norm(column.position[:2] - wall.position[:2])
-        assert gap_after_wall == pytest.approx(FACADE_WALL_REAL_WIDTH_METERS)
+        assert gap_after_wall == pytest.approx(WALL_WIDTH)
     for column, next_wall in zip(columns, walls[1:]):
         gap_before_next_wall = np.linalg.norm(next_wall.position[:2] - column.position[:2])
-        assert gap_before_next_wall == pytest.approx(
-            FACADE_WALL_MODULE_METERS - FACADE_WALL_REAL_WIDTH_METERS
-        )
+        assert gap_before_next_wall == pytest.approx(WALL_PITCH - WALL_WIDTH)
+
+
+def _two_level_style() -> BuildingStyle:
+    """A synthetic style whose upper level has a different floor height
+    and different asset paths (same horizontal grid), to check per-floor
+    kit selection and cumulative z placement."""
+    upper = dataclasses.replace(
+        KIT,
+        wall_asset_path="/Game/Test/UpperWall",
+        corner_asset_path="/Game/Test/UpperCorner",
+        column_asset_path="/Game/Test/UpperColumn",
+        floor_height_m=3.0,
+    )
+    return BuildingStyle(name="TEST", levels=(KIT, upper))
+
+
+def test_multi_level_style_uses_per_floor_kit_and_cumulative_z() -> None:
+    """Floor 0 uses the ground kit at z=0; floors above use the next
+    level's kit, stacked at cumulative heights (5.0, 8.0, 11.0), the last
+    level repeating -- mirroring real CHA (L1 5.0m, then 3.0m floors)."""
+    style = _two_level_style()
+    height = style.total_height(4)
+    assert height == pytest.approx(5.0 + 3.0 * 3)
+    width = CORNER_REACH + 2 * WALL_PITCH
+    building = Building(0, np.array([0.0, 0.0]), width, width, height)
+
+    pieces = generate_building_facade_pieces(building, style)
+
+    for floor_index, expected_z in enumerate([0.0, 5.0, 8.0, 11.0]):
+        expected_wall = style.kit_for_floor(floor_index).wall_asset_path
+        walls_here = [
+            p
+            for p in pieces
+            if p.asset_path in (KIT.wall_asset_path, "/Game/Test/UpperWall")
+            and p.position[2] == pytest.approx(expected_z)
+        ]
+        assert len(walls_here) == 8
+        assert all(p.asset_path == expected_wall for p in walls_here)
+
+
+def test_building_style_rejects_mismatched_horizontal_grid() -> None:
+    """Levels of one style must share a grid -- otherwise one quantized
+    footprint could not tile on every floor."""
+    wider = dataclasses.replace(KIT, wall_width_m=KIT.wall_width_m + 0.5)
+    with pytest.raises(ValueError):
+        BuildingStyle(name="BAD", levels=(KIT, wider))
+
+
+def test_building_style_height_quantization_rounds_up_to_real_stack() -> None:
+    """floor_count_for_height never shrinks a height and lands exactly on
+    a cumulative real stack height."""
+    style = _two_level_style()
+    for sampled in [0.1, 5.0, 5.01, 8.0, 8.5, 20.0]:
+        count = style.floor_count_for_height(sampled)
+        assert style.total_height(count) >= sampled - 1e-6
+        assert count == 1 or style.total_height(count - 1) < sampled

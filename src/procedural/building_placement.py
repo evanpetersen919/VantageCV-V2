@@ -41,6 +41,7 @@ from typing import Dict, List, Set, Tuple
 import numpy as np
 import numpy.typing as npt
 
+from src.procedural.city_sample_assets import DEFAULT_BUILDING_STYLE, BuildingStyle
 from src.procedural.lane_topology import LANE_WIDTH_METERS
 from src.procedural.road_network import RoadEdge, RoadNode
 from src.procedural.scenario import ScenarioTypeConfig
@@ -91,7 +92,7 @@ BUILDING_FOOTPRINT_SIDE_METERS = (8.0, 25.0)
 #    - A corner's distance to the first wall of the edge that STARTS at
 #      that corner (matching its own yaw) is exactly 150cm in all 16/16
 #      real edges measured -- matches BDF's C_E Mod_Dim and this
-#      module's own FACADE_CORNER_TO_FIRST_WALL_METERS exactly. The
+#      module's own CHA_L1 ``corner_to_first_wall_m`` exactly. The
 #      corner-to-wall connection is NOT the source of the visible
 #      top-down gap this session was asked to investigate -- see
 #      building_facade.py's own module docstring for what is.
@@ -165,29 +166,21 @@ BUILDING_FOOTPRINT_SIDE_METERS = (8.0, 25.0)
 # not a second fixed reservation -- our own generator instead eliminates
 # that remainder entirely by quantizing footprint sides to exact
 # multiples (see _quantize_footprint_side).
-FACADE_WALL_MODULE_METERS = 4.5
-FACADE_CORNER_TO_FIRST_WALL_METERS = 1.5
-FACADE_FLOOR_HEIGHT_METERS = 5.0
-
-# Real wall module width along its own tiling direction (BDF "W1"
-# Mod_Dim[0] = 3.25; independently confirmed by the point cloud's own
-# exact, zero-exception 325cm Wall->Column spacing -- see the real-
-# evidence comment above). A column piece's own pivot sits exactly this
-# far along the tiling direction from the wall piece immediately before
-# it; FACADE_WALL_MODULE_METERS (4.5) minus this value (1.25) is the
-# real column module width (BDF "P1" Mod_Dim[0] = 1.25, independently
-# confirmed by the point cloud's own exact 125cm Column->Wall spacing).
-FACADE_WALL_REAL_WIDTH_METERS = 3.25
+# These real numbers now live on ``BuildingKit``/``BuildingStyle`` in
+# ``city_sample_assets.py`` (CHA_L1: wall 3.25m, column 1.25m -> wall
+# pitch 4.5m, corner-to-first-wall 1.5m, floor height 5.0m) so each kit
+# carries its own real grid and heights; the evidence above justifies
+# those values.
 
 
-def _quantize_footprint_side(sampled_side: float) -> float:
+def _quantize_footprint_side(sampled_side: float, style: BuildingStyle) -> float:
     """Round a sampled width/depth up to the nearest exact
-    ``corner + N*wall`` module fit (smallest ``N >= 1`` covering
+    ``corner + N*wall_pitch`` module fit (smallest ``N >= 1`` covering
     ``sampled_side``) -- rounding up, never down, so a quantized building is
     never smaller than what density/setback logic already assumed when
     ``sampled_side`` was drawn from ``BUILDING_FOOTPRINT_SIDE_METERS``.
 
-    Only ONE ``FACADE_CORNER_TO_FIRST_WALL_METERS`` per side: a side (e.g.
+    Only ONE ``corner_to_first_wall_m`` per side: a side (e.g.
     width) is shared by two parallel edges (top and bottom), each with its
     OWN start corner, each independently reserving the corner reach ONCE
     at its own start and tiling walls to the far corner -- both edges have
@@ -197,16 +190,16 @@ def _quantize_footprint_side(sampled_side: float) -> float:
     corner only guarantees flush connection to its OWN edge in the first
     place).
     """
-    usable_after_corner = sampled_side - FACADE_CORNER_TO_FIRST_WALL_METERS
-    wall_count = max(1, int(np.ceil(usable_after_corner / FACADE_WALL_MODULE_METERS)))
-    return FACADE_CORNER_TO_FIRST_WALL_METERS + wall_count * FACADE_WALL_MODULE_METERS
+    corner = style.corner_to_first_wall_m
+    usable_after_corner = sampled_side - corner
+    wall_count = max(1, int(np.ceil(usable_after_corner / style.wall_pitch_m)))
+    return corner + wall_count * style.wall_pitch_m
 
 
-def _quantize_height(sampled_height: float) -> float:
-    """Round a sampled height up to the nearest whole number of
-    ``FACADE_FLOOR_HEIGHT_METERS`` floors (at least 1)."""
-    floor_count = max(1, int(np.ceil(sampled_height / FACADE_FLOOR_HEIGHT_METERS)))
-    return floor_count * FACADE_FLOOR_HEIGHT_METERS
+def _quantize_height(sampled_height: float, style: BuildingStyle) -> float:
+    """Round a sampled height up to the nearest whole floor stack of
+    ``style`` (at least 1 floor) -- floors may differ in height per level."""
+    return style.total_height(style.floor_count_for_height(sampled_height))
 
 
 # Maximum placement attempts per candidate slot before giving up on that
@@ -382,7 +375,12 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
     rest of the class is private implementation detail of that operation.
     """
 
-    def __init__(self, seed: int, config: ScenarioTypeConfig) -> None:
+    def __init__(
+        self,
+        seed: int,
+        config: ScenarioTypeConfig,
+        style: BuildingStyle = DEFAULT_BUILDING_STYLE,
+    ) -> None:
         """
         Parameters
         ----------
@@ -390,9 +388,13 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
             Arbitrary-size non-negative integer seed for reproducibility.
         config : ScenarioTypeConfig
             Provides ``building_density`` and ``building_heights``.
+        style : BuildingStyle
+            The facade style whose real grid/floor heights every placed
+            building's footprint and height are quantized to.
         """
         self.seed = seed
         self.config = config
+        self.style = style
         self.rng = np.random.Generator(np.random.PCG64(seed))
         self._building_counter = 0
 
@@ -575,10 +577,16 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
 
             placed_this_slot = False
             for _attempt in range(MAX_PLACEMENT_ATTEMPTS_PER_BLOCK):
-                width = _quantize_footprint_side(self.rng.uniform(*BUILDING_FOOTPRINT_SIDE_METERS))
-                depth = _quantize_footprint_side(self.rng.uniform(*BUILDING_FOOTPRINT_SIDE_METERS))
+                width = _quantize_footprint_side(
+                    self.rng.uniform(*BUILDING_FOOTPRINT_SIDE_METERS), self.style
+                )
+                depth = _quantize_footprint_side(
+                    self.rng.uniform(*BUILDING_FOOTPRINT_SIDE_METERS), self.style
+                )
                 center = np.array([self.rng.uniform(x_min, x_max), self.rng.uniform(y_min, y_max)])
-                height = _quantize_height(self.rng.uniform(*self.config.building_heights))
+                height = _quantize_height(
+                    self.rng.uniform(*self.config.building_heights), self.style
+                )
                 building_type = _classify_building_type(height, self.config.building_heights)
                 material = str(self.rng.choice(BUILDING_MATERIALS_BY_TYPE[building_type]))
 

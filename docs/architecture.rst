@@ -95,11 +95,12 @@ Layers
    :mod:`src.procedural.building_facade` tiles each building's
    width/depth/height (quantized at generation time in
    :mod:`src.procedural.building_placement` to exact
-   ``FACADE_WALL_MODULE_METERS``/``FACADE_CORNER_TO_FIRST_WALL_METERS``/
-   ``FACADE_FLOOR_HEIGHT_METERS`` multiples, the same precedent as the
+   the active ``BuildingStyle``'s real grid and whole-floor-stack heights,
+   the same precedent as the
    road-grid quantization fix below) with real, City-Sample-sourced
    modular wall/corner/column kit pieces
-   (:mod:`src.procedural.city_sample_assets`'s ``BUILDING_KITS``), per
+   (:mod:`src.procedural.city_sample_assets`'s ``BuildingKit`` and
+   ``BuildingStyle``), per
    floor.
 
    **Reference for any future work on this generator**: every placement

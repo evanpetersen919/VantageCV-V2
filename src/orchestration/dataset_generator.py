@@ -27,7 +27,7 @@ from src.ground_truth.bbox_3d import (
 from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
 from src.procedural.building_facade import FacadePiece, generate_building_facade_pieces
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
-from src.procedural.city_sample_assets import BUILDING_KITS
+from src.procedural.city_sample_assets import DEFAULT_BUILDING_STYLE
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
@@ -94,7 +94,9 @@ def generate_scenario(  # pylint: disable=too-many-locals
     nodes, edges = road_gen.generate(bounds)
 
     lanes = LaneTopologyGenerator().generate(nodes, edges)
-    buildings = BuildingPlacementGenerator(seed, config).generate(nodes, edges)
+    buildings = BuildingPlacementGenerator(seed, config, DEFAULT_BUILDING_STYLE).generate(
+        nodes, edges
+    )
     traffic = TrafficNetworkGenerator().generate(nodes, edges, lanes)
     lane_connectivity = LaneConnectivityGenerator().generate(nodes, edges, lanes)
     vehicles, pedestrians = ActorPlacementGenerator(seed, config).generate(edges, traffic)
@@ -121,10 +123,9 @@ def generate_scenario(  # pylint: disable=too-many-locals
     meshes: List[Mesh] = [MeshFactory.build_road_mesh(lane) for lane in lanes.values()]
     meshes += [MeshFactory.build_pedestrian_mesh(pedestrian) for pedestrian in pedestrians]
 
-    kit = BUILDING_KITS["CHA_L1"]
     building_facade_pieces: List[FacadePiece] = []
     for building in buildings:
-        building_facade_pieces += generate_building_facade_pieces(building, kit)
+        building_facade_pieces += generate_building_facade_pieces(building, DEFAULT_BUILDING_STYLE)
 
     validation_report = ScenarioValidator().validate(
         bounds, nodes, edges, lanes, buildings, meshes, vehicles, pedestrians, lane_connectivity
