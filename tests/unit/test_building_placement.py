@@ -12,7 +12,7 @@ from shapely.ops import unary_union
 
 from src.procedural.building_placement import (
     BUILDING_MATERIALS_BY_TYPE,
-    FACADE_CORNER_MODULE_METERS,
+    FACADE_CORNER_TO_FIRST_WALL_METERS,
     FACADE_FLOOR_HEIGHT_METERS,
     FACADE_WALL_MODULE_METERS,
     Building,
@@ -189,7 +189,7 @@ def test_building_dimensions_are_positive(urban_config, bounds) -> None:
 
 def test_building_width_and_depth_are_exact_facade_module_multiples(urban_config, bounds) -> None:
     """Every real generated building's width/depth land on an exact
-    ``2*corner + N*wall`` fit -- the real condition building_facade.py's
+    ``corner_reach + N*wall`` fit -- the real condition building_facade.py's
     tiling needs to close without a gap or overlap (see
     KNOWN_GAPS_AND_ISSUES.md's quantization entry)."""
     road_gen = RoadNetworkGenerator(42, urban_config)
@@ -200,7 +200,7 @@ def test_building_width_and_depth_are_exact_facade_module_multiples(urban_config
 
     for building in buildings:
         for side in (building.width, building.depth):
-            usable = side - 2.0 * FACADE_CORNER_MODULE_METERS
+            usable = side - FACADE_CORNER_TO_FIRST_WALL_METERS
             wall_count = usable / FACADE_WALL_MODULE_METERS
             assert wall_count == pytest.approx(round(wall_count), abs=1e-6)
 

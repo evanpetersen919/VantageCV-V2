@@ -17,7 +17,7 @@ import pytest
 
 from src.procedural.building_facade import generate_building_facade_pieces
 from src.procedural.building_placement import (
-    FACADE_CORNER_MODULE_METERS,
+    FACADE_CORNER_TO_FIRST_WALL_METERS,
     FACADE_FLOOR_HEIGHT_METERS,
     FACADE_WALL_MODULE_METERS,
     Building,
@@ -32,8 +32,8 @@ def _quantized_building(
 ) -> Building:
     """A Building whose width/depth/height are exact module multiples --
     matches what BuildingPlacementGenerator's quantization guarantees."""
-    width = 2.0 * FACADE_CORNER_MODULE_METERS + wall_count_x * FACADE_WALL_MODULE_METERS
-    depth = 2.0 * FACADE_CORNER_MODULE_METERS + wall_count_y * FACADE_WALL_MODULE_METERS
+    width = FACADE_CORNER_TO_FIRST_WALL_METERS + wall_count_x * FACADE_WALL_MODULE_METERS
+    depth = FACADE_CORNER_TO_FIRST_WALL_METERS + wall_count_y * FACADE_WALL_MODULE_METERS
     height = floors * FACADE_FLOOR_HEIGHT_METERS
     return Building(
         building_id=building_id,
