@@ -348,7 +348,7 @@ class BuildingKit:  # pylint: disable=too-many-instance-attributes
     corner_l_asset_path: str
     corner_r_asset_path: str
     entrance_asset_path: Optional[str]
-    column_asset_path: str
+    column_asset_path: Optional[str]
     wall_width_m: float
     column_width_m: float
     corner_to_first_wall_m: float
@@ -366,25 +366,38 @@ class BuildingKit:  # pylint: disable=too-many-instance-attributes
 @dataclass(frozen=True)
 class BuildingStyle:
     """An ordered stack of floor kits making up one building family (e.g.
-    Epic's ``CHA``: L1 as the ground floor, then L2, L3, ...). Floor ``i``
-    uses ``levels[i]``; floors past the end of ``levels`` repeat the last
-    entry.
+    Epic's ``CHA``: L1 as the ground floor, then L2, L3, ...).
 
-    All levels of one style must share the same horizontal grid (wall
-    width, column width, corner reach) -- that is what lets a single
-    quantized footprint tile correctly on every floor -- and a style
-    rejects a mismatch at construction. Only floor heights may differ
-    between levels (real CHA: L1 is 5.0m, L2..L11 are mostly 3.0m).
+    ``levels`` are the floors from the ground up; the LAST one is the
+    repeating floor (BDF ``Repeat=1``), which fills any extra height.
+    ``top_levels`` are the crown floors that finish a tall building. A
+    ``floor_count``-floor building uses:
+    - fewer floors than ``len(levels) + len(top_levels)`` (or no crown):
+      ``levels`` from the ground up, then repeats of the last level --
+      no crown;
+    - otherwise: ``levels``, extra repeats of the last level, then all
+      of ``top_levels`` on top.
+    Evidence (real point cloud, CHA buildings 5 and 9): L1-L5, then L6
+    repeated many times, then L7-L10 on top; the short building 8 is
+    just L1-L5 with no crown. The exact minimum height for a crown is an
+    inference from those buildings, not measured.
+
+    All levels (and crown levels) of one style must share the same
+    horizontal grid (wall width, column width, corner reach) -- that is
+    what lets a single quantized footprint tile correctly on every floor
+    -- and a style rejects a mismatch at construction. Only floor heights
+    may differ between levels (real CHA: L1 is 5.0m, L2..L11 mostly 3.0m).
     """
 
     name: str
     levels: Tuple[BuildingKit, ...]
+    top_levels: Tuple[BuildingKit, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.levels:
             raise ValueError("BuildingStyle needs at least one level")
         grid = self._grid(self.levels[0])
-        for kit in self.levels[1:]:
+        for kit in self.levels[1:] + self.top_levels:
             if self._grid(kit) != grid:
                 raise ValueError(
                     f"BuildingStyle {self.name!r}: every level must share one horizontal "
@@ -434,17 +447,20 @@ class BuildingStyle:
         """Shared corner-vertex-to-first-wall distance of every level."""
         return self.levels[0].corner_to_first_wall_m
 
-    def kit_for_floor(self, floor_index: int) -> BuildingKit:
-        """The kit used by floor ``floor_index`` (0 = ground floor)."""
-        return self.levels[min(floor_index, len(self.levels) - 1)]
-
-    def floor_base_z(self, floor_index: int) -> float:
-        """Height (meters) of floor ``floor_index``'s base above ground."""
-        return sum(self.kit_for_floor(i).floor_height_m for i in range(floor_index))
+    def floor_kits(self, floor_count: int) -> List[BuildingKit]:
+        """The kit of every floor (ground floor first) of a
+        ``floor_count``-floor building -- see the class docstring."""
+        bottom = len(self.levels)
+        if self.top_levels and floor_count >= bottom + len(self.top_levels):
+            repeats = floor_count - bottom - len(self.top_levels)
+            return list(self.levels) + [self.levels[-1]] * repeats + list(self.top_levels)
+        if floor_count <= bottom:
+            return list(self.levels[:floor_count])
+        return list(self.levels) + [self.levels[-1]] * (floor_count - bottom)
 
     def total_height(self, floor_count: int) -> float:
         """Total height (meters) of a ``floor_count``-floor building."""
-        return self.floor_base_z(floor_count)
+        return sum(kit.floor_height_m for kit in self.floor_kits(floor_count))
 
     def floor_count_for_height(self, height: float) -> int:
         """Smallest floor count (at least 1) whose total height is at
@@ -472,6 +488,9 @@ _HEIGHT_EPSILON_METERS = 1e-6
 # confirmed; L2..L6 reuse them on point-cloud evidence (identical yaw
 # deltas across kits) and must be confirmed live before being trusted.
 _CHA_FLOOR_HEIGHTS_M = {1: 5.0, 2: 3.0, 3: 3.0, 4: 3.0, 5: 3.0, 6: 3.0}
+# Crown floors L7..L10 (BDF Heights 2.75, 3.0, 3.0, 3.0): real towers stack
+# L1-L5, L6 repeated, then L7-L10 on top (point cloud buildings 5 and 9).
+_CHA_TOP_FLOOR_HEIGHTS_M = {7: 2.75, 8: 3.0, 9: 3.0, 10: 3.0}
 # Levels that actually ship an Entrance mesh (the generator never emits it).
 _CHA_LEVELS_WITH_ENTRANCE = {1, 2}
 
@@ -486,31 +505,47 @@ _CHA_LEVELS_WITH_ENTRANCE = {1, 2}
 #     "column" = Wall_02 (W2), giving Corner, W, P, W, ..., W, Corner.
 #   - Measured: corner-to-first-wall exactly 100cm on every level; Wall_02
 #     has the same yaw as Wall_01 on the same edge; corner and wall yaw
-#     deltas match CHA (270/270 vs the edge direction), so CHA's offsets
-#     are reused -- confirm with a live screenshot before trusting them.
+#     deltas match CHA (270/270 vs the edge direction), so the CHA offsets
+#     are reused -- live-screenshot confirmed.
 #   - No Entrance mesh ships in these kits.
 _CHH_FLOOR_HEIGHTS_M = {1: 3.25, 2: 2.25, 3: 3.75, 4: 4.25}
 
+# Migrated SFA floor styles: Kit_Bldg_SFA_L1_A .. L5_A, from SFA_primary.bdf
+# and the point cloud (read-only survey):
+#   - Height: L1 12.75m, L2 7.5m, L3 11.25m, L4 3.75m, L5 3.75m (L5 has BDF
+#     Repeat=1); L6-L9 are toppers and are not migrated.
+#   - Grid: corner C_E 1.5m, wall W1 3.25m, NO columns (grammar
+#     ``C1|(W1)*|...|C1``); measured Wall_01 pitch exactly 325cm (0 of 5798
+#     walls scaled) and corner reach 150cm.
+#   - Mesh names are ``SM_BLDG_SFA_L<n>_A_...`` (level NOT zero-padded).
+#   - Yaw deltas match CHA (270/270); offsets reused, confirm live.
+_SFA_FLOOR_HEIGHTS_M = {1: 12.75, 2: 7.5, 3: 11.25, 4: 3.75, 5: 3.75}
+
 
 def _family_kit(  # pylint: disable=too-many-arguments
+    region: str,
     family: str,
     letter: str,
     level: int,
     *,
     wall_piece: str,
-    column_piece: str,
+    column_piece: Optional[str],
     wall_width_m: float,
     column_width_m: float,
     corner_to_first_wall_m: float,
     floor_height_m: float,
+    pad_level: bool = True,
     has_entrance: bool = False,
 ) -> BuildingKit:
-    """The real ``Kit_Bldg_<family>_L<level>_A`` kit. Asset paths follow
-    Epic's naming ``SM_BLDG_<family>_L0<level>_A_<Piece>_N1`` under
-    ``/Game/Building/CH/<letter>/`` (all families wired so far are CH)."""
+    """The real ``Kit_Bldg_<family>_L<level>_A`` kit under
+    ``/Game/Building/<region>/<letter>/``. Mesh names follow Epic's
+    ``SM_BLDG_<family>_L<tag>_A_<Piece>_N1``, where the level tag is
+    zero-padded to two digits for CH families (``L01``) but not for SFA
+    (``L1``) -- ``pad_level`` selects which."""
+    tag = f"{level:02d}" if pad_level else str(level)
     base = (
-        f"/Game/Building/CH/{letter}/Kit_Bldg_{family}_L{level}_A/Mesh/"
-        f"SM_BLDG_{family}_L0{level}_A"
+        f"/Game/Building/{region}/{letter}/Kit_Bldg_{family}_L{level}_A/Mesh/"
+        f"SM_BLDG_{family}_L{tag}_A"
     )
     return BuildingKit(
         wall_asset_path=f"{base}_{wall_piece}_N1",
@@ -518,7 +553,7 @@ def _family_kit(  # pylint: disable=too-many-arguments
         corner_l_asset_path=f"{base}_CornerExL_01_N1",
         corner_r_asset_path=f"{base}_CornerExR_01_N1",
         entrance_asset_path=f"{base}_Entrance_01_N1" if has_entrance else None,
-        column_asset_path=f"{base}_{column_piece}_N1",
+        column_asset_path=f"{base}_{column_piece}_N1" if column_piece else None,
         wall_width_m=wall_width_m,
         column_width_m=column_width_m,
         corner_to_first_wall_m=corner_to_first_wall_m,
@@ -528,45 +563,62 @@ def _family_kit(  # pylint: disable=too-many-arguments
     )
 
 
-BUILDING_KITS: Dict[str, BuildingKit] = {
-    f"CHA_L{level}": _family_kit(
+BUILDING_KITS: Dict[str, BuildingKit] = {}
+for _level, _height in {**_CHA_FLOOR_HEIGHTS_M, **_CHA_TOP_FLOOR_HEIGHTS_M}.items():
+    BUILDING_KITS[f"CHA_L{_level}"] = _family_kit(
+        "CH",
         "CHA",
         "A",
-        level,
+        _level,
         wall_piece="Wall_01",
         column_piece="Column_01",
         wall_width_m=3.25,
         column_width_m=1.25,
         corner_to_first_wall_m=1.5,
-        floor_height_m=height,
-        has_entrance=level in _CHA_LEVELS_WITH_ENTRANCE,
+        floor_height_m=_height,
+        has_entrance=_level in _CHA_LEVELS_WITH_ENTRANCE,
     )
-    for level, height in _CHA_FLOOR_HEIGHTS_M.items()
-}
-BUILDING_KITS.update(
-    {
-        f"CHH_L{level}": _family_kit(
-            "CHH",
-            "H",
-            level,
-            wall_piece="Wall_01",
-            column_piece="Wall_02",
-            wall_width_m=1.25,
-            column_width_m=3.25,
-            corner_to_first_wall_m=1.0,
-            floor_height_m=height,
-        )
-        for level, height in _CHH_FLOOR_HEIGHTS_M.items()
-    }
-)
+for _level, _height in _CHH_FLOOR_HEIGHTS_M.items():
+    BUILDING_KITS[f"CHH_L{_level}"] = _family_kit(
+        "CH",
+        "CHH",
+        "H",
+        _level,
+        wall_piece="Wall_01",
+        column_piece="Wall_02",
+        wall_width_m=1.25,
+        column_width_m=3.25,
+        corner_to_first_wall_m=1.0,
+        floor_height_m=_height,
+    )
+for _level, _height in _SFA_FLOOR_HEIGHTS_M.items():
+    BUILDING_KITS[f"SFA_L{_level}"] = _family_kit(
+        "SF",
+        "SFA",
+        "A",
+        _level,
+        wall_piece="Wall_01",
+        column_piece=None,
+        wall_width_m=3.25,
+        column_width_m=0.0,
+        corner_to_first_wall_m=1.5,
+        floor_height_m=_height,
+        pad_level=False,
+    )
+
+
+def _kits(family: str, levels: Dict[int, float]) -> Tuple[BuildingKit, ...]:
+    return tuple(BUILDING_KITS[f"{family}_L{level}"] for level in levels)
+
 
 BUILDING_STYLES: Dict[str, BuildingStyle] = {
     "CHA": BuildingStyle(
-        name="CHA", levels=tuple(BUILDING_KITS[f"CHA_L{level}"] for level in _CHA_FLOOR_HEIGHTS_M)
+        name="CHA",
+        levels=_kits("CHA", _CHA_FLOOR_HEIGHTS_M),
+        top_levels=_kits("CHA", _CHA_TOP_FLOOR_HEIGHTS_M),
     ),
-    "CHH": BuildingStyle(
-        name="CHH", levels=tuple(BUILDING_KITS[f"CHH_L{level}"] for level in _CHH_FLOOR_HEIGHTS_M)
-    ),
+    "CHH": BuildingStyle(name="CHH", levels=_kits("CHH", _CHH_FLOOR_HEIGHTS_M)),
+    "SFA": BuildingStyle(name="SFA", levels=_kits("SFA", _SFA_FLOOR_HEIGHTS_M)),
 }
 
 DEFAULT_BUILDING_STYLE: BuildingStyle = BUILDING_STYLES["CHA"]

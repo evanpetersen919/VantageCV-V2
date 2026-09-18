@@ -236,8 +236,8 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
 
     Deterministic and RNG-free: footprint/height already fully determine
     every piece's position once quantized (see ``building_placement.py``).
-    Floor ``i`` uses ``style.kit_for_floor(i)`` and sits at
-    ``style.floor_base_z(i)``; every level of a style shares one
+    Each floor uses its kit from ``style.floor_kits(n)`` (a crown on
+    tall buildings) and sits at the sum of the floors below it; every level of a style shares one
     horizontal grid, so the same footprint tiles on every floor.
 
     Parameters
@@ -259,11 +259,10 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
     corner_reach = style.corner_to_first_wall_m
     wall_pitch = style.wall_pitch_m  # wall pivot to next wall pivot along an edge
 
+    floor_kits = style.floor_kits(num_floors)
     pieces: List[FacadePiece] = []
-    for floor_index in range(num_floors):
-        kit = style.kit_for_floor(floor_index)
-        z = style.floor_base_z(floor_index)
-
+    z = 0.0
+    for kit in floor_kits:
         for edge_index in range(4):
             start = corners[edge_index]
             # -edge_index, not +edge_index: solving
@@ -368,7 +367,7 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
                 # (rotation_rad + pi) as the wall it follows -- real data
                 # shows a real Column's own yaw always matches its
                 # neighboring walls' yaw on that edge.
-                if wall_index < wall_count - 1:
+                if kit.column_asset_path is not None and wall_index < wall_count - 1:
                     column_position = wall_position + direction * kit.wall_width_m
                     pieces.append(
                         FacadePiece(
@@ -377,5 +376,7 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
                             rotation_rad=rotation_rad + kit.wall_yaw_offset_rad,
                         )
                     )
+
+        z += kit.floor_height_m
 
     return pieces
