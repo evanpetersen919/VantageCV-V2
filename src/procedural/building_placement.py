@@ -60,59 +60,72 @@ MIN_BLOCK_AREA_SQ_METERS = 25.0
 # independently in this range, giving varied but plausible footprints.
 BUILDING_FOOTPRINT_SIDE_METERS = (8.0, 25.0)
 
-# Real City Sample "Kit_Bldg_CHA_L1_A" modular kit dimensions (meters),
-# measured via the live UE5 GetStaticMeshBounds debug RPC, not guessed --
-# see KNOWN_GAPS_AND_ISSUES.md. A building's width/depth/height must land on
-# exact multiples of these for building_facade.py's wall/corner/floor tiling
-# to close without a gap or overlap, so quantization happens here at
-# generation time -- the same precedent as RoadNetworkGenerator._axis_coords'
-# grid-cell quantization fix (see that module's docstring), not as a
-# rendering-time workaround.
-FACADE_WALL_MODULE_METERS = 3.25
-FACADE_CORNER_MODULE_METERS = 1.78
+# Real City Sample "Kit_Bldg_CHA_L1_A" modular kit dimensions (meters) --
+# converged from THREE independent real sources found in the actual
+# CitySample project on disk (not measured/inferred from our own
+# migrated-assets-only copy):
+#
+# 1. ``Content/Building/HDA/Bldg/BDF/CHA_primary.bdf``, a plain-JSON
+#    Houdini "Building Definition File" -- the real authored config
+#    Epic's own generator uses. ``Modules["1"]["C_E"]["Mod_Dim"] =
+#    [1.5, 5.0]`` for the plain exterior corner.
+# 2. ``Content/Building/Library/pointclouds/All_Buildings_Lineup_pc``,
+#    the real per-instance transform database (SQLite-backed point
+#    cloud) behind Epic's actual "Slice And Dice" building generator
+#    output -- read directly via a Python Editor Script
+#    (``unreal.PointCloud``/``PointCloudView`` API). Across many real
+#    generated buildings, a corner's distance to the first wall of the
+#    edge starting at that SAME corner (matching its own rotation) is
+#    exactly 150cm, matching BDF's Mod_Dim exactly; consecutive
+#    wall-to-wall spacing along a straight run is a consistent 450cm.
+# 3. The hand-placed reference assembly
+#    ``Content/Building/Library/Kit_Ref_Bldg/CHA_Ref_N1`` independently
+#    confirms the same 450cm wall-to-wall spacing, and confirms a
+#    corner's pivot IS the true rectangle vertex (no pivot-to-vertex
+#    offset) with no perpendicular offset for any piece on an edge --
+#    both still used below. (Its own corner-to-first-wall reading had
+#    appeared to be ~475cm, but that was very likely explained by an
+#    unfiltered intervening Column/Pillar module -- see
+#    ``CHA_primary.bdf``'s "P1" module -- not captured by the query at
+#    the time; the point cloud's much larger, unambiguous sample is
+#    trusted over that single, later-suspect reading.)
+#
+# The 450cm real wall spacing is LARGER than the wall mesh's own
+# measured bounding box (325cm, via GetStaticMeshBounds) by a real,
+# consistent 125cm -- apparently a deliberate reveal/gap between
+# consecutive wall panels in the real game, not a bug to "close up".
+#
+# Only ONE corner reservation per edge (at that edge's own start, not
+# both ends): the real point cloud shows the FAR (non-own) corner
+# connection is just whatever remainder is left in that specific
+# building's real dimensions, not a second fixed reservation -- our own
+# generator instead eliminates that remainder entirely by quantizing
+# footprint sides to exact multiples (see _quantize_footprint_side).
+FACADE_WALL_MODULE_METERS = 4.5
+FACADE_CORNER_TO_FIRST_WALL_METERS = 1.5
 FACADE_FLOOR_HEIGHT_METERS = 5.0
-
-# The corner asset's own pivot is NOT at its true outer architectural
-# corner point -- its measured local bounds (via GetStaticMeshBounds) are
-# asymmetric around the pivot (origin_x=-61.10, extent_x=88.90 -> local X
-# range [-150.00, +27.79]; origin_y=+61.10, extent_y=88.90 -> local Y
-# range [-27.79, +150.00]). Offset ``(0.0, 1.5)``, combined with
-# ``building_facade._rotate_2d``'s corrected (non-negated) rotation
-# convention (see that function's own docstring for the precise
-# rigid-rotation test that found and fixed the sign bug), reproduces a
-# near-exact (within ~2cm) flush match between a corner piece and the
-# FIRST wall of the edge that starts at that same corner (own edge) --
-# confirmed via exact numeric bbox reconstruction across all 4 corner
-# rotations, not just rotation_rad=0. The perpendicular (incoming edge)
-# side does not close this precisely with a single rigid offset, under
-# this mesh's real asymmetric geometry -- proven mathematically (a
-# least-squares fit has no zero-residual solution), not just observed.
-# See building_facade.py's own module docstring and
-# KNOWN_GAPS_AND_ISSUES.md for the current, honest state of that
-# remaining gap and its likely real fix (City Sample's own
-# CornerExL/CornerExR mirrored variants of this asset).
-FACADE_CORNER_LOCAL_OUTER_POINT_METERS = (0.0, 1.5)
 
 
 def _quantize_footprint_side(sampled_side: float) -> float:
     """Round a sampled width/depth up to the nearest exact
-    ``2*corner + N*wall`` module fit (smallest ``N >= 1`` covering
+    ``corner + N*wall`` module fit (smallest ``N >= 1`` covering
     ``sampled_side``) -- rounding up, never down, so a quantized building is
     never smaller than what density/setback logic already assumed when
     ``sampled_side`` was drawn from ``BUILDING_FOOTPRINT_SIDE_METERS``.
 
-    Two ``FACADE_CORNER_MODULE_METERS`` per side: each edge along this side
-    reserves the corner module at BOTH its own start AND (implicitly, via
-    the far corner's own reservation on the perpendicular edge) its end --
-    the real condition that lets the corner piece at each vertex connect
-    flush to both the edge that starts there and the edge that ends there
-    (see building_facade.py's own docstring and
-    FACADE_WALL_LOCAL_OUTER_FACE_X_METERS above for why both a corner AND
-    a wall offset are needed for this to close without a gap).
+    Only ONE ``FACADE_CORNER_TO_FIRST_WALL_METERS`` per side: a side (e.g.
+    width) is shared by two parallel edges (top and bottom), each with its
+    OWN start corner, each independently reserving the corner reach ONCE
+    at its own start and tiling walls to the far corner -- both edges have
+    the same length and are satisfied by this same single formula, so
+    there is no need to reserve the corner twice (see this module's
+    real-point-cloud-derived module-constants comment above for why a
+    corner only guarantees flush connection to its OWN edge in the first
+    place).
     """
-    usable_after_corners = sampled_side - 2.0 * FACADE_CORNER_MODULE_METERS
-    wall_count = max(1, int(np.ceil(usable_after_corners / FACADE_WALL_MODULE_METERS)))
-    return 2.0 * FACADE_CORNER_MODULE_METERS + wall_count * FACADE_WALL_MODULE_METERS
+    usable_after_corner = sampled_side - FACADE_CORNER_TO_FIRST_WALL_METERS
+    wall_count = max(1, int(np.ceil(usable_after_corner / FACADE_WALL_MODULE_METERS)))
+    return FACADE_CORNER_TO_FIRST_WALL_METERS + wall_count * FACADE_WALL_MODULE_METERS
 
 
 def _quantize_height(sampled_height: float) -> float:

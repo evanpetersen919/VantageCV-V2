@@ -1,53 +1,38 @@
 """Tile a building's quantized footprint with real City Sample modular
 building-kit pieces (wall/corner), instead of a flat procedural box.
 
-**Current, honest status (see KNOWN_GAPS_AND_ISSUES.md for the full,
-up-to-date writeup)**: wall-to-wall tiling along a single straight edge,
-and a corner piece's connection to the FIRST wall of its OWN edge, are
-both real, verified-flush (via exact numeric bbox reconstruction AND live
-screenshots) at every one of the 4 corner rotations -- not just
-rotation_rad=0. Two real, separate, confirmed bugs were fixed to get
-there:
-1. A wall piece's own tiling-step offset had a spurious extra +1 module
-   shift (leftover from testing done before the rotation fix below,
-   which had confounded two separate bugs together) -- removed; verified
-   against the wall's real measured local Y bounds
-   (``GetStaticMeshBounds``: local Y in [-325, 0] cm, i.e. mass spans
-   forward from the pivot, matching ``_BASE_TILING_DIRECTION`` directly).
-2. ``_rotate_2d`` (used for every piece's position offset -- corner
-   pivot-to-true-corner offset, and wall tiling-direction stepping) was
-   rotating by ``-rotation_rad`` instead of ``+rotation_rad``. This is a
-   DIFFERENT quantity from the mesh's own UE5 Yaw (which genuinely is
-   ``-rotation_rad`` degrees, per ``ProceduralScenarioLoader.cpp``) --
-   conflating "how the mesh visually rotates" with "how a position
-   offset for placing it should be computed" was the real, separate bug.
-   Found via a precise, falsifiable live test: a corner+wall pair
-   confirmed flush at rotation 0 was rigidly rotated to rotation -pi/2
-   (recomputing the wall's position-offset-from-corner at the new angle
-   using each candidate formula); the un-negated formula reproduced a
-   seamless join, the negated one left a large, visible gap. This also
-   flips the corner-index-to-rotation formula from ``-edge_index * 90``
-   to ``+edge_index * 90`` (re-derived and verified numerically against
-   all 4 real edge directions, not assumed by symmetry).
+**Module spacing and placement convention are converged from THREE
+independent real sources in the actual CitySample project** (not
+inferred from bounding boxes -- see ``building_placement.py``'s own
+module-constants comment for the full derivation):
+1. ``CHA_primary.bdf``, Epic's real Houdini building-definition config.
+2. ``All_Buildings_Lineup_pc``, the real per-instance transform point
+   cloud behind Epic's actual generator output, read directly via the
+   ``unreal.PointCloud``/``PointCloudView`` Python API.
+3. ``Kit_Ref_Bldg/CHA_Ref_N1``, a hand-placed reference assembly.
 
-**Real, remaining, NOT-yet-fixed limitation**: a corner piece's
-connection to the wall run of the PERPENDICULAR (incoming) edge -- the
-other one of the two edges that meet at that corner -- is not flush.
-Proven mathematically, not just observed: the ``CornerEx`` asset's own
-measured local bounds are asymmetric in a way that makes it geometrically
-impossible for a single rigid (translation-only) pivot offset to
-simultaneously flush-match both adjacent walls (confirmed via exact
-least-squares bbox reconstruction -- no zero-residual solution exists).
-City Sample ships ``CornerExL``/``CornerExR`` mirrored variants of this
-exact asset specifically for this (found via a real content search, not
-assumed), which is very likely the intended, correct fix -- alternating
-L/R per corner around the rectangle so each corner's two arms are
-individually right for both edges it touches. This was not completed or
-shipped this session: the L variant's own "own-edge" offset was not
-independently re-derived and confirmed live (only a numeric fit for its
-perpendicular/incoming side), so wiring it in without that verification
-would repeat the same mistake this docstring is warning against. See
-KNOWN_GAPS_AND_ISSUES.md for the concrete next step.
+A corner's pivot IS the building's true rectangle vertex (no
+pivot-to-vertex offset), and no perpendicular offset is needed for
+either walls or corners (source 3, cross-checked against source 2). A
+corner ONLY guarantees a flush connection to the edge that starts at it
+(matching its own rotation) -- not to the perpendicular edge that also
+touches it (source 2: the real point cloud's "far" corner connection is
+just whatever remainder a real building's actual dimensions leave, not
+a second fixed reservation). Our own generator eliminates that
+remainder entirely by quantizing footprint sides to exact
+``FACADE_CORNER_TO_FIRST_WALL_METERS + N*FACADE_WALL_MODULE_METERS``
+multiples (see ``building_placement.py``'s ``_quantize_footprint_side``),
+so every edge here closes exactly on its far corner's true vertex.
+
+The corner-index-to-rotation formula is ``+edge_index * 90`` degrees,
+and every position offset (corner placement, wall tiling-direction
+stepping) is computed via ``_rotate_2d`` applying the rotation directly
+(not negated) -- see that function's own docstring for a separate, real
+rotation-sign bug this session found and fixed: UE5's Yaw for the
+rendered mesh genuinely is ``-rotation_rad`` degrees (per
+``ProceduralScenarioLoader.cpp``), but that governs how the MESH
+rotates, not how a python-space POSITION offset for placing it should
+be computed -- conflating the two was the bug.
 
 No roof cap is generated -- the wall module's own top coping forms the
 roofline; open-top from directly above is a real, separate, deliberate
@@ -81,18 +66,12 @@ import numpy as np
 import numpy.typing as npt
 
 from src.procedural.building_placement import (
-    FACADE_CORNER_LOCAL_OUTER_POINT_METERS,
-    FACADE_CORNER_MODULE_METERS,
+    FACADE_CORNER_TO_FIRST_WALL_METERS,
     FACADE_FLOOR_HEIGHT_METERS,
     FACADE_WALL_MODULE_METERS,
     Building,
 )
 from src.procedural.city_sample_assets import BuildingKit
-
-# The corner asset's real outer point, relative to its own pivot, at
-# rotation_rad=0 -- see FACADE_CORNER_LOCAL_OUTER_POINT_METERS's own
-# comment for the real measurement this comes from and why it's needed.
-_CORNER_LOCAL_OUTER_POINT = np.array(FACADE_CORNER_LOCAL_OUTER_POINT_METERS)
 
 
 def _rotate_2d(vector: npt.NDArray[np.float64], rotation_rad: float) -> npt.NDArray[np.float64]:
@@ -215,46 +194,43 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
             rotation_rad = edge_index * _QUARTER_TURN_RAD
             direction = _rotate_2d(_BASE_TILING_DIRECTION, rotation_rad)
 
-            # The corner piece's pivot must sit outward of the true
-            # rectangle corner by its own rotated local-outer-point offset
-            # (see FACADE_CORNER_LOCAL_OUTER_POINT_METERS/_CORNER_LOCAL_OUTER_POINT)
-            # so that the piece's real outer point -- not its pivot --
-            # lands exactly on the building's true corner.
-            corner_position = start - _rotate_2d(_CORNER_LOCAL_OUTER_POINT, rotation_rad)
+            # The corner piece's pivot IS the true rectangle vertex --
+            # real, artist-placed reference-building evidence (see this
+            # module's own docstring) shows no pivot-to-vertex offset is
+            # used at all, unlike an earlier version of this module which
+            # (reasoning only from the mesh's own bounding box, with no
+            # real placement to check against) applied a real but wrong
+            # offset here.
             pieces.append(
                 FacadePiece(
                     asset_path=kit.corner_asset_path,
-                    position=np.array([corner_position[0], corner_position[1], z]),
+                    position=np.array([start[0], start[1], z]),
                     rotation_rad=rotation_rad,
                 )
             )
 
             edge_vector = corners[(edge_index + 1) % 4] - start
             edge_length = float(np.linalg.norm(edge_vector))
-            # Reserve FACADE_CORNER_MODULE_METERS at BOTH ends of the edge:
-            # this edge's own start corner, and the far vertex's corner
-            # (which belongs to the next edge but needs the same reserved
-            # gap on this edge's side to connect flush -- see
-            # FACADE_WALL_LOCAL_OUTER_FACE_X_METERS's own comment in
-            # building_placement.py for the full, exact-numeric-bbox-
-            # verified derivation of why both ends need it).
-            usable_length = edge_length - 2.0 * FACADE_CORNER_MODULE_METERS
+            # Reserve FACADE_CORNER_TO_FIRST_WALL_METERS only at THIS
+            # edge's own start corner (see this module's own docstring:
+            # the real point-cloud evidence shows a corner only
+            # guarantees flush connection to the edge that starts at it,
+            # matching its own rotation -- the far corner is reached
+            # exactly, zero remainder, because
+            # BuildingPlacementGenerator quantizes footprint sides to
+            # exact FACADE_CORNER_TO_FIRST_WALL_METERS + N*WALL_MODULE
+            # multiples).
+            usable_length = edge_length - FACADE_CORNER_TO_FIRST_WALL_METERS
             wall_count = max(0, round(usable_length / FACADE_WALL_MODULE_METERS))
 
             for wall_index in range(wall_count):
-                # Re-measured directly via GetStaticMeshBounds on the real
-                # wall asset (not assumed): origin_y=-162.5, extent_y=162.5
-                # -> local Y range [-325, 0], i.e. the wall's mass spans
-                # FORWARD from its pivot (at local Y=0) to Y=-325, exactly
-                # matching _BASE_TILING_DIRECTION=(0,-1). So piece i's
-                # pivot at offset i*WALL_MODULE already produces mass
-                # spanning [i*WALL_MODULE, (i+1)*WALL_MODULE] -- no extra
-                # "+1" shift is needed; an earlier version of this module
-                # added one anyway (a leftover from testing done before the
-                # rotation-sign fix, which had confounded the two bugs
-                # together), producing a full extra module of gap between
-                # every corner and its first wall.
-                offset = FACADE_CORNER_MODULE_METERS + wall_index * FACADE_WALL_MODULE_METERS
+                # Real, measured wall-to-wall spacing (this module's own
+                # docstring) -- wall_index=0 sits
+                # FACADE_CORNER_TO_FIRST_WALL_METERS from the corner; no
+                # perpendicular offset, matching the real reference
+                # building's own consistent per-edge perpendicular
+                # coordinate.
+                offset = FACADE_CORNER_TO_FIRST_WALL_METERS + wall_index * FACADE_WALL_MODULE_METERS
                 wall_position = start + direction * offset
                 pieces.append(
                     FacadePiece(
