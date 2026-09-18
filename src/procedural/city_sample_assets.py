@@ -66,7 +66,7 @@ every scenario template).
 
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 # Keys must match ActorPlacementGenerator's own VEHICLE_DIMENSIONS keys
 # exactly (sedan/suv/truck/bus) -- see actor_placement.py and every
@@ -347,7 +347,7 @@ class BuildingKit:  # pylint: disable=too-many-instance-attributes
     corner_asset_path: str
     corner_l_asset_path: str
     corner_r_asset_path: str
-    entrance_asset_path: str
+    entrance_asset_path: Optional[str]
     column_asset_path: str
     wall_width_m: float
     column_width_m: float
@@ -435,35 +435,53 @@ class BuildingStyle:
 # cumulative floor heights (float sums of BDF heights like 5.0 + 3.0 * n).
 _HEIGHT_EPSILON_METERS = 1e-6
 
-# Only one real kit is migrated so far (Kit_Bldg_CHA_L1_A -- a single
-# "Level 1" floor style; City Sample ships many more, e.g.
-# Kit_Bldg_CHA_L2_A through L21_A -- see KNOWN_GAPS_AND_ISSUES.md for the
-# real evidence on how Epic stacks them and the plan to migrate them).
-# Until more levels are migrated, the CHA style repeats L1 on every floor.
-#
-# Real numbers for CHA_L1 (see building_placement.py's evidence comment):
-# BDF W1 Mod_Dim 3.25m, P1 1.25m, C_E 1.5m, L1 floor Height 5.0m.
-_CHA_L1_BASE = "/Game/Building/CH/A/Kit_Bldg_CHA_L1_A/Mesh/SM_BLDG_CHA_L01_A"
+# Migrated CHA floor styles: Kit_Bldg_CHA_L1_A .. L6_A. Real numbers, all
+# from CHA_primary.bdf (Levels[N].Height and Modules[N].Mod_Dim), which
+# also match the real point-cloud spacing measured for L1 (see
+# building_placement.py's evidence comment):
+#   - Height: L1 = 5.0m (ground floor), L2..L6 = 3.0m.
+#   - Grid, identical for L1..L6: wall W1 3.25m, column P1 1.25m, corner
+#     C_E 1.5m (BuildingStyle enforces that shared grid).
+#   - L6 has BDF ``Repeat = 1`` and the real point cloud stacks it many
+#     times (L6 x24 in building 5), so the last level repeating is real.
+# Only CHA_L1's mesh-local yaw offsets (pi, pi/2) are live-screenshot
+# confirmed; L2..L6 reuse them on point-cloud evidence (identical yaw
+# deltas across kits) and must be confirmed live before being trusted.
+_CHA_FLOOR_HEIGHTS_M = {1: 5.0, 2: 3.0, 3: 3.0, 4: 3.0, 5: 3.0, 6: 3.0}
+# Levels that actually ship an Entrance mesh (the generator never emits it).
+_CHA_LEVELS_WITH_ENTRANCE = {1, 2}
 
-BUILDING_KITS: Dict[str, BuildingKit] = {
-    "CHA_L1": BuildingKit(
-        wall_asset_path=f"{_CHA_L1_BASE}_Wall_01_N1",
-        corner_asset_path=f"{_CHA_L1_BASE}_CornerEx_01_N1",
-        corner_l_asset_path=f"{_CHA_L1_BASE}_CornerExL_01_N1",
-        corner_r_asset_path=f"{_CHA_L1_BASE}_CornerExR_01_N1",
-        entrance_asset_path=f"{_CHA_L1_BASE}_Entrance_01_N1",
-        column_asset_path=f"{_CHA_L1_BASE}_Column_01_N1",
+
+def _cha_kit(level: int) -> BuildingKit:
+    """The real ``Kit_Bldg_CHA_L<level>_A`` kit (asset paths follow the
+    real naming ``SM_BLDG_CHA_L0<level>_A_<Piece>_01_N1``)."""
+    base = f"/Game/Building/CH/A/Kit_Bldg_CHA_L{level}_A/Mesh/SM_BLDG_CHA_L0{level}_A"
+    return BuildingKit(
+        wall_asset_path=f"{base}_Wall_01_N1",
+        corner_asset_path=f"{base}_CornerEx_01_N1",
+        corner_l_asset_path=f"{base}_CornerExL_01_N1",
+        corner_r_asset_path=f"{base}_CornerExR_01_N1",
+        entrance_asset_path=(
+            f"{base}_Entrance_01_N1" if level in _CHA_LEVELS_WITH_ENTRANCE else None
+        ),
+        column_asset_path=f"{base}_Column_01_N1",
         wall_width_m=3.25,
         column_width_m=1.25,
         corner_to_first_wall_m=1.5,
-        floor_height_m=5.0,
+        floor_height_m=_CHA_FLOOR_HEIGHTS_M[level],
         wall_yaw_offset_rad=math.pi,
         corner_yaw_offset_rad=math.pi / 2.0,
-    ),
+    )
+
+
+BUILDING_KITS: Dict[str, BuildingKit] = {
+    f"CHA_L{level}": _cha_kit(level) for level in _CHA_FLOOR_HEIGHTS_M
 }
 
 BUILDING_STYLES: Dict[str, BuildingStyle] = {
-    "CHA": BuildingStyle(name="CHA", levels=(BUILDING_KITS["CHA_L1"],)),
+    "CHA": BuildingStyle(
+        name="CHA", levels=tuple(BUILDING_KITS[f"CHA_L{level}"] for level in _CHA_FLOOR_HEIGHTS_M)
+    ),
 }
 
 DEFAULT_BUILDING_STYLE: BuildingStyle = BUILDING_STYLES["CHA"]
