@@ -36,7 +36,7 @@ set.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Sequence, Set, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -275,7 +275,7 @@ def _classify_building_type(height: float, height_range: Tuple[float, float]) ->
 
 
 @dataclass(eq=False)
-class Building:
+class Building:  # pylint: disable=too-many-instance-attributes
     """A single procedurally placed building footprint."""
 
     building_id: int
@@ -285,6 +285,7 @@ class Building:
     height: float
     building_type: BuildingType = BuildingType.MIXED_USE
     material: str = "concrete"
+    style_name: str = DEFAULT_BUILDING_STYLE.name
 
     def __hash__(self) -> int:
         return hash(self.building_id)
@@ -387,7 +388,7 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
         self,
         seed: int,
         config: ScenarioTypeConfig,
-        style: BuildingStyle = DEFAULT_BUILDING_STYLE,
+        styles: Sequence[BuildingStyle] = (DEFAULT_BUILDING_STYLE,),
     ) -> None:
         """
         Parameters
@@ -396,15 +397,27 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
             Arbitrary-size non-negative integer seed for reproducibility.
         config : ScenarioTypeConfig
             Provides ``building_density`` and ``building_heights``.
-        style : BuildingStyle
-            The facade style whose real grid/floor heights every placed
-            building's footprint and height are quantized to.
+        styles : Sequence[BuildingStyle]
+            The facade styles buildings may use. Each placed building
+            draws one (recorded as ``Building.style_name``) and its
+            footprint and height are quantized to THAT style's real grid
+            and floor heights. With a single style no extra random draw is
+            made, so single-style output is unchanged.
         """
+        if not styles:
+            raise ValueError("BuildingPlacementGenerator needs at least one style")
         self.seed = seed
         self.config = config
-        self.style = style
+        self.styles = tuple(styles)
         self.rng = np.random.Generator(np.random.PCG64(seed))
         self._building_counter = 0
+
+    def _pick_style(self) -> BuildingStyle:
+        """Uniformly pick one of ``self.styles`` (no random draw when there
+        is only one, keeping single-style output identical)."""
+        if len(self.styles) == 1:
+            return self.styles[0]
+        return self.styles[int(self.rng.integers(len(self.styles)))]
 
     def generate(self, nodes: Dict[int, RoadNode], edges: Dict[int, RoadEdge]) -> List[Building]:
         """Identify city blocks and place buildings within them.
@@ -585,16 +598,17 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
 
             placed_this_slot = False
             for _attempt in range(MAX_PLACEMENT_ATTEMPTS_PER_BLOCK):
+                style = self._pick_style()
                 width = _quantize_footprint_side(
-                    self.rng.uniform(*BUILDING_FOOTPRINT_SIDE_METERS), self.style
+                    self.rng.uniform(*BUILDING_FOOTPRINT_SIDE_METERS), style
                 )
                 depth = _quantize_footprint_side(
-                    self.rng.uniform(*BUILDING_FOOTPRINT_SIDE_METERS), self.style
+                    self.rng.uniform(*BUILDING_FOOTPRINT_SIDE_METERS), style
                 )
                 center = np.array([self.rng.uniform(x_min, x_max), self.rng.uniform(y_min, y_max)])
                 height = _quantize_height(
                     self.rng.uniform(*self.config.building_heights),
-                    self.style,
+                    style,
                     self.config.building_heights[1],
                 )
                 building_type = _classify_building_type(height, self.config.building_heights)
@@ -608,6 +622,7 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
                     height=height,
                     building_type=building_type,
                     material=material,
+                    style_name=style.name,
                 )
 
                 if not _polygon_contains_point(block, center):

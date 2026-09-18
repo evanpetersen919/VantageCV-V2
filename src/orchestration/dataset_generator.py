@@ -27,7 +27,7 @@ from src.ground_truth.bbox_3d import (
 from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
 from src.procedural.building_facade import FacadePiece, generate_building_facade_pieces
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
-from src.procedural.city_sample_assets import DEFAULT_BUILDING_STYLE
+from src.procedural.city_sample_assets import BUILDING_STYLES
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
@@ -94,7 +94,7 @@ def generate_scenario(  # pylint: disable=too-many-locals
     nodes, edges = road_gen.generate(bounds)
 
     lanes = LaneTopologyGenerator().generate(nodes, edges)
-    buildings = BuildingPlacementGenerator(seed, config, DEFAULT_BUILDING_STYLE).generate(
+    buildings = BuildingPlacementGenerator(seed, config, tuple(BUILDING_STYLES.values())).generate(
         nodes, edges
     )
     traffic = TrafficNetworkGenerator().generate(nodes, edges, lanes)
@@ -125,7 +125,9 @@ def generate_scenario(  # pylint: disable=too-many-locals
 
     building_facade_pieces: List[FacadePiece] = []
     for building in buildings:
-        building_facade_pieces += generate_building_facade_pieces(building, DEFAULT_BUILDING_STYLE)
+        building_facade_pieces += generate_building_facade_pieces(
+            building, BUILDING_STYLES[building.style_name]
+        )
 
     validation_report = ScenarioValidator().validate(
         bounds, nodes, edges, lanes, buildings, meshes, vehicles, pedestrians, lane_connectivity

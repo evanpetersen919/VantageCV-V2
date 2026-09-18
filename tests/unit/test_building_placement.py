@@ -5,6 +5,8 @@ overlap, no building-road overlap, buildings within bounds, density
 roughly matches config.
 """
 
+import dataclasses
+
 import numpy as np
 import pytest
 from shapely.geometry import Polygon
@@ -24,7 +26,7 @@ from src.procedural.building_placement import (
     _quantize_height,
     _segment_intersects_aabb,
 )
-from src.procedural.city_sample_assets import DEFAULT_BUILDING_STYLE
+from src.procedural.city_sample_assets import BUILDING_KITS, DEFAULT_BUILDING_STYLE, BuildingStyle
 from src.procedural.lane_topology import LaneTopologyGenerator
 from src.procedural.mesh_factory import MeshFactory
 from src.procedural.road_network import (
@@ -521,3 +523,54 @@ def test_quantize_height_never_exceeds_max_height() -> None:
         for sampled in np.linspace(5.0, max_height, 25):
             quantized = _quantize_height(float(sampled), style, max_height)
             assert quantized <= max_height + 1e-9
+
+
+def _wide_grid_style() -> BuildingStyle:
+    """A second synthetic style with a different horizontal grid and
+    different floor height, standing in for another building family."""
+    kit = dataclasses.replace(
+        BUILDING_KITS["CHA_L1"], wall_width_m=3.75, corner_to_first_wall_m=2.0, floor_height_m=4.0
+    )
+    return BuildingStyle(name="WIDE", levels=(kit,))
+
+
+def test_multiple_styles_are_used_and_each_building_quantized_to_its_own(
+    urban_config, bounds
+) -> None:
+    """With two styles, both appear, and every building's footprint and
+    height are exact fits of the style recorded on that building."""
+    nodes, edges = RoadNetworkGenerator(42, urban_config).generate(bounds)
+    wide = _wide_grid_style()
+    styles = {DEFAULT_BUILDING_STYLE.name: DEFAULT_BUILDING_STYLE, wide.name: wide}
+
+    buildings = BuildingPlacementGenerator(42, urban_config, tuple(styles.values())).generate(
+        nodes, edges
+    )
+
+    assert {b.style_name for b in buildings} == set(styles)
+    for building in buildings:
+        style = styles[building.style_name]
+        for side in (building.width, building.depth):
+            wall_count = (side - style.corner_to_first_wall_m) / style.wall_pitch_m
+            assert wall_count == pytest.approx(round(wall_count), abs=1e-6)
+        floors = style.floor_count_for_height(building.height)
+        assert style.total_height(floors) == pytest.approx(building.height, abs=1e-6)
+
+
+def test_multi_style_placement_is_deterministic(urban_config, bounds) -> None:
+    """The same seed and styles give identical styles/footprints."""
+    nodes, edges = RoadNetworkGenerator(42, urban_config).generate(bounds)
+    styles = (DEFAULT_BUILDING_STYLE, _wide_grid_style())
+
+    first = BuildingPlacementGenerator(42, urban_config, styles).generate(nodes, edges)
+    second = BuildingPlacementGenerator(42, urban_config, styles).generate(nodes, edges)
+
+    assert [(b.style_name, b.width, b.depth, b.height) for b in first] == [
+        (b.style_name, b.width, b.depth, b.height) for b in second
+    ]
+
+
+def test_generator_rejects_empty_style_list(urban_config) -> None:
+    """At least one style is required."""
+    with pytest.raises(ValueError):
+        BuildingPlacementGenerator(42, urban_config, ())
