@@ -74,7 +74,7 @@ corner).
 **The corner-to-first-wall join was NOT the bug.** This session's
 specific re-measurement task was to check whether the visible top-down
 gap at every corner turn (reported after live screenshot verification)
-was because ``FACADE_CORNER_TO_FIRST_WALL_METERS`` (1.5m) didn't match
+was because ``BuildingKit.corner_to_first_wall_m`` (1.5m for CHA_L1) didn't match
 real data. It does, exactly: 16/16 real corner-vertex-to-first-owned-
 wall measurements in the point cloud came back at precisely 150cm, zero
 exceptions, fully independent of building footprint size. The real,
@@ -84,7 +84,7 @@ changes above, not a constant change here.
 Our own generator eliminates the far-corner reservation remainder
 (present in Epic's real buildings, since each edge otherwise tiles
 independently from its own corner) by quantizing footprint sides to
-exact ``FACADE_CORNER_TO_FIRST_WALL_METERS + N*FACADE_WALL_MODULE_METERS``
+exact ``corner_to_first_wall_m + N*wall_pitch_m``
 multiples (see ``building_placement.py``'s ``_quantize_footprint_side``),
 so every edge here closes exactly on its far corner's true vertex.
 
@@ -116,8 +116,8 @@ building with no distinct entrance at all, so this module never selects
 to revisit this once the material issue is actually diagnosed.
 
 Building.aabb/.height must already be quantized to exact
-``FACADE_WALL_MODULE_METERS``/``FACADE_CORNER_MODULE_METERS``/
-``FACADE_FLOOR_HEIGHT_METERS`` multiples (BuildingPlacementGenerator does
+``BuildingStyle`` grid multiples (``corner_to_first_wall_m + N*wall_pitch_m``)
+and whole-floor-stack heights (BuildingPlacementGenerator does
 this at generation time -- see that module) for the tiling below to close
 without a gap or overlap.
 
@@ -144,14 +144,8 @@ from typing import List
 import numpy as np
 import numpy.typing as npt
 
-from src.procedural.building_placement import (
-    FACADE_CORNER_TO_FIRST_WALL_METERS,
-    FACADE_FLOOR_HEIGHT_METERS,
-    FACADE_WALL_MODULE_METERS,
-    FACADE_WALL_REAL_WIDTH_METERS,
-    Building,
-)
-from src.procedural.city_sample_assets import BuildingKit
+from src.procedural.building_placement import Building
+from src.procedural.city_sample_assets import BuildingStyle
 
 
 def _rotate_2d(vector: npt.NDArray[np.float64], rotation_rad: float) -> npt.NDArray[np.float64]:
@@ -230,37 +224,42 @@ class FacadePiece:
 
 
 def generate_building_facade_pieces(  # pylint: disable=too-many-locals
-    building: Building, kit: BuildingKit
+    building: Building, style: BuildingStyle
 ) -> List[FacadePiece]:
-    """Tile ``building``'s quantized footprint, per floor, with ``kit``'s
-    real wall/corner/column pieces (``kit.entrance_asset_path`` is
-    deliberately not used yet -- see this module's own docstring).
+    """Tile ``building``'s quantized footprint, per floor, with the real
+    wall/corner/column pieces of each floor's kit
+    (``kit.entrance_asset_path`` is deliberately not used yet -- see this
+    module's own docstring).
 
     Deterministic and RNG-free: footprint/height already fully determine
     every piece's position once quantized (see ``building_placement.py``).
-    Every floor reuses the same ``kit`` -- a real, accepted v1 limitation
-    since only one City Sample floor style is migrated so far (see this
-    module's own docstring and KNOWN_GAPS_AND_ISSUES.md).
+    Floor ``i`` uses ``style.kit_for_floor(i)`` and sits at
+    ``style.floor_base_z(i)``; every level of a style shares one
+    horizontal grid, so the same footprint tiles on every floor.
 
     Parameters
     ----------
     building : Building
-        Must already have quantized width/depth/height (true for every
-        Building produced by BuildingPlacementGenerator).
-    kit : BuildingKit
-        Real asset paths, dimensioned to match
-        FACADE_WALL_MODULE_METERS/FACADE_CORNER_MODULE_METERS exactly.
+        Must already have footprint and height quantized to ``style``
+        (true for every Building produced by a
+        BuildingPlacementGenerator built with the same ``style``).
+    style : BuildingStyle
+        Real per-floor kits, whose grid/heights the building was
+        quantized to.
 
     Returns
     -------
     List[FacadePiece]
     """
     corners = _corner_points(building)
-    num_floors = max(1, round(building.height / FACADE_FLOOR_HEIGHT_METERS))
+    num_floors = style.floor_count_for_height(building.height)
+    corner_reach = style.corner_to_first_wall_m
+    wall_pitch = style.wall_pitch_m
 
     pieces: List[FacadePiece] = []
     for floor_index in range(num_floors):
-        z = floor_index * FACADE_FLOOR_HEIGHT_METERS
+        kit = style.kit_for_floor(floor_index)
+        z = style.floor_base_z(floor_index)
 
         for edge_index in range(4):
             start = corners[edge_index]
@@ -290,9 +289,9 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
             # no pivot-to-vertex offset (real reference-building
             # evidence, this module's own docstring).
             #
-            # The extra `+ _QUARTER_TURN_RAD` on the STORED (rendered)
+            # The extra `+ kit.corner_yaw_offset_rad` (pi/2 for CHA_L1) on the STORED (rendered)
             # rotation is the same class of fix as the wall's own
-            # `+ math.pi` above: the corner mesh's own local orientation
+            # `+ kit.wall_yaw_offset_rad` above: the corner mesh's own local orientation
             # convention is a quarter turn off from the own-edge tiling
             # rotation this loop otherwise computes. Live-screenshot-
             # confirmed: without this offset, a top-down shot showed the
@@ -309,32 +308,32 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
                 FacadePiece(
                     asset_path=kit.corner_asset_path,
                     position=np.array([start[0], start[1], z]),
-                    rotation_rad=rotation_rad + _QUARTER_TURN_RAD,
+                    rotation_rad=rotation_rad + kit.corner_yaw_offset_rad,
                 )
             )
 
             edge_vector = corners[(edge_index + 1) % 4] - start
             edge_length = float(np.linalg.norm(edge_vector))
-            # Reserve FACADE_CORNER_TO_FIRST_WALL_METERS only at THIS
+            # Reserve corner_to_first_wall_m only at THIS
             # edge's own start corner (see this module's own docstring:
             # the real point-cloud evidence shows a corner only
             # guarantees flush connection to the edge that starts at it,
             # matching its own rotation -- the far corner is reached
             # exactly, zero remainder, because
             # BuildingPlacementGenerator quantizes footprint sides to
-            # exact FACADE_CORNER_TO_FIRST_WALL_METERS + N*WALL_MODULE
+            # exact corner_to_first_wall_m + N*wall_pitch_m
             # multiples).
-            usable_length = edge_length - FACADE_CORNER_TO_FIRST_WALL_METERS
-            wall_count = max(0, round(usable_length / FACADE_WALL_MODULE_METERS))
+            usable_length = edge_length - corner_reach
+            wall_count = max(0, round(usable_length / wall_pitch))
 
             for wall_index in range(wall_count):
                 # Real, measured wall-to-wall spacing (this module's own
                 # docstring) -- wall_index=0 sits
-                # FACADE_CORNER_TO_FIRST_WALL_METERS from the corner; no
+                # corner_to_first_wall_m from the corner; no
                 # perpendicular offset, matching the real reference
                 # building's own consistent per-edge perpendicular
                 # coordinate.
-                offset = FACADE_CORNER_TO_FIRST_WALL_METERS + wall_index * FACADE_WALL_MODULE_METERS
+                offset = corner_reach + wall_index * wall_pitch
                 wall_position = start + direction * offset
                 # The wall mesh's decorative/window face is on the OPPOSITE
                 # local side from the tiling-direction convention validated
@@ -353,7 +352,7 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
                     FacadePiece(
                         asset_path=kit.wall_asset_path,
                         position=np.array([wall_position[0], wall_position[1], z]),
-                        rotation_rad=rotation_rad + math.pi,
+                        rotation_rad=rotation_rad + kit.wall_yaw_offset_rad,
                     )
                 )
 
@@ -373,12 +372,12 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
                 # shows a real Column's own yaw always matches its
                 # neighboring walls' yaw on that edge.
                 if wall_index < wall_count - 1:
-                    column_position = wall_position + direction * FACADE_WALL_REAL_WIDTH_METERS
+                    column_position = wall_position + direction * kit.wall_width_m
                     pieces.append(
                         FacadePiece(
                             asset_path=kit.column_asset_path,
                             position=np.array([column_position[0], column_position[1], z]),
-                            rotation_rad=rotation_rad + math.pi,
+                            rotation_rad=rotation_rad + kit.wall_yaw_offset_rad,
                         )
                     )
 

@@ -64,8 +64,9 @@ classification), giving both categories real variety consistent with
 every scenario template).
 """
 
+import math
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 # Keys must match ActorPlacementGenerator's own VEHICLE_DIMENSIONS keys
 # exactly (sedan/suv/truck/bus) -- see actor_placement.py and every
@@ -313,30 +314,33 @@ VEHICLE_PART_PATHS: Dict[str, List[str]] = {
 
 
 @dataclass(frozen=True)
-class BuildingKit:
-    """One City Sample modular building kit's real wall/corner/column/
-    entrance asset paths, plus the real dimensions (meters) those pieces
-    were measured at via the live UE5 ``GetStaticMeshBounds`` debug RPC
-    and cross-checked against ``CHA_primary.bdf``'s own authored
-    ``Mod_Dim`` values and ``All_Buildings_Lineup_pc`` real per-instance
-    spacing (not guessed) -- see ``building_placement.py``'s own
-    ``FACADE_WALL_MODULE_METERS``/``FACADE_WALL_REAL_WIDTH_METERS``/
-    ``FACADE_CORNER_TO_FIRST_WALL_METERS``/``FACADE_FLOOR_HEIGHT_METERS``,
-    which every ``BuildingKit`` must match exactly for
-    ``building_facade.py``'s tiling math to close without a gap or
-    overlap. Wall and entrance pieces share the same width/pivot
-    convention (pivot at one width-edge, extending toward the other) so
-    an entrance can substitute directly into any wall slot.
+class BuildingKit:  # pylint: disable=too-many-instance-attributes
+    """One City Sample modular building kit (one floor style, e.g.
+    ``Kit_Bldg_CHA_L1_A``): its real wall/corner/column/entrance asset
+    paths plus the real horizontal grid and floor height its pieces tile
+    on.
 
-    ``column_asset_path`` (``SM_BLDG_CHA_L01_A_Column_01_N1``, real BDF
-    module id ``P1``, ``Mod_Dim=[1.25, 5.0]``) is the piece real City
-    Sample buildings place in the 125cm gap between consecutive wall
-    modules on any edge that carries at least one entrance -- see
-    ``generate_building_facade_pieces``'s own docstring for the real
-    point-cloud evidence (Wall->Column->Wall->Column... at an exact,
-    zero-exception 325cm/125cm alternation, across 128 real column
-    instances and 152 real wall instances spanning 4 real buildings) that
-    motivated wiring this in.
+    Every dimension is a real, evidence-backed number, never guessed:
+    ``wall_width_m``/``column_width_m``/``corner_to_first_wall_m`` are the
+    BDF (``CHA_primary.bdf``) ``Mod_Dim`` widths of modules ``W1``/``P1``/
+    ``C_E`` for this level, independently confirmed against the real
+    per-instance spacing in ``All_Buildings_Lineup_pc`` (see
+    ``building_placement.py``'s module-constants comment for the CHA_L1
+    derivation); ``floor_height_m`` is the BDF ``Levels[N].Height``.
+
+    Wall and entrance pieces share the same width/pivot convention (pivot
+    at one width-edge, extending toward the other) so an entrance can
+    substitute directly into any wall slot. ``column_asset_path`` (BDF
+    module ``P1``) fills the gap between consecutive walls.
+
+    ``wall_yaw_offset_rad``/``corner_yaw_offset_rad`` are this kit's
+    mesh-local orientation conventions: the extra yaw added to a wall
+    (and its column) / corner piece's per-edge tiling rotation so its
+    decorative face points outward and its trim wraps the vertex flush.
+    They are properties of the specific meshes, not universal: CHA_L1's
+    (pi and pi/2) were live-screenshot-confirmed. Point-cloud yaw deltas
+    suggest other kits share them, but that is inference -- confirm each
+    new kit with a live orientation screenshot before trusting it.
     """
 
     wall_asset_path: str
@@ -345,14 +349,100 @@ class BuildingKit:
     corner_r_asset_path: str
     entrance_asset_path: str
     column_asset_path: str
+    wall_width_m: float
+    column_width_m: float
+    corner_to_first_wall_m: float
+    floor_height_m: float
+    wall_yaw_offset_rad: float
+    corner_yaw_offset_rad: float
 
+    @property
+    def wall_pitch_m(self) -> float:
+        """Distance between consecutive wall pivots along an edge: one
+        wall plus the column that fills the gap after it."""
+        return self.wall_width_m + self.column_width_m
+
+
+@dataclass(frozen=True)
+class BuildingStyle:
+    """An ordered stack of floor kits making up one building family (e.g.
+    Epic's ``CHA``: L1 as the ground floor, then L2, L3, ...). Floor ``i``
+    uses ``levels[i]``; floors past the end of ``levels`` repeat the last
+    entry.
+
+    All levels of one style must share the same horizontal grid (wall
+    width, column width, corner reach) -- that is what lets a single
+    quantized footprint tile correctly on every floor -- and a style
+    rejects a mismatch at construction. Only floor heights may differ
+    between levels (real CHA: L1 is 5.0m, L2..L11 are mostly 3.0m).
+    """
+
+    name: str
+    levels: Tuple[BuildingKit, ...]
+
+    def __post_init__(self) -> None:
+        if not self.levels:
+            raise ValueError("BuildingStyle needs at least one level")
+        grid = self._grid(self.levels[0])
+        for kit in self.levels[1:]:
+            if self._grid(kit) != grid:
+                raise ValueError(
+                    f"BuildingStyle {self.name!r}: every level must share one horizontal "
+                    f"grid (wall/column/corner widths), got {self._grid(kit)} != {grid}"
+                )
+
+    @staticmethod
+    def _grid(kit: BuildingKit) -> Tuple[float, float, float]:
+        return (kit.wall_width_m, kit.column_width_m, kit.corner_to_first_wall_m)
+
+    @property
+    def wall_pitch_m(self) -> float:
+        """Shared wall-to-wall pitch of every level (see ``BuildingKit``)."""
+        return self.levels[0].wall_pitch_m
+
+    @property
+    def wall_width_m(self) -> float:
+        """Shared real wall width of every level."""
+        return self.levels[0].wall_width_m
+
+    @property
+    def corner_to_first_wall_m(self) -> float:
+        """Shared corner-vertex-to-first-wall distance of every level."""
+        return self.levels[0].corner_to_first_wall_m
+
+    def kit_for_floor(self, floor_index: int) -> BuildingKit:
+        """The kit used by floor ``floor_index`` (0 = ground floor)."""
+        return self.levels[min(floor_index, len(self.levels) - 1)]
+
+    def floor_base_z(self, floor_index: int) -> float:
+        """Height (meters) of floor ``floor_index``'s base above ground."""
+        return sum(self.kit_for_floor(i).floor_height_m for i in range(floor_index))
+
+    def total_height(self, floor_count: int) -> float:
+        """Total height (meters) of a ``floor_count``-floor building."""
+        return self.floor_base_z(floor_count)
+
+    def floor_count_for_height(self, height: float) -> int:
+        """Smallest floor count (at least 1) whose total height is at
+        least ``height`` -- rounding up, never down."""
+        floor_count = 1
+        while self.total_height(floor_count) < height - _HEIGHT_EPSILON_METERS:
+            floor_count += 1
+        return floor_count
+
+
+# Tolerance for comparing a sampled/stored height against a stack's exact
+# cumulative floor heights (float sums of BDF heights like 5.0 + 3.0 * n).
+_HEIGHT_EPSILON_METERS = 1e-6
 
 # Only one real kit is migrated so far (Kit_Bldg_CHA_L1_A -- a single
 # "Level 1" floor style; City Sample ships many more, e.g.
-# Kit_Bldg_CHA_L2_A through L21_A, for real per-floor variety, deliberately
-# not migrated yet -- see KNOWN_GAPS_AND_ISSUES.md for the real, accepted
-# v1 limitation this creates: every floor of a multi-floor building reuses
-# this same style).
+# Kit_Bldg_CHA_L2_A through L21_A -- see KNOWN_GAPS_AND_ISSUES.md for the
+# real evidence on how Epic stacks them and the plan to migrate them).
+# Until more levels are migrated, the CHA style repeats L1 on every floor.
+#
+# Real numbers for CHA_L1 (see building_placement.py's evidence comment):
+# BDF W1 Mod_Dim 3.25m, P1 1.25m, C_E 1.5m, L1 floor Height 5.0m.
 _CHA_L1_BASE = "/Game/Building/CH/A/Kit_Bldg_CHA_L1_A/Mesh/SM_BLDG_CHA_L01_A"
 
 BUILDING_KITS: Dict[str, BuildingKit] = {
@@ -363,5 +453,17 @@ BUILDING_KITS: Dict[str, BuildingKit] = {
         corner_r_asset_path=f"{_CHA_L1_BASE}_CornerExR_01_N1",
         entrance_asset_path=f"{_CHA_L1_BASE}_Entrance_01_N1",
         column_asset_path=f"{_CHA_L1_BASE}_Column_01_N1",
+        wall_width_m=3.25,
+        column_width_m=1.25,
+        corner_to_first_wall_m=1.5,
+        floor_height_m=5.0,
+        wall_yaw_offset_rad=math.pi,
+        corner_yaw_offset_rad=math.pi / 2.0,
     ),
 }
+
+BUILDING_STYLES: Dict[str, BuildingStyle] = {
+    "CHA": BuildingStyle(name="CHA", levels=(BUILDING_KITS["CHA_L1"],)),
+}
+
+DEFAULT_BUILDING_STYLE: BuildingStyle = BUILDING_STYLES["CHA"]

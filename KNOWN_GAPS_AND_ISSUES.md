@@ -24,6 +24,17 @@ This entry is a quick-reference index for the three detailed entries directly be
 
 **Every one of these six numbers/rules traces to a specific real measurement** in the actual CitySample project (Houdini BDF config, the real per-instance point cloud, or a hand-placed reference assembly) or a specific falsifiable live UE5 screenshot test -- never guessed. See `src/procedural/building_facade.py`'s and `src/procedural/building_placement.py`'s own module docstrings for the exact real numbers and sources, restated inline next to the code they justify (the most convenient reference for day-to-day work); see the three entries immediately below for the full historical debugging narrative (what was wrong, how it was found, in what order) if you need it.
 
+**Where the numbers live now**: on `BuildingKit` (one floor style: asset paths, `wall_width_m`, `column_width_m`, `corner_to_first_wall_m`, `floor_height_m`, and the mesh-local `wall_yaw_offset_rad`/`corner_yaw_offset_rad`) and `BuildingStyle` (an ordered stack of kits, floor `i` uses `levels[i]`, the last repeats) in `city_sample_assets.py`. `BuildingPlacementGenerator` and `generate_building_facade_pieces` take a `BuildingStyle` (default `DEFAULT_BUILDING_STYLE`, CHA). Levels of one style must share a horizontal grid (enforced at construction); only floor heights may differ. Today the CHA style has just `CHA_L1`, so it repeats L1 on every floor (output verified identical to the pre-refactor generator).
+
+**Checklist to add a new kit/level** (never skip a step; every value needs cited evidence):
+1. Migrate the kit's meshes, materials and textures with Epic's Migrate tool (see the material-migration entries below for the precedent).
+2. Read the kit's BDF `Mod_Dim` (wall W1, column P1, corner C_E) and `Levels[N].Height`; confirm against real point-cloud spacing for that kit (wall pitch, corner-to-first-wall).
+3. Add a `BuildingKit` with those numbers; put it in a `BuildingStyle` in the right level order.
+4. Confirm the two mesh-local yaw offsets with a LIVE screenshot (marker at the building center for wall facing; top-down for corner trim). Point-cloud yaw deltas suggest CHA L2-L11 and other families match CHA_L1's (pi, pi/2), but that is inference until screenshotted.
+5. Add or extend unit tests, run the full suite and lint, update this entry.
+
+**Real per-level evidence (read-only inventory, CitySample point cloud + BDFs)**: Epic uses `CHA_L1` once as the 5.0m ground floor, then `L2`..`L11` (mostly 3.0m) above; floor Z-steps match BDF heights exactly (CHA 209/209). `L1`..`L11` share the 3.25/1.5/1.25 grid; `L12`+ change it. Not yet determined: the exact `LevelsGrammar`/`Repeat` semantics. About a third of real `CHA_L1` walls (48/152) are Y-scaled 1.02-1.21 (same no-scale-field gap as below).
+
 **Known, deliberately-not-implemented real limitation**: one real CitySample building variant (no entrances) non-uniformly SCALES its wall modules to fill an edge with zero remainder instead of using fixed-period walls+columns. This project's `FacadePiece`/scenario-serializer convention has no per-instance mesh-scale field, so that variant isn't represented -- a real, flagged gap for a future session, not a silent one.
 
 ### [RESOLVED] Buildings were flat textured boxes -- now real modular City Sample facades (walls/corners, tiled), closing into genuine rectangles
