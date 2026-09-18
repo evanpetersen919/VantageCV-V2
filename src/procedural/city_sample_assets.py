@@ -314,21 +314,37 @@ VEHICLE_PART_PATHS: Dict[str, List[str]] = {
 
 @dataclass(frozen=True)
 class BuildingKit:
-    """One City Sample modular building kit's real wall/corner/entrance
-    asset paths, plus the real dimensions (meters) those pieces were
-    measured at via the live UE5 ``GetStaticMeshBounds`` debug RPC (not
-    guessed) -- see ``building_placement.py``'s own
-    ``FACADE_WALL_MODULE_METERS``/``FACADE_CORNER_MODULE_METERS``/
-    ``FACADE_FLOOR_HEIGHT_METERS``, which every ``BuildingKit`` must match
-    exactly for ``building_facade.py``'s tiling math to close without a
-    gap or overlap. Wall and entrance pieces share the same width/pivot
+    """One City Sample modular building kit's real wall/corner/column/
+    entrance asset paths, plus the real dimensions (meters) those pieces
+    were measured at via the live UE5 ``GetStaticMeshBounds`` debug RPC
+    and cross-checked against ``CHA_primary.bdf``'s own authored
+    ``Mod_Dim`` values and ``All_Buildings_Lineup_pc`` real per-instance
+    spacing (not guessed) -- see ``building_placement.py``'s own
+    ``FACADE_WALL_MODULE_METERS``/``FACADE_WALL_REAL_WIDTH_METERS``/
+    ``FACADE_CORNER_TO_FIRST_WALL_METERS``/``FACADE_FLOOR_HEIGHT_METERS``,
+    which every ``BuildingKit`` must match exactly for
+    ``building_facade.py``'s tiling math to close without a gap or
+    overlap. Wall and entrance pieces share the same width/pivot
     convention (pivot at one width-edge, extending toward the other) so
     an entrance can substitute directly into any wall slot.
+
+    ``column_asset_path`` (``SM_BLDG_CHA_L01_A_Column_01_N1``, real BDF
+    module id ``P1``, ``Mod_Dim=[1.25, 5.0]``) is the piece real City
+    Sample buildings place in the 125cm gap between consecutive wall
+    modules on any edge that carries at least one entrance -- see
+    ``generate_building_facade_pieces``'s own docstring for the real
+    point-cloud evidence (Wall->Column->Wall->Column... at an exact,
+    zero-exception 325cm/125cm alternation, across 128 real column
+    instances and 152 real wall instances spanning 4 real buildings) that
+    motivated wiring this in.
     """
 
     wall_asset_path: str
     corner_asset_path: str
+    corner_l_asset_path: str
+    corner_r_asset_path: str
     entrance_asset_path: str
+    column_asset_path: str
 
 
 # Only one real kit is migrated so far (Kit_Bldg_CHA_L1_A -- a single
@@ -343,6 +359,9 @@ BUILDING_KITS: Dict[str, BuildingKit] = {
     "CHA_L1": BuildingKit(
         wall_asset_path=f"{_CHA_L1_BASE}_Wall_01_N1",
         corner_asset_path=f"{_CHA_L1_BASE}_CornerEx_01_N1",
+        corner_l_asset_path=f"{_CHA_L1_BASE}_CornerExL_01_N1",
+        corner_r_asset_path=f"{_CHA_L1_BASE}_CornerExR_01_N1",
         entrance_asset_path=f"{_CHA_L1_BASE}_Entrance_01_N1",
+        column_asset_path=f"{_CHA_L1_BASE}_Column_01_N1",
     ),
 }

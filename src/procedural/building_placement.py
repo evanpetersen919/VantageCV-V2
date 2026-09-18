@@ -68,42 +68,116 @@ BUILDING_FOOTPRINT_SIDE_METERS = (8.0, 25.0)
 # 1. ``Content/Building/HDA/Bldg/BDF/CHA_primary.bdf``, a plain-JSON
 #    Houdini "Building Definition File" -- the real authored config
 #    Epic's own generator uses. ``Modules["1"]["C_E"]["Mod_Dim"] =
-#    [1.5, 5.0]`` for the plain exterior corner.
+#    [1.5, 5.0]`` for the plain exterior corner, ``["W1"]["Mod_Dim"] =
+#    [3.25, 5.0]`` for the wall, ``["P1"]["Mod_Dim"] = [1.25, 5.0]`` for
+#    the column/pillar module (``SM_BLDG_CHA_L01_A_Column_01_N1`` --
+#    already migrated into VantageCV_UE5's own Content, confirmed present
+#    on disk). ``LevelsGrammar``/``Levels["1"]["F0"]`` gives the real
+#    per-edge facade grammar strings, e.g.
+#    ``"C|W1*|(W1-P1)|E1|P1|E1|P1|E1|(P1-W1)|W1*|C"`` (an edge with
+#    entrances, walls interspersed with columns) and ``"C|(W1)*|C"`` (a
+#    plain edge with no entrance, no column -- see point 2 below for why
+#    that variant is NOT what the values below model).
 # 2. ``Content/Building/Library/pointclouds/All_Buildings_Lineup_pc``,
 #    the real per-instance transform database (SQLite-backed point
 #    cloud) behind Epic's actual "Slice And Dice" building generator
 #    output -- read directly via a Python Editor Script
-#    (``unreal.PointCloud``/``PointCloudView`` API). Across many real
-#    generated buildings, a corner's distance to the first wall of the
-#    edge starting at that SAME corner (matching its own rotation) is
-#    exactly 150cm, matching BDF's Mod_Dim exactly; consecutive
-#    wall-to-wall spacing along a straight run is a consistent 450cm.
+#    (``unreal.PointCloud``/``PointCloudView`` API). This session queried
+#    it rigorously (not a single cherry-picked vertex): every real
+#    ``Kit_Bldg_CHA_L1_A`` instance across the 4 real buildings that use
+#    it (building ids 0, 5, 8, 9; 332 real points total), grouped into
+#    16 real straight edges and walked corner-to-corner. Findings, EVERY
+#    one exact/consistent with zero exceptions unless noted:
+#    - A corner's distance to the first wall of the edge that STARTS at
+#      that corner (matching its own yaw) is exactly 150cm in all 16/16
+#      real edges measured -- matches BDF's C_E Mod_Dim and this
+#      module's own FACADE_CORNER_TO_FIRST_WALL_METERS exactly. The
+#      corner-to-wall connection is NOT the source of the visible
+#      top-down gap this session was asked to investigate -- see
+#      building_facade.py's own module docstring for what is.
+#    - Consecutive Wall->Column->Wall->Column spacing, on the 3/4 real
+#      buildings that have entrances (ids 0, 5, 9; the same buildings
+#      whose grammar is the "W1*|(W1-P1)|E1|P1|..." variant from point 1
+#      above), is EXACTLY 325.0cm (wall) then EXACTLY 125.0cm (column)
+#      alternating, across 128 real column instances and 152 real wall
+#      instances -- zero exceptions. 325cm matches BDF's W1 Mod_Dim
+#      exactly; 125cm matches BDF's P1 Mod_Dim exactly. This is the real
+#      identity of the "450cm wall-to-wall spacing, 125cm larger than
+#      the wall mesh's own 325cm bounding box" this project's earlier
+#      sessions measured and had written off as "a deliberate reveal/gap
+#      ... not a bug to close up" -- that conclusion was WRONG. It is not
+#      an empty reveal at all: real Epic buildings fill that exact 125cm
+#      with a real Column mesh (BDF module "P1") that this project's own
+#      generator was never emitting. Fixed this session -- see
+#      building_facade.py.
+#    - The 4th real building (id 8) has NO entrances and NO columns at
+#      all -- its wall-to-wall spacing is non-round (330.31cm on one
+#      edge, 343.68cm on another), i.e. Epic's Houdini generator
+#      non-uniformly STRETCHES each wall module's own scale to exactly
+#      fill that edge's real length with zero remainder and zero gap,
+#      matching the plain "C|(W1)*|C" grammar from point 1. This is a
+#      REAL, different tiling strategy this module does NOT implement:
+#      doing so would require a per-instance non-uniform mesh SCALE,
+#      which ``FacadePiece``/the scenario serializer's asset-placement
+#      convention has no field for today (deliberately not added this
+#      session -- a real architecture change, not something to guess the
+#      shape of under this project's own no-guessing rule). Since this
+#      project's own generator never emits entrances either (see
+#      building_facade.py's docstring), the Wall+Column fixed-period
+#      model below is a deliberate choice to match the ENTRANCE-having
+#      grammar's fixed-period sub-pattern (available real evidence, zero
+#      exceptions in 128+152 samples) rather than the stretchy
+#      no-entrance grammar (which this project's data model cannot
+#      represent yet) -- flagged here, not silently guessed past.
+#    - Corner asset variant usage: of the 16 real corner-vertex instances
+#      measured, 15 use the PLAIN ``CornerEx_01`` asset and only 1 uses
+#      ``CornerExR_01``; ``CornerExL_01`` is used 0/16 times, and no real
+#      vertex ever stacks two corner pieces at the same position. This
+#      contradicts an earlier session's conclusion (based on ONE
+#      cherry-picked real vertex, generalized without checking
+#      frequency) that every vertex needs a stacked CornerExL+CornerExR
+#      pair -- see building_facade.py's docstring for the real fix this
+#      session made (reverted to emitting the single plain
+#      ``corner_asset_path`` piece per vertex, matching the real 15/16
+#      majority). The lone real CornerExR instance is flagged, not
+#      chased further -- not enough real samples to determine what
+#      distinguishes it (could be a specific footprint-width edge case,
+#      could be an authoring inconsistency); a future session with a
+#      larger point-cloud sample across more kits could resolve this.
 # 3. The hand-placed reference assembly
 #    ``Content/Building/Library/Kit_Ref_Bldg/CHA_Ref_N1`` independently
-#    confirms the same 450cm wall-to-wall spacing, and confirms a
-#    corner's pivot IS the true rectangle vertex (no pivot-to-vertex
-#    offset) with no perpendicular offset for any piece on an edge --
-#    both still used below. (Its own corner-to-first-wall reading had
-#    appeared to be ~475cm, but that was very likely explained by an
-#    unfiltered intervening Column/Pillar module -- see
-#    ``CHA_primary.bdf``'s "P1" module -- not captured by the query at
-#    the time; the point cloud's much larger, unambiguous sample is
-#    trusted over that single, later-suspect reading.)
-#
-# The 450cm real wall spacing is LARGER than the wall mesh's own
-# measured bounding box (325cm, via GetStaticMeshBounds) by a real,
-# consistent 125cm -- apparently a deliberate reveal/gap between
-# consecutive wall panels in the real game, not a bug to "close up".
+#    confirms a corner's pivot IS the true rectangle vertex (no
+#    pivot-to-vertex offset) with no perpendicular offset for any piece
+#    on an edge -- still used below. (Its own corner-to-first-wall
+#    reading had appeared to be ~475cm, but that is now understood
+#    precisely: the point cloud shows a real edge can have a "stretchy"
+#    plain wall directly after the corner's own 150cm reserve, before
+#    the fixed 325/125 alternation begins -- e.g. real building 0's west
+#    edge is corner(0)->wall(150)->wall(541.8) -- so an isolated
+#    hand-measurement landing near 475cm is consistent with sampling one
+#    such stretchy join, not a contradiction of the 150cm figure.)
 #
 # Only ONE corner reservation per edge (at that edge's own start, not
-# both ends): the real point cloud shows the FAR (non-own) corner
-# connection is just whatever remainder is left in that specific
-# building's real dimensions, not a second fixed reservation -- our own
-# generator instead eliminates that remainder entirely by quantizing
-# footprint sides to exact multiples (see _quantize_footprint_side).
+# both ends): the real point cloud confirms (16/16 real edges) the FAR
+# (non-own) corner connection is just whatever remainder is left in that
+# specific building's real dimensions (e.g. 391.8cm, 502.55cm, 471.7cm,
+# 337.26cm, 371.15cm across the real edges measured -- no fixed value),
+# not a second fixed reservation -- our own generator instead eliminates
+# that remainder entirely by quantizing footprint sides to exact
+# multiples (see _quantize_footprint_side).
 FACADE_WALL_MODULE_METERS = 4.5
 FACADE_CORNER_TO_FIRST_WALL_METERS = 1.5
 FACADE_FLOOR_HEIGHT_METERS = 5.0
+
+# Real wall module width along its own tiling direction (BDF "W1"
+# Mod_Dim[0] = 3.25; independently confirmed by the point cloud's own
+# exact, zero-exception 325cm Wall->Column spacing -- see the real-
+# evidence comment above). A column piece's own pivot sits exactly this
+# far along the tiling direction from the wall piece immediately before
+# it; FACADE_WALL_MODULE_METERS (4.5) minus this value (1.25) is the
+# real column module width (BDF "P1" Mod_Dim[0] = 1.25, independently
+# confirmed by the point cloud's own exact 125cm Column->Wall spacing).
+FACADE_WALL_REAL_WIDTH_METERS = 3.25
 
 
 def _quantize_footprint_side(sampled_side: float) -> float:
