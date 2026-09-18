@@ -95,18 +95,39 @@ Layers
    :mod:`src.procedural.building_facade` tiles each building's
    width/depth/height (quantized at generation time in
    :mod:`src.procedural.building_placement` to exact
-   ``FACADE_WALL_MODULE_METERS``/``FACADE_CORNER_MODULE_METERS``/
+   ``FACADE_WALL_MODULE_METERS``/``FACADE_CORNER_TO_FIRST_WALL_METERS``/
    ``FACADE_FLOOR_HEIGHT_METERS`` multiples, the same precedent as the
-   road-grid quantization fix below) with real, dimension-measured City
-   Sample modular wall/corner kit pieces (:mod:`src.procedural.city_sample_assets`'s
-   ``BUILDING_KITS``), per floor -- confirmed live in UE5 before
-   implementation (4 tiled wall pieces produced a seamless real facade;
-   corner pieces at a rectangle's 4 corners showed correct geometry) and
-   re-verified afterward at full dense-scenario scale. The kit's entrance
-   piece is deliberately not used (a real, isolated material bug found
-   during that verification, not shipped broken -- see
-   ``KNOWN_GAPS_AND_ISSUES.md``); every floor reuses one migrated floor
-   style (a real, accepted v1 limitation, not a silent gap).
+   road-grid quantization fix below) with real, City-Sample-sourced
+   modular wall/corner/column kit pieces
+   (:mod:`src.procedural.city_sample_assets`'s ``BUILDING_KITS``), per
+   floor.
+
+   **Reference for any future work on this generator**: every placement
+   constant and rule here is required to trace to real evidence found in
+   the actual CitySample project (BDF Houdini building-definition JSON,
+   the real per-instance point cloud, or a hand-placed reference
+   assembly) or a falsifiable live UE5 screenshot test -- never a guessed
+   or eyeballed value. Do not add a new constant/piece/rule without that
+   kind of evidence. The full derivation, including every real
+   measurement and the exact bugs found and fixed to get here, is logged
+   in ``KNOWN_GAPS_AND_ISSUES.md`` under the "Buildings were flat
+   textured boxes" entry and its follow-ups -- read that (and
+   :mod:`src.procedural.building_facade`'s own module docstring, which
+   restates the same evidence inline next to the code it justifies)
+   before changing this module again. In short, per real vertex: one
+   plain ``corner_asset_path`` piece (rotated to the edge that starts
+   there, plus one extra quarter turn -- the ``CornerEx`` mesh's own
+   local orientation convention, confirmed live); each edge then tiles
+   ``wall_asset_path`` pieces (rendered rotation flipped an extra half
+   turn from the tiling direction -- the wall mesh's own local
+   convention, also confirmed live) with a ``column_asset_path`` pilaster
+   between every consecutive pair. The kit's entrance piece is
+   deliberately not used (a real, isolated material bug, not shipped
+   broken); every floor reuses one migrated floor style, and one real
+   City-Sample building variant's non-uniformly-scaled walls (no
+   entrances, no columns) is not represented, since this project has no
+   per-instance mesh-scale field yet -- both are real, accepted v1
+   limitations, not silent gaps.
 
    Determinism: every generator owns an isolated
    ``numpy.random.Generator(numpy.random.PCG64(seed))`` -- not the legacy
