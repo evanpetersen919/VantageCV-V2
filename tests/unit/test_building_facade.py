@@ -22,7 +22,7 @@ import pytest
 
 from src.procedural.building_facade import generate_building_facade_pieces
 from src.procedural.building_placement import Building
-from src.procedural.city_sample_assets import BUILDING_KITS, BuildingStyle
+from src.procedural.city_sample_assets import BUILDING_KITS, BUILDING_STYLES, BuildingStyle
 
 KIT = BUILDING_KITS["CHA_L1"]
 STYLE = BuildingStyle(name="CHA_L1_ONLY", levels=(KIT,))
@@ -331,3 +331,43 @@ def test_last_wall_ends_one_corner_reach_before_far_vertex() -> None:
     edge_length = y_max - y_min
     assert offsets[0] == pytest.approx(CORNER_REACH)
     assert offsets[-1] + WALL_WIDTH == pytest.approx(edge_length - CORNER_REACH)
+
+
+@pytest.mark.parametrize("style_name", sorted(BUILDING_STYLES))
+def test_every_registered_style_tiles_a_tall_building_exactly(style_name: str) -> None:
+    """Every real style (CHA, CHH, ...) yields the expected piece counts
+    for a tall building (10 floors, exercising the repeating top level),
+    with the first and last wall of an edge one corner reach from the
+    vertices and every floor at that style's cumulative height."""
+    style = BUILDING_STYLES[style_name]
+    walls_x, walls_y, floors = 3, 2, 10
+    building = Building(
+        0,
+        np.array([0.0, 0.0]),
+        style.edge_length_for_wall_count(walls_x),
+        style.edge_length_for_wall_count(walls_y),
+        style.total_height(floors),
+        style_name=style_name,
+    )
+
+    pieces = generate_building_facade_pieces(building, style)
+
+    per_floor_walls = 2 * walls_x + 2 * walls_y
+    per_floor_columns = 2 * (walls_x - 1) + 2 * (walls_y - 1)
+    assert len(pieces) == floors * (4 + per_floor_walls + per_floor_columns)
+    z_values = sorted({round(float(p.position[2]), 6) for p in pieces})
+    assert z_values == [round(style.floor_base_z(i), 6) for i in range(floors)]
+    ground = style.kit_for_floor(0)
+    left_walls = [
+        p
+        for p in pieces
+        if p.asset_path == ground.wall_asset_path
+        and p.rotation_rad == pytest.approx(ground.wall_yaw_offset_rad)
+        and p.position[2] == pytest.approx(0.0)
+    ]
+    y_max = building.aabb[3]
+    offsets = sorted(y_max - float(p.position[1]) for p in left_walls)
+    assert offsets[0] == pytest.approx(ground.corner_to_first_wall_m)
+    assert offsets[-1] + ground.wall_width_m == pytest.approx(
+        building.depth - ground.corner_to_first_wall_m
+    )

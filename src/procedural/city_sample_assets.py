@@ -475,36 +475,97 @@ _CHA_FLOOR_HEIGHTS_M = {1: 5.0, 2: 3.0, 3: 3.0, 4: 3.0, 5: 3.0, 6: 3.0}
 # Levels that actually ship an Entrance mesh (the generator never emits it).
 _CHA_LEVELS_WITH_ENTRANCE = {1, 2}
 
+# Migrated CHH floor styles: Kit_Bldg_CHH_L1_A .. L4_A, from CHH_primary.bdf
+# and the real point cloud (4 real buildings, read-only survey):
+#   - Height: L1 3.25m, L2 2.25m, L3 3.75m, L4 4.25m; L4 has BDF Repeat=1
+#     and real towers repeat it (z-steps 3.25, 2.25, 3.75, then 4.25 x N).
+#   - Grid, identical for L1..L4: corner C_E 1.0m; facade grammar
+#     ``C1|W1|(W2-W1)*|W2|(W1-W2)*|W1|C1`` -- the small W1 (1.25m) sits at
+#     both ends of every edge with the large W2 (3.25m) alternating
+#     between. In our wall/column model that is "wall" = Wall_01 (W1) and
+#     "column" = Wall_02 (W2), giving Corner, W, P, W, ..., W, Corner.
+#   - Measured: corner-to-first-wall exactly 100cm on every level; Wall_02
+#     has the same yaw as Wall_01 on the same edge; corner and wall yaw
+#     deltas match CHA (270/270 vs the edge direction), so CHA's offsets
+#     are reused -- confirm with a live screenshot before trusting them.
+#   - No Entrance mesh ships in these kits.
+_CHH_FLOOR_HEIGHTS_M = {1: 3.25, 2: 2.25, 3: 3.75, 4: 4.25}
 
-def _cha_kit(level: int) -> BuildingKit:
-    """The real ``Kit_Bldg_CHA_L<level>_A`` kit (asset paths follow the
-    real naming ``SM_BLDG_CHA_L0<level>_A_<Piece>_01_N1``)."""
-    base = f"/Game/Building/CH/A/Kit_Bldg_CHA_L{level}_A/Mesh/SM_BLDG_CHA_L0{level}_A"
+
+def _family_kit(  # pylint: disable=too-many-arguments
+    family: str,
+    letter: str,
+    level: int,
+    *,
+    wall_piece: str,
+    column_piece: str,
+    wall_width_m: float,
+    column_width_m: float,
+    corner_to_first_wall_m: float,
+    floor_height_m: float,
+    has_entrance: bool = False,
+) -> BuildingKit:
+    """The real ``Kit_Bldg_<family>_L<level>_A`` kit. Asset paths follow
+    Epic's naming ``SM_BLDG_<family>_L0<level>_A_<Piece>_N1`` under
+    ``/Game/Building/CH/<letter>/`` (all families wired so far are CH)."""
+    base = (
+        f"/Game/Building/CH/{letter}/Kit_Bldg_{family}_L{level}_A/Mesh/"
+        f"SM_BLDG_{family}_L0{level}_A"
+    )
     return BuildingKit(
-        wall_asset_path=f"{base}_Wall_01_N1",
+        wall_asset_path=f"{base}_{wall_piece}_N1",
         corner_asset_path=f"{base}_CornerEx_01_N1",
         corner_l_asset_path=f"{base}_CornerExL_01_N1",
         corner_r_asset_path=f"{base}_CornerExR_01_N1",
-        entrance_asset_path=(
-            f"{base}_Entrance_01_N1" if level in _CHA_LEVELS_WITH_ENTRANCE else None
-        ),
-        column_asset_path=f"{base}_Column_01_N1",
-        wall_width_m=3.25,
-        column_width_m=1.25,
-        corner_to_first_wall_m=1.5,
-        floor_height_m=_CHA_FLOOR_HEIGHTS_M[level],
+        entrance_asset_path=f"{base}_Entrance_01_N1" if has_entrance else None,
+        column_asset_path=f"{base}_{column_piece}_N1",
+        wall_width_m=wall_width_m,
+        column_width_m=column_width_m,
+        corner_to_first_wall_m=corner_to_first_wall_m,
+        floor_height_m=floor_height_m,
         wall_yaw_offset_rad=math.pi,
         corner_yaw_offset_rad=math.pi / 2.0,
     )
 
 
 BUILDING_KITS: Dict[str, BuildingKit] = {
-    f"CHA_L{level}": _cha_kit(level) for level in _CHA_FLOOR_HEIGHTS_M
+    f"CHA_L{level}": _family_kit(
+        "CHA",
+        "A",
+        level,
+        wall_piece="Wall_01",
+        column_piece="Column_01",
+        wall_width_m=3.25,
+        column_width_m=1.25,
+        corner_to_first_wall_m=1.5,
+        floor_height_m=height,
+        has_entrance=level in _CHA_LEVELS_WITH_ENTRANCE,
+    )
+    for level, height in _CHA_FLOOR_HEIGHTS_M.items()
 }
+BUILDING_KITS.update(
+    {
+        f"CHH_L{level}": _family_kit(
+            "CHH",
+            "H",
+            level,
+            wall_piece="Wall_01",
+            column_piece="Wall_02",
+            wall_width_m=1.25,
+            column_width_m=3.25,
+            corner_to_first_wall_m=1.0,
+            floor_height_m=height,
+        )
+        for level, height in _CHH_FLOOR_HEIGHTS_M.items()
+    }
+)
 
 BUILDING_STYLES: Dict[str, BuildingStyle] = {
     "CHA": BuildingStyle(
         name="CHA", levels=tuple(BUILDING_KITS[f"CHA_L{level}"] for level in _CHA_FLOOR_HEIGHTS_M)
+    ),
+    "CHH": BuildingStyle(
+        name="CHH", levels=tuple(BUILDING_KITS[f"CHH_L{level}"] for level in _CHH_FLOOR_HEIGHTS_M)
     ),
 }
 
