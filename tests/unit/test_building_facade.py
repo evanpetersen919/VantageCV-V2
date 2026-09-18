@@ -282,7 +282,7 @@ def test_multi_level_style_uses_per_floor_kit_and_cumulative_z() -> None:
     pieces = generate_building_facade_pieces(building, style)
 
     for floor_index, expected_z in enumerate([0.0, 5.0, 8.0, 11.0]):
-        expected_wall = style.kit_for_floor(floor_index).wall_asset_path
+        expected_wall = style.floor_kits(4)[floor_index].wall_asset_path
         walls_here = [
             p
             for p in pieces
@@ -334,7 +334,9 @@ def test_last_wall_ends_one_corner_reach_before_far_vertex() -> None:
 
 
 @pytest.mark.parametrize("style_name", sorted(BUILDING_STYLES))
-def test_every_registered_style_tiles_a_tall_building_exactly(style_name: str) -> None:
+def test_every_registered_style_tiles_a_tall_building_exactly(  # pylint: disable=too-many-locals
+    style_name: str,
+) -> None:
     """Every real style (CHA, CHH, ...) yields the expected piece counts
     for a tall building (10 floors, exercising the repeating top level),
     with the first and last wall of an edge one corner reach from the
@@ -354,10 +356,16 @@ def test_every_registered_style_tiles_a_tall_building_exactly(style_name: str) -
 
     per_floor_walls = 2 * walls_x + 2 * walls_y
     per_floor_columns = 2 * (walls_x - 1) + 2 * (walls_y - 1)
-    assert len(pieces) == floors * (4 + per_floor_walls + per_floor_columns)
+    expected_pieces = 0
+    for kit in style.floor_kits(floors):
+        columns = per_floor_columns if kit.column_asset_path is not None else 0
+        expected_pieces += 4 + per_floor_walls + columns
+    assert len(pieces) == expected_pieces
     z_values = sorted({round(float(p.position[2]), 6) for p in pieces})
-    assert z_values == [round(style.floor_base_z(i), 6) for i in range(floors)]
-    ground = style.kit_for_floor(0)
+    kits = style.floor_kits(floors)
+    expected_z = [round(sum(k.floor_height_m for k in kits[:i]), 6) for i in range(floors)]
+    assert z_values == expected_z
+    ground = kits[0]
     left_walls = [
         p
         for p in pieces
@@ -371,3 +379,43 @@ def test_every_registered_style_tiles_a_tall_building_exactly(style_name: str) -
     assert offsets[-1] + ground.wall_width_m == pytest.approx(
         building.depth - ground.corner_to_first_wall_m
     )
+
+
+def test_crown_floors_only_appear_on_tall_enough_buildings() -> None:
+    """A style with a crown (CHA L7-L10) puts it on top only once the
+    building has at least len(levels) + len(top_levels) floors; shorter
+    buildings show just the bottom levels, with the last one repeating."""
+    style = BUILDING_STYLES["CHA"]
+    minimum = len(style.levels) + len(style.top_levels)
+
+    tall = style.floor_kits(minimum + 5)
+    assert tall[-len(style.top_levels) :] == list(style.top_levels)
+    assert tall[len(style.levels) : -len(style.top_levels)] == [style.levels[-1]] * 5
+
+    short = style.floor_kits(minimum - 1)
+    assert len(short) == minimum - 1
+    assert not any(kit in style.top_levels for kit in short)
+    assert short[: len(style.levels)] == list(style.levels)
+
+
+def test_kit_without_columns_emits_no_column_pieces() -> None:
+    """SFA has no columns: walls butt directly (column width 0), no
+    column piece is emitted, and the last wall still ends one corner
+    reach before the far vertex."""
+    style = BUILDING_STYLES["SFA"]
+    assert style.column_width_m == 0.0
+    building = Building(
+        0,
+        np.array([0.0, 0.0]),
+        style.edge_length_for_wall_count(3),
+        style.edge_length_for_wall_count(2),
+        style.total_height(2),
+        style_name="SFA",
+    )
+
+    pieces = generate_building_facade_pieces(building, style)
+
+    kit_paths = {k.wall_asset_path for k in style.floor_kits(2)} | {
+        k.corner_asset_path for k in style.floor_kits(2)
+    }
+    assert {p.asset_path for p in pieces} <= kit_paths

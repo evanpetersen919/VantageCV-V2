@@ -576,3 +576,20 @@ def test_generator_rejects_empty_style_list(urban_config) -> None:
     """At least one style is required."""
     with pytest.raises(ValueError):
         BuildingPlacementGenerator(42, urban_config, ())
+
+
+def test_styles_too_tall_for_the_height_cap_are_never_used(urban_config, bounds) -> None:
+    """A style whose single-floor height exceeds config.building_heights'
+    maximum (like SFA's 12.75m ground floor under a 10m cap) is skipped."""
+    tall_ground = dataclasses.replace(BUILDING_KITS["CHA_L1"], floor_height_m=50.0)
+    tall_style = BuildingStyle(name="TALL", levels=(tall_ground,))
+    config = urban_config.model_copy(update={"building_heights": (10.0, 25.0)})
+    nodes, edges = RoadNetworkGenerator(42, config).generate(bounds)
+
+    buildings = BuildingPlacementGenerator(
+        42, config, (DEFAULT_BUILDING_STYLE, tall_style)
+    ).generate(nodes, edges)
+
+    assert buildings
+    assert all(b.style_name == DEFAULT_BUILDING_STYLE.name for b in buildings)
+    assert all(b.height <= 25.0 + 1e-9 for b in buildings)

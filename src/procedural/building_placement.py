@@ -208,7 +208,7 @@ def _quantize_height(sampled_height: float, style: BuildingStyle, max_height: fl
     that still fits within ``max_height`` so ``config.building_heights``
     remains a hard bound."""
     floor_count = style.floor_count_for_height(sampled_height)
-    if style.total_height(floor_count) > max_height and floor_count > 1:
+    while style.total_height(floor_count) > max_height and floor_count > 1:
         floor_count -= 1
     return style.total_height(floor_count)
 
@@ -416,11 +416,17 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
         self._building_counter = 0
 
     def _pick_style(self) -> BuildingStyle:
-        """Uniformly pick one of ``self.styles`` (no random draw when there
-        is only one, keeping single-style output identical)."""
-        if len(self.styles) == 1:
-            return self.styles[0]
-        return self.styles[int(self.rng.integers(len(self.styles)))]
+        """Uniformly pick one of the styles whose shortest possible
+        building (one floor of its ground-floor kit) still fits under
+        ``config.building_heights``' maximum -- e.g. SFA's 12.75m ground
+        floor cannot appear in a scenario capped at 10m. If none fit, all
+        styles stay eligible. No random draw is made when only one style
+        is eligible, keeping single-style output identical."""
+        max_height = self.config.building_heights[1]
+        eligible = [s for s in self.styles if s.total_height(1) <= max_height] or list(self.styles)
+        if len(eligible) == 1:
+            return eligible[0]
+        return eligible[int(self.rng.integers(len(eligible)))]
 
     def generate(self, nodes: Dict[int, RoadNode], edges: Dict[int, RoadEdge]) -> List[Building]:
         """Identify city blocks and place buildings within them.
