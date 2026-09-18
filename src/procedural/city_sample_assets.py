@@ -406,6 +406,30 @@ class BuildingStyle:
         return self.levels[0].wall_width_m
 
     @property
+    def column_width_m(self) -> float:
+        """Shared real column (gap-filler) width of every level."""
+        return self.levels[0].column_width_m
+
+    def edge_length_for_wall_count(self, wall_count: int) -> float:
+        """Exact edge length holding ``wall_count`` walls: a corner reach
+        at BOTH ends plus the walls and the ``wall_count - 1`` columns
+        between them (``2C + N*W + (N-1)*P``). Measured on 48/48 real CHA
+        and CHH edges: the last wall ends exactly one corner reach short
+        of the far vertex."""
+        return (
+            2.0 * self.corner_to_first_wall_m
+            + wall_count * self.wall_width_m
+            + (wall_count - 1) * self.column_width_m
+        )
+
+    def wall_count_for_edge_length(self, edge_length: float) -> int:
+        """Inverse of ``edge_length_for_wall_count`` for an exact fit."""
+        return round(
+            (edge_length - 2.0 * self.corner_to_first_wall_m + self.column_width_m)
+            / self.wall_pitch_m
+        )
+
+    @property
     def corner_to_first_wall_m(self) -> float:
         """Shared corner-vertex-to-first-wall distance of every level."""
         return self.levels[0].corner_to_first_wall_m

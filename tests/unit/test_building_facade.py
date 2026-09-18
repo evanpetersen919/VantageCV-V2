@@ -37,8 +37,8 @@ def _quantized_building(
 ) -> Building:
     """A Building whose width/depth/height are exact module multiples --
     matches what BuildingPlacementGenerator's quantization guarantees."""
-    width = CORNER_REACH + wall_count_x * WALL_PITCH
-    depth = CORNER_REACH + wall_count_y * WALL_PITCH
+    width = STYLE.edge_length_for_wall_count(wall_count_x)
+    depth = STYLE.edge_length_for_wall_count(wall_count_y)
     height = floors * FLOOR_HEIGHT
     return Building(
         building_id=building_id,
@@ -276,7 +276,7 @@ def test_multi_level_style_uses_per_floor_kit_and_cumulative_z() -> None:
     style = _two_level_style()
     height = style.total_height(4)
     assert height == pytest.approx(5.0 + 3.0 * 3)
-    width = CORNER_REACH + 2 * WALL_PITCH
+    width = STYLE.edge_length_for_wall_count(2)
     building = Building(0, np.array([0.0, 0.0]), width, width, height)
 
     pieces = generate_building_facade_pieces(building, style)
@@ -309,3 +309,25 @@ def test_building_style_height_quantization_rounds_up_to_real_stack() -> None:
         count = style.floor_count_for_height(sampled)
         assert style.total_height(count) >= sampled - 1e-6
         assert count == 1 or style.total_height(count - 1) < sampled
+
+
+def test_last_wall_ends_one_corner_reach_before_far_vertex() -> None:
+    """Real edges (48/48 measured CHA and CHH edges) start the first wall
+    one corner reach after the start vertex and end the last wall exactly
+    one corner reach before the far vertex (``2C + N*W + (N-1)*P``)."""
+    building = _quantized_building(0, wall_count_x=2, wall_count_y=3, floors=1)
+    pieces = generate_building_facade_pieces(building, STYLE)
+    _, y_min, _, y_max = building.aabb
+
+    # Edge 0 runs down the left side from (x_min, y_max) toward y_min; its
+    # walls are the ones stored with rotation_rad == pi (0 + wall offset).
+    left_walls = [
+        p
+        for p in pieces
+        if p.asset_path == KIT.wall_asset_path and p.rotation_rad == pytest.approx(math.pi)
+    ]
+    assert len(left_walls) == 3
+    offsets = sorted(y_max - float(p.position[1]) for p in left_walls)
+    edge_length = y_max - y_min
+    assert offsets[0] == pytest.approx(CORNER_REACH)
+    assert offsets[-1] + WALL_WIDTH == pytest.approx(edge_length - CORNER_REACH)

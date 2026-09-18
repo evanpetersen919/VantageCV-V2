@@ -175,25 +175,28 @@ BUILDING_FOOTPRINT_SIDE_METERS = (8.0, 25.0)
 
 def _quantize_footprint_side(sampled_side: float, style: BuildingStyle) -> float:
     """Round a sampled width/depth up to the nearest exact
-    ``corner + N*wall_pitch`` module fit (smallest ``N >= 1`` covering
+    ``2*corner + N*wall + (N-1)*column`` fit (smallest ``N >= 1`` covering
     ``sampled_side``) -- rounding up, never down, so a quantized building is
     never smaller than what density/setback logic already assumed when
     ``sampled_side`` was drawn from ``BUILDING_FOOTPRINT_SIDE_METERS``.
 
-    Only ONE ``corner_to_first_wall_m`` per side: a side (e.g.
-    width) is shared by two parallel edges (top and bottom), each with its
-    OWN start corner, each independently reserving the corner reach ONCE
-    at its own start and tiling walls to the far corner -- both edges have
-    the same length and are satisfied by this same single formula, so
-    there is no need to reserve the corner twice (see this module's
-    real-point-cloud-derived module-constants comment above for why a
-    corner only guarantees flush connection to its OWN edge in the first
-    place).
+    A corner reach is reserved at BOTH ends of every edge: real
+    point-cloud measurement (48 of 48 CHA and CHH edges, zero error) shows
+    the last wall ends exactly one corner reach short of the far vertex,
+    so an edge holding N walls is ``2C + N*W + (N-1)*P`` long. (An earlier
+    version used ``C + N*(W+P)``, which is 0.25m short for CHA -- hidden
+    inside the corner mesh -- and would be off by 2.25m for CHH.)
     """
-    corner = style.corner_to_first_wall_m
-    usable_after_corner = sampled_side - corner
-    wall_count = max(1, int(np.ceil(usable_after_corner / style.wall_pitch_m)))
-    return corner + wall_count * style.wall_pitch_m
+    wall_count = max(
+        1,
+        int(
+            np.ceil(
+                (sampled_side - 2.0 * style.corner_to_first_wall_m + style.column_width_m)
+                / style.wall_pitch_m
+            )
+        ),
+    )
+    return style.edge_length_for_wall_count(wall_count)
 
 
 def _quantize_height(sampled_height: float, style: BuildingStyle, max_height: float) -> float:

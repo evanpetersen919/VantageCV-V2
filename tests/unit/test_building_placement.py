@@ -200,9 +200,11 @@ def test_building_width_and_depth_are_exact_facade_module_multiples(urban_config
 
     for building in buildings:
         for side in (building.width, building.depth):
-            usable = side - DEFAULT_BUILDING_STYLE.corner_to_first_wall_m
-            wall_count = usable / DEFAULT_BUILDING_STYLE.wall_pitch_m
-            assert wall_count == pytest.approx(round(wall_count), abs=1e-6)
+            wall_count = DEFAULT_BUILDING_STYLE.wall_count_for_edge_length(side)
+            assert wall_count >= 1
+            assert DEFAULT_BUILDING_STYLE.edge_length_for_wall_count(wall_count) == pytest.approx(
+                side, abs=1e-6
+            )
 
 
 def test_building_height_is_exact_floor_module_multiple(urban_config, bounds) -> None:
@@ -551,8 +553,8 @@ def test_multiple_styles_are_used_and_each_building_quantized_to_its_own(
     for building in buildings:
         style = styles[building.style_name]
         for side in (building.width, building.depth):
-            wall_count = (side - style.corner_to_first_wall_m) / style.wall_pitch_m
-            assert wall_count == pytest.approx(round(wall_count), abs=1e-6)
+            wall_count = style.wall_count_for_edge_length(side)
+            assert style.edge_length_for_wall_count(wall_count) == pytest.approx(side, abs=1e-6)
         floors = style.floor_count_for_height(building.height)
         assert style.total_height(floors) == pytest.approx(building.height, abs=1e-6)
 
