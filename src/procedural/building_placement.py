@@ -196,10 +196,18 @@ def _quantize_footprint_side(sampled_side: float, style: BuildingStyle) -> float
     return corner + wall_count * style.wall_pitch_m
 
 
-def _quantize_height(sampled_height: float, style: BuildingStyle) -> float:
-    """Round a sampled height up to the nearest whole floor stack of
-    ``style`` (at least 1 floor) -- floors may differ in height per level."""
-    return style.total_height(style.floor_count_for_height(sampled_height))
+def _quantize_height(sampled_height: float, style: BuildingStyle, max_height: float) -> float:
+    """Round a sampled height to a whole floor stack of ``style`` (at
+    least 1 floor): up by default, never shrinking the sample. Floors may
+    differ in height per level (real CHA: 5.0m ground floor, then 3.0m
+    floors), so stack heights are not multiples of one number and rounding
+    up can overshoot ``max_height`` -- in that case use the tallest stack
+    that still fits within ``max_height`` so ``config.building_heights``
+    remains a hard bound."""
+    floor_count = style.floor_count_for_height(sampled_height)
+    if style.total_height(floor_count) > max_height and floor_count > 1:
+        floor_count -= 1
+    return style.total_height(floor_count)
 
 
 # Maximum placement attempts per candidate slot before giving up on that
@@ -585,7 +593,9 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
                 )
                 center = np.array([self.rng.uniform(x_min, x_max), self.rng.uniform(y_min, y_max)])
                 height = _quantize_height(
-                    self.rng.uniform(*self.config.building_heights), self.style
+                    self.rng.uniform(*self.config.building_heights),
+                    self.style,
+                    self.config.building_heights[1],
                 )
                 building_type = _classify_building_type(height, self.config.building_heights)
                 material = str(self.rng.choice(BUILDING_MATERIALS_BY_TYPE[building_type]))

@@ -230,7 +230,7 @@ def test_quantize_height_never_shrinks_input() -> None:
     """Quantization only rounds up -- never produces a height shorter
     than what was sampled."""
     for sampled in (1.0, 4.9, 20.0, 39.9):
-        assert _quantize_height(sampled, DEFAULT_BUILDING_STYLE) >= sampled
+        assert _quantize_height(sampled, DEFAULT_BUILDING_STYLE, 1000.0) >= sampled
 
 
 def test_building_ids_unique(urban_config, bounds) -> None:
@@ -509,3 +509,15 @@ def test_building_default_type_and_material() -> None:
     )
     assert building.building_type == BuildingType.MIXED_USE
     assert building.material == "concrete"
+
+
+def test_quantize_height_never_exceeds_max_height() -> None:
+    """When rounding up to the next real floor stack would overshoot
+    ``max_height``, the tallest stack that fits is used instead -- so
+    config.building_heights stays a hard upper bound even though real
+    stack heights (5.0 + 3.0 * n) are not multiples of one floor height."""
+    style = DEFAULT_BUILDING_STYLE
+    for max_height in (10.0, 20.0, 40.0):
+        for sampled in np.linspace(5.0, max_height, 25):
+            quantized = _quantize_height(float(sampled), style, max_height)
+            assert quantized <= max_height + 1e-9
