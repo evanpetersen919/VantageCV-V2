@@ -380,6 +380,78 @@ def _point_segment_distance(
     return float(np.linalg.norm(point - closest))
 
 
+def identify_city_blocks(  # pylint: disable=too-many-locals
+    nodes: Dict[int, RoadNode], edges: Dict[int, RoadEdge]
+) -> List[npt.NDArray[np.float64]]:
+    """Identify each rectangular grid cell of the road network as one
+    city block: the 4 nodes at a cell's corners, in order around the
+    rectangle, provided all 4 connecting edges actually exist (an
+    edge can be missing if ``MAX_ROAD_LENGTH_METERS`` dropped it --
+    see ``RoadNetworkGenerator``). See module docstring for why this
+    is exact, not an approximation, now that the road network itself
+    is a plain orthogonal grid.
+
+    Reconstructs the grid's rows/columns purely from node positions
+    (this module only receives the generic ``nodes``/``edges`` dicts,
+    not ``RoadNetworkGenerator``'s own internal grid-index array) --
+    every node in the same grid row/column shares the exact same
+    y/x float value by construction (``RoadNetworkGenerator`` reuses
+    the same coordinate array element for every node in a row/column,
+    rather than recomputing it), so grouping by a rounded coordinate
+    is a safe, simple way to recover axis lines generically.
+    """
+    if len(nodes) < 4:
+        return []
+
+    node_by_position: Dict[Tuple[float, float], int] = {
+        (
+            round(float(n.position[0]), GRID_COORDINATE_DECIMALS),
+            round(float(n.position[1]), GRID_COORDINATE_DECIMALS),
+        ): nid
+        for nid, n in nodes.items()
+    }
+    x_coords = sorted({pos[0] for pos in node_by_position})
+    y_coords = sorted({pos[1] for pos in node_by_position})
+
+    existing_undirected_edges: Set[Tuple[int, int]] = {
+        (min(e.start_node_id, e.end_node_id), max(e.start_node_id, e.end_node_id))
+        for e in edges.values()
+    }
+
+    blocks = []
+    for row in range(len(y_coords) - 1):
+        for col in range(len(x_coords) - 1):
+            corners = [
+                (x_coords[col], y_coords[row]),
+                (x_coords[col + 1], y_coords[row]),
+                (x_coords[col + 1], y_coords[row + 1]),
+                (x_coords[col], y_coords[row + 1]),
+            ]
+            resolved_corner_ids: List[int] = []
+            for corner in corners:
+                node_id = node_by_position.get(corner)
+                if node_id is None:
+                    break
+                resolved_corner_ids.append(node_id)
+            if len(resolved_corner_ids) != 4:
+                continue  # a corner node here got dropped/merged; skip this cell
+            corner_ids = resolved_corner_ids
+
+            cell_edges = {
+                (min(a, b), max(a, b)) for a, b in zip(corner_ids, corner_ids[1:] + corner_ids[:1])
+            }
+            if not cell_edges.issubset(existing_undirected_edges):
+                continue  # an edge here was dropped (e.g. exceeded MAX_ROAD_LENGTH_METERS)
+
+            polygon = np.array([nodes[cid].position for cid in corner_ids])
+            if _polygon_area(polygon) < MIN_BLOCK_AREA_SQ_METERS:
+                continue
+
+            blocks.append(polygon)
+
+    return blocks
+
+
 class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
     """Place non-overlapping buildings within road-network city blocks.
 
@@ -504,77 +576,11 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
             buildings.extend(self._place_buildings_in_block(block, all_segments_padded))
         return buildings
 
-    def _identify_blocks(  # pylint: disable=too-many-locals
+    def _identify_blocks(
         self, nodes: Dict[int, RoadNode], edges: Dict[int, RoadEdge]
     ) -> List[npt.NDArray[np.float64]]:
-        """Identify each rectangular grid cell of the road network as one
-        city block: the 4 nodes at a cell's corners, in order around the
-        rectangle, provided all 4 connecting edges actually exist (an
-        edge can be missing if ``MAX_ROAD_LENGTH_METERS`` dropped it --
-        see ``RoadNetworkGenerator``). See module docstring for why this
-        is exact, not an approximation, now that the road network itself
-        is a plain orthogonal grid.
-
-        Reconstructs the grid's rows/columns purely from node positions
-        (this module only receives the generic ``nodes``/``edges`` dicts,
-        not ``RoadNetworkGenerator``'s own internal grid-index array) --
-        every node in the same grid row/column shares the exact same
-        y/x float value by construction (``RoadNetworkGenerator`` reuses
-        the same coordinate array element for every node in a row/column,
-        rather than recomputing it), so grouping by a rounded coordinate
-        is a safe, simple way to recover axis lines generically.
-        """
-        if len(nodes) < 4:
-            return []
-
-        node_by_position: Dict[Tuple[float, float], int] = {
-            (
-                round(float(n.position[0]), GRID_COORDINATE_DECIMALS),
-                round(float(n.position[1]), GRID_COORDINATE_DECIMALS),
-            ): nid
-            for nid, n in nodes.items()
-        }
-        x_coords = sorted({pos[0] for pos in node_by_position})
-        y_coords = sorted({pos[1] for pos in node_by_position})
-
-        existing_undirected_edges: Set[Tuple[int, int]] = {
-            (min(e.start_node_id, e.end_node_id), max(e.start_node_id, e.end_node_id))
-            for e in edges.values()
-        }
-
-        blocks = []
-        for row in range(len(y_coords) - 1):
-            for col in range(len(x_coords) - 1):
-                corners = [
-                    (x_coords[col], y_coords[row]),
-                    (x_coords[col + 1], y_coords[row]),
-                    (x_coords[col + 1], y_coords[row + 1]),
-                    (x_coords[col], y_coords[row + 1]),
-                ]
-                resolved_corner_ids: List[int] = []
-                for corner in corners:
-                    node_id = node_by_position.get(corner)
-                    if node_id is None:
-                        break
-                    resolved_corner_ids.append(node_id)
-                if len(resolved_corner_ids) != 4:
-                    continue  # a corner node here got dropped/merged; skip this cell
-                corner_ids = resolved_corner_ids
-
-                cell_edges = {
-                    (min(a, b), max(a, b))
-                    for a, b in zip(corner_ids, corner_ids[1:] + corner_ids[:1])
-                }
-                if not cell_edges.issubset(existing_undirected_edges):
-                    continue  # an edge here was dropped (e.g. exceeded MAX_ROAD_LENGTH_METERS)
-
-                polygon = np.array([nodes[cid].position for cid in corner_ids])
-                if _polygon_area(polygon) < MIN_BLOCK_AREA_SQ_METERS:
-                    continue
-
-                blocks.append(polygon)
-
-        return blocks
+        """See ``identify_city_blocks``."""
+        return identify_city_blocks(nodes, edges)
 
     def _place_buildings_in_block(  # pylint: disable=too-many-locals
         self, block: npt.NDArray[np.float64], padded_segments: List[_PaddedSegment]

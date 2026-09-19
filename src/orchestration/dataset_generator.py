@@ -31,7 +31,7 @@ from src.procedural.city_sample_assets import BUILDING_STYLES
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
-from src.procedural.road_edge_kit import generate_road_edge_pieces
+from src.procedural.road_edge_kit import DEFAULT_ROAD_EDGE_KIT, generate_road_edge_pieces
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadNode
 from src.procedural.scenario import ScenarioTypeConfig
 from src.procedural.traffic_network import TrafficNetwork, TrafficNetworkGenerator
@@ -131,6 +131,17 @@ def generate_scenario(  # pylint: disable=too-many-locals
             building, BUILDING_STYLES[building.style_name]
         )
 
+    # One curb style and one sidewalk style per scenario, chosen from the
+    # seed (an isolated stream, so it never disturbs any other generator's
+    # random sequence): every tile matches, scenarios differ.
+    style_rng = np.random.Generator(np.random.PCG64([seed, 0x51DE]))
+    road_edge_pieces = generate_road_edge_pieces(
+        lanes,
+        edges,
+        curb_variant=int(style_rng.integers(len(DEFAULT_ROAD_EDGE_KIT.curb_asset_paths))),
+        sidewalk_variant=int(style_rng.integers(len(DEFAULT_ROAD_EDGE_KIT.sidewalk_asset_paths))),
+    )
+
     validation_report = ScenarioValidator().validate(
         bounds, nodes, edges, lanes, buildings, meshes, vehicles, pedestrians, lane_connectivity
     )
@@ -151,7 +162,7 @@ def generate_scenario(  # pylint: disable=too-many-locals
         pedestrians=pedestrians,
         meshes=meshes,
         building_facade_pieces=building_facade_pieces,
-        road_edge_pieces=generate_road_edge_pieces(lanes, edges),
+        road_edge_pieces=road_edge_pieces,
         validation_report=validation_report,
     )
 

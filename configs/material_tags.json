@@ -6,6 +6,11 @@
       "source": "CitySample Content/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots.uasset",
       "used_by": "mesh_factory.py MeshFactory.build_road_mesh (fixed material, not building-type-dependent). Epic's parking-lot variant of the asphalt master, not the plain master: the plain M_Asphalt_Master_Inst rendered every generated road as a perfect mirror (its puddle layer is fully on for our meshes), while the parking-lot variant is a matte, patchy asphalt"
     },
+    "pavement": {
+      "asset_path": "/Game/Road/Material/MI/M_Sidewalk_Master_Inst",
+      "source": "CitySample Content/Road/Material/MI/M_Sidewalk_Master_Inst.uasset",
+      "used_by": "block_pavement.py build_block_pavement_meshes -- sidewalk-height paving filling the inside of every city block, flush from the curb to the building fronts (already migrated into VantageCV_UE5)"
+    },
     "ground": {
       "asset_path": "/Game/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots",
       "source": "CitySample Content/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots.uasset",
