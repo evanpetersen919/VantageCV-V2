@@ -72,6 +72,20 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 		return nullptr;
 	}
 
+#if WITH_EDITOR
+	// This project runs under D3D11, where Nanite is unsupported and Nanite
+	// meshes fall back to a heavily simplified copy. City Sample's tree
+	// meshes lose their thin leaf cards in that copy (every species rendered
+	// bare). Turning Nanite off rebuilds the mesh from its full source
+	// geometry once per mesh (the change persists for the session).
+	if (AssetData.AssetPath.Contains(TEXT("/Kit_Tree_")) && Mesh->NaniteSettings.bEnabled)
+	{
+		Mesh->NaniteSettings.bEnabled = false;
+		Mesh->PostEditChange();
+		UE_LOG(LogVehicleActorSpawner, Display, TEXT("SpawnVehicle: disabled Nanite on %s"), *AssetData.AssetPath);
+	}
+#endif
+
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
