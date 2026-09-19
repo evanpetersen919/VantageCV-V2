@@ -26,6 +26,8 @@
 #include "GameFramework/Actor.h"
 #include "ProceduralScenarioLoader.generated.h"
 
+class ULevel;
+
 /**
  * Parses and loads one generated scenario (as JSON from the Python-side
  * orchestration layer) into the current UE5 level.
@@ -103,10 +105,40 @@ private:
 	 */
 	void ApplyEnvironment(const TSharedPtr<FJsonObject>& Environment);
 
+	/**
+	 * Hides ``Actor`` if its class looks like template terrain: Landscape
+	 * proxies (the checkerboard/hills), the engine's plain StaticMeshActor,
+	 * or a WorldPartitionHLOD merged distant-terrain proxy -- the last of
+	 * which turned out to be the real cause of a pale "ribbon" artifact at
+	 * the horizon that survived hiding the first two, see
+	 * KNOWN_GAPS_AND_ISSUES.md. Returns true if ``Actor`` was hidden.
+	 */
+	static bool HideIfTemplateTerrain(AActor* Actor);
+
+	/**
+	 * FWorldDelegates::LevelAddedToWorld callback: hides every
+	 * HideIfTemplateTerrain match in a level as it streams in. World
+	 * Partition streams cells into the world via level-add, not
+	 * UWorld::SpawnActor (confirmed live: binding FOnActorSpawned instead
+	 * never fired for these actors, and the EngineSky dome kept showing
+	 * up as a horizon "ribbon" no matter how the camera moved). This is
+	 * the callback that actually fires for both the persistent level's
+	 * initial load and every later World Partition cell.
+	 */
+	void OnLevelAddedToWorld(ULevel* Level, UWorld* World);
+
 	/** Vehicles spawned by the most recent LoadProceduralScenario call
 	 * (mesh sections are components of this actor and don't need
 	 * separate tracking; spawned vehicles are independent actors in the
 	 * world and do). */
 	UPROPERTY()
 	TArray<TObjectPtr<AActor>> SpawnedAssetActors;
+
+	/**
+	 * Guards registering OnLevelAddedToWorld with FWorldDelegates only
+	 * once per world (it is a global static delegate shared by every
+	 * world, so it must be checked, not just bound, on repeat
+	 * LoadProceduralScenario calls) -- see that method's own comment.
+	 */
+	bool bRegisteredLevelAddedDelegate = false;
 };
