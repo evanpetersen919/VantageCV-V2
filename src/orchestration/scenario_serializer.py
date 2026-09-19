@@ -96,7 +96,7 @@ def _facade_piece_to_asset_json(piece: FacadePiece, piece_id: int) -> Dict[str, 
     empty ``PartPaths`` list gracefully.
     """
     x, y, z = piece.position
-    return {
+    entry: Dict[str, Any] = {
         "category": "static_asset",
         "asset_path": piece.asset_path,
         "part_paths": [],
@@ -104,6 +104,12 @@ def _facade_piece_to_asset_json(piece: FacadePiece, piece_id: int) -> Dict[str, 
         "rotation_rad": float(piece.rotation_rad),
         "id": piece_id,
     }
+    if piece.scale is not None:
+        # Per-instance scale along the mesh's own local axes (a negative
+        # component mirrors it); omitted when unscaled so existing
+        # payloads stay byte-identical.
+        entry["scale"] = [float(component) for component in piece.scale]
+    return entry
 
 
 def serialize_scenario(

@@ -9,8 +9,11 @@ script. See KNOWN_GAPS_AND_ISSUES.md.
 
 import json
 
+import numpy as np
+
 from src.orchestration.dataset_generator import generate_scenario
-from src.orchestration.scenario_serializer import serialize_scenario
+from src.orchestration.scenario_serializer import _facade_piece_to_asset_json, serialize_scenario
+from src.procedural.building_facade import FacadePiece
 from src.procedural.city_sample_assets import VEHICLE_PART_PATHS
 
 # urban_config, bounds fixtures: see tests/conftest.py
@@ -136,3 +139,16 @@ def test_serialize_scenario_handles_empty_meshes() -> None:
     payload = serialize_scenario(_FakeResult())  # type: ignore[arg-type]
 
     assert payload == {"meshes": [], "assets": []}
+
+
+def test_facade_piece_scale_is_serialized_only_when_set() -> None:
+    """An unscaled piece's JSON has no "scale" key (existing payloads stay
+    identical); a scaled one carries it as three plain floats, including a
+    negative (mirroring) component."""
+    unscaled = FacadePiece("/Game/Test/Piece", np.array([1.0, 2.0, 3.0]), 0.5)
+    scaled = FacadePiece("/Game/Test/Piece", np.array([1.0, 2.0, 3.0]), 0.5, (1.0, -0.75, 0.75))
+
+    assert "scale" not in _facade_piece_to_asset_json(unscaled, 0)
+    entry = _facade_piece_to_asset_json(scaled, 1)
+    assert entry["scale"] == [1.0, -0.75, 0.75]
+    json.dumps(entry)
