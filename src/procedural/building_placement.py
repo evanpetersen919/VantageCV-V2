@@ -42,7 +42,7 @@ import numpy as np
 import numpy.typing as npt
 
 from src.procedural.city_sample_assets import DEFAULT_BUILDING_STYLE, BuildingStyle
-from src.procedural.lane_topology import LANE_WIDTH_METERS
+from src.procedural.lane_topology import LANE_WIDTH_METERS, SIDEWALK_WIDTH_METERS
 from src.procedural.road_network import RoadEdge, RoadNode
 from src.procedural.scenario import ScenarioTypeConfig
 
@@ -473,6 +473,10 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
         # buildings, ~69%, overlapping real lane geometry -- see
         # KNOWN_GAPS_AND_ISSUES.md), not a hypothetical. Fixed by adding
         # each edge's own lane half-width to the setback used against it.
+        # The setback margin beyond the pavement is at least the real
+        # sidewalk width (a 3m sidewalk runs along every road's outside
+        # edge -- see road_edge_kit.py), so a building never stands on it.
+        margin = max(self.config.road_setback_meters, SIDEWALK_WIDTH_METERS)
         all_segments_padded = [
             (
                 nodes[e.start_node_id].position,
@@ -480,9 +484,9 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
                 _padded_segment_aabb(
                     nodes[e.start_node_id].position,
                     nodes[e.end_node_id].position,
-                    self.config.road_setback_meters + e.num_lanes * LANE_WIDTH_METERS,
+                    margin + e.num_lanes * LANE_WIDTH_METERS,
                 ),
-                self.config.road_setback_meters + e.num_lanes * LANE_WIDTH_METERS,
+                margin + e.num_lanes * LANE_WIDTH_METERS,
             )
             for e in edges.values()
         ]
