@@ -16,6 +16,7 @@ namespace
 	{
 		static const TMap<FString, FString> TagToAssetPath = {
 			{TEXT("asphalt"), TEXT("/Game/Road/Material/MI/M_Asphalt_Master_Inst")},
+			{TEXT("ground"), TEXT("/Game/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots")},
 			{TEXT("brick"), TEXT("/Game/Building/Material/MI/Brick/MI_Bldg_BrickOffset_Red")},
 			{TEXT("wood_siding"), TEXT("/Game/Building/Material/MI/Wood/MI_Bldg_Wood_Cedar")},
 			{TEXT("stucco"), TEXT("/Game/Building/Material/MI/Paint/MI_Bldg_PaintedStone_Beige")},

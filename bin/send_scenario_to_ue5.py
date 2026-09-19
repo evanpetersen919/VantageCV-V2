@@ -52,6 +52,7 @@ import argparse  # noqa: E402
 
 from src.orchestration.dataset_generator import generate_scenario  # noqa: E402
 from src.orchestration.scenario_serializer import serialize_scenario  # noqa: E402
+from src.procedural.environment import DEFAULT_ENVIRONMENT  # noqa: E402
 from src.ue5.backend import UE5Backend, UE5CommunicationTimeoutError, UE5RPCError  # noqa: E402
 from src.utils.config_loader import load_scenario_config  # noqa: E402
 
@@ -112,7 +113,7 @@ async def _send(args: argparse.Namespace) -> int:
         return 1
 
     print(f"Generated scenario: {len(scenario.meshes)} meshes")
-    payload = serialize_scenario(scenario)
+    payload = serialize_scenario(scenario, DEFAULT_ENVIRONMENT)
 
     backend = UE5Backend(args.ue5_uri, timeout_seconds=args.timeout_seconds)
     try:

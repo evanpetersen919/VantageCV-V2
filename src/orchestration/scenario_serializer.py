@@ -19,12 +19,13 @@ see ``building_facade.py``) both populate ``"assets"``; street props are a
 deliberate later fast-follow, not part of this effort yet.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from src.orchestration.dataset_generator import ScenarioResult
 from src.procedural.actor_placement import Vehicle
 from src.procedural.building_facade import FacadePiece
 from src.procedural.city_sample_assets import VEHICLE_PART_PATHS
+from src.procedural.environment import EnvironmentConfig, build_ground_mesh
 from src.procedural.mesh_factory import Mesh
 
 
@@ -105,7 +106,9 @@ def _facade_piece_to_asset_json(piece: FacadePiece, piece_id: int) -> Dict[str, 
     }
 
 
-def serialize_scenario(result: ScenarioResult) -> Dict[str, Any]:
+def serialize_scenario(
+    result: ScenarioResult, environment: Optional[EnvironmentConfig] = None
+) -> Dict[str, Any]:
     """Convert one generated scenario into the JSON-serializable dict
     :meth:`UE5Backend.load_scenario` sends as its ``"scenario"`` RPC
     parameter.
@@ -115,11 +118,17 @@ def serialize_scenario(result: ScenarioResult) -> Dict[str, Any]:
     result : ScenarioResult
         A real, validated scenario from
         :func:`src.orchestration.dataset_generator.generate_scenario`.
+    environment : Optional[EnvironmentConfig]
+        When given, a ground plane is appended to ``"meshes"`` and an
+        ``"environment"`` object (sun, fog, grade, hide-template-terrain)
+        is added for the UE5 plugin to apply. ``None`` (the default)
+        serializes only the scenario itself.
 
     Returns
     -------
     Dict[str, Any]
-        ``{"meshes": [...], "assets": [...]}``, safe to pass directly to
+        ``{"meshes": [...], "assets": [...]}`` (plus ``"environment"``
+        when one was given), safe to pass directly to
         ``json.dumps`` (see :func:`_mesh_to_json`'s docstring on why the
         numpy-to-plain-Python conversion matters) and to
         ``UE5Backend.load_scenario``.
@@ -130,4 +139,8 @@ def serialize_scenario(result: ScenarioResult) -> Dict[str, Any]:
         _facade_piece_to_asset_json(piece, piece_id)
         for piece_id, piece in enumerate(result.building_facade_pieces)
     ]
-    return {"meshes": meshes, "assets": assets}
+    payload: Dict[str, Any] = {"meshes": meshes, "assets": assets}
+    if environment is not None:
+        meshes.append(_mesh_to_json(build_ground_mesh(environment)))
+        payload["environment"] = environment.to_json()
+    return payload
