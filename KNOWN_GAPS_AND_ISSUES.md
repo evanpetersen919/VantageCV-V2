@@ -64,7 +64,7 @@ Follow-up to the roof-slab entry below. `roofs.py` now gives each building one o
 
 **Follow-up fixes (user-reported)**: (1) the sidewalk raised the floor but dropped back to road height before the buildings -- `block_pavement.py` now fills every city block (inset by the road half-width, i.e. the curb line) with one sidewalk-height quad using Epic's sidewalk material, so the surface runs flush from the curb to the building fronts and also covers the intersection-corner gaps; block identification was refactored into the public `identify_city_blocks` for this. (2) Curb and sidewalk tiles were varying per tile (a real city uses one sidewalk type): each scenario now uses ONE curb style and ONE sidewalk style, chosen from the scenario seed with an isolated RNG stream, so tiles match each other while scenarios differ (the domain-randomization knob).
 
-**Not done (deliberate first stage)**: intersection corners get no sidewalk pieces (each road's sidewalks stop where its lanes stop, leaving a ~3m gap at every corner, and the intersection centre is just ground asphalt); lane geometry (14m of pavement per road, 2 lanes each way) is not snapped to Epic's real 19/27/37m classes and the real `Kit_City_Road` tiles, crosswalks and lane paint are not used yet; painted (red/white/yellow) curb variants unused.
+**Not done (deliberate first stage)**: intersection corners get no sidewalk pieces (each road's sidewalks stop where its lanes stop, leaving a ~3m gap at every corner -- covered by the block pavement fill above, not a real sidewalk corner piece); lane geometry (14m of pavement per road, 2 lanes each way) is not snapped to Epic's real 19/27/37m classes and the real `Kit_City_Road` tiles, crosswalks and lane paint are not used yet; painted (red/white/yellow) curb variants unused. The intersection centre itself now gets a real, exactly-sized paved surface -- see the "[RESOLVED] Paved intersection surface" entry below -- rather than being left as bare ground asphalt.
 
 ### [RESOLVED] Per-instance mesh scale is now supported end to end
 The real CitySample data needs it: every real curb is placed at scale (1, -0.75, 0.75) (a mirror plus a shrink), roads and sidewalks stretch their last piece to fit a run, and about a third of the walls in several building families are non-uniformly scaled. `FacadePiece` gained an optional `scale` (three floats along the mesh's OWN local axes; a negative component mirrors), `_facade_piece_to_asset_json` emits `"scale"` only when set (so existing payloads are byte-identical), `FScenarioAssetData` gained `Scale`, `ParseAssetData` reads the optional `"scale"` array (three numbers, otherwise the entry is rejected; deliberately NOT run through the Y-flip coordinate conversion, since it is a local-axis quantity) and `UVehicleActorSpawner::SpawnVehicle` applies it with `SetActorScale3D`. Verified live: four copies of one wall (unscaled, y x1.6, mirrored y x-1, and y x-0.75 with z x0.75) render as expected, including the mirrored piece showing a correct face. This unblocks the real curbs, the road/sidewalk kits and the building families that rely on stretched walls; none of those use it yet.
@@ -505,10 +505,10 @@ eliminated**: a uniform per-node trim can't fully clear intersections
 where two edges meet at a sharp/near-parallel angle, since their lane
 strips still run alongside each other for a stretch beyond the trim
 point. A real fix for that needs an angle-aware miter/wedge computation
-per intersection, real additional scope not attempted here. There is
-also now a visible unpaved gap at every intersection (no actual
-junction/intersection surface mesh is generated to fill it) -- a
-known, accepted simplification, not an oversight.
+per intersection, real additional scope not attempted here. There was
+also a visible unpaved gap at every intersection (no actual junction/
+intersection surface mesh was generated to fill it) -- **since fixed,
+see the "[RESOLVED] Paved intersection surface" entry below.**
 
 **Bug 2: buildings could stand inside a multi-lane road's actual pavement.**
 `building_placement.py`'s `_too_close_to_road` enforced only
@@ -1765,3 +1765,60 @@ may not be the interpreter Poetry is installed against.
 warnings and one import-outside-toplevel warning (pylint score 7.56/10).
 Fixed by adding a one-line docstring to every test function and moving the
 `toml` import to module level. Now 10.00/10, mypy --strict clean.
+
+### [RESOLVED] Paved intersection surface closes the lane-trim gap
+Follow-up to the "lane geometry overlapped itself at every intersection"
+fix above (`compute_node_clearance`, then named
+`LaneTopologyGenerator._compute_node_clearance`): trimming every lane
+short of each node it touches removed the overlap, but left every
+intersection's own footprint uncovered by any lane mesh -- only the
+ground plane (a different material/height) showed through, a real,
+visible gap at every one of the (thousands of) intersections in a full
+scenario, not a cosmetic nit.
+
+**Fix** (`src/procedural/intersection_pavement.py`,
+`build_intersection_pavement_meshes`): one flat quad per node, tagged
+with the roads' own `"asphalt"` material, at road height (z=0). The
+quad is centred on the node and sized to exactly the same `clearance`
+value `compute_node_clearance` already computes for the lane trim --
+not a separate measurement or guess. `_compute_node_clearance` was
+promoted from a `LaneTopologyGenerator` static method to a public
+module-level function (`lane_topology.compute_node_clearance`) so both
+callers share one implementation (avoided a pylint duplicate-code
+finding, and, more importantly, guarantees the fill and the trim can
+never drift apart).
+
+**Why an axis-aligned square is exact, not approximate, here**: road
+network generation only ever produces axis-aligned grid edges
+(diagonal/organic roads were scrapped early -- see `road_network.py`'s
+module docstring, no exact fix existed for acute-angle lane
+self-overlap). Every lane's near-node boundary point therefore sits
+within `clearance` metres of the node along both the node-local
+longitudinal axis (capped by the same `min(clearance, max_trim)` used
+to trim it) and lateral axis (offset strictly less than its own edge's
+half-width, which is at most `clearance`, the max over all incident
+edges) -- and because every incident edge runs along global X or
+global Y, those two per-edge axes are always the global X/Y axes too.
+A global-axis-aligned square of half-width `clearance` centred on the
+node is thus guaranteed to contain every incident lane's near-node
+boundary corner. Proven, not just asserted: a dedicated unit test
+(`test_quad_covers_every_incident_lane_near_node_boundary_point`)
+checks every lane's near-node boundary point against the built quad on
+a real generated scenario and passed on the first run.
+
+Wired into `scenario_serializer.serialize_scenario` alongside the
+ground plane, block pavement and roof slabs (only added when an
+`EnvironmentConfig` is given). Verified live: loaded a real generated
+scenario into a running UE5 editor over the WebSocket RPC bridge and
+screenshotted an intersection from multiple angles -- a single,
+continuous, correctly lit paved surface with no dark gap, pit or
+height seam between the road, the new intersection fill and the
+surrounding block pavement.
+
+**Not done**: this is still a flat, generic-asphalt fill, not the real
+`Kit_City_Road` intersection tiles (`M_Asphalt_Master_Inst_Intersection`
+material, already migrated but unused) or real crosswalk/lane-marking
+decals (`Kit_MeshDecals_A`, also migrated but unused) -- see the
+"[RESOLVED, real curbs and sidewalks]" entry above's "Not done" note,
+which still applies to lane-class snapping and decals; only the paved
+surface itself (no visible gap) is what this entry closes.

@@ -55,8 +55,8 @@ def test_serialize_scenario_adds_ground_and_environment_only_when_asked(
     urban_config, bounds
 ) -> None:
     """Without an environment the payload is just the scenario; with one,
-    the ground mesh and the block paving are appended and an
-    "environment" object is added."""
+    the ground mesh, the block paving, the intersection paving and the
+    roof slabs are appended and an "environment" object is added."""
     scenario = generate_scenario(42, urban_config, bounds, "env_test")
 
     plain = serialize_scenario(scenario)
@@ -65,10 +65,11 @@ def test_serialize_scenario_adds_ground_and_environment_only_when_asked(
     assert "environment" not in plain
     extra = dressed["meshes"][len(plain["meshes"]) :]
     assert extra[0]["material"] == "ground"
-    assert len(extra) > 1  # the block paving follows the ground
+    assert len(extra) > 1  # the block/intersection paving follows the ground
     materials = {mesh["material"] for mesh in extra[1:]}
     assert "pavement" in materials
-    assert materials - {"pavement"} <= {"roof_0", "roof_1", "roof_2", "roof_3"}
+    assert "asphalt" in materials  # the paved intersection surfaces
+    assert materials - {"pavement", "asphalt"} <= {"roof_0", "roof_1", "roof_2", "roof_3"}
     assert dressed["environment"] == DEFAULT_ENVIRONMENT.to_json()
     json.dumps(dressed)
 
