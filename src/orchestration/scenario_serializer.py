@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 
 from src.orchestration.dataset_generator import ScenarioResult
 from src.procedural.actor_placement import Vehicle
+from src.procedural.block_pavement import build_block_pavement_meshes
 from src.procedural.building_facade import FacadePiece
 from src.procedural.city_sample_assets import VEHICLE_PART_PATHS
 from src.procedural.environment import EnvironmentConfig, build_ground_mesh
@@ -125,7 +126,8 @@ def serialize_scenario(
         A real, validated scenario from
         :func:`src.orchestration.dataset_generator.generate_scenario`.
     environment : Optional[EnvironmentConfig]
-        When given, a ground plane is appended to ``"meshes"`` and an
+        When given, a ground plane and the sidewalk-height block paving
+        are appended to ``"meshes"`` and an
         ``"environment"`` object (sun, fog, grade, hide-template-terrain)
         is added for the UE5 plugin to apply. ``None`` (the default)
         serializes only the scenario itself.
@@ -155,5 +157,8 @@ def serialize_scenario(
     payload: Dict[str, Any] = {"meshes": meshes, "assets": assets}
     if environment is not None:
         meshes.append(_mesh_to_json(build_ground_mesh(environment)))
+        meshes += [
+            _mesh_to_json(mesh) for mesh in build_block_pavement_meshes(result.nodes, result.edges)
+        ]
         payload["environment"] = environment.to_json()
     return payload

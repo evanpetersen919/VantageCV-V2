@@ -98,8 +98,7 @@ def _run_pieces(  # pylint: disable=too-many-arguments,too-many-locals
     run_direction: npt.NDArray[np.float64],
     length: float,
     tile_length: float,
-    asset_paths: Tuple[str, ...],
-    variant_offset: int,
+    asset_path: str,
     z: float,
     scale_yz: Tuple[float, float],
 ) -> List[FacadePiece]:
@@ -114,7 +113,7 @@ def _run_pieces(  # pylint: disable=too-many-arguments,too-many-locals
         position = start + run_direction * (index * step)
         pieces.append(
             FacadePiece(
-                asset_path=asset_paths[(variant_offset + index) % len(asset_paths)],
+                asset_path=asset_path,
                 position=np.array([position[0], position[1], z]),
                 rotation_rad=rotation,
                 scale=(stretch, scale_yz[0], scale_yz[1]),
@@ -123,18 +122,25 @@ def _run_pieces(  # pylint: disable=too-many-arguments,too-many-locals
     return pieces
 
 
-def generate_road_edge_pieces(
+def generate_road_edge_pieces(  # pylint: disable=too-many-locals
     lanes: Dict[int, Lane],
     edges: Dict[int, RoadEdge],
     kit: RoadEdgeKit = DEFAULT_ROAD_EDGE_KIT,
+    curb_variant: int = 0,
+    sidewalk_variant: int = 0,
 ) -> List[FacadePiece]:
     """Curb and sidewalk pieces along the outer edge of every directed
     road edge, on straight stretches only (see this module's docstring).
 
-    Deterministic and RNG-free: everything follows from the lane
-    geometry, and the variant of each piece cycles with the edge id so
-    neighbouring runs differ.
+    Deterministic and RNG-free. One curb style and one sidewalk style are
+    used for the WHOLE scenario (``curb_variant``/``sidewalk_variant``
+    index into the kit's asset paths): a real city uses a single sidewalk
+    type, so tiles must match each other. Varying the variant between
+    scenarios (chosen by the caller from the scenario seed) is the domain
+    randomization knob.
     """
+    curb_asset = kit.curb_asset_paths[curb_variant % len(kit.curb_asset_paths)]
+    sidewalk_asset = kit.sidewalk_asset_paths[sidewalk_variant % len(kit.sidewalk_asset_paths)]
     pieces: List[FacadePiece] = []
     for edge_id, boundary in sorted(_outer_boundaries(lanes).items()):
         edge = edges[edge_id]
@@ -155,8 +161,7 @@ def generate_road_edge_pieces(
             run_direction,
             length,
             kit.curb_length_m,
-            kit.curb_asset_paths,
-            edge_id,
+            curb_asset,
             kit.curb_z_m,
             kit.curb_scale_yz,
         )
@@ -165,8 +170,7 @@ def generate_road_edge_pieces(
             run_direction,
             length,
             kit.sidewalk_length_m,
-            kit.sidewalk_asset_paths,
-            edge_id,
+            sidewalk_asset,
             kit.sidewalk_z_m,
             (1.0, 1.0),
         )

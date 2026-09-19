@@ -142,3 +142,36 @@ def test_generated_scenario_has_road_edge_pieces_and_buildings_clear_the_sidewal
                 continue
             if spans and edge.num_lanes == 2:
                 assert gap >= clearance - 1e-6
+
+
+def test_one_curb_style_and_one_sidewalk_style_for_the_whole_scenario() -> None:
+    """A real city uses one sidewalk type, so every tile in a scenario
+    matches; the variant arguments select which one."""
+    lanes, edges = _straight_road(120.0)
+
+    for variant, expected_sidewalk in enumerate(DEFAULT_ROAD_EDGE_KIT.sidewalk_asset_paths):
+        pieces = generate_road_edge_pieces(
+            lanes, edges, curb_variant=variant, sidewalk_variant=variant
+        )
+        sidewalks = {p.asset_path for p in pieces if p.asset_path.startswith("/Game/Road/")}
+        curbs = {p.asset_path for p in pieces if p.asset_path.startswith("/Game/Megascans/")}
+        assert sidewalks == {expected_sidewalk}
+        assert len(curbs) == 1
+
+
+def test_scenario_seed_picks_the_style_deterministically_and_varies_across_seeds(
+    urban_config, bounds
+) -> None:
+    """Same seed, same style; different seeds cover several styles (the
+    domain-randomization knob), each scenario internally consistent."""
+    first = generate_scenario(7, urban_config, bounds, "a").road_edge_pieces
+    second = generate_scenario(7, urban_config, bounds, "b").road_edge_pieces
+    assert [p.asset_path for p in first] == [p.asset_path for p in second]
+
+    seen = set()
+    for seed in range(6):
+        pieces = generate_scenario(seed, urban_config, bounds, "s").road_edge_pieces
+        sidewalks = {p.asset_path for p in pieces if p.asset_path.startswith("/Game/Road/")}
+        assert len(sidewalks) == 1
+        seen |= sidewalks
+    assert len(seen) > 1
