@@ -2,9 +2,9 @@
   "$schema_note": "Single source of truth for every material tag string this project's Python side (src/procedural/mesh_factory.py, src/procedural/building_placement.py) can emit as a Mesh.material value. tests/unit/test_material_tags_coverage.py asserts every emittable tag has an entry here. The C++ side (unreal_plugin/.../ProceduralMesh/MaterialResolver.cpp) is hand-authored against this same file rather than parsing it at runtime -- see KNOWN_GAPS_AND_ISSUES.md for why (no cross-language codegen for this scope). Asset paths are real City Sample content, verified present and dependency-traced in CitySample before being chosen -- not guessed -- but still require the same one-time manual Migrate step already documented for Vehicle/Traffic content (see KNOWN_GAPS_AND_ISSUES.md).",
   "tags": {
     "asphalt": {
-      "asset_path": "/Game/Road/Material/MI/M_Asphalt_Master_Inst",
-      "source": "CitySample Content/Road/Material/MI/M_Asphalt_Master_Inst.uasset",
-      "used_by": "mesh_factory.py MeshFactory.build_road_mesh (fixed material, not building-type-dependent)"
+      "asset_path": "/Game/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots",
+      "source": "CitySample Content/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots.uasset",
+      "used_by": "mesh_factory.py MeshFactory.build_road_mesh (fixed material, not building-type-dependent). Epic's parking-lot variant of the asphalt master, not the plain master: the plain M_Asphalt_Master_Inst rendered every generated road as a perfect mirror (its puddle layer is fully on for our meshes), while the parking-lot variant is a matte, patchy asphalt"
     },
     "ground": {
       "asset_path": "/Game/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots",

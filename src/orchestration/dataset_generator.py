@@ -31,6 +31,7 @@ from src.procedural.city_sample_assets import BUILDING_STYLES
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
+from src.procedural.road_edge_kit import generate_road_edge_pieces
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadNode
 from src.procedural.scenario import ScenarioTypeConfig
 from src.procedural.traffic_network import TrafficNetwork, TrafficNetworkGenerator
@@ -62,6 +63,7 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     pedestrians: List[Pedestrian]
     meshes: List[Mesh]
     building_facade_pieces: List[FacadePiece]
+    road_edge_pieces: List[FacadePiece]
     validation_report: ValidationReport
 
 
@@ -149,6 +151,7 @@ def generate_scenario(  # pylint: disable=too-many-locals
         pedestrians=pedestrians,
         meshes=meshes,
         building_facade_pieces=building_facade_pieces,
+        road_edge_pieces=generate_road_edge_pieces(lanes, edges),
         validation_report=validation_report,
     )
 

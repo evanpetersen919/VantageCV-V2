@@ -30,6 +30,12 @@ from src.procedural.road_network import RoadEdge, RoadNode
 # used by AASHTO/UK DfT design guidance for arterial roads.
 LANE_WIDTH_METERS = 3.5
 
+# Width of the sidewalk that runs along the outside of every road's
+# pavement (real ``sidewalk_width`` in Epic's City Sample Houdini road
+# config; matches the 3m depth of ``SM_Sidewalk_6_3``). Buildings are kept
+# at least this far beyond the pavement edge -- see building_placement.py.
+SIDEWALK_WIDTH_METERS = 3.0
+
 # A lane's own centerline/boundary is trimmed short of each endpoint node
 # by this fraction of the edge's own length at most, so a lane on a very
 # short edge (rare, but possible with a perturbed-grid layout) never gets

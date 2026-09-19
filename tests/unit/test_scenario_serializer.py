@@ -22,8 +22,9 @@ from src.procedural.city_sample_assets import VEHICLE_PART_PATHS
 def test_serialize_scenario_produces_meshes_and_assets_keys(urban_config, bounds) -> None:
     """A serialized scenario has exactly the top-level shape
     ProceduralScenarioLoader.cpp parses: "meshes" (populated) and
-    "assets" (one entry per vehicle plus one per building facade piece --
-    props still not populated, a deliberate later fast-follow)."""
+    "assets" (one entry per vehicle, per building facade piece and per
+    road curb/sidewalk piece -- props still not populated, a deliberate
+    later fast-follow)."""
     scenario = generate_scenario(42, urban_config, bounds, "serializer_test")
     assert scenario.vehicles  # sanity: this config/seed places some
     assert scenario.building_facade_pieces  # sanity: this config/seed places buildings
@@ -31,7 +32,12 @@ def test_serialize_scenario_produces_meshes_and_assets_keys(urban_config, bounds
     payload = serialize_scenario(scenario)
 
     assert set(payload.keys()) == {"meshes", "assets"}
-    assert len(payload["assets"]) == len(scenario.vehicles) + len(scenario.building_facade_pieces)
+    assert scenario.road_edge_pieces  # sanity: the road network has edges
+    assert len(payload["assets"]) == (
+        len(scenario.vehicles)
+        + len(scenario.building_facade_pieces)
+        + len(scenario.road_edge_pieces)
+    )
     assert len(payload["meshes"]) == len(scenario.meshes)
 
 
@@ -76,9 +82,13 @@ def test_serialize_scenario_preserves_facade_piece_data_exactly(urban_config, bo
     assert scenario.building_facade_pieces
 
     payload = serialize_scenario(scenario)
-    facade_assets = [asset for asset in payload["assets"] if asset["category"] == "static_asset"]
+    static_assets = [asset for asset in payload["assets"] if asset["category"] == "static_asset"]
+    # Building facade pieces come first, then the road curb/sidewalk pieces.
+    facade_assets = static_assets[: len(scenario.building_facade_pieces)]
 
-    assert len(facade_assets) == len(scenario.building_facade_pieces)
+    assert len(static_assets) == len(scenario.building_facade_pieces) + len(
+        scenario.road_edge_pieces
+    )
     for piece, asset in zip(scenario.building_facade_pieces, facade_assets):
         assert asset["asset_path"] == piece.asset_path
         assert asset["position"] == [
@@ -135,6 +145,7 @@ def test_serialize_scenario_handles_empty_meshes() -> None:
         meshes: list = []
         vehicles: list = []
         building_facade_pieces: list = []
+        road_edge_pieces: list = []
 
     payload = serialize_scenario(_FakeResult())  # type: ignore[arg-type]
 
