@@ -392,12 +392,21 @@ class BuildingStyle:
     name: str
     levels: Tuple[BuildingKit, ...]
     top_levels: Tuple[BuildingKit, ...] = ()
+    # Optional cap layer tiled once on top of the last floor (Epic's
+    # "Topper": a short parapet kit over the roof edge; it uses the same
+    # wall/corner grammar and grid as the floors below). Counts toward the
+    # building's total height but is not a floor.
+    roof_cap: Optional[BuildingKit] = None
+    # Distance (m) the flat roof slab is inset from the walls (BDF
+    # ``Roof_Inset``).
+    roof_inset_m: float = 0.2
 
     def __post_init__(self) -> None:
         if not self.levels:
             raise ValueError("BuildingStyle needs at least one level")
         grid = self._grid(self.levels[0])
-        for kit in self.levels[1:] + self.top_levels:
+        extra = (self.roof_cap,) if self.roof_cap is not None else ()
+        for kit in self.levels[1:] + self.top_levels + extra:
             if self._grid(kit) != grid:
                 raise ValueError(
                     f"BuildingStyle {self.name!r}: every level must share one horizontal "
@@ -458,9 +467,24 @@ class BuildingStyle:
             return list(self.levels[:floor_count])
         return list(self.levels) + [self.levels[-1]] * (floor_count - bottom)
 
-    def total_height(self, floor_count: int) -> float:
-        """Total height (meters) of a ``floor_count``-floor building."""
+    def layer_kits(self, floor_count: int) -> List[BuildingKit]:
+        """Every tiled layer of a ``floor_count``-floor building, ground
+        first: the floors, then the roof cap when the style has one."""
+        layers = self.floor_kits(floor_count)
+        if self.roof_cap is not None:
+            layers.append(self.roof_cap)
+        return layers
+
+    def roof_plane_height(self, floor_count: int) -> float:
+        """Height (meters) of the top of the last FLOOR -- where the flat
+        roof slab sits (Epic's roof plane is at the top of the last floor,
+        within 5cm; a roof cap's parapet rises around it)."""
         return sum(kit.floor_height_m for kit in self.floor_kits(floor_count))
+
+    def total_height(self, floor_count: int) -> float:
+        """Total height (meters) of a ``floor_count``-floor building,
+        including the roof cap when the style has one."""
+        return sum(kit.floor_height_m for kit in self.layer_kits(floor_count))
 
     def floor_count_for_height(self, height: float) -> int:
         """Smallest floor count (at least 1) whose total height is at
@@ -520,6 +544,23 @@ _CHH_FLOOR_HEIGHTS_M = {1: 3.25, 2: 2.25, 3: 3.75, 4: 4.25}
 #   - Mesh names are ``SM_BLDG_SFA_L<n>_A_...`` (level NOT zero-padded).
 #   - Yaw deltas match CHA (270/270); offsets reused, confirm live.
 _SFA_FLOOR_HEIGHTS_M = {1: 12.75, 2: 7.5, 3: 11.25, 4: 3.75, 5: 3.75}
+
+# Roof caps ("Toppers"), from the BDF ``Topper`` fields and a read-only
+# point-cloud survey: a Topper number is just another level's kit, tiled on
+# the same footprint edges (same yaw as the walls) at the top of the last
+# floor. CHH floors L4-L6 use Topper 8 (Kit_Bldg_CHH_L8_A, BDF Height 1.0m,
+# same C 1.0 / W1 1.25 / W2 3.25 grid); SFA floors L3-L8 use Topper 9
+# (Kit_Bldg_SFA_L9_A, Height 1.0m, same C 1.5 / W 3.25 grid). Both share the
+# floors' grid exactly. NOT done: CHA's cap (L19 / L20) -- L19 uses a
+# different grid (corner 1.0m, walls 3.25m and 1.75m), which this tiling
+# model cannot express yet. The cap's mesh-local yaw offsets are assumed to
+# match the floors' (same yaw deltas in the point cloud); confirm live.
+_CHH_CAP_LEVEL = 8
+_SFA_CAP_LEVEL = 9
+_CAP_HEIGHT_M = 1.0
+
+# Roof slab inset from the walls, BDF ``Roof_Inset`` per family.
+_ROOF_INSET_M = {"CHA": 0.2, "CHH": 0.6, "SFA": 1.0}
 
 
 def _family_kit(  # pylint: disable=too-many-arguments
@@ -607,6 +648,33 @@ for _level, _height in _SFA_FLOOR_HEIGHTS_M.items():
     )
 
 
+BUILDING_KITS["CHH_L8"] = _family_kit(
+    "CH",
+    "CHH",
+    "H",
+    _CHH_CAP_LEVEL,
+    wall_piece="Wall_01",
+    column_piece="Wall_02",
+    wall_width_m=1.25,
+    column_width_m=3.25,
+    corner_to_first_wall_m=1.0,
+    floor_height_m=_CAP_HEIGHT_M,
+)
+BUILDING_KITS["SFA_L9"] = _family_kit(
+    "SF",
+    "SFA",
+    "A",
+    _SFA_CAP_LEVEL,
+    wall_piece="Wall_01",
+    column_piece=None,
+    wall_width_m=3.25,
+    column_width_m=0.0,
+    corner_to_first_wall_m=1.5,
+    floor_height_m=_CAP_HEIGHT_M,
+    pad_level=False,
+)
+
+
 def _kits(family: str, levels: Dict[int, float]) -> Tuple[BuildingKit, ...]:
     return tuple(BUILDING_KITS[f"{family}_L{level}"] for level in levels)
 
@@ -616,9 +684,20 @@ BUILDING_STYLES: Dict[str, BuildingStyle] = {
         name="CHA",
         levels=_kits("CHA", _CHA_FLOOR_HEIGHTS_M),
         top_levels=_kits("CHA", _CHA_TOP_FLOOR_HEIGHTS_M),
+        roof_inset_m=_ROOF_INSET_M["CHA"],
     ),
-    "CHH": BuildingStyle(name="CHH", levels=_kits("CHH", _CHH_FLOOR_HEIGHTS_M)),
-    "SFA": BuildingStyle(name="SFA", levels=_kits("SFA", _SFA_FLOOR_HEIGHTS_M)),
+    "CHH": BuildingStyle(
+        name="CHH",
+        levels=_kits("CHH", _CHH_FLOOR_HEIGHTS_M),
+        roof_cap=BUILDING_KITS["CHH_L8"],
+        roof_inset_m=_ROOF_INSET_M["CHH"],
+    ),
+    "SFA": BuildingStyle(
+        name="SFA",
+        levels=_kits("SFA", _SFA_FLOOR_HEIGHTS_M),
+        roof_cap=BUILDING_KITS["SFA_L9"],
+        roof_inset_m=_ROOF_INSET_M["SFA"],
+    ),
 }
 
 DEFAULT_BUILDING_STYLE: BuildingStyle = BUILDING_STYLES["CHA"]

@@ -21,9 +21,7 @@ z-fights. UVs run in metres divided by ``ground_uv_tile_m``.
 from dataclasses import dataclass
 from typing import Any, Dict
 
-import numpy as np
-
-from src.procedural.mesh_factory import Mesh
+from src.procedural.mesh_factory import Mesh, flat_quad_mesh
 
 
 @dataclass(frozen=True)
@@ -66,11 +64,12 @@ def build_ground_mesh(environment: EnvironmentConfig) -> Mesh:
     """One large square, facing up, centred on the origin, with UVs in
     metres divided by ``ground_uv_tile_m`` so the material tiles."""
     half = environment.ground_half_extent_m
-    z = environment.ground_z_m
-    vertices = np.array(
-        [[-half, -half, z], [half, -half, z], [half, half, z], [-half, half, z]],
-        dtype=np.float64,
+    return flat_quad_mesh(
+        -half,
+        -half,
+        half,
+        half,
+        environment.ground_z_m,
+        environment.ground_uv_tile_m,
+        "ground",
     )
-    uvs = vertices[:, :2] / environment.ground_uv_tile_m
-    triangles = np.array([0, 1, 2, 0, 2, 3], dtype=np.int64)
-    return Mesh(vertices=vertices, triangles=triangles, uvs=uvs, material="ground")

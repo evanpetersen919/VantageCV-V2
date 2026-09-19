@@ -6,6 +6,11 @@
       "source": "CitySample Content/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots.uasset",
       "used_by": "mesh_factory.py MeshFactory.build_road_mesh (fixed material, not building-type-dependent). Epic's parking-lot variant of the asphalt master, not the plain master: the plain M_Asphalt_Master_Inst rendered every generated road as a perfect mirror (its puddle layer is fully on for our meshes), while the parking-lot variant is a matte, patchy asphalt"
     },
+    "roof": {
+      "asset_path": "/Game/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots",
+      "source": "CitySample Content/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots.uasset",
+      "used_by": "roofs.py build_roof_meshes -- flat roof slabs. Epic's own MI_Rooftop_* roof materials (bitumen/pebble tar, 71MB+ of 8K textures) are not migrated, so the matte asphalt stands in as tar roofing"
+    },
     "pavement": {
       "asset_path": "/Game/Road/Material/MI/M_Sidewalk_Master_Inst",
       "source": "CitySample Content/Road/Material/MI/M_Sidewalk_Master_Inst.uasset",
