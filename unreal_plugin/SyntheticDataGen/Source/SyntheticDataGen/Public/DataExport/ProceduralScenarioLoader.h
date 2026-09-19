@@ -92,6 +92,17 @@ private:
 	 */
 	void ClearPreviousScenario();
 
+	/**
+	 * Applies the optional top-level "environment" object of a scenario
+	 * payload to the current level: hides the engine template's terrain,
+	 * retunes the sun, height fog and adds an unbound post-process volume
+	 * (grade/exposure). Every field is optional; values are the ones
+	 * measured in Epic's City Sample levels (see KNOWN_GAPS_AND_ISSUES.md).
+	 * The post-process volume is tracked in SpawnedAssetActors so each
+	 * LoadProceduralScenario call replaces it instead of stacking volumes.
+	 */
+	void ApplyEnvironment(const TSharedPtr<FJsonObject>& Environment);
+
 	/** Vehicles spawned by the most recent LoadProceduralScenario call
 	 * (mesh sections are components of this actor and don't need
 	 * separate tracking; spawned vehicles are independent actors in the

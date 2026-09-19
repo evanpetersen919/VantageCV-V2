@@ -6,6 +6,11 @@
       "source": "CitySample Content/Road/Material/MI/M_Asphalt_Master_Inst.uasset",
       "used_by": "mesh_factory.py MeshFactory.build_road_mesh (fixed material, not building-type-dependent)"
     },
+    "ground": {
+      "asset_path": "/Game/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots",
+      "source": "CitySample Content/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots.uasset",
+      "used_by": "mesh_factory.py MeshFactory.build_ground_mesh -- the large flat plane under and around the city (already migrated into VantageCV_UE5; the matte parking-lot asphalt variant, not the glossy road one)"
+    },
     "brick": {
       "asset_path": "/Game/Building/Material/MI/Brick/MI_Bldg_BrickOffset_Red",
       "source": "CitySample Content/Building/Material/MI/Brick/MI_Bldg_BrickOffset_Red.uasset",

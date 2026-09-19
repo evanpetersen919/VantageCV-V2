@@ -16,6 +16,13 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "EngineUtils.h"
+#include "Engine/Engine.h"
+#include "Engine/DirectionalLight.h"
+#include "Engine/ExponentialHeightFog.h"
+#include "Engine/PostProcessVolume.h"
+#include "Components/DirectionalLightComponent.h"
+#include "Components/ExponentialHeightFogComponent.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogProceduralScenarioLoader, Log, All);
 
@@ -306,6 +313,135 @@ void AProceduralScenarioLoader::ClearPreviousScenario()
 	SpawnedAssetActors.Reset();
 }
 
+void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& Env)
+{
+	UWorld* World = GetWorld();
+	if (World == nullptr || !Env.IsValid())
+	{
+		return;
+	}
+
+	// The engine template map's checkerboard floor and desert hills are
+	// its Landscape. Turning the Landscape show flag off hides all of it,
+	// including World Partition proxies that stream in later, which
+	// hiding individual actors would not survive.
+	bool bHideTerrain = false;
+	if (Env->TryGetBoolField(TEXT("hide_template_terrain"), bHideTerrain) && bHideTerrain)
+	{
+		if (GEngine != nullptr)
+		{
+			GEngine->Exec(World, TEXT("ShowFlag.Landscape 0"));
+		}
+		// The show flag alone left distant terrain visible at the horizon
+		// (confirmed in a screenshot), so also hide every loaded landscape
+		// actor directly. Matching by class name avoids a Landscape module
+		// dependency.
+		int32 HiddenCount = 0;
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			// The template map's single StaticMeshActor is the other source
+			// of the distant hills; this runs before this loader spawns any
+			// asset actors of its own, so it cannot hide our content.
+			const FString ClassName = It->GetClass()->GetName();
+			if (ClassName.Contains(TEXT("Landscape")) || ClassName == TEXT("StaticMeshActor"))
+			{
+				It->SetActorHiddenInGame(true);
+				++HiddenCount;
+			}
+		}
+		UE_LOG(LogProceduralScenarioLoader, Display, TEXT("ApplyEnvironment: hid %d template terrain actor(s)"), HiddenCount);
+	}
+
+	const TSharedPtr<FJsonObject>* SunJson = nullptr;
+	if (Env->TryGetObjectField(TEXT("sun"), SunJson))
+	{
+		for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+		{
+			double Pitch = 0.0;
+			double Yaw = 0.0;
+			const bool bHasPitch = (*SunJson)->TryGetNumberField(TEXT("pitch_deg"), Pitch);
+			const bool bHasYaw = (*SunJson)->TryGetNumberField(TEXT("yaw_deg"), Yaw);
+			if (bHasPitch || bHasYaw)
+			{
+				const FRotator Current = It->GetActorRotation();
+				It->SetActorRotation(FRotator(
+					bHasPitch ? Pitch : Current.Pitch, bHasYaw ? Yaw : Current.Yaw, 0.0));
+			}
+			double Temperature = 0.0;
+			if ((*SunJson)->TryGetNumberField(TEXT("temperature_k"), Temperature))
+			{
+				if (UDirectionalLightComponent* Light = Cast<UDirectionalLightComponent>(It->GetLightComponent()))
+				{
+					Light->SetTemperature(static_cast<float>(Temperature));
+					Light->SetUseTemperature(true);
+				}
+			}
+			break;
+		}
+	}
+
+	const TSharedPtr<FJsonObject>* FogJson = nullptr;
+	if (Env->TryGetObjectField(TEXT("fog"), FogJson))
+	{
+		for (TActorIterator<AExponentialHeightFog> It(World); It; ++It)
+		{
+			if (UExponentialHeightFogComponent* Fog = It->GetComponent())
+			{
+				double Value = 0.0;
+				if ((*FogJson)->TryGetNumberField(TEXT("density"), Value))
+				{
+					Fog->SetFogDensity(static_cast<float>(Value));
+				}
+				if ((*FogJson)->TryGetNumberField(TEXT("height_falloff"), Value))
+				{
+					Fog->SetFogHeightFalloff(static_cast<float>(Value));
+				}
+				if ((*FogJson)->TryGetNumberField(TEXT("start_distance_m"), Value))
+				{
+					Fog->SetStartDistance(static_cast<float>(Value * MetersToUnrealUnits));
+				}
+			}
+			break;
+		}
+	}
+
+	const TSharedPtr<FJsonObject>* PostJson = nullptr;
+	if (Env->TryGetObjectField(TEXT("post_process"), PostJson))
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		APostProcessVolume* Volume = World->SpawnActor<APostProcessVolume>(
+			FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+		if (Volume != nullptr)
+		{
+			Volume->bUnbound = true;
+			Volume->BlendWeight = 1.0f;
+			Volume->Priority = 100.0f;
+			FPostProcessSettings& Settings = Volume->Settings;
+
+			double Value = 0.0;
+			if ((*PostJson)->TryGetNumberField(TEXT("exposure_bias"), Value))
+			{
+				Settings.bOverride_AutoExposureBias = true;
+				Settings.AutoExposureBias = static_cast<float>(Value);
+			}
+			if ((*PostJson)->TryGetNumberField(TEXT("saturation"), Value))
+			{
+				Settings.bOverride_ColorSaturation = true;
+				Settings.ColorSaturation = FVector4(Value, Value, Value, 1.0);
+			}
+			const TArray<TSharedPtr<FJsonValue>>* Gain = nullptr;
+			if ((*PostJson)->TryGetArrayField(TEXT("gain"), Gain) && Gain->Num() == 3)
+			{
+				Settings.bOverride_ColorGain = true;
+				Settings.ColorGain = FVector4(
+					(*Gain)[0]->AsNumber(), (*Gain)[1]->AsNumber(), (*Gain)[2]->AsNumber(), 1.0);
+			}
+			SpawnedAssetActors.Add(Volume);
+		}
+	}
+}
+
 bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJson)
 {
 	TSharedPtr<FJsonObject> Root;
@@ -321,6 +457,13 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 	// through several procedurally generated city layouts live), not
 	// just once per editor session.
 	ClearPreviousScenario();
+
+	// Environment first: it applies even to a scenario with no meshes.
+	const TSharedPtr<FJsonObject>* EnvironmentJson = nullptr;
+	if (Root->TryGetObjectField(TEXT("environment"), EnvironmentJson))
+	{
+		ApplyEnvironment(*EnvironmentJson);
+	}
 
 	// Traffic controller initialization and streaming/culling setup
 	// (MASTER_PROMPT Section 3.5's other "Procedural Meshes"/"Traffic

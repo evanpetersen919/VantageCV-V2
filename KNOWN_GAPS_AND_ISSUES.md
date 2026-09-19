@@ -13,6 +13,15 @@ later phase, tracked so it isn't forgotten).
 
 ## Open
 
+### [RESOLVED, one artifact left] Every frame showed the engine template's checkerboard floor and desert hills
+The project's default map is the engine's `OpenWorld` template (`GameDefaultMap=/Engine/Maps/Templates/OpenWorld`, no `.umap` of our own): its Landscape uses `WorldGridMaterial`, which is the checkerboard, plus bare desert hills. Measured against Epic's City Sample levels (headless read-only query): City Sample builds its environment from a sunset-photo sky dome, one low warm sun, exponential height fog, four post-process volumes and Houdini-generated ground, none of which is directly reusable for our generated scenarios (its sky is a fixed photo, its ground is procedural), while our template's SkyAtmosphere and clouds already look real and can vary by time of day.
+
+**What was built** (`src/procedural/environment.py`, `ProceduralScenarioLoader::ApplyEnvironment`, `serialize_scenario(result, environment)`): a scenario payload may carry an `"environment"` object. The plugin then hides the template terrain (show flag plus every Landscape/StaticMeshActor actor, before our own assets spawn), retunes the existing sun angle, exponential height fog and adds an unbound post-process volume (exposure bias, saturation). A large ground quad is added through the normal mesh path with a new `"ground"` material tag mapped to City Sample's already-migrated matte parking-lot asphalt (`M_Asphalt_Master_Inst_ParkingLots`), just below the z=0 road strips. Values started from City Sample's (fog falloff 0.07, warm low sun) and were tuned by eye: City Sample's exact grade (exposure bias -1.0, 4500K sun, green-tinted gain) gave a dark teal cast under our lighting, so the defaults are a milder grade (exposure 0, saturation 0.95). Sun intensity is deliberately left at the template value (City Sample's 2000 belongs to its own exposure setup). `bin/send_scenario_to_ue5.py` sends the default environment; every field is a plain number, ready to become a domain-randomization knob later.
+
+**Verified live** with a real generated 57-building `urban_dense` city: no checkerboard, matte textured asphalt ground to a flat horizon under the real sky, natural warm lighting, in aerial and street-level shots.
+
+**Still a real artifact**: pale, wavy ribbons at the far horizon (thin slivers of the template's hills). They survive hiding 46 template actors, the Landscape show flag and a much denser fog, so they are not ordinary landscape actors or fog-affected. Not investigated further (cause unknown). Separately, the real-asphalt road strips still look glossy like water and the buildings are open-topped; both are already tracked (roads are the next planned work).
+
 ### [REFERENCE] Building facade tiling is DONE and verified -- read this before touching `building_facade.py` again
 This entry is a quick-reference index for the three detailed entries directly below it (kept in full per this file's own "never delete a closed entry" rule) -- read this one first, then dig into the others only if you need the specific real measurements/evidence trail.
 
