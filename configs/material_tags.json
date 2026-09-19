@@ -6,10 +6,25 @@
       "source": "CitySample Content/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots.uasset",
       "used_by": "mesh_factory.py MeshFactory.build_road_mesh (fixed material, not building-type-dependent). Epic's parking-lot variant of the asphalt master, not the plain master: the plain M_Asphalt_Master_Inst rendered every generated road as a perfect mirror (its puddle layer is fully on for our meshes), while the parking-lot variant is a matte, patchy asphalt"
     },
-    "roof": {
-      "asset_path": "/Game/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots",
-      "source": "CitySample Content/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots.uasset",
-      "used_by": "roofs.py build_roof_meshes -- flat roof slabs. Epic's own MI_Rooftop_* roof materials (bitumen/pebble tar, 71MB+ of 8K textures) are not migrated, so the matte asphalt stands in as tar roofing"
+    "roof_0": {
+      "asset_path": "/Game/Environment/RoofTop/Material/MI/MI_Rooftop_BitumenRoofing",
+      "source": "CitySample Content/Environment/RoofTop/Material/MI/MI_Rooftop_BitumenRoofing.uasset",
+      "used_by": "roofs.py build_roof_meshes -- flat roof slab of every building whose id % 4 == 0 (Epic picks one MI_Rooftop_* per building by Building_ID % 6; four of the six are migrated)"
+    },
+    "roof_1": {
+      "asset_path": "/Game/Environment/RoofTop/Material/MI/MI_Rooftop_DirtyConcreteTiles",
+      "source": "CitySample Content/Environment/RoofTop/Material/MI/MI_Rooftop_DirtyConcreteTiles.uasset",
+      "used_by": "roofs.py build_roof_meshes -- flat roof slab of every building whose id % 4 == 1 (Epic picks one MI_Rooftop_* per building by Building_ID % 6; four of the six are migrated)"
+    },
+    "roof_2": {
+      "asset_path": "/Game/Environment/RoofTop/Material/MI/MI_Rooftop_PebbleDash",
+      "source": "CitySample Content/Environment/RoofTop/Material/MI/MI_Rooftop_PebbleDash.uasset",
+      "used_by": "roofs.py build_roof_meshes -- flat roof slab of every building whose id % 4 == 2 (Epic picks one MI_Rooftop_* per building by Building_ID % 6; four of the six are migrated)"
+    },
+    "roof_3": {
+      "asset_path": "/Game/Environment/RoofTop/Material/MI/MI_Rooftop_RoofTile",
+      "source": "CitySample Content/Environment/RoofTop/Material/MI/MI_Rooftop_RoofTile.uasset",
+      "used_by": "roofs.py build_roof_meshes -- flat roof slab of every building whose id % 4 == 3 (Epic picks one MI_Rooftop_* per building by Building_ID % 6; four of the six are migrated)"
     },
     "pavement": {
       "asset_path": "/Game/Road/Material/MI/M_Sidewalk_Master_Inst",

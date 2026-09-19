@@ -20,7 +20,17 @@ _MATERIAL_TAGS_PATH = Path(__file__).resolve().parents[2] / "configs" / "materia
 # Tags mesh_factory.py emits as fixed string literals, not derived from
 # building_placement.py's own per-type material table -- see
 # MeshFactory.build_road_mesh/build_vehicle_mesh/build_pedestrian_mesh.
-_FIXED_MESH_FACTORY_TAGS = {"asphalt", "vehicle_paint", "pedestrian", "ground", "pavement", "roof"}
+_FIXED_MESH_FACTORY_TAGS = {
+    "asphalt",
+    "vehicle_paint",
+    "pedestrian",
+    "ground",
+    "pavement",
+    "roof_0",
+    "roof_1",
+    "roof_2",
+    "roof_3",
+}
 
 
 def _load_material_tags() -> dict:

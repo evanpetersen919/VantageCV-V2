@@ -28,7 +28,7 @@ from src.procedural.building_facade import FacadePiece
 from src.procedural.city_sample_assets import VEHICLE_PART_PATHS
 from src.procedural.environment import EnvironmentConfig, build_ground_mesh
 from src.procedural.mesh_factory import Mesh
-from src.procedural.roofs import build_roof_meshes
+from src.procedural.roofs import build_roof_meshes, generate_roof_prop_pieces
 
 
 def _mesh_to_json(mesh: Mesh) -> Dict[str, Any]:
@@ -167,5 +167,11 @@ def serialize_scenario(
             _mesh_to_json(mesh) for mesh in build_block_pavement_meshes(result.nodes, result.edges)
         ]
         meshes += [_mesh_to_json(mesh) for mesh in build_roof_meshes(result.buildings)]
+        # Rooftop equipment goes with the roofs: only when dressing the scene.
+        id_offset += len(result.street_furniture_pieces)
+        assets += [
+            _facade_piece_to_asset_json(piece, id_offset + piece_id)
+            for piece_id, piece in enumerate(generate_roof_prop_pieces(result.buildings))
+        ]
         payload["environment"] = environment.to_json()
     return payload
