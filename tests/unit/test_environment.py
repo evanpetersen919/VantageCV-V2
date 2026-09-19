@@ -6,7 +6,14 @@ import numpy as np
 
 from src.orchestration.dataset_generator import generate_scenario
 from src.orchestration.scenario_serializer import serialize_scenario
-from src.procedural.environment import DEFAULT_ENVIRONMENT, EnvironmentConfig, build_ground_mesh
+from src.procedural.environment import (
+    DEFAULT_ENVIRONMENT,
+    EnvironmentConfig,
+    Season,
+    build_ground_mesh,
+    season_environment,
+    season_has_trees,
+)
 
 
 def test_ground_mesh_is_a_single_upward_facing_quad_below_the_roads() -> None:
@@ -64,3 +71,50 @@ def test_serialize_scenario_adds_ground_and_environment_only_when_asked(
     assert materials - {"pavement"} <= {"roof_0", "roof_1", "roof_2", "roof_3"}
     assert dressed["environment"] == DEFAULT_ENVIRONMENT.to_json()
     json.dumps(dressed)
+
+
+def test_every_season_has_a_preset_and_the_two_leafless_seasons_keep_trees() -> None:
+    """Each season maps to an environment; only winter and fall have street
+    trees (Epic's trees are bare skeletons, so leafy seasons omit them)."""
+    for season in Season:
+        assert isinstance(season_environment(season), EnvironmentConfig)
+    assert {s for s in Season if season_has_trees(s)} == {Season.WINTER, Season.FALL}
+
+
+def test_season_presets_differ_in_sun_and_fog_and_winter_is_lowest_and_coolest() -> None:
+    """Presets are distinct, winter has the lowest sun and the coolest
+    light, and the optional sun temperature and colour gain reach the JSON."""
+    presets = {s: season_environment(s) for s in Season}
+
+    assert len({(p.sun_pitch_deg, p.fog_density, p.saturation) for p in presets.values()}) == 4
+    assert presets[Season.WINTER].sun_pitch_deg == max(p.sun_pitch_deg for p in presets.values())
+    assert presets[Season.SUMMER].sun_pitch_deg == min(p.sun_pitch_deg for p in presets.values())
+    winter_json = presets[Season.WINTER].to_json()
+    assert winter_json["sun"]["temperature_k"] == presets[Season.WINTER].sun_temperature_k
+    assert winter_json["post_process"]["gain"] == list(presets[Season.WINTER].color_gain or ())
+    assert "temperature_k" not in DEFAULT_ENVIRONMENT.to_json()["sun"]
+    assert "gain" not in DEFAULT_ENVIRONMENT.to_json()["post_process"]
+
+
+def _birches(result) -> list:
+    """The street-birch pieces of a generated scenario."""
+    return [p for p in result.street_furniture_pieces if "/Kit_Tree_Birch/" in p.asset_path]
+
+
+def test_scenario_season_drives_trees_and_is_seeded(urban_config, bounds) -> None:
+    """A fixed season decides whether trees appear; with no season the seed
+    picks one deterministically, and earlier style draws are unaffected."""
+    winter = generate_scenario(5, urban_config, bounds, "w", season=Season.WINTER)
+    summer = generate_scenario(5, urban_config, bounds, "s", season=Season.SUMMER)
+    auto_a = generate_scenario(5, urban_config, bounds, "a")
+    auto_b = generate_scenario(5, urban_config, bounds, "b")
+
+    assert winter.season is Season.WINTER and _birches(winter)
+    assert summer.season is Season.SUMMER and not _birches(summer)
+    assert auto_a.season is auto_b.season
+    assert [p.asset_path for p in winter.road_edge_pieces] == [
+        p.asset_path for p in summer.road_edge_pieces
+    ]
+    assert {generate_scenario(s, urban_config, bounds, "x").season for s in range(12)} == set(
+        Season
+    )

@@ -12,7 +12,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -28,6 +28,7 @@ from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, 
 from src.procedural.building_facade import FacadePiece, generate_building_facade_pieces
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
 from src.procedural.city_sample_assets import BUILDING_STYLES
+from src.procedural.environment import Season, season_has_trees
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
@@ -70,6 +71,7 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     building_facade_pieces: List[FacadePiece]
     road_edge_pieces: List[FacadePiece]
     street_furniture_pieces: List[FacadePiece]
+    season: Season
     validation_report: ValidationReport
 
 
@@ -85,11 +87,24 @@ class DatasetGenerationResult:
     elapsed_seconds: float
 
 
+def _draw_season(style_rng: np.random.Generator) -> Season:
+    """One of the four seasons, uniformly, from the scenario's style stream."""
+    seasons = list(Season)
+    return seasons[int(style_rng.integers(len(seasons)))]
+
+
 def generate_scenario(  # pylint: disable=too-many-locals
-    seed: int, config: ScenarioTypeConfig, bounds: Bounds, scenario_id: str
+    seed: int,
+    config: ScenarioTypeConfig,
+    bounds: Bounds,
+    scenario_id: str,
+    season: Optional[Season] = None,
 ) -> ScenarioResult:
     """Run the full Phase 1-4 procedural pipeline for one scenario:
     road network -> lanes -> buildings -> traffic -> meshes -> validation.
+
+    ``season`` fixes the scenario's season (environment preset and whether
+    street trees appear); ``None`` picks one from the seed.
 
     Raises
     ------
@@ -148,12 +163,17 @@ def generate_scenario(  # pylint: disable=too-many-locals
         sidewalk_variant=int(style_rng.integers(len(DEFAULT_ROAD_EDGE_KIT.sidewalk_asset_paths))),
     )
 
+    # Drawn LAST from the style stream so every earlier style choice for a
+    # given seed is unchanged by the season feature.
+    chosen_season = season if season is not None else _draw_season(style_rng)
+
     street_furniture_pieces = generate_street_furniture_pieces(
         lanes,
         edges,
         lamp_style=int(style_rng.integers(len(LAMP_STYLES))),
         tree_base_style=int(style_rng.integers(len(TREE_BASE_STYLES))),
         seed=seed,
+        include_trees=season_has_trees(chosen_season),
     )
 
     validation_report = ScenarioValidator().validate(
@@ -178,6 +198,7 @@ def generate_scenario(  # pylint: disable=too-many-locals
         building_facade_pieces=building_facade_pieces,
         road_edge_pieces=road_edge_pieces,
         street_furniture_pieces=street_furniture_pieces,
+        season=chosen_season,
         validation_report=validation_report,
     )
 

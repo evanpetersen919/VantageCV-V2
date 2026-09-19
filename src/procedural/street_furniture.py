@@ -173,12 +173,13 @@ def _tree_pieces(  # pylint: disable=too-many-arguments
     ]
 
 
-def generate_street_furniture_pieces(  # pylint: disable=too-many-locals
+def generate_street_furniture_pieces(  # pylint: disable=too-many-locals,too-many-arguments
     lanes: Dict[int, Lane],
     edges: Dict[int, RoadEdge],
     lamp_style: int = 0,
     tree_base_style: int = 0,
     seed: int = 0,
+    include_trees: bool = True,
 ) -> List[FacadePiece]:
     """Street furniture and street trees along the curb line of every
     directed road edge.
@@ -190,7 +191,11 @@ def generate_street_furniture_pieces(  # pylint: disable=too-many-locals
     phase * spacing``, skipping any spot too close to an item that was
     already placed on the same run.
     """
-    rules: Sequence[_Rule] = furniture_rules(lamp_style)
+    rules: Sequence[_Rule] = [
+        rule
+        for rule in furniture_rules(lamp_style)
+        if include_trees or not isinstance(rule, TreeRule)
+    ]
     base_asset = TREE_BASE_STYLES[tree_base_style % len(TREE_BASE_STYLES)]
     tree_rng = np.random.Generator(np.random.PCG64([seed, 0x7EE5]))
     pieces: List[FacadePiece] = []
