@@ -43,6 +43,35 @@ SIDEWALK_WIDTH_METERS = 3.0
 MAX_TRIM_FRACTION_OF_EDGE_LENGTH = 0.4
 
 
+def compute_node_clearance(edges: Dict[int, RoadEdge]) -> Dict[int, float]:
+    """For each node, the physical half-width (in meters) of the widest
+    road meeting there -- the widest of any incident edge's own
+    ``num_lanes * LANE_WIDTH_METERS`` (each directed edge's lanes only
+    occupy its own right-hand half of the road, per this module's own
+    convention, so this is the true worst-case lane extent from the
+    node's center in any direction).
+
+    Used to trim every lane short of each node it touches, so lanes from
+    different edges meeting at the same intersection don't run straight
+    through each other's physical footprint -- found to be a real,
+    large-scale problem via dogfooding (real generated scenarios showed
+    ~38% of total scenario area covered by overlapping road geometry,
+    concentrated almost entirely at intersections -- see
+    KNOWN_GAPS_AND_ISSUES.md), not a hypothetical edge case.
+
+    Also reused by ``intersection_pavement.py`` to size the exact paved
+    surface that fills the gap this trim leaves behind: the same
+    clearance value bounds both operations, so the fill closes precisely
+    where the trim cut, with no separate measurement or guess.
+    """
+    clearance: Dict[int, float] = {}
+    for edge in edges.values():
+        half_width = edge.num_lanes * LANE_WIDTH_METERS
+        for node_id in (edge.start_node_id, edge.end_node_id):
+            clearance[node_id] = max(clearance.get(node_id, 0.0), half_width)
+    return clearance
+
+
 @dataclass(eq=False)
 class Lane:
     """A single traffic lane within one directed RoadEdge."""
@@ -96,7 +125,7 @@ class LaneTopologyGenerator:  # pylint: disable=too-few-public-methods
             if edge.start_node_id not in nodes or edge.end_node_id not in nodes:
                 raise ValueError(f"Edge {edge.edge_id} references a node not in `nodes`")
 
-        node_clearance = self._compute_node_clearance(edges)
+        node_clearance = compute_node_clearance(edges)
 
         lanes: Dict[int, Lane] = {}
         for edge in edges.values():
@@ -106,39 +135,6 @@ class LaneTopologyGenerator:  # pylint: disable=too-few-public-methods
                 lanes[lane.lane_id] = lane
         return lanes
 
-    @staticmethod
-    def _compute_node_clearance(edges: Dict[int, RoadEdge]) -> Dict[int, float]:
-        """For each node, the physical half-width (in meters) of the
-        widest road meeting there -- the widest of any incident edge's own
-        ``num_lanes * LANE_WIDTH_METERS`` (each directed edge's lanes only
-        occupy its own right-hand half of the road, per this module's own
-        convention, so this is the true worst-case lane extent from the
-        node's center in any direction).
-
-        Used to trim every lane short of each node it touches, so lanes
-        from different edges meeting at the same intersection don't run
-        straight through each other's physical footprint -- found to be a
-        real, large-scale problem via dogfooding (real generated
-        scenarios showed ~38% of total scenario area covered by
-        overlapping road geometry, concentrated almost entirely at
-        intersections -- see KNOWN_GAPS_AND_ISSUES.md), not a
-        hypothetical edge case.
-
-        This is a real mitigation, not a proper mitered intersection
-        surface: it shrinks every lane back far enough that overlap
-        between DIFFERENT edges' lanes is eliminated in the vast
-        majority of cases, but it does not generate an actual paved
-        intersection surface filling the resulting gap -- there will be
-        a visible unpaved gap at every intersection instead. A real
-        intersection mesh is future work, not attempted here.
-        """
-        clearance: Dict[int, float] = {}
-        for edge in edges.values():
-            half_width = edge.num_lanes * LANE_WIDTH_METERS
-            for node_id in (edge.start_node_id, edge.end_node_id):
-                clearance[node_id] = max(clearance.get(node_id, 0.0), half_width)
-        return clearance
-
     def _generate_lanes_for_edge(  # pylint: disable=too-many-locals
         self, edge: RoadEdge, start_trim: float, end_trim: float
     ) -> List[Lane]:
@@ -146,7 +142,7 @@ class LaneTopologyGenerator:  # pylint: disable=too-few-public-methods
         offset into the right-hand half of the road relative to the edge's
         direction of travel, with the centerline trimmed short of each
         endpoint by ``start_trim``/``end_trim`` (see
-        ``_compute_node_clearance``) so lanes don't extend through the
+        ``compute_node_clearance``) so lanes don't extend through the
         intersections at either end."""
         start, end = edge.centerline[0], edge.centerline[-1]
         direction = end - start
