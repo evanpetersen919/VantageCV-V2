@@ -262,7 +262,7 @@ def generate_building_facade_pieces(  # pylint: disable=too-many-locals
     corner_reach = style.corner_to_first_wall_m
     wall_pitch = style.wall_pitch_m  # wall pivot to next wall pivot along an edge
 
-    floor_kits = style.floor_kits(num_floors)
+    floor_kits = style.layer_kits(num_floors)  # the floors, then the roof cap if any
     pieces: List[FacadePiece] = []
     z = 0.0
     for kit in floor_kits:

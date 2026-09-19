@@ -225,6 +225,31 @@ def _quad_indices_ccw(
     return [_ccw(idx_a, idx_b, idx_c), _ccw(idx_a, idx_c, idx_d)]
 
 
+def flat_quad_mesh(  # pylint: disable=too-many-arguments
+    x_min: float,
+    y_min: float,
+    x_max: float,
+    y_max: float,
+    z: float,
+    uv_tile_meters: float,
+    material: str,
+) -> Mesh:
+    """One upward-facing horizontal rectangle at height ``z`` (counter-
+    clockwise seen from above), with UVs in metres divided by
+    ``uv_tile_meters`` so the material tiles. Used for the ground plane,
+    block paving and roof slabs."""
+    vertices = np.array(
+        [[x_min, y_min, z], [x_max, y_min, z], [x_max, y_max, z], [x_min, y_max, z]],
+        dtype=np.float64,
+    )
+    return Mesh(
+        vertices=vertices,
+        triangles=np.array([0, 1, 2, 0, 2, 3], dtype=np.int64),
+        uvs=vertices[:, :2] / uv_tile_meters,
+        material=material,
+    )
+
+
 class MeshFactory:
     """Convert road lane geometry and building footprints into meshes.
 

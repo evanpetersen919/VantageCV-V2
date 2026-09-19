@@ -59,6 +59,6 @@ def test_serialize_scenario_adds_ground_and_environment_only_when_asked(
     extra = dressed["meshes"][len(plain["meshes"]) :]
     assert extra[0]["material"] == "ground"
     assert len(extra) > 1  # the block paving follows the ground
-    assert {mesh["material"] for mesh in extra[1:]} == {"pavement"}
+    assert {mesh["material"] for mesh in extra[1:]} == {"pavement", "roof"}
     assert dressed["environment"] == DEFAULT_ENVIRONMENT.to_json()
     json.dumps(dressed)

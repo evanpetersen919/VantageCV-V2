@@ -18,11 +18,9 @@ gaps at intersection corners where the per-edge sidewalks stop.
 
 from typing import Dict, List
 
-import numpy as np
-
 from src.procedural.building_placement import identify_city_blocks
 from src.procedural.lane_topology import LANE_WIDTH_METERS
-from src.procedural.mesh_factory import Mesh
+from src.procedural.mesh_factory import Mesh, flat_quad_mesh
 from src.procedural.road_network import RoadEdge, RoadNode
 
 # Top of the fill in metres: just under the sidewalk slabs' top (about
@@ -49,17 +47,15 @@ def build_block_pavement_meshes(
         x_max, y_max = block.max(axis=0) - inset
         if x_max <= x_min or y_max <= y_min:
             continue  # the roads' pavement leaves nothing of this block
-        z = BLOCK_PAVEMENT_Z_METERS
-        vertices = np.array(
-            [[x_min, y_min, z], [x_max, y_min, z], [x_max, y_max, z], [x_min, y_max, z]],
-            dtype=np.float64,
-        )
         meshes.append(
-            Mesh(
-                vertices=vertices,
-                triangles=np.array([0, 1, 2, 0, 2, 3], dtype=np.int64),
-                uvs=vertices[:, :2] / BLOCK_PAVEMENT_UV_TILE_METERS,
-                material="pavement",
+            flat_quad_mesh(
+                x_min,
+                y_min,
+                x_max,
+                y_max,
+                BLOCK_PAVEMENT_Z_METERS,
+                BLOCK_PAVEMENT_UV_TILE_METERS,
+                "pavement",
             )
         )
     return meshes

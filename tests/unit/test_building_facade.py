@@ -357,13 +357,13 @@ def test_every_registered_style_tiles_a_tall_building_exactly(  # pylint: disabl
     per_floor_walls = 2 * walls_x + 2 * walls_y
     per_floor_columns = 2 * (walls_x - 1) + 2 * (walls_y - 1)
     expected_pieces = 0
-    for kit in style.floor_kits(floors):
+    kits = style.layer_kits(floors)  # the floors, then the roof cap if any
+    for kit in kits:
         columns = per_floor_columns if kit.column_asset_path is not None else 0
         expected_pieces += 4 + per_floor_walls + columns
     assert len(pieces) == expected_pieces
     z_values = sorted({round(float(p.position[2]), 6) for p in pieces})
-    kits = style.floor_kits(floors)
-    expected_z = [round(sum(k.floor_height_m for k in kits[:i]), 6) for i in range(floors)]
+    expected_z = [round(sum(k.floor_height_m for k in kits[:i]), 6) for i in range(len(kits))]
     assert z_values == expected_z
     ground = kits[0]
     left_walls = [
@@ -415,7 +415,52 @@ def test_kit_without_columns_emits_no_column_pieces() -> None:
 
     pieces = generate_building_facade_pieces(building, style)
 
-    kit_paths = {k.wall_asset_path for k in style.floor_kits(2)} | {
-        k.corner_asset_path for k in style.floor_kits(2)
+    kit_paths = {k.wall_asset_path for k in style.layer_kits(2)} | {
+        k.corner_asset_path for k in style.layer_kits(2)
     }
     assert {p.asset_path for p in pieces} <= kit_paths
+
+
+@pytest.mark.parametrize("style_name", ["CHH", "SFA"])
+def test_roof_cap_sits_on_top_of_the_last_floor(style_name: str) -> None:
+    """CHH and SFA carry a 1m roof cap tiled once above the last floor on
+    the same footprint; the cap counts toward total height but is not a
+    floor, and CHA (whose cap grid is unsupported) has none."""
+    style = BUILDING_STYLES[style_name]
+    assert style.roof_cap is not None
+    assert style.roof_cap.floor_height_m == pytest.approx(1.0)
+    floors = 5
+    assert style.total_height(floors) == pytest.approx(
+        style.roof_plane_height(floors) + style.roof_cap.floor_height_m
+    )
+    building = Building(
+        0,
+        np.array([0.0, 0.0]),
+        style.edge_length_for_wall_count(2),
+        style.edge_length_for_wall_count(2),
+        style.total_height(floors),
+        style_name=style_name,
+    )
+
+    pieces = generate_building_facade_pieces(building, style)
+
+    cap_pieces = [
+        p
+        for p in pieces
+        if p.asset_path
+        in (
+            style.roof_cap.wall_asset_path,
+            style.roof_cap.corner_asset_path,
+            style.roof_cap.column_asset_path,
+        )
+    ]
+    assert cap_pieces
+    assert all(p.position[2] == pytest.approx(style.roof_plane_height(floors)) for p in cap_pieces)
+    assert BUILDING_STYLES["CHA"].roof_cap is None
+
+
+def test_roof_cap_must_share_the_floors_horizontal_grid() -> None:
+    """A cap on a different grid could not tile on the same footprint."""
+    wider = dataclasses.replace(KIT, wall_width_m=KIT.wall_width_m + 0.5)
+    with pytest.raises(ValueError):
+        BuildingStyle(name="BAD", levels=(KIT,), roof_cap=wider)
