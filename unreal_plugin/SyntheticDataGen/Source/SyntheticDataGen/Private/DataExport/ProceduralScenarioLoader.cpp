@@ -23,6 +23,8 @@
 #include "Engine/PostProcessVolume.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
+#include "Engine/Level.h"
+#include "Engine/World.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogProceduralScenarioLoader, Log, All);
 
@@ -329,6 +331,50 @@ void AProceduralScenarioLoader::ClearPreviousScenario()
 	SpawnedAssetActors.Reset();
 }
 
+bool AProceduralScenarioLoader::HideIfTemplateTerrain(AActor* Actor)
+{
+	if (Actor == nullptr)
+	{
+		return false;
+	}
+	// Landscape/LandscapeStreamingProxy (the checkerboard/hills) and the
+	// template's plain StaticMeshActor were the first two found (a live
+	// screenshot still showed distant terrain after hiding both). A third
+	// class, WorldPartitionHLOD, turned out to be the real cause of a
+	// separate pale "ribbon" artifact at the horizon that survived both:
+	// HLOD (Hierarchical LOD) actors are Epic's own auto-generated merged
+	// proxy meshes standing in for distant/unloaded terrain tiles, a
+	// completely different class from Landscape or StaticMeshActor, so
+	// neither earlier check matched them. Confirmed via a live query (new
+	// DebugListActorsWithMesh RPC): 24 WorldPartitionHLOD actors existed,
+	// all is_spatially_loaded=false (always resident, not streamed in
+	// late) -- ruling out the streaming-timing theory this fix started
+	// from disproving is what actually mattered here.
+	const FString ClassName = Actor->GetClass()->GetName();
+	if (ClassName.Contains(TEXT("Landscape")) || ClassName == TEXT("StaticMeshActor")
+		|| ClassName.Contains(TEXT("HLOD")))
+	{
+		Actor->SetActorHiddenInGame(true);
+		return true;
+	}
+	return false;
+}
+
+void AProceduralScenarioLoader::OnLevelAddedToWorld(ULevel* Level, UWorld* World)
+{
+	if (Level == nullptr || World != GetWorld())
+	{
+		// FWorldDelegates::LevelAddedToWorld is global across every world in
+		// the process; only act on levels streaming into THIS actor's own
+		// world.
+		return;
+	}
+	for (AActor* Actor : Level->Actors)
+	{
+		HideIfTemplateTerrain(Actor);
+	}
+}
+
 void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& Env)
 {
 	UWorld* World = GetWorld();
@@ -349,23 +395,30 @@ void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& 
 			GEngine->Exec(World, TEXT("ShowFlag.Landscape 0"));
 		}
 		// The show flag alone left distant terrain visible at the horizon
-		// (confirmed in a screenshot), so also hide every loaded landscape
-		// actor directly. Matching by class name avoids a Landscape module
-		// dependency.
+		// (confirmed in a screenshot), so also hide every loaded template
+		// terrain actor directly (see HideIfTemplateTerrain's own comment
+		// for the three classes this covers and why). This runs before
+		// this loader spawns any asset actors of its own, so it cannot
+		// hide our own content.
 		int32 HiddenCount = 0;
 		for (TActorIterator<AActor> It(World); It; ++It)
 		{
-			// The template map's single StaticMeshActor is the other source
-			// of the distant hills; this runs before this loader spawns any
-			// asset actors of its own, so it cannot hide our content.
-			const FString ClassName = It->GetClass()->GetName();
-			if (ClassName.Contains(TEXT("Landscape")) || ClassName == TEXT("StaticMeshActor"))
+			if (HideIfTemplateTerrain(*It))
 			{
-				It->SetActorHiddenInGame(true);
 				++HiddenCount;
 			}
 		}
-		UE_LOG(LogProceduralScenarioLoader, Display, TEXT("ApplyEnvironment: hid %d template terrain actor(s)"), HiddenCount);
+		UE_LOG(LogProceduralScenarioLoader, Display, TEXT("ApplyEnvironment: hid %d already-loaded template terrain actor(s)"), HiddenCount);
+
+		// World Partition streams the rest of the template map's actors in
+		// via level-add (see OnLevelAddedToWorld's own comment for why
+		// FOnActorSpawned does not fire for these) -- catch those too,
+		// registered once per world.
+		if (!bRegisteredLevelAddedDelegate)
+		{
+			FWorldDelegates::LevelAddedToWorld.AddUObject(this, &AProceduralScenarioLoader::OnLevelAddedToWorld);
+			bRegisteredLevelAddedDelegate = true;
+		}
 	}
 
 	const TSharedPtr<FJsonObject>* SunJson = nullptr;

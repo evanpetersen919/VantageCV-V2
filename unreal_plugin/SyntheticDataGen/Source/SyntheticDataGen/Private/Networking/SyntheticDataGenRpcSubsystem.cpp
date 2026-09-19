@@ -12,6 +12,7 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshSocket.h"
@@ -361,6 +362,85 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 		// isn't enough.
 		HideActorAndItsShadow(Pawn);
 
+		return BuildResultResponse(RequestId, MakeShared<FJsonValueBoolean>(true));
+	}
+
+	if (Method == TEXT("DebugListActorsWithMesh"))
+	{
+		// Direct inspection tool for the horizon-ribbon investigation:
+		// ground truth on which actors actually exist, their class and
+		// their current hidden state, instead of guessing at another
+		// streaming/spawn hook. Kept as a general debugging capability
+		// alongside the other Debug* RPCs.
+		const TSharedPtr<FJsonObject>* Params = nullptr;
+		FString MeshSubstring;
+		if (!Root->TryGetObjectField(TEXT("params"), Params)
+			|| !(*Params)->TryGetStringField(TEXT("mesh_substring"), MeshSubstring))
+		{
+			return BuildErrorResponse(RequestId, -32602, TEXT("Invalid params: expected a string 'mesh_substring'"));
+		}
+
+		UGameInstance* Instance = GetGameInstance();
+		UWorld* World = Instance != nullptr ? Instance->GetWorld() : nullptr;
+		if (World == nullptr)
+		{
+			return BuildErrorResponse(RequestId, -32000, TEXT("No world available"));
+		}
+
+		TArray<TSharedPtr<FJsonValue>> Matches;
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			TArray<UStaticMeshComponent*> MeshComponents;
+			It->GetComponents<UStaticMeshComponent>(MeshComponents);
+			for (UStaticMeshComponent* MeshComponent : MeshComponents)
+			{
+				if (MeshComponent == nullptr || MeshComponent->GetStaticMesh() == nullptr)
+				{
+					continue;
+				}
+				const FString MeshPath = MeshComponent->GetStaticMesh()->GetPathName();
+				if (!MeshPath.Contains(MeshSubstring))
+				{
+					continue;
+				}
+				const TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
+				Entry->SetStringField(TEXT("label"), It->GetActorLabel());
+				Entry->SetStringField(TEXT("class"), It->GetClass()->GetName());
+				Entry->SetStringField(TEXT("mesh"), MeshPath);
+				Entry->SetBoolField(TEXT("actor_hidden"), It->IsHidden());
+				Entry->SetBoolField(TEXT("component_visible"), MeshComponent->IsVisible());
+				const FVector Loc = It->GetActorLocation();
+				Entry->SetStringField(TEXT("location"), Loc.ToString());
+				Entry->SetBoolField(TEXT("is_spatially_loaded"), It->GetIsSpatiallyLoaded());
+				Matches.Add(MakeShared<FJsonValueObject>(Entry));
+			}
+		}
+		const TSharedRef<FJsonObject> Result = MakeShared<FJsonObject>();
+		Result->SetArrayField(TEXT("matches"), Matches);
+		Result->SetNumberField(TEXT("total_actor_count"), Matches.Num());
+		return BuildResultResponse(RequestId, MakeShared<FJsonValueObject>(Result));
+	}
+
+	if (Method == TEXT("DebugConsoleCommand"))
+	{
+		// Generic escape hatch for live investigation (e.g. toggling
+		// r.VolumetricCloud, show flags) without a plugin rebuild per
+		// hypothesis. Kept permanently alongside the other Debug* RPCs.
+		const TSharedPtr<FJsonObject>* Params = nullptr;
+		FString Command;
+		if (!Root->TryGetObjectField(TEXT("params"), Params)
+			|| !(*Params)->TryGetStringField(TEXT("command"), Command))
+		{
+			return BuildErrorResponse(RequestId, -32602, TEXT("Invalid params: expected a string 'command'"));
+		}
+
+		UGameInstance* Instance = GetGameInstance();
+		UWorld* World = Instance != nullptr ? Instance->GetWorld() : nullptr;
+		if (World == nullptr || GEngine == nullptr)
+		{
+			return BuildErrorResponse(RequestId, -32000, TEXT("No world available"));
+		}
+		GEngine->Exec(World, *Command);
 		return BuildResultResponse(RequestId, MakeShared<FJsonValueBoolean>(true));
 	}
 
