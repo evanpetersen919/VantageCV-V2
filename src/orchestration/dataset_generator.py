@@ -34,7 +34,11 @@ from src.procedural.mesh_factory import Mesh, MeshFactory
 from src.procedural.road_edge_kit import DEFAULT_ROAD_EDGE_KIT, generate_road_edge_pieces
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadNode
 from src.procedural.scenario import ScenarioTypeConfig
-from src.procedural.street_furniture import LAMP_STYLES, generate_street_furniture_pieces
+from src.procedural.street_furniture import (
+    LAMP_STYLES,
+    TREE_BASE_STYLES,
+    generate_street_furniture_pieces,
+)
 from src.procedural.traffic_network import TrafficNetwork, TrafficNetworkGenerator
 from src.procedural.validator import ScenarioValidator, ValidationReport
 from src.sensors.camera_model import Camera, CameraExtrinsics, CameraIntrinsics
@@ -145,7 +149,11 @@ def generate_scenario(  # pylint: disable=too-many-locals
     )
 
     street_furniture_pieces = generate_street_furniture_pieces(
-        lanes, edges, lamp_style=int(style_rng.integers(len(LAMP_STYLES)))
+        lanes,
+        edges,
+        lamp_style=int(style_rng.integers(len(LAMP_STYLES))),
+        tree_base_style=int(style_rng.integers(len(TREE_BASE_STYLES))),
+        seed=seed,
     )
 
     validation_report = ScenarioValidator().validate(
