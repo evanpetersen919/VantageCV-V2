@@ -64,6 +64,13 @@ struct FScenarioAssetData
 
 	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
 	FRotator Rotation = FRotator::ZeroRotator;
+
+	// Per-instance scale along the mesh's OWN local axes (UE space, no
+	// coordinate flip -- it is not a world-space quantity). Defaults to
+	// (1, 1, 1). A negative component mirrors the mesh; City Sample's
+	// real curbs are placed at (1, -0.75, 0.75).
+	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
+	FVector Scale = FVector::OneVector;
 };
 
 /**

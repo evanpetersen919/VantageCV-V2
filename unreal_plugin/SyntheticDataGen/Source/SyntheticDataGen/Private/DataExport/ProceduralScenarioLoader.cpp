@@ -182,6 +182,22 @@ namespace
 			}
 		}
 
+		// "scale" is optional ([sx, sy, sz] along the mesh's own local
+		// axes; absent means unscaled). Not run through
+		// ApplyCoordinateConvention: it is a local-axis quantity, not a
+		// world-space position, so the Y mirror does not apply to it.
+		OutAssetData.Scale = FVector::OneVector;
+		const TArray<TSharedPtr<FJsonValue>>* ScaleJson = nullptr;
+		if (AssetObject.TryGetArrayField(TEXT("scale"), ScaleJson))
+		{
+			if (ScaleJson->Num() != 3)
+			{
+				return false;
+			}
+			OutAssetData.Scale = FVector(
+				(*ScaleJson)[0]->AsNumber(), (*ScaleJson)[1]->AsNumber(), (*ScaleJson)[2]->AsNumber());
+		}
+
 		OutAssetData.Position = ApplyCoordinateConvention(
 			(*PositionJson)[0]->AsNumber(), (*PositionJson)[1]->AsNumber(), (*PositionJson)[2]->AsNumber());
 		OutAssetData.Rotation = FRotator(0.0, -FMath::RadiansToDegrees(RotationRad), 0.0);

@@ -108,6 +108,7 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 	// straight to SpawnActor instead: every vehicle spawned stacked at
 	// world origin, not its procedurally-computed position.
 	SpawnedActor->SetActorLocationAndRotation(AssetData.Position, AssetData.Rotation);
+	SpawnedActor->SetActorScale3D(AssetData.Scale);
 
 	// Wheels/doors/glass/interior/steering-wheel -- see this file's
 	// header comment. Each one is its own sibling component at the
