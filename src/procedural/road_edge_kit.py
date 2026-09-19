@@ -93,6 +93,46 @@ def _outer_boundaries(lanes: Dict[int, Lane]) -> Dict[int, npt.NDArray[np.float6
     return {edge_id: lane.left_boundary for edge_id, lane in outermost.items()}
 
 
+@dataclass(frozen=True)
+class EdgeRun:
+    """One straight run along a directed road edge's outer pavement edge
+    (the curb line): where it starts, which way it runs, how long it is,
+    and the outward direction (away from the road, onto the sidewalk)."""
+
+    edge_id: int
+    start: npt.NDArray[np.float64]
+    run_direction: npt.NDArray[np.float64]
+    outward: npt.NDArray[np.float64]
+    length: float
+
+    @property
+    def rotation_rad(self) -> float:
+        """Rotation of a piece whose local X runs along the road."""
+        return math.atan2(float(self.run_direction[1]), float(self.run_direction[0]))
+
+
+def edge_runs(lanes: Dict[int, Lane], edges: Dict[int, RoadEdge]) -> List[EdgeRun]:
+    """Every directed edge's curb-line run, in edge-id order. Each directed
+    edge's lanes occupy only its own right-hand half of the road, so these
+    cover both sides of every road."""
+    runs: List[EdgeRun] = []
+    for edge_id, boundary in sorted(_outer_boundaries(lanes).items()):
+        edge = edges[edge_id]
+        direction = edge.centerline[-1] - edge.centerline[0]
+        if float(np.linalg.norm(direction)) < 1e-9:
+            continue
+        outward = compute_perpendicular(direction)
+        run_direction = np.array([-outward[1], outward[0]])
+
+        first, last = boundary[0], boundary[-1]
+        length = float(np.linalg.norm(last - first))
+        if length < MIN_RUN_LENGTH_METERS:
+            continue
+        start = first if float(np.dot(last - first, run_direction)) >= 0.0 else last
+        runs.append(EdgeRun(edge_id, start, run_direction, outward, length))
+    return runs
+
+
 def _run_pieces(  # pylint: disable=too-many-arguments,too-many-locals
     start: npt.NDArray[np.float64],
     run_direction: npt.NDArray[np.float64],
@@ -142,33 +182,20 @@ def generate_road_edge_pieces(  # pylint: disable=too-many-locals
     curb_asset = kit.curb_asset_paths[curb_variant % len(kit.curb_asset_paths)]
     sidewalk_asset = kit.sidewalk_asset_paths[sidewalk_variant % len(kit.sidewalk_asset_paths)]
     pieces: List[FacadePiece] = []
-    for edge_id, boundary in sorted(_outer_boundaries(lanes).items()):
-        edge = edges[edge_id]
-        direction = edge.centerline[-1] - edge.centerline[0]
-        if float(np.linalg.norm(direction)) < 1e-9:
-            continue
-        outward = compute_perpendicular(direction)
-        run_direction = np.array([-outward[1], outward[0]])
-
-        first, last = boundary[0], boundary[-1]
-        length = float(np.linalg.norm(last - first))
-        if length < MIN_RUN_LENGTH_METERS:
-            continue
-        start = first if float(np.dot(last - first, run_direction)) >= 0.0 else last
-
+    for run in edge_runs(lanes, edges):
         pieces += _run_pieces(
-            start,
-            run_direction,
-            length,
+            run.start,
+            run.run_direction,
+            run.length,
             kit.curb_length_m,
             curb_asset,
             kit.curb_z_m,
             kit.curb_scale_yz,
         )
         pieces += _run_pieces(
-            start,
-            run_direction,
-            length,
+            run.start,
+            run.run_direction,
+            run.length,
             kit.sidewalk_length_m,
             sidewalk_asset,
             kit.sidewalk_z_m,

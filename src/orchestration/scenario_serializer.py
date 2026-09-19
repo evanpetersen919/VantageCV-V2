@@ -155,6 +155,11 @@ def serialize_scenario(
         _facade_piece_to_asset_json(piece, id_offset + piece_id)
         for piece_id, piece in enumerate(result.road_edge_pieces)
     ]
+    id_offset += len(result.road_edge_pieces)
+    assets += [
+        _facade_piece_to_asset_json(piece, id_offset + piece_id)
+        for piece_id, piece in enumerate(result.street_furniture_pieces)
+    ]
     payload: Dict[str, Any] = {"meshes": meshes, "assets": assets}
     if environment is not None:
         meshes.append(_mesh_to_json(build_ground_mesh(environment)))
