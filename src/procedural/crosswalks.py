@@ -56,12 +56,21 @@ from that pad (placing each bar's pivot at ``clearance + depth`` and
 assuming the mesh extended from there back toward the node), which for a
 CENTER-pivoted mesh actually centers the bar there instead -- leaving a
 real, unintended ``depth / 2`` gap between the crosswalk and the
-intersection pavement's own edge. Fixed by centering each bar at
-``clearance + depth / 2`` instead, so the crossing's near edge lands
-exactly at ``clearance`` (flush, zero gap, matching the paved
-intersection fill's own boundary) and its far edge at
-``clearance + depth`` -- both provable, both covered by dedicated tests
-that check the actual bar EXTENT (not just its pivot).
+intersection pavement's own edge. First fix: center each bar at
+``clearance + depth / 2``, putting the near edge exactly at ``clearance``
+(flush, zero gap) and the far edge at ``clearance + depth`` -- both
+provable, both covered by a dedicated test that checks the actual bar
+EXTENT (not just its pivot), which is what caught the original bug in
+the first place.
+
+**Follow-up design choice**: live review after that fix asked for the
+crossing to visibly reach further into the intersection box, not just
+touch its edge. Rather than pick an arbitrary extra distance, each bar
+is now centered exactly ON the intersection boundary itself
+(``depth_center = clearance``), so the crossing straddles that line
+symmetrically -- half inside the intersection's paved box, half in the
+approach lane (``[clearance - depth/2, clearance + depth/2]``) -- a
+clean, defensible placement rule, not a guessed offset.
 
 **Crossing depth, derived not guessed**: sized so five people can walk
 the crossing side by side, using the pedestrian shoulder-width figure
@@ -177,14 +186,17 @@ def generate_crosswalk_pieces(  # pylint: disable=too-many-locals
             (edge.end_node_id, -unit_direction),
         ):
             node_clearance = clearance.get(node_id, 0.0)
-            far_edge = node_clearance + CROSSWALK_DEPTH_M
+            far_edge = node_clearance + CROSSWALK_DEPTH_M / 2.0
             if far_edge > edge_length:
                 continue  # road too short to hold a non-overlapping crosswalk here
             # SM_White_Line_00_inst is pivoted at its own mesh CENTER (see
-            # this module's docstring), so the bar's pivot must sit at the
-            # midpoint of [clearance, clearance + depth], not at either
-            # edge, for the near edge to land exactly on `clearance`.
-            depth_center = node_clearance + CROSSWALK_DEPTH_M / 2.0
+            # this module's docstring), so centering the bar's pivot
+            # exactly ON the intersection pavement's own boundary
+            # (`clearance`) makes the crossing straddle that line
+            # symmetrically -- half inside the intersection box, half in
+            # the approach lane -- rather than sitting entirely outside
+            # it (a deliberate design choice, see this module's docstring).
+            depth_center = node_clearance
             pivot = nodes[node_id].position + away_from_node * depth_center
             toward_node = -away_from_node
             rotation_rad = math.atan2(float(toward_node[0]), -float(toward_node[1]))
