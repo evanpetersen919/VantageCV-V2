@@ -83,6 +83,15 @@ request, independent of the placement formula above -- since a bar's
 pivot is its own center, doubling its length just extends it further in
 both directions without moving where it's centered: ``3.75m -> 7.5m ->
 15.0m``.
+
+**Small nudge toward the intersection, on request**: after settling on
+the flush-outside placement above, a further request asked to move the
+crossing slightly closer to the intersection -- a real, explicit
+stylistic adjustment, not a re-derived measurement (there's no MUTCD/DOT
+figure for "how far a crossing should overlap the box"). Both edges
+shift toward the node by ``CROSSWALK_INTERSECTION_NUDGE_M``, kept small
+enough that the near edge stays a real distance short of the node itself
+for any normal intersection.
 """
 
 import math
@@ -114,6 +123,11 @@ BAR_PITCH_M = 2.0 * STOP_LINE_WIDTH_M
 
 # A hair above the road surface so bars never z-fight with it.
 STOP_LINE_Z_LIFT_M = 0.01
+
+# Explicit, small stylistic request: shift the whole crossing this much
+# closer to the intersection than the flush-outside placement -- see
+# module docstring's "Small nudge toward the intersection" note.
+CROSSWALK_INTERSECTION_NUDGE_M = 1.5
 
 
 def _physical_road_pairs(edges: Dict[int, RoadEdge]) -> List[Tuple[RoadEdge, int]]:
@@ -201,8 +215,9 @@ def generate_crosswalk_pieces(  # pylint: disable=too-many-locals
             # edge, for the near edge to land exactly on `clearance` --
             # flush with, but entirely outside, the intersection box
             # (reverted here on explicit request back to this placement,
-            # see this module's docstring).
-            depth_center = node_clearance + CROSSWALK_DEPTH_M / 2.0
+            # see this module's docstring) -- then nudged slightly closer
+            # to the node on a further explicit request.
+            depth_center = node_clearance + CROSSWALK_DEPTH_M / 2.0 - CROSSWALK_INTERSECTION_NUDGE_M
             pivot = nodes[node_id].position + away_from_node * depth_center
             toward_node = -away_from_node
             rotation_rad = math.atan2(float(toward_node[0]), -float(toward_node[1]))
