@@ -77,7 +77,11 @@ the crossing side by side, using the pedestrian shoulder-width figure
 from pedestrian planning literature (Fruin's "Pedestrian Planning and
 Design", the basis for the Highway Capacity Manual's pedestrian LOS
 methodology): about 0.75m of shoulder width per walking person.
-``5 * 0.75m = 3.75m``.
+``5 * 0.75m = 3.75m``. Doubled to ``7.5m`` on explicit request (keeping
+each bar centered at the same ``clearance`` position -- since a bar's
+pivot is its own center, doubling its length extends it further both
+into the box and into the approach lane symmetrically, without moving
+where it's centered).
 """
 
 import math
@@ -96,8 +100,9 @@ STOP_LINE_ASSET_PATH = (
 )
 
 # Real measured/derived dimensions -- see this module's own docstring.
-# 5 people abreast x ~0.75m/person real pedestrian shoulder width (Fruin).
-CROSSWALK_DEPTH_M = 3.75
+# 5 people abreast x ~0.75m/person real pedestrian shoulder width (Fruin),
+# doubled to 7.5m on explicit request while keeping the same center.
+CROSSWALK_DEPTH_M = 7.5
 STOP_LINE_REAL_SIZE_M = 5.12
 STOP_LINE_WIDTH_SCALE = 0.12
 STOP_LINE_WIDTH_M = STOP_LINE_REAL_SIZE_M * STOP_LINE_WIDTH_SCALE
