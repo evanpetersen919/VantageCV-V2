@@ -28,6 +28,7 @@ from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, 
 from src.procedural.building_facade import FacadePiece, generate_building_facade_pieces
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
 from src.procedural.city_sample_assets import BUILDING_STYLES
+from src.procedural.crosswalks import generate_crosswalk_pieces
 from src.procedural.environment import Season, season_has_trees
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
@@ -71,6 +72,7 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     building_facade_pieces: List[FacadePiece]
     road_edge_pieces: List[FacadePiece]
     street_furniture_pieces: List[FacadePiece]
+    crosswalk_pieces: List[FacadePiece]
     season: Season
     validation_report: ValidationReport
 
@@ -176,6 +178,8 @@ def generate_scenario(  # pylint: disable=too-many-locals
         include_trees=season_has_trees(chosen_season),
     )
 
+    crosswalk_pieces = generate_crosswalk_pieces(nodes, edges)
+
     validation_report = ScenarioValidator().validate(
         bounds, nodes, edges, lanes, buildings, meshes, vehicles, pedestrians, lane_connectivity
     )
@@ -198,6 +202,7 @@ def generate_scenario(  # pylint: disable=too-many-locals
         building_facade_pieces=building_facade_pieces,
         road_edge_pieces=road_edge_pieces,
         street_furniture_pieces=street_furniture_pieces,
+        crosswalk_pieces=crosswalk_pieces,
         season=chosen_season,
         validation_report=validation_report,
     )

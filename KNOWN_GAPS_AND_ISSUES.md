@@ -1822,3 +1822,42 @@ decals (`Kit_MeshDecals_A`, also migrated but unused) -- see the
 "[RESOLVED, real curbs and sidewalks]" entry above's "Not done" note,
 which still applies to lane-class snapping and decals; only the paved
 surface itself (no visible gap) is what this entry closes.
+
+### [RESOLVED] Real crosswalk pads at every road approach to an intersection
+Follow-up to the entry above's "Not done" note: `src/procedural/
+crosswalks.py`'s `generate_crosswalk_pieces` places the real, already-
+migrated `SM_ROAD_19_3_0_19_crosswalk` mesh (from `Kit_City_Road`) at
+each end of every physical road, flush against the paved intersection
+fill's own boundary (same `compute_node_clearance` value both use),
+stretched (a real per-instance `FacadePiece.scale`) to the road's own
+exact combined lane width, not a separate guess.
+
+**Two real defects found and fixed via live verification, not assumed
+away**: (1) the mesh's genuine ~56cm road-crown geometry, placed
+unscaled onto this project's deliberately flat road, rendered as a
+visible ridge across every crosswalk -- confirmed via screenshot, fixed
+with a small flattening Z-scale (`CROSSWALK_Z_SCALE`). (2) The mesh's
+own material (`M_Asphalt_Master_Inst_Crosswalk`) was assumed to carry
+baked-in zebra striping; dumping its actual texture references from the
+migrated `.uasset` showed only generic asphalt/concrete/puddle textures,
+and an isolated in-engine test spawn confirmed a plain toned pad, not a
+stripe pattern. Cross-checked against real Epic placement data (not
+just this one material) via a headless CitySample Python query: 566 real
+crosswalk pad instances from the `CITY_ground` point cloud, correlated
+against 11,103 nearby line-decal instances from the `CITY_decals` point
+cloud (`SM_White_Line_00_inst`/`SM_White_Road_Line_00_inst`) -- no
+repeating perpendicular-stripe pattern coincident with any real pad's
+own footprint, only a thin stop-line built from many small dash segments
+at the pad's road-side edge plus ordinary dashed lane-divider segments
+that happened to fall within the search radius. Real Epic crosswalks in
+this kit are genuinely just the toned pad, not a painted zebra pattern.
+
+**Deliberately not done**: the real stop-line (thin, dash-segment based,
+at the pad's road-side edge) is real and measured-to-exist but its exact
+segment-count/spacing formula wasn't reverse-engineered -- a real,
+comparatively small visual addition, not attempted given the effort to
+measure it precisely versus the payoff. Verified live: reloaded a real
+generated scenario into a running UE5 editor, confirmed the flattened
+pad sits flush with no ridge, and confirmed (via `DebugListActorsWithMesh`
+and an isolated unscaled spawn test) the material itself genuinely has
+no stripe texture rather than a rendering bug on this project's end.
