@@ -58,12 +58,30 @@ CitySample query of the real ``CITY_ground`` point cloud (566 real
 crosswalk pad instances) and ``CITY_decals`` point cloud (11,103 nearby
 line-decal instances, ``SM_White_Line_00_inst``/``SM_White_Road_Line_00_
 inst``) found no repeating perpendicular-stripe pattern coincident with
-any real pad's own footprint -- only a thin stop-line assembled from many
-small dash segments at the pad's road-side edge, and separately, ordinary
-dashed lane-divider segments along the road that happened to fall within
-the search radius. Reproducing that stop-line would need its own
-segment-count/spacing formula for a comparatively small visual return, so
-this module deliberately stops at the real, flush, correctly-toned pad.
+any real pad's own footprint -- only a scatter of short dash segments
+clustered right at the pad's own road-side pivot edge (local Y close to
+0), i.e. a real stop/give-way line, not a zebra ladder across the
+crossing's depth.
+
+**Real stop-line marking** (``generate_crosswalk_pieces`` emits a second
+piece per end, using ``SM_White_Line_00_inst``): the irregular dash
+count/spacing Epic's own instances use couldn't be pinned to a reliable
+formula (looked hand-placed/jittered per intersection, not procedural),
+so this doesn't try to replicate that exactly -- an honest simplification
+rather than a guessed formula. What IS reliable, real and reused
+directly: across every one of those real dash instances found near a pad
+edge, ``scale_y`` (14 samples) was ``0.12`` in 12 of them (the clear
+mode) -- combined with the mesh's own measured unscaled size (a flat
+512x512cm square, ``GetStaticMeshBounds``: origin 0, extent 256x256,
+zero height), that gives a real stripe thickness of ``512cm * 0.12 =
+61.4cm`` -- within a centimetre of the standard real-world 24in
+(~61cm) crosswalk stripe width, not a coincidence. This module builds
+one continuous bar (not Epic's own irregular dashes) at that real
+thickness, stretched (same real per-instance ``FacadePiece.scale``
+mechanism as the pad) across the crossing's own real width, positioned
+at the exact same pivot/rotation as its pad -- the same point real
+instances clustered around -- lifted 1cm above the pad to avoid
+z-fighting.
 """
 
 import math
@@ -78,6 +96,9 @@ from src.procedural.road_network import RoadEdge, RoadNode
 CROSSWALK_ASSET_PATH = (
     "/Game/Road/Kit_City_Road/SM_ROAD_19_3_0_19_crosswalk.SM_ROAD_19_3_0_19_crosswalk"
 )
+STOP_LINE_ASSET_PATH = (
+    "/Game/Road/Kit_MeshDecals_A/Mesh/SM_White_Line_00_inst.SM_White_Line_00_inst"
+)
 
 # Real measured dimensions (GetStaticMeshBounds against the migrated
 # asset) -- see this module's own docstring for the derivation.
@@ -88,6 +109,13 @@ CROSSWALK_DEPTH_M = 3.0
 # so it lies flush with this project's own flat road surface instead of
 # standing up as a visible ridge -- see this module's own docstring.
 CROSSWALK_Z_SCALE = 0.02
+
+# Real unscaled size of the stop-line mesh (a flat, symmetric square) and
+# the real thickness scale Epic itself uses on it -- see the module
+# docstring's "Real stop-line marking" section.
+STOP_LINE_REAL_SIZE_M = 5.12
+STOP_LINE_THICKNESS_SCALE = 0.12
+STOP_LINE_Z_LIFT_M = 0.01
 
 
 def _physical_road_pairs(edges: Dict[int, RoadEdge]) -> List[Tuple[RoadEdge, int]]:
@@ -115,9 +143,10 @@ def _physical_road_pairs(edges: Dict[int, RoadEdge]) -> List[Tuple[RoadEdge, int
 def generate_crosswalk_pieces(  # pylint: disable=too-many-locals
     nodes: Dict[int, RoadNode], edges: Dict[int, RoadEdge]
 ) -> List[FacadePiece]:
-    """One real crosswalk piece at each end of every physical road,
-    stretched to that road's own real pavement width and positioned
-    flush against the paved intersection surface at that end."""
+    """One real crosswalk pad plus one real stop-line piece at each end of
+    every physical road, both stretched to that road's own real pavement
+    width and positioned flush against the paved intersection surface at
+    that end."""
     clearance = compute_node_clearance(edges)
     pieces: List[FacadePiece] = []
 
@@ -148,6 +177,14 @@ def generate_crosswalk_pieces(  # pylint: disable=too-many-locals
                     position=np.array([pivot[0], pivot[1], 0.0]),
                     rotation_rad=rotation_rad,
                     scale=(scale_x, 1.0, CROSSWALK_Z_SCALE),
+                )
+            )
+            pieces.append(
+                FacadePiece(
+                    asset_path=STOP_LINE_ASSET_PATH,
+                    position=np.array([pivot[0], pivot[1], STOP_LINE_Z_LIFT_M]),
+                    rotation_rad=rotation_rad,
+                    scale=(road_width_m / STOP_LINE_REAL_SIZE_M, STOP_LINE_THICKNESS_SCALE, 1.0),
                 )
             )
     return pieces
