@@ -11,6 +11,10 @@ from src.procedural.crosswalks import (
     CROSSWALK_DEPTH_M,
     CROSSWALK_REAL_WIDTH_M,
     CROSSWALK_Z_SCALE,
+    STOP_LINE_ASSET_PATH,
+    STOP_LINE_REAL_SIZE_M,
+    STOP_LINE_THICKNESS_SCALE,
+    STOP_LINE_Z_LIFT_M,
     generate_crosswalk_pieces,
 )
 from src.procedural.lane_topology import LANE_WIDTH_METERS, compute_node_clearance
@@ -41,15 +45,28 @@ def test_no_edges_means_no_crosswalks() -> None:
     assert not generate_crosswalk_pieces({}, {})
 
 
+def _pads(pieces):
+    return [p for p in pieces if p.asset_path == CROSSWALK_ASSET_PATH]
+
+
+def _stop_lines(pieces):
+    return [p for p in pieces if p.asset_path == STOP_LINE_ASSET_PATH]
+
+
 def test_one_physical_road_gets_exactly_two_crosswalks() -> None:
-    """A long enough bidirectional road gets one crosswalk at each end,
-    not one per directed edge (a crosswalk spans both directions)."""
+    """A long enough bidirectional road gets one crosswalk pad and one
+    stop-line at each end, not one per directed edge (a crosswalk spans
+    both directions)."""
     nodes, edges = _two_way_road(100.0)
     pieces = generate_crosswalk_pieces(nodes, edges)
-    assert len(pieces) == 2
-    for piece in pieces:
-        assert piece.asset_path == CROSSWALK_ASSET_PATH
+    assert len(pieces) == 4
+    pads, stop_lines = _pads(pieces), _stop_lines(pieces)
+    assert len(pads) == 2
+    assert len(stop_lines) == 2
+    for piece in pads:
         assert piece.position[2] == 0.0
+    for piece in stop_lines:
+        assert piece.position[2] == STOP_LINE_Z_LIFT_M
 
 
 def test_crosswalk_is_scaled_to_the_roads_own_real_pavement_width() -> None:
@@ -58,12 +75,27 @@ def test_crosswalk_is_scaled_to_the_roads_own_real_pavement_width() -> None:
     nodes, edges = _two_way_road(100.0, num_lanes=3)
     pieces = generate_crosswalk_pieces(nodes, edges)
     expected_width_m = 2 * 3 * LANE_WIDTH_METERS
-    for piece in pieces:
+    for piece in _pads(pieces):
         assert piece.scale is not None
         scale_x, scale_y, scale_z = piece.scale
         assert abs(scale_x - expected_width_m / CROSSWALK_REAL_WIDTH_M) < 1e-9
         assert scale_y == 1.0
         assert scale_z == CROSSWALK_Z_SCALE
+
+
+def test_stop_line_is_scaled_to_the_roads_width_at_its_real_thickness() -> None:
+    """The stop-line's scale.x stretches its real 5.12m size to the road's
+    own real width; scale.y is Epic's own real, measured thickness scale
+    (0.12), not a separate guess."""
+    nodes, edges = _two_way_road(100.0, num_lanes=3)
+    pieces = generate_crosswalk_pieces(nodes, edges)
+    expected_width_m = 2 * 3 * LANE_WIDTH_METERS
+    for piece in _stop_lines(pieces):
+        assert piece.scale is not None
+        scale_x, scale_y, scale_z = piece.scale
+        assert abs(scale_x - expected_width_m / STOP_LINE_REAL_SIZE_M) < 1e-9
+        assert scale_y == STOP_LINE_THICKNESS_SCALE
+        assert scale_z == 1.0
 
 
 def test_crosswalk_sits_flush_against_the_intersection_pavement_boundary() -> None:
@@ -75,7 +107,7 @@ def test_crosswalk_sits_flush_against_the_intersection_pavement_boundary() -> No
     clearance = compute_node_clearance(edges)
     pieces = generate_crosswalk_pieces(nodes, edges)
 
-    by_x = sorted(pieces, key=lambda p: p.position[0])
+    by_x = sorted(_pads(pieces), key=lambda p: p.position[0])
     near_node0, near_node1 = by_x[0], by_x[1]
 
     expected_x0 = clearance[0] + CROSSWALK_DEPTH_M
@@ -106,10 +138,15 @@ def test_real_generated_scenario_places_crosswalks_at_every_physical_road_end(
     urban_config, bounds
 ) -> None:
     """Smoke test against the real pipeline: every physical road with
-    enough room gets its crosswalks, all real, all flat on the ground."""
+    enough room gets its pad and stop-line, all real, all scaled."""
     scenario = generate_scenario(42, urban_config, bounds, "crosswalk_test")
     assert scenario.crosswalk_pieces
-    for piece in scenario.crosswalk_pieces:
-        assert piece.asset_path == CROSSWALK_ASSET_PATH
-        assert piece.position[2] == 0.0
+    pads, stop_lines = _pads(scenario.crosswalk_pieces), _stop_lines(scenario.crosswalk_pieces)
+    assert pads
+    assert len(pads) == len(stop_lines)
+    for piece in pads + stop_lines:
         assert piece.scale is not None
+    for piece in pads:
+        assert piece.position[2] == 0.0
+    for piece in stop_lines:
+        assert piece.position[2] == STOP_LINE_Z_LIFT_M

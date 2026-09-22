@@ -1852,12 +1852,23 @@ at the pad's road-side edge plus ordinary dashed lane-divider segments
 that happened to fall within the search radius. Real Epic crosswalks in
 this kit are genuinely just the toned pad, not a painted zebra pattern.
 
-**Deliberately not done**: the real stop-line (thin, dash-segment based,
-at the pad's road-side edge) is real and measured-to-exist but its exact
-segment-count/spacing formula wasn't reverse-engineered -- a real,
-comparatively small visual addition, not attempted given the effort to
-measure it precisely versus the payoff. Verified live: reloaded a real
-generated scenario into a running UE5 editor, confirmed the flattened
-pad sits flush with no ridge, and confirmed (via `DebugListActorsWithMesh`
-and an isolated unscaled spawn test) the material itself genuinely has
-no stripe texture rather than a rendering bug on this project's end.
+**Follow-up (same day)**: the plain toned pad, while real and correctly
+placed, didn't read as "a crosswalk" to a viewer at normal shot distances
+-- user-reported after seeing it live. Rather than guess at a zebra
+pattern Epic's own data doesn't support, `generate_crosswalk_pieces` now
+also emits a real stop-line piece per end, using `SM_White_Line_00_inst`
+(from `Kit_MeshDecals_A`, already migrated). The real dash count/spacing
+Epic's own instances use looked hand-placed/jittered per intersection,
+not a derivable formula, so this doesn't try to replicate that exactly --
+an honest simplification, not a guess. What IS reused directly: across
+every real dash instance found near a pad edge, `scale_y` was `0.12` in
+12 of 14 samples (the clear mode); combined with the mesh's own measured
+unscaled size (`GetStaticMeshBounds`: a flat 512x512cm square), that
+gives a real stripe thickness of `512cm * 0.12 = 61.4cm` -- within a
+centimetre of the standard real-world 24in crosswalk stripe width, not a
+coincidence. One continuous bar (not Epic's own irregular dashes) is
+built at that real thickness, stretched to the crossing's own real
+width, at the exact same pivot/rotation as its pad, lifted 1cm to avoid
+z-fighting. Verified live: a crisp, continuous white stop-line now spans
+each crosswalk approach, flush on the pavement, clearly readable as a
+real crossing marker.
