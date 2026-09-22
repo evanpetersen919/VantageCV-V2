@@ -1872,3 +1872,38 @@ width, at the exact same pivot/rotation as its pad, lifted 1cm to avoid
 z-fighting. Verified live: a crisp, continuous white stop-line now spans
 each crosswalk approach, flush on the pavement, clearly readable as a
 real crossing marker.
+
+**Follow-up (same day): continental/ladder markings, plus a real
+placement bug found from live feedback**. The toned pad was dropped
+entirely (its distinct tint still read as an unrealistic "different
+shade of road" even after the stop-line was added), and the single
+stop-line was replaced with the published continental/"ladder"
+crosswalk pattern both the FHWA MUTCD (3B.18) and NYC DOT Street Design
+Manual define -- parallel bars running WITH the direction of travel,
+not one line across it -- since Epic's own decal placements were too
+irregular to reverse-engineer a pattern of their own. Bar width stays
+the same real, measured 61.4cm value found earlier. Crossing depth was
+increased from the real crosswalk tile's 3.0m nominal length to 3.75m,
+derived (not guessed) from Fruin's pedestrian shoulder-width figure used
+in Highway Capacity Manual pedestrian LOS work (~0.75m/person x 5 people
+abreast).
+
+While implementing this, live review surfaced a real math bug, not a
+taste issue: `SM_White_Line_00_inst` is pivoted at its own mesh CENTER
+(`GetStaticMeshBounds`: origin `(0,0,0)`, symmetric `+-256cm` extent),
+unlike the earlier pad mesh, which was edge-pivoted. The first version
+of the ladder bars reused the pad's edge-pivot placement math (bar pivot
+at `clearance + depth`), which for a centre-pivoted mesh actually
+centres the bar there instead -- leaving a real, unintended `depth / 2`
+gap between the crosswalk and the intersection pavement's edge (the
+"not close enough to intersection" the user reported). Fixed by
+centring each bar at `clearance + depth / 2`, so the near edge lands
+exactly on `clearance` and the far edge at `clearance + depth`. The
+existing tests only checked the bar's pivot, which is why they didn't
+catch it; added `test_bar_extent_is_exactly_flush_with_the_intersection
+_pavement`, which reconstructs the actual rendered edge positions from
+the pivot and scale and checks both edges directly -- this is the kind
+of invariant a pivot-only test can miss even when it passes. Verified
+live: crosswalks now sit flush against the intersection with no gap,
+and each bar is visibly longer/wider, matching the "room for five
+people to cross abreast" target.
