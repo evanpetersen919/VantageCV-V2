@@ -1,13 +1,12 @@
 """Unit tests for the street furniture placed along every sidewalk."""
 
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 import numpy as np
 
 from src.orchestration.dataset_generator import generate_scenario
 from src.procedural.building_facade import FacadePiece
-from src.procedural.lane_topology import LANE_WIDTH_METERS, Lane, LaneTopologyGenerator
-from src.procedural.road_network import IntersectionType, RoadEdge, RoadNode, RoadType
+from src.procedural.lane_topology import LANE_WIDTH_METERS
 from src.procedural.street_furniture import (
     END_MARGIN_METERS,
     LAMP_STYLES,
@@ -17,6 +16,7 @@ from src.procedural.street_furniture import (
     furniture_rules,
     generate_street_furniture_pieces,
 )
+from tests.conftest import straight_road_lanes_and_edges as _straight_road
 
 
 def _is_tree_piece(piece: FacadePiece) -> bool:
@@ -26,19 +26,6 @@ def _is_tree_piece(piece: FacadePiece) -> bool:
 
 def _furniture_only(pieces: List[FacadePiece]) -> List[FacadePiece]:
     return [p for p in pieces if not _is_tree_piece(p)]
-
-
-def _straight_road(length: float) -> Tuple[Dict[int, Lane], Dict[int, RoadEdge]]:
-    """One directed edge along +x from the origin with its real lanes."""
-    nodes = {
-        0: RoadNode(0, np.array([0.0, 0.0]), IntersectionType.ISOLATED),
-        1: RoadNode(1, np.array([length, 0.0]), IntersectionType.ISOLATED),
-    }
-    edge = RoadEdge(
-        0, 0, 1, RoadType.MINOR, np.array([[0.0, 0.0], [length, 0.0]]), length, 2, 50, 7.0
-    )
-    edges = {0: edge}
-    return LaneTopologyGenerator().generate(nodes, edges), edges
 
 
 def test_pieces_sit_beside_the_curb_line_at_epics_measured_offsets() -> None:
