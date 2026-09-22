@@ -1,14 +1,32 @@
 """Shared pytest configuration and fixtures."""
 
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
+import numpy as np
 import pytest
 from shapely.geometry import Polygon
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
+from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh
+from src.procedural.road_network import IntersectionType, RoadEdge, RoadNode, RoadType
 from src.procedural.scenario import ScenarioType, ScenarioTypeConfig
+
+
+def straight_road_lanes_and_edges(
+    length: float, road_type: RoadType = RoadType.MINOR
+) -> Tuple[Dict[int, Lane], Dict[int, RoadEdge]]:
+    """One directed edge along +x from the origin with its real lanes --
+    shared by any test that just needs a single straight road to place
+    curb-line furniture/signals/etc. along."""
+    nodes = {
+        0: RoadNode(0, np.array([0.0, 0.0]), IntersectionType.ISOLATED),
+        1: RoadNode(1, np.array([length, 0.0]), IntersectionType.ISOLATED),
+    }
+    edge = RoadEdge(0, 0, 1, road_type, np.array([[0.0, 0.0], [length, 0.0]]), length, 2, 50, 7.0)
+    edges = {0: edge}
+    return LaneTopologyGenerator().generate(nodes, edges), edges
 
 
 def mesh_to_shapely_footprint(mesh: Mesh) -> Optional[BaseGeometry]:
