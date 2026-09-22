@@ -63,25 +63,26 @@ provable, both covered by a dedicated test that checks the actual bar
 EXTENT (not just its pivot), which is what caught the original bug in
 the first place.
 
-**Follow-up design choice**: live review after that fix asked for the
-crossing to visibly reach further into the intersection box, not just
-touch its edge. Rather than pick an arbitrary extra distance, each bar
-is now centered exactly ON the intersection boundary itself
-(``depth_center = clearance``), so the crossing straddles that line
-symmetrically -- half inside the intersection's paved box, half in the
-approach lane (``[clearance - depth/2, clearance + depth/2]``) -- a
-clean, defensible placement rule, not a guessed offset.
+**Follow-up design choice, then reverted**: live review after that fix
+briefly asked for the crossing to reach into the intersection box, so
+each bar was centered exactly ON the intersection boundary
+(``depth_center = clearance``) instead. A later request reverted this
+back to the original flush-but-entirely-outside placement
+(``depth_center = clearance + depth / 2``, near edge at ``clearance``,
+far edge at ``clearance + depth``) -- kept here as the current
+placement, with the straddled version noted as a real alternative this
+module already tried, not silently dropped.
 
-**Crossing depth, derived not guessed**: sized so five people can walk
-the crossing side by side, using the pedestrian shoulder-width figure
-from pedestrian planning literature (Fruin's "Pedestrian Planning and
-Design", the basis for the Highway Capacity Manual's pedestrian LOS
-methodology): about 0.75m of shoulder width per walking person.
-``5 * 0.75m = 3.75m``. Doubled to ``7.5m`` on explicit request (keeping
-each bar centered at the same ``clearance`` position -- since a bar's
-pivot is its own center, doubling its length extends it further both
-into the box and into the approach lane symmetrically, without moving
-where it's centered).
+**Crossing depth, derived then doubled twice on request**: sized so
+five people can walk the crossing side by side, using the pedestrian
+shoulder-width figure from pedestrian planning literature (Fruin's
+"Pedestrian Planning and Design", the basis for the Highway Capacity
+Manual's pedestrian LOS methodology): about 0.75m of shoulder width per
+walking person, ``5 * 0.75m = 3.75m``. Doubled twice on explicit
+request, independent of the placement formula above -- since a bar's
+pivot is its own center, doubling its length just extends it further in
+both directions without moving where it's centered: ``3.75m -> 7.5m ->
+15.0m``.
 """
 
 import math
@@ -101,8 +102,8 @@ STOP_LINE_ASSET_PATH = (
 
 # Real measured/derived dimensions -- see this module's own docstring.
 # 5 people abreast x ~0.75m/person real pedestrian shoulder width (Fruin),
-# doubled to 7.5m on explicit request while keeping the same center.
-CROSSWALK_DEPTH_M = 7.5
+# doubled twice on explicit request: 3.75m -> 7.5m -> 15.0m.
+CROSSWALK_DEPTH_M = 15.0
 STOP_LINE_REAL_SIZE_M = 5.12
 STOP_LINE_WIDTH_SCALE = 0.12
 STOP_LINE_WIDTH_M = STOP_LINE_REAL_SIZE_M * STOP_LINE_WIDTH_SCALE
@@ -191,17 +192,17 @@ def generate_crosswalk_pieces(  # pylint: disable=too-many-locals
             (edge.end_node_id, -unit_direction),
         ):
             node_clearance = clearance.get(node_id, 0.0)
-            far_edge = node_clearance + CROSSWALK_DEPTH_M / 2.0
+            far_edge = node_clearance + CROSSWALK_DEPTH_M
             if far_edge > edge_length:
                 continue  # road too short to hold a non-overlapping crosswalk here
             # SM_White_Line_00_inst is pivoted at its own mesh CENTER (see
-            # this module's docstring), so centering the bar's pivot
-            # exactly ON the intersection pavement's own boundary
-            # (`clearance`) makes the crossing straddle that line
-            # symmetrically -- half inside the intersection box, half in
-            # the approach lane -- rather than sitting entirely outside
-            # it (a deliberate design choice, see this module's docstring).
-            depth_center = node_clearance
+            # this module's docstring), so the bar's pivot must sit at the
+            # midpoint of [clearance, clearance + depth], not at either
+            # edge, for the near edge to land exactly on `clearance` --
+            # flush with, but entirely outside, the intersection box
+            # (reverted here on explicit request back to this placement,
+            # see this module's docstring).
+            depth_center = node_clearance + CROSSWALK_DEPTH_M / 2.0
             pivot = nodes[node_id].position + away_from_node * depth_center
             toward_node = -away_from_node
             rotation_rad = math.atan2(float(toward_node[0]), -float(toward_node[1]))
