@@ -68,7 +68,7 @@ def test_bar_count_fills_the_roads_own_real_width_at_the_real_bar_pitch() -> Non
     road_width_m = 2 * 3 * LANE_WIDTH_METERS
     expected_bar_count = max(1, round(road_width_m / BAR_PITCH_M))
 
-    depth_center_at_node0 = compute_node_clearance(edges)[0]
+    depth_center_at_node0 = compute_node_clearance(edges)[0] + CROSSWALK_DEPTH_M / 2.0
     bars_at_node0 = _bars_near_x(pieces, depth_center_at_node0)
     assert len(bars_at_node0) == expected_bar_count
 
@@ -79,7 +79,7 @@ def test_bars_are_symmetric_about_the_roads_centerline() -> None:
     stretched to fit."""
     nodes, edges = _two_way_road(100.0)
     pieces = generate_crosswalk_pieces(nodes, edges)
-    depth_center = compute_node_clearance(edges)[0]
+    depth_center = compute_node_clearance(edges)[0] + CROSSWALK_DEPTH_M / 2.0
     bars = sorted(_bars_near_x(pieces, depth_center), key=lambda p: float(p.position[1]))
 
     offsets = [float(p.position[1]) for p in bars]
@@ -96,17 +96,17 @@ def test_bars_are_symmetric_about_the_roads_centerline() -> None:
         assert scale_z == 1.0
 
 
-def test_bars_straddle_the_intersection_pavement_boundary() -> None:
-    """Every bar's PIVOT lands exactly ON `clearance` (the intersection
-    pavement's own boundary) from its own node, not outside it -- the
-    crossing straddles that line symmetrically rather than sitting
-    entirely in the approach lane (see this module's docstring)."""
+def test_bars_sit_flush_against_the_intersection_pavement_boundary() -> None:
+    """Every bar's PIVOT lands at the midpoint of [clearance,
+    clearance + depth] from its own node -- not at either edge, since
+    the real mesh is centre-pivoted, and entirely outside the paved
+    intersection box (see this module's docstring)."""
     nodes, edges = _two_way_road(100.0)
     clearance = compute_node_clearance(edges)
     pieces = generate_crosswalk_pieces(nodes, edges)
 
-    expected_x0 = clearance[0]
-    expected_x1 = 100.0 - clearance[1]
+    expected_x0 = clearance[0] + CROSSWALK_DEPTH_M / 2.0
+    expected_x1 = 100.0 - (clearance[1] + CROSSWALK_DEPTH_M / 2.0)
     bars_0 = _bars_near_x(pieces, expected_x0)
     bars_1 = _bars_near_x(pieces, expected_x1)
     assert bars_0
@@ -121,23 +121,23 @@ def test_bars_straddle_the_intersection_pavement_boundary() -> None:
     assert local_y_1[0] > 0.99
 
 
-def test_bar_extent_straddles_the_intersection_pavement_boundary() -> None:
-    """The rendered bar EXTENT (not just its pivot) spans exactly
-    [clearance - depth/2, clearance + depth/2] -- half inside the
-    intersection's paved box, half in the approach lane, reconstructed
+def test_bar_extent_is_exactly_flush_with_the_intersection_pavement() -> None:
+    """The rendered bar EXTENT (not just its pivot) has its near edge
+    exactly at `clearance` (flush with the paved intersection fill, zero
+    gap) and its far edge exactly at `clearance + depth` -- reconstructed
     from the actual pivot and scale rather than assumed."""
     nodes, edges = _two_way_road(100.0)
     clearance = compute_node_clearance(edges)
     pieces = generate_crosswalk_pieces(nodes, edges)
 
-    depth_center = clearance[0]
+    depth_center = clearance[0] + CROSSWALK_DEPTH_M / 2.0
     stripe = _bars_near_x(pieces, depth_center)[0]
     assert stripe.scale is not None
     half_extent_local_y = (STOP_LINE_REAL_SIZE_M / 2.0) * stripe.scale[1]
     near_edge = float(stripe.position[0]) - half_extent_local_y
     far_edge = float(stripe.position[0]) + half_extent_local_y
-    assert abs(near_edge - (clearance[0] - CROSSWALK_DEPTH_M / 2.0)) < 1e-9
-    assert abs(far_edge - (clearance[0] + CROSSWALK_DEPTH_M / 2.0)) < 1e-9
+    assert abs(near_edge - clearance[0]) < 1e-9
+    assert abs(far_edge - (clearance[0] + CROSSWALK_DEPTH_M)) < 1e-9
 
 
 def test_short_road_gets_no_overlapping_crosswalks() -> None:
