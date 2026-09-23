@@ -147,8 +147,16 @@ def generate_scenario(  # pylint: disable=too-many-locals
     # build_vehicle_mesh. Ground truth is unaffected -- extract_bboxes_3d
     # derives boxes from Building.aabb/.height directly, never from mesh
     # or facade-piece geometry.
+    #
+    # Pedestrians, likewise, are no longer built into box meshes: UE5 now
+    # spawns a real City Sample VAT pedestrian static mesh per
+    # Pedestrian.asset_path instead (see scenario_serializer.py's "assets"
+    # array). MeshFactory.build_pedestrian_mesh stays for its own tests
+    # and as a documented fallback shape, same precedent as
+    # build_vehicle_mesh. Ground truth is unaffected -- extract_bboxes_3d_
+    # pedestrians derives boxes from Pedestrian's own fields, not from
+    # meshes.
     meshes: List[Mesh] = [MeshFactory.build_road_mesh(lane) for lane in lanes.values()]
-    meshes += [MeshFactory.build_pedestrian_mesh(pedestrian) for pedestrian in pedestrians]
 
     building_facade_pieces: List[FacadePiece] = []
     for building in buildings:

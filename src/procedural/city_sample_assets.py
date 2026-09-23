@@ -312,6 +312,35 @@ VEHICLE_PART_PATHS: Dict[str, List[str]] = {
     ],
 }
 
+# Real City Sample pedestrian meshes -- Vertex Animation Texture (VAT)
+# static meshes from Content/Crowd/VAT/Meshes, not the ``BP_CrowdCharacter``
+# Blueprint City Sample itself uses for its Mass-AI-driven crowd. Both
+# alternatives were investigated first, mirroring the vehicle
+# investigation above (see KNOWN_GAPS_AND_ISSUES.md for the full
+# research): ``BP_CrowdCharacter``'s native parent
+# (``ACitySampleCrowdCharacter``, ``Source/CitySample/Crowd/
+# CrowdCharacterActor.h``) is not portable content, same as
+# ``ACitySampleVehicleBase`` for vehicles. Unlike vehicles, though, this
+# project's own source investigation found City Sample's crowd
+# AnimInstance chain has no hard Mass AI dependency for a stationary
+# actor's pose -- but that path still needs new skeletal-mesh spawn code
+# this project doesn't have yet, so VAT (already a plain static mesh, no
+# skeleton, no AnimBlueprint, same "no pose dependency" property that
+# made ``SM_Frame_<vehicle>`` work) is the lower-risk starting choice.
+#
+# Confirmed live (2026-09-22): ``SM_f_tal_nrw_combined`` (female,
+# normal-weight, one pre-assembled outfit -- no separate body/clothing
+# part assembly needed, unlike vehicles) renders a real, natural
+# mid-stride walking pose unconditionally, with no skeleton, AnimBP, or
+# Mass AI runtime involved at all -- confirmed via a real screenshot,
+# not just a clean spawn log (this project's own established standard
+# of evidence). Only one variant migrated/verified so far; more
+# gender/weight/outfit variants are a real, deliberate fast-follow for
+# visual diversity, not done yet.
+PEDESTRIAN_ASSET_PATHS: List[str] = [
+    "/Game/Crowd/VAT/Meshes/SM_f_tal_nrw_combined",
+]
+
 
 @dataclass(frozen=True)
 class BuildingKit:  # pylint: disable=too-many-instance-attributes

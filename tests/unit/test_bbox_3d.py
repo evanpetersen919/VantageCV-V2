@@ -15,6 +15,7 @@ from src.ground_truth.bbox_3d import (
 from src.ground_truth.categories import BUILDING, BUS, PEDESTRIAN, SEDAN, SUV, TRUCK
 from src.procedural.actor_placement import Pedestrian, Vehicle
 from src.procedural.building_placement import Building
+from src.procedural.city_sample_assets import PEDESTRIAN_ASSET_PATHS
 
 
 def test_extract_bbox_3d_dimensions_match_building() -> None:
@@ -203,7 +204,12 @@ def test_extract_bboxes_3d_vehicles_empty_input() -> None:
 
 
 def _sample_pedestrian() -> Pedestrian:
-    return Pedestrian(pedestrian_id=2, center=np.array([1.0, 2.0]), heading_rad=np.pi / 3)
+    return Pedestrian(
+        pedestrian_id=2,
+        center=np.array([1.0, 2.0]),
+        heading_rad=np.pi / 3,
+        asset_path=PEDESTRIAN_ASSET_PATHS[0],
+    )
 
 
 def test_extract_bbox_3d_pedestrian_category_is_pedestrian() -> None:
@@ -233,7 +239,12 @@ def test_extract_bbox_3d_pedestrian_id_offset() -> None:
 def test_extract_bboxes_3d_pedestrians_preserves_count_and_offset() -> None:
     """extract_bboxes_3d_pedestrians produces one box per pedestrian, offset IDs."""
     pedestrians = [
-        Pedestrian(pedestrian_id=i, center=np.array([float(i), 0.0]), heading_rad=0.0)
+        Pedestrian(
+            pedestrian_id=i,
+            center=np.array([float(i), 0.0]),
+            heading_rad=0.0,
+            asset_path=PEDESTRIAN_ASSET_PATHS[0],
+        )
         for i in range(3)
     ]
     bboxes = extract_bboxes_3d_pedestrians(pedestrians, id_offset=20)

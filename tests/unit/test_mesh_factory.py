@@ -9,6 +9,7 @@ import pytest
 
 from src.procedural.actor_placement import Pedestrian, Vehicle
 from src.procedural.building_placement import Building, BuildingType
+from src.procedural.city_sample_assets import PEDESTRIAN_ASSET_PATHS
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import (
     MIN_TRIANGLE_AREA_SQ_METERS,
@@ -380,7 +381,12 @@ def test_vehicle_mesh_no_degenerate_triangles() -> None:
 
 
 def _sample_pedestrian(heading_rad: float = 0.0) -> Pedestrian:
-    return Pedestrian(pedestrian_id=0, center=np.array([1.0, 2.0]), heading_rad=heading_rad)
+    return Pedestrian(
+        pedestrian_id=0,
+        center=np.array([1.0, 2.0]),
+        heading_rad=heading_rad,
+        asset_path=PEDESTRIAN_ASSET_PATHS[0],
+    )
 
 
 def test_pedestrian_mesh_vertex_and_triangle_count() -> None:

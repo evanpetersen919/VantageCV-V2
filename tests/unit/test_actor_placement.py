@@ -24,7 +24,7 @@ from src.procedural.actor_placement import (
     _edge_heading,
     _sample_vehicle_type,
 )
-from src.procedural.city_sample_assets import VEHICLE_ASSET_PATHS
+from src.procedural.city_sample_assets import PEDESTRIAN_ASSET_PATHS, VEHICLE_ASSET_PATHS
 from src.procedural.lane_topology import LaneTopologyGenerator
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadType
 from src.procedural.traffic_network import SpawnZoneType, TrafficNetwork, TrafficNetworkGenerator
@@ -333,7 +333,12 @@ def test_vehicle_aabb_rotated_swaps_extents() -> None:
 def test_pedestrian_default_dimensions() -> None:
     """A Pedestrian built without explicit dimensions gets the module's
     default width/depth/height constants."""
-    pedestrian = Pedestrian(pedestrian_id=0, center=np.array([0.0, 0.0]), heading_rad=0.0)
-    assert pedestrian.width == 0.5
-    assert pedestrian.depth == 0.5
-    assert pedestrian.height == 1.7
+    pedestrian = Pedestrian(
+        pedestrian_id=0,
+        center=np.array([0.0, 0.0]),
+        heading_rad=0.0,
+        asset_path=PEDESTRIAN_ASSET_PATHS[0],
+    )
+    assert pedestrian.width == 0.33
+    assert pedestrian.depth == 0.96
+    assert pedestrian.height == 1.68

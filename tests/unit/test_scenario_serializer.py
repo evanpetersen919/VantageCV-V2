@@ -36,6 +36,7 @@ def test_serialize_scenario_produces_meshes_and_assets_keys(urban_config, bounds
     assert scenario.street_furniture_pieces
     assert scenario.crosswalk_pieces
     assert scenario.traffic_light_pieces
+    assert scenario.pedestrians
     assert len(payload["assets"]) == (
         len(scenario.vehicles)
         + len(scenario.building_facade_pieces)
@@ -43,6 +44,7 @@ def test_serialize_scenario_produces_meshes_and_assets_keys(urban_config, bounds
         + len(scenario.street_furniture_pieces)
         + len(scenario.crosswalk_pieces)
         + len(scenario.traffic_light_pieces)
+        + len(scenario.pedestrians)
     )
     assert len(payload["meshes"]) == len(scenario.meshes)
 
@@ -98,6 +100,7 @@ def test_serialize_scenario_preserves_facade_piece_data_exactly(urban_config, bo
         + len(scenario.street_furniture_pieces)
         + len(scenario.crosswalk_pieces)
         + len(scenario.traffic_light_pieces)
+        + len(scenario.pedestrians)
     )
     for piece, asset in zip(scenario.building_facade_pieces, facade_assets):
         assert asset["asset_path"] == piece.asset_path
@@ -107,6 +110,28 @@ def test_serialize_scenario_preserves_facade_piece_data_exactly(urban_config, bo
             float(piece.position[2]),
         ]
         assert asset["rotation_rad"] == float(piece.rotation_rad)
+        assert asset["part_paths"] == []
+
+
+def test_serialize_scenario_preserves_pedestrian_asset_data_exactly(urban_config, bounds) -> None:
+    """Every pedestrian's asset path, position, heading, and id survive
+    into its "assets" entry exactly, tagged "static_asset" with no
+    part_paths -- mirroring the vehicle test above."""
+    scenario = generate_scenario(42, urban_config, bounds, "serializer_test")
+    assert scenario.pedestrians
+
+    payload = serialize_scenario(scenario)
+    pedestrian_assets = payload["assets"][-len(scenario.pedestrians) :]
+
+    for pedestrian, asset in zip(scenario.pedestrians, pedestrian_assets):
+        assert asset["category"] == "static_asset"
+        assert asset["asset_path"] == pedestrian.asset_path
+        assert asset["position"] == [
+            float(pedestrian.center[0]),
+            float(pedestrian.center[1]),
+            0.0,
+        ]
+        assert asset["rotation_rad"] == float(pedestrian.heading_rad)
         assert asset["part_paths"] == []
 
 
@@ -159,6 +184,7 @@ def test_serialize_scenario_handles_empty_meshes() -> None:
         street_furniture_pieces: list = []
         crosswalk_pieces: list = []
         traffic_light_pieces: list = []
+        pedestrians: list = []
 
     payload = serialize_scenario(_FakeResult())  # type: ignore[arg-type]
 
