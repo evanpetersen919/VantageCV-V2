@@ -498,6 +498,45 @@ def pedestrian_face_and_hair(gender: str, face_asset_path: str) -> Optional[str]
     return PEDESTRIAN_HAIR_ASSET_PATHS[(gender, char_id)]
 
 
+# Real, comprehensively verified pose/frame layout for City Sample's
+# crowd VAT (Vertex Animation Texture) meshes -- the mechanism this
+# project's pedestrians use to select a static baked POSE, addressing
+# the "no pose/activity diversity" gap flagged when hair/jitter/crossing
+# realism was added.
+#
+# Every VAT mesh (body, and every top/bottom/shoe/face variant) ships a
+# companion ``AnimToTextureDataAsset`` (e.g. ``DA_f_tal_nrw_body``,
+# alongside the mesh it describes in the same real
+# ``Content/Crowd/VAT/Data/`` folder) recording the real baked frame
+# layout -- queried directly (not guessed), via a headless
+# ``-nullrhi -unattended`` CitySample session reading each data asset's
+# own ``NumFrames``/``SampleRate``/``Animations`` properties. Checked
+# EVERY real asset path this project actually uses (all 123: every
+# ``PEDESTRIAN_BODY_ASSET_PATHS``/``_TOP_``/``_BOTTOM_``/``_SHOE_``/
+# ``_FACE_ASSET_PATHS`` entry, both genders, all 3 weights) -- all 123
+# share the exact same layout, zero exceptions: 430 total frames at
+# 30fps, split into two baked clips, frames 0-319 (320 frames, ~10.7s --
+# a walk cycle, long enough to be one) and frames 320-429 (110 frames,
+# ~3.7s -- a second, visually distinct baked pose/activity, confirmed by
+# a live side-by-side render, not assumed from the frame count alone;
+# see KNOWN_GAPS_AND_ISSUES.md for what that second clip actually shows).
+#
+# Hair meshes have NO companion ``DA_`` of their own (a real, checked
+# asymmetry -- Content/Crowd/VAT/Data has zero ``Hair_``-named entries),
+# but their own material (e.g.
+# ``MI_VAT_Hair_Helmet_S_Pixie_...``) exposes the identical
+# ``Frame``/``NumFrames``/etc. parameter set via the same shared
+# ``ML_BoneAnimation`` material layer every other VAT part uses
+# (confirmed via ``MaterialEditingLibrary.get_scalar_parameter_source``)
+# -- hair is genuinely bone-animated, just riding the paired body's own
+# frame range rather than carrying an independent one, so one ``Frame``
+# value applies coherently across a whole pedestrian's body + outfit +
+# hair.
+PEDESTRIAN_ANIM_NUM_FRAMES = 430
+PEDESTRIAN_ANIM_SAMPLE_RATE_FPS = 30.0
+PEDESTRIAN_ANIM_CLIPS: Tuple[Tuple[int, int], ...] = ((0, 319), (320, 429))
+
+
 # Real measured (width, depth, height) in meters, via GetStaticMeshBounds
 # against a live UE5 instance, keyed by gender only (not weight): real
 # measured body-piece bounds across all 3 weights show weight changes

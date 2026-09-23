@@ -113,6 +113,14 @@ def _pedestrian_to_asset_json(pedestrian: Pedestrian, piece_id: int) -> Dict[str
     constant's own docstring); ``heading_rad`` itself stays the pedestrian's
     true physical direction of travel for ground truth, unaffected by
     this rendering-only correction.
+
+    ``material_scalar_overrides`` carries ``pedestrian.pose_frame`` as
+    the real VAT material's ``"Frame"`` parameter (see
+    ``city_sample_assets.py``'s ``PEDESTRIAN_ANIM_CLIPS``) --
+    ``ProceduralScenarioLoader.cpp`` applies it to the body AND every
+    part component identically, so a pedestrian's whole outfit freezes
+    at the same one real, distinct baked pose instead of every
+    pedestrian defaulting to the exact same frame.
     """
     x, y = pedestrian.center
     return {
@@ -121,6 +129,7 @@ def _pedestrian_to_asset_json(pedestrian: Pedestrian, piece_id: int) -> Dict[str
         "part_paths": pedestrian.part_paths,
         "position": [float(x), float(y), SIDEWALK_TOP_HEIGHT_METERS],
         "rotation_rad": float(pedestrian.heading_rad) + PEDESTRIAN_MESH_FORWARD_OFFSET_RAD,
+        "material_scalar_overrides": {"Frame": pedestrian.pose_frame},
         "id": piece_id,
     }
 

@@ -142,6 +142,28 @@ def test_serialize_scenario_preserves_pedestrian_asset_data_exactly(urban_config
         )
         assert asset["part_paths"] == pedestrian.part_paths
         assert len(asset["part_paths"]) in (4, 5)
+        assert asset["material_scalar_overrides"] == {"Frame": pedestrian.pose_frame}
+
+
+def test_serialize_scenario_vehicle_and_facade_assets_have_no_material_overrides(
+    urban_config, bounds
+) -> None:
+    """Only pedestrians carry "material_scalar_overrides" -- vehicles and
+    building facade pieces have no per-instance pose to select, and
+    ApplyMaterialScalarOverrides (VehicleActorSpawner.cpp) is a no-op for
+    an entry with no such key, so this is a real, checkable invariant,
+    not just an implementation detail."""
+    scenario = generate_scenario(42, urban_config, bounds, "serializer_test")
+    assert scenario.vehicles
+    assert scenario.buildings
+    assert scenario.pedestrians  # needed for the negative-index slice below
+
+    payload = serialize_scenario(scenario)
+    non_pedestrian_assets = payload["assets"][: -len(scenario.pedestrians)]
+
+    assert non_pedestrian_assets  # sanity: vehicles/facade pieces exist
+    for asset in non_pedestrian_assets:
+        assert "material_scalar_overrides" not in asset
 
 
 def test_serialize_scenario_preserves_mesh_data_exactly(urban_config, bounds) -> None:

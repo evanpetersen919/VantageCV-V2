@@ -387,6 +387,7 @@ def _sample_pedestrian(heading_rad: float = 0.0) -> Pedestrian:
         heading_rad=heading_rad,
         asset_path=PEDESTRIAN_BODY_ASSET_PATHS[("f", "nrw")],
         part_paths=[],
+        pose_frame=0.0,
     )
 
 

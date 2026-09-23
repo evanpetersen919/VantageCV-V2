@@ -31,6 +31,7 @@ import numpy as np
 import numpy.typing as npt
 
 from src.procedural.city_sample_assets import (
+    PEDESTRIAN_ANIM_CLIPS,
     PEDESTRIAN_BODY_ASSET_PATHS,
     PEDESTRIAN_BOTTOM_ASSET_PATHS,
     PEDESTRIAN_DIMENSIONS_METERS,
@@ -164,7 +165,12 @@ class Pedestrian:  # pylint: disable=too-many-instance-attributes
     mesh components at zero relative offset -- confirmed live to
     assemble correctly, the same mechanism ``VEHICLE_PART_PATHS`` already
     uses for wheels/doors (see that module's own docstring for the full
-    real-asset investigation).
+    real-asset investigation). ``pose_frame`` is a real, independently
+    sampled baked-animation frame index (see
+    ``city_sample_assets.py``'s ``PEDESTRIAN_ANIM_CLIPS``) applied as a
+    material scalar override to the body AND every part, freezing this
+    pedestrian at one specific, real, distinct static pose instead of
+    every pedestrian sharing the exact same default frame.
     """
 
     pedestrian_id: int
@@ -172,6 +178,7 @@ class Pedestrian:  # pylint: disable=too-many-instance-attributes
     heading_rad: float
     asset_path: str
     part_paths: List[str]
+    pose_frame: float
     width: float = PEDESTRIAN_WIDTH_METERS
     depth: float = PEDESTRIAN_DEPTH_METERS
     height: float = PEDESTRIAN_HEIGHT_METERS
@@ -393,12 +400,17 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             part_paths.append(hair_path)
         width, depth, height = PEDESTRIAN_DIMENSIONS_METERS[gender]
 
+        clip_index = int(self.rng.integers(0, len(PEDESTRIAN_ANIM_CLIPS)))
+        clip_start, clip_end = PEDESTRIAN_ANIM_CLIPS[clip_index]
+        pose_frame = float(self.rng.integers(clip_start, clip_end + 1))
+
         pedestrian = Pedestrian(
             pedestrian_id=self._pedestrian_counter,
             center=position,
             heading_rad=heading,
             asset_path=body_path,
             part_paths=part_paths,
+            pose_frame=pose_frame,
             width=width,
             depth=depth,
             height=height,

@@ -71,6 +71,32 @@ struct FScenarioAssetData
 	// real curbs are placed at (1, -0.75, 0.75).
 	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
 	FVector Scale = FVector::OneVector;
+
+	// Per-instance material scalar parameter overrides (e.g. {"Frame":
+	// 205.0}), applied identically to this entry's body mesh AND every
+	// one of its PartPaths components -- real pedestrian pose selection
+	// is the motivating case (see VehicleActorSpawner.cpp's
+	// ApplyMaterialScalarOverrides for the real evidence behind this:
+	// City Sample's own crowd VAT materials, confirmed live via a real
+	// per-mesh AnimToTextureDataAsset query, share one universal 430-
+	// frame/two-clip layout across every body/top/bottom/shoe/face/hair
+	// asset this project uses, so one "Frame" value applies coherently
+	// across a whole pedestrian's outfit). Empty for asset categories
+	// that don't use this (vehicles, facade pieces) -- a genuinely
+	// empty map is a no-op in ApplyMaterialScalarOverrides, not a
+	// special case, so this costs those categories nothing.
+	//
+	// A live test (2026-09-23) initially found this alone had ZERO
+	// visible effect on pose -- root-caused (not guessed) to two static
+	// switch parameters ("Animate", "UseFourInfluences") defaulting to
+	// False on the shared ML_BoneAnimation material layer, which compile
+	// the pose-driving shader branch out entirely regardless of any
+	// runtime value here. Fixed at the content level (see
+	// VehicleActorSpawner.cpp's ApplyMaterialScalarOverrides and
+	// KNOWN_GAPS_AND_ISSUES.md for the full investigation) -- this
+	// mechanism itself was always correct.
+	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
+	TMap<FString, float> MaterialScalarOverrides;
 };
 
 /**

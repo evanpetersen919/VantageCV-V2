@@ -27,6 +27,7 @@ from src.procedural.actor_placement import (
     _sample_vehicle_type,
 )
 from src.procedural.city_sample_assets import (
+    PEDESTRIAN_ANIM_CLIPS,
     PEDESTRIAN_BODY_ASSET_PATHS,
     PEDESTRIAN_BOTTOM_ASSET_PATHS,
     PEDESTRIAN_DIMENSIONS_METERS,
@@ -136,6 +137,29 @@ def test_pedestrian_body_and_parts_are_consistent(  # pylint: disable=too-many-l
         ) == PEDESTRIAN_DIMENSIONS_METERS[gender]
     assert len(seen_combos) > 1  # sanity: this config/seed covers more than one combo
     assert saw_hair  # sanity: this config/seed places at least one real hairstyle
+
+
+def test_pedestrian_pose_frame_is_real_and_diverse(urban_config, bounds) -> None:
+    """Every placed pedestrian's pose_frame falls inside one of the real,
+    comprehensively-verified baked clips (PEDESTRIAN_ANIM_CLIPS -- see
+    that constant's own docstring for the 123/123 real-asset check
+    backing it), and this config/seed places more than one distinct
+    frame -- proving pose sampling is real and active, not a constant
+    default (the exact bug this feature fixes: every pedestrian
+    previously rendered the same frozen default pose)."""
+    edges, traffic = _generate_full_network(42, urban_config, bounds)
+
+    _, pedestrians = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
+
+    assert pedestrians  # sanity: this config/seed actually places some
+    seen_frames = set()
+    for pedestrian in pedestrians:
+        assert any(
+            clip_start <= pedestrian.pose_frame <= clip_end
+            for clip_start, clip_end in PEDESTRIAN_ANIM_CLIPS
+        )
+        seen_frames.add(pedestrian.pose_frame)
+    assert len(seen_frames) > 1  # sanity: real diversity, not one constant frame
 
 
 def test_vehicle_types_are_from_vehicle_mix(urban_config, bounds) -> None:
@@ -411,6 +435,7 @@ def test_pedestrian_default_dimensions() -> None:
         heading_rad=0.0,
         asset_path=PEDESTRIAN_BODY_ASSET_PATHS[("f", "nrw")],
         part_paths=[],
+        pose_frame=0.0,
     )
     assert pedestrian.width == 0.33
     assert pedestrian.depth == 0.96
