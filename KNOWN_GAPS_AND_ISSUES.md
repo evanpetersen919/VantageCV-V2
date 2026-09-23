@@ -2033,6 +2033,20 @@ adjoining straight runs, no gap or overlap. Full suite green (560/560)
 after adding 5 new geometry tests and updating 2 existing
 `road_edge_kit`/`scenario_serializer` tests for the new trim/asset count.
 
+**Follow-up fix (commit `b26e480`)**: live testing in a real, full
+generated city scenario (299 buildings, night lighting, real crosswalks
+and traffic signals all visible) surfaced a real bug the isolated
+test-grid shots hadn't shown clearly: the curb corner piece faced the
+wrong way, despite sharing the sidewalk corner's exact 8m x 8m footprint
+and pivot -- a mesh-authoring convention mismatch between `Kit_Small_
+Curb_A` and `Kit_Sidewalk_A`, not a placement-math bug (same class of fix
+as the traffic-light mast arm and building corner pieces elsewhere in
+this project). Fixed with `CURB_CORNER_ROTATION_OFFSET_RAD = pi`, applied
+only to the curb piece (the sidewalk corner + fill keep the original
+rotation). Verified live with a tight close-up: the curb now visibly
+follows the sidewalk's own curve along the road-facing edge, flowing
+smoothly into the adjoining straight curb runs.
+
 Deferred, not attempted: yellow center-line paint and one-way streets (see
 the traffic-lights entry above), real emissive traffic-light state
 cycling, and the modular `TrafficLight`/`WalkSignal` custom-assembly
