@@ -25,10 +25,11 @@ from src.orchestration.dataset_generator import ScenarioResult
 from src.procedural.actor_placement import Pedestrian, Vehicle
 from src.procedural.block_pavement import build_block_pavement_meshes
 from src.procedural.building_facade import FacadePiece
-from src.procedural.city_sample_assets import VEHICLE_PART_PATHS
+from src.procedural.city_sample_assets import PEDESTRIAN_MESH_FORWARD_OFFSET_RAD, VEHICLE_PART_PATHS
 from src.procedural.environment import EnvironmentConfig, build_ground_mesh
 from src.procedural.intersection_pavement import build_intersection_pavement_meshes
 from src.procedural.mesh_factory import Mesh
+from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 from src.procedural.roofs import build_roof_meshes, generate_roof_prop_pieces
 
 
@@ -96,17 +97,27 @@ def _pedestrian_to_asset_json(pedestrian: Pedestrian, piece_id: int) -> Dict[str
     vehicle's body-plus-parts assembly.
 
     ``pedestrian.center`` is a 2D (x, y) ground-plane point (see
-    ``ActorPlacementGenerator``); z is always 0.0 here since every
-    pedestrian is placed on the flat ground surface, mirroring
-    ``_vehicle_to_asset_json``.
+    ``ActorPlacementGenerator``); z is ``SIDEWALK_TOP_HEIGHT_METERS``
+    (real, measured -- see ``road_edge_kit.py``), not 0.0 like a vehicle:
+    pedestrians are placed ON the real sidewalk surface, not the road
+    surface, and this mesh's own pivot sits at its feet (confirmed via
+    ``GetStaticMeshBounds``: both migrated meshes' vertical extent starts
+    at ~0), so this is the exact height its feet need to be at.
+
+    ``rotation_rad`` adds ``PEDESTRIAN_MESH_FORWARD_OFFSET_RAD`` on top
+    of ``pedestrian.heading_rad`` -- a real, live-verified correction for
+    this specific mesh's own forward-axis authoring convention (see that
+    constant's own docstring); ``heading_rad`` itself stays the pedestrian's
+    true physical direction of travel for ground truth, unaffected by
+    this rendering-only correction.
     """
     x, y = pedestrian.center
     return {
         "category": "static_asset",
         "asset_path": pedestrian.asset_path,
         "part_paths": [],
-        "position": [float(x), float(y), 0.0],
-        "rotation_rad": float(pedestrian.heading_rad),
+        "position": [float(x), float(y), SIDEWALK_TOP_HEIGHT_METERS],
+        "rotation_rad": float(pedestrian.heading_rad) + PEDESTRIAN_MESH_FORWARD_OFFSET_RAD,
         "id": piece_id,
     }
 
