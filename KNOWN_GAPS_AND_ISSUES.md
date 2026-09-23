@@ -1979,8 +1979,61 @@ one-way (no centerline needed at all), which the MUTCD-standard yellow
 line by itself would understate -- modeling one-way streets would need
 a real change to the road-network generator (every edge currently
 always has a `reverse_edge_id`), a separate, bigger feature, not
-attempted here. Curved sidewalk corners are next: `Kit_Sidewalk_A` and
-`Kit_Small_Curb_A` both ship real modular corner-radius pieces
-(`Corner_01`, `Corner_Fill`, `Corner_Inside`, `Curve`, `Intersection`),
-confirmed present but not yet measured or used -- our corners are
-currently a flat rectangular `block_pavement.py` fill with no curve.
+attempted here.
+
+### [RESOLVED] Real curved sidewalk/curb corners at every intersection
+Follow-up to the traffic-lights entry above: replaced `block_pavement.py`'s
+flat rectangular corner fill with Epic's real curved-corner kit pieces.
+New `src/procedural/curved_corners.py` places `Kit_Sidewalk_A`'s
+`SM_Sidewalk_A_Corner_01` + `SM_Sidewalk_A_Corner_Fill_01` (confirmed live:
+placing both at the identical position/rotation produces one seamless,
+fully-paved rounded corner) and `Kit_Small_Curb_A`'s
+`SM_Small_Curb_A_Corner_01` (same 8m x 8m footprint, measured via
+`GetStaticMeshBounds`) at each of a city block's 4 real inset corners
+(the same inset math `block_pavement.py` already used).
+
+**Rotation mapping, derived not guessed**: at `rotation_rad = 0` a live
+test established the piece's paved bulk extends from its pivot (the
+theoretical sharp corner) toward python/world `(+x, +y)`. Combined with
+the meters/Y-flip/yaw-negation convention `ProceduralScenarioLoader.cpp`
+applies to every asset (already proven correct elsewhere: local +X ->
+python `(cos r, sin r)`, local +Y -> python `(sin r, -cos r)`), the bulk
+direction at any rotation `r` is `(cos r - sin r, sin r + cos r)`. Solving
+this exactly for each of a block's 4 corners' own real interior direction
+gives `SW=0, SE=+pi/2, NE=pi, NW=-pi/2` -- confirmed two ways: a live
+placement of all 4 rotations at a real 20m test block (position
+cross-checked exactly via `DebugListActorsWithMesh` against the intended
+python coordinates, screen layout in an oblique screenshot matching the
+expected relative positions) and a geometry-only unit test
+(`test_rotation_points_each_corners_bulk_into_its_own_block_interior`)
+that checks the same formula's bulk-direction vector actually points into
+each corner's own block, not out into the road.
+
+**No notch needed in `block_pavement.py`**: its flat fill already sits a
+hair below the real sidewalk slabs' top by design, so the corner pieces
+(placed at the same height as the real slabs) simply render on top of it,
+same as every straight slab already does.
+
+**Straight-run trim, a real necessary consequence**: since
+`UNIFORM_LANE_COUNT` means a block's inset corner is always exactly where
+`road_edge_kit.py`'s per-edge curb/sidewalk runs already stopped, and the
+curve's footprint reaches 8m into the block interior from that point, the
+straight runs now stop `CURVED_CORNER_SIZE_METERS` (8m) short of each end
+-- `road_edge_kit.edge_runs` trims both ends of every run by this amount.
+One real side effect: `traffic_lights.py`'s poles (placed at each run's
+own far end, near margin) sit correspondingly further back from the
+intersection than before -- expected, not a regression, since they still
+key off the same (now-shorter) run geometry.
+
+Live-verified (2026-09-22): built a 2x2 block test grid, generated real
+curb/sidewalk/corner/intersection-pavement geometry, and confirmed via an
+oblique screenshot that all 4 corners of a real intersection show a
+correctly rounded, correctly oriented curb+sidewalk corner, flush with the
+adjoining straight runs, no gap or overlap. Full suite green (560/560)
+after adding 5 new geometry tests and updating 2 existing
+`road_edge_kit`/`scenario_serializer` tests for the new trim/asset count.
+
+Deferred, not attempted: yellow center-line paint and one-way streets (see
+the traffic-lights entry above), real emissive traffic-light state
+cycling, and the modular `TrafficLight`/`WalkSignal` custom-assembly
+pieces.
