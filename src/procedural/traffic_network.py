@@ -24,7 +24,11 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import numpy.typing as npt
 
-from src.procedural.lane_topology import Lane
+from src.procedural.lane_topology import (
+    MAX_TRIM_FRACTION_OF_EDGE_LENGTH,
+    Lane,
+    compute_node_clearance,
+)
 from src.procedural.math_utils import compute_perpendicular
 from src.procedural.road_network import IntersectionType, RoadEdge, RoadNode
 
@@ -230,7 +234,20 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
         constant's own docstring) -- not just one fixed slot per edge,
         so a real sidewalk can hold a variable number of people spread
         along its length, matching how City Sample's own crowd system
-        generates candidate points."""
+        generates candidate points.
+
+        Tiling stops short of each end node by that node's own
+        ``compute_node_clearance`` value (clamped the same way
+        ``LaneTopologyGenerator`` already clamps it,
+        ``MAX_TRIM_FRACTION_OF_EDGE_LENGTH``) -- the same real quantity
+        that already trims lane geometry short of intersections. Without
+        this, a real bug (found live): ``sidewalk_start`` is already
+        anchored at the lane's own trimmed start (``left_boundary[0]``),
+        but tiling out to the untrimmed ``edge_length`` walks past the
+        real trimmed sidewalk's far end, landing candidate points inside
+        the intersection's own paved box/crosswalk area -- i.e.
+        pedestrians appearing to stand in the road at an intersection,
+        not on a sidewalk."""
         spawn_zones: List[SpawnZone] = []
 
         for lane in lanes.values():
@@ -248,6 +265,8 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
         for lane in lanes.values():
             lanes_by_edge.setdefault(lane.edge_id, []).append(lane)
 
+        node_clearance = compute_node_clearance(edges)
+
         for edge_id, edge_lanes in lanes_by_edge.items():
             outermost_lane = max(edge_lanes, key=lambda lane: lane.lane_index)
             edge = edges[edge_id]
@@ -259,7 +278,14 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
             perp = compute_perpendicular(direction)
             sidewalk_start = outermost_lane.left_boundary[0] + perp * SIDEWALK_OFFSET_METERS
 
-            num_points = int(edge_length // PEDESTRIAN_SPAWN_GAP_METERS) + 1
+            max_trim_each_side = edge_length * MAX_TRIM_FRACTION_OF_EDGE_LENGTH
+            start_trim = min(node_clearance.get(edge.start_node_id, 0.0), max_trim_each_side)
+            end_trim = min(node_clearance.get(edge.end_node_id, 0.0), max_trim_each_side)
+            usable_length = edge_length - start_trim - end_trim
+            if usable_length < 1e-9:
+                continue
+
+            num_points = int(usable_length // PEDESTRIAN_SPAWN_GAP_METERS) + 1
             for point_index in range(num_points):
                 pedestrian_position = sidewalk_start + unit_direction * (
                     point_index * PEDESTRIAN_SPAWN_GAP_METERS
