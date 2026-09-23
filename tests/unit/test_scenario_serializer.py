@@ -116,12 +116,12 @@ def test_serialize_scenario_preserves_facade_piece_data_exactly(urban_config, bo
 
 
 def test_serialize_scenario_preserves_pedestrian_asset_data_exactly(urban_config, bounds) -> None:
-    """Every pedestrian's asset path, (x, y) position, and id survive into
-    its "assets" entry exactly, tagged "static_asset" with no part_paths
-    -- mirroring the vehicle test above. z is the real sidewalk height
-    (not 0.0, unlike a vehicle -- pedestrians stand on the sidewalk, not
-    the road) and rotation_rad carries the real mesh-forward-axis
-    correction on top of heading_rad -- see
+    """Every pedestrian's asset path, (x, y) position, id, and real
+    top/bottom/shoe/face part_paths survive into its "assets" entry
+    exactly -- mirroring the vehicle test above. z is the real sidewalk
+    height (not 0.0, unlike a vehicle -- pedestrians stand on the
+    sidewalk, not the road) and rotation_rad carries the real
+    mesh-forward-axis correction on top of heading_rad -- see
     ``_pedestrian_to_asset_json``'s own docstring."""
     scenario = generate_scenario(42, urban_config, bounds, "serializer_test")
     assert scenario.pedestrians
@@ -140,7 +140,8 @@ def test_serialize_scenario_preserves_pedestrian_asset_data_exactly(urban_config
         assert asset["rotation_rad"] == pytest.approx(
             float(pedestrian.heading_rad) + PEDESTRIAN_MESH_FORWARD_OFFSET_RAD
         )
-        assert asset["part_paths"] == []
+        assert asset["part_paths"] == pedestrian.part_paths
+        assert len(asset["part_paths"]) == 4
 
 
 def test_serialize_scenario_preserves_mesh_data_exactly(urban_config, bounds) -> None:

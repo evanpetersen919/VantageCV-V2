@@ -9,7 +9,7 @@ import pytest
 
 from src.procedural.actor_placement import Pedestrian, Vehicle
 from src.procedural.building_placement import Building, BuildingType
-from src.procedural.city_sample_assets import PEDESTRIAN_ASSET_PATHS
+from src.procedural.city_sample_assets import PEDESTRIAN_BODY_ASSET_PATHS
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import (
     MIN_TRIANGLE_AREA_SQ_METERS,
@@ -385,7 +385,8 @@ def _sample_pedestrian(heading_rad: float = 0.0) -> Pedestrian:
         pedestrian_id=0,
         center=np.array([1.0, 2.0]),
         heading_rad=heading_rad,
-        asset_path=PEDESTRIAN_ASSET_PATHS[0],
+        asset_path=PEDESTRIAN_BODY_ASSET_PATHS[("f", "nrw")],
+        part_paths=[],
     )
 
 

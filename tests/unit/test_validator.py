@@ -10,7 +10,7 @@ import numpy as np
 
 from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
-from src.procedural.city_sample_assets import PEDESTRIAN_ASSET_PATHS
+from src.procedural.city_sample_assets import PEDESTRIAN_BODY_ASSET_PATHS
 from src.procedural.lane_connectivity import (
     LaneConnection,
     LaneConnectivityGenerator,
@@ -255,7 +255,8 @@ def test_pedestrian_non_finite_center_flagged() -> None:
         pedestrian_id=0,
         center=np.array([np.nan, 0.0]),
         heading_rad=0.0,
-        asset_path=PEDESTRIAN_ASSET_PATHS[0],
+        asset_path=PEDESTRIAN_BODY_ASSET_PATHS[("f", "nrw")],
+        part_paths=[],
     )
     report = ScenarioValidator().validate(
         (0.0, 0.0, 100.0, 100.0), {}, {}, {}, [], [], [], [pedestrian]
