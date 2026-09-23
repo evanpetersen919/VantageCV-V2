@@ -44,9 +44,14 @@ public:
 	/**
 	 * Configures which MIDs to animate and which real baked clip range
 	 * to loop within. Must be called once, immediately after this
-	 * component is registered and before it starts ticking --
-	 * VehicleActorSpawner::SpawnVehicle does this right after creating
-	 * the component.
+	 * component is constructed and BEFORE RegisterComponent() --
+	 * RegisterComponent() synchronously calls this component's own
+	 * BeginPlay() when the owning actor has already begun play (the
+	 * normal case for a runtime-spawned pedestrian), so calling
+	 * Initialize() first ensures BeginPlay's own random phase-offset
+	 * roll uses the real clip bounds, not this class's default (0,0)
+	 * construction-time values. VehicleActorSpawner::SpawnVehicle does
+	 * this in the right order.
 	 *
 	 * @param InMIDsToAnimate  Every material instance dynamic created for
 	 *        this pedestrian's body + parts (ApplyMaterialScalarOverrides'
