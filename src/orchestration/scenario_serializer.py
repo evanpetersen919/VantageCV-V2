@@ -88,7 +88,9 @@ def _vehicle_to_asset_json(vehicle: Vehicle) -> Dict[str, Any]:
     }
 
 
-def _pedestrian_to_asset_json(pedestrian: Pedestrian, piece_id: int) -> Dict[str, Any]:
+def _pedestrian_to_asset_json(
+    pedestrian: Pedestrian, piece_id: int, enable_live_pose_preview: bool = False
+) -> Dict[str, Any]:
     """One ``Pedestrian`` as an ``"assets"`` entry: ``category:
     "static_asset"``. ``part_paths`` carries this pedestrian's own real,
     independently-sampled top/bottom/shoe/face combination (see
@@ -117,14 +119,27 @@ def _pedestrian_to_asset_json(pedestrian: Pedestrian, piece_id: int) -> Dict[str
 
     ``material_scalar_overrides`` carries ``pedestrian.pose_frame`` as
     the real VAT material's ``"Frame"`` parameter (see
-    ``city_sample_assets.py``'s ``PEDESTRIAN_WALKING_FRAME_RANGES``) --
-    ``ProceduralScenarioLoader.cpp`` applies it to the body AND every
-    part component identically, so a pedestrian's whole outfit freezes
-    at the same one real, distinct baked pose instead of every
-    pedestrian defaulting to the exact same frame.
+    ``city_sample_assets.py``'s ``PEDESTRIAN_WALKING_CLIP``/
+    ``PEDESTRIAN_STANDING_CLIP``) -- ``ProceduralScenarioLoader.cpp``
+    applies it to the body AND every part component identically, so a
+    pedestrian's whole outfit freezes at the same one real, distinct
+    baked pose instead of every pedestrian defaulting to the exact same
+    frame.
+
+    ``enable_live_pose_preview``, when true, adds
+    ``"enable_live_pose_preview": true`` to this entry -- an opt-in,
+    interactive-QA-only flag (see ``FScenarioAssetData::
+    bEnableLivePosePreview``'s own comment) that makes this pedestrian
+    animate continuously in real time instead of staying frozen at
+    ``pose_frame``. Deliberately never set by the real dataset-
+    generation pipeline (``generate_scenario`` callers never pass this
+    through): a scenario's captured pose must be a deterministic
+    function of its seed for the dataset to be reproducible, which
+    real-time animation would break. Absent (not ``false``) when
+    disabled, matching every other optional field in this schema.
     """
     x, y = pedestrian.center
-    return {
+    asset: Dict[str, Any] = {
         "category": "static_asset",
         "asset_path": pedestrian.asset_path,
         "part_paths": pedestrian.part_paths,
@@ -133,6 +148,9 @@ def _pedestrian_to_asset_json(pedestrian: Pedestrian, piece_id: int) -> Dict[str
         "material_scalar_overrides": {"Frame": pedestrian.pose_frame},
         "id": piece_id,
     }
+    if enable_live_pose_preview:
+        asset["enable_live_pose_preview"] = True
+    return asset
 
 
 def _facade_piece_to_asset_json(piece: FacadePiece, piece_id: int) -> Dict[str, Any]:
@@ -163,7 +181,9 @@ def _facade_piece_to_asset_json(piece: FacadePiece, piece_id: int) -> Dict[str, 
 
 
 def serialize_scenario(
-    result: ScenarioResult, environment: Optional[EnvironmentConfig] = None
+    result: ScenarioResult,
+    environment: Optional[EnvironmentConfig] = None,
+    enable_live_pose_preview: bool = False,
 ) -> Dict[str, Any]:
     """Convert one generated scenario into the JSON-serializable dict
     :meth:`UE5Backend.load_scenario` sends as its ``"scenario"`` RPC
@@ -181,6 +201,15 @@ def serialize_scenario(
         ``"environment"`` object (sun, fog, grade, hide-template-terrain)
         is added for the UE5 plugin to apply. ``None`` (the default)
         serializes only the scenario itself.
+    enable_live_pose_preview : bool
+        When true, every pedestrian asset entry gets a real, continuous,
+        wall-clock-time-driven walk-cycle animation in the UE5 preview
+        instead of a frozen ``pose_frame`` -- an interactive QA/review
+        aid only (see :func:`_pedestrian_to_asset_json`'s own docstring
+        for why this must stay opt-in). The real dataset-generation
+        pipeline never passes ``True`` here: a scenario's captured pose
+        must be a deterministic function of its seed to keep the
+        dataset reproducible.
 
     Returns
     -------
@@ -221,7 +250,7 @@ def serialize_scenario(
     ]
     id_offset += len(result.traffic_light_pieces)
     assets += [
-        _pedestrian_to_asset_json(pedestrian, id_offset + piece_id)
+        _pedestrian_to_asset_json(pedestrian, id_offset + piece_id, enable_live_pose_preview)
         for piece_id, pedestrian in enumerate(result.pedestrians)
     ]
     payload: Dict[str, Any] = {"meshes": meshes, "assets": assets}

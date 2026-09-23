@@ -203,6 +203,13 @@ namespace
 			}
 		}
 
+		// "enable_live_pose_preview" is optional (missing/absent means
+		// false -- the real dataset-generation pipeline never emits it,
+		// see FScenarioAssetData::bEnableLivePosePreview's own comment).
+		bool bEnableLivePosePreview = false;
+		AssetObject.TryGetBoolField(TEXT("enable_live_pose_preview"), bEnableLivePosePreview);
+		OutAssetData.bEnableLivePosePreview = bEnableLivePosePreview;
+
 		// "scale" is optional ([sx, sy, sz] along the mesh's own local
 		// axes; absent means unscaled). Not run through
 		// ApplyCoordinateConvention: it is a local-axis quantity, not a

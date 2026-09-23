@@ -37,6 +37,7 @@
 // trucks have 6 wheels, the trailer has no doors/glass/interior).
 
 #include "ActorSpawn/VehicleActorSpawner.h"
+#include "ActorSpawn/PedestrianWalkCycleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -84,11 +85,19 @@ namespace
 	// three pedestrians with different Frame values now render three
 	// genuinely distinct walking poses. See KNOWN_GAPS_AND_ISSUES.md for
 	// the full investigation.
-	void ApplyMaterialScalarOverrides(UStaticMeshComponent* Component, const TMap<FString, float>& Overrides)
+	//
+	// Returns every MID it creates (previously discarded, returned void)
+	// so the opt-in live-preview path (FScenarioAssetData::
+	// bEnableLivePosePreview, UPedestrianWalkCycleComponent) can keep
+	// ticking them after this call returns; every other caller ignores
+	// the return value, completely unaffected.
+	TArray<UMaterialInstanceDynamic*> ApplyMaterialScalarOverrides(
+		UStaticMeshComponent* Component, const TMap<FString, float>& Overrides)
 	{
+		TArray<UMaterialInstanceDynamic*> CreatedMIDs;
 		if (Overrides.Num() == 0 || Component == nullptr)
 		{
-			return;
+			return CreatedMIDs;
 		}
 
 		const int32 NumMaterials = Component->GetNumMaterials();
@@ -103,7 +112,9 @@ namespace
 			{
 				MID->SetScalarParameterValue(FName(*Override.Key), Override.Value);
 			}
+			CreatedMIDs.Add(MID);
 		}
+		return CreatedMIDs;
 	}
 }
 
@@ -175,7 +186,12 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 	MeshComponent->RegisterComponent();
 	SpawnedActor->SetRootComponent(MeshComponent);
 	MeshComponent->SetSimulatePhysics(false);
-	ApplyMaterialScalarOverrides(MeshComponent, AssetData.MaterialScalarOverrides);
+
+	// Collected across the body AND every part below so the opt-in
+	// live-preview component (if this asset requests one) can tick every
+	// MID for this pedestrian's whole outfit, not just the body.
+	TArray<UMaterialInstanceDynamic*> AllMIDs =
+		ApplyMaterialScalarOverrides(MeshComponent, AssetData.MaterialScalarOverrides);
 
 	// SpawnActor's own SpawnTransform argument only takes effect by
 	// being applied to a RootComponent, and a bare AActor::StaticClass()
@@ -221,7 +237,29 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 		PartComponent->RegisterComponent();
 		PartComponent->AttachToComponent(MeshComponent, FAttachmentTransformRules::KeepRelativeTransform);
 		PartComponent->SetSimulatePhysics(false);
-		ApplyMaterialScalarOverrides(PartComponent, AssetData.MaterialScalarOverrides);
+		AllMIDs.Append(ApplyMaterialScalarOverrides(PartComponent, AssetData.MaterialScalarOverrides));
+	}
+
+	// Opt-in ONLY -- see FScenarioAssetData::bEnableLivePosePreview's own
+	// comment for why this is never set by the real dataset-generation
+	// pipeline. "Frame" presence is the existing, already-reliable signal
+	// that this asset is an animatable pedestrian (vehicles/facade pieces
+	// never carry it), used here instead of a second new per-asset flag.
+	if (AssetData.bEnableLivePosePreview && AssetData.MaterialScalarOverrides.Contains(TEXT("Frame")))
+	{
+		// Real, evidence-backed clip boundary (see city_sample_assets.py's
+		// PEDESTRIAN_WALKING_CLIP/PEDESTRIAN_STANDING_CLIP): whichever
+		// clip this pedestrian's OWN assigned Frame value already belongs
+		// to is the clip its live-preview motion must stay confined to,
+		// recovered from data already present rather than a new field.
+		const float AssignedFrame = AssetData.MaterialScalarOverrides[TEXT("Frame")];
+		const float ClipStartFrame = AssignedFrame < 320.0f ? 0.0f : 320.0f;
+		const float ClipEndFrame = AssignedFrame < 320.0f ? 319.0f : 429.0f;
+
+		UPedestrianWalkCycleComponent* WalkCycleComponent =
+			NewObject<UPedestrianWalkCycleComponent>(SpawnedActor);
+		WalkCycleComponent->RegisterComponent();
+		WalkCycleComponent->Initialize(AllMIDs, ClipStartFrame, ClipEndFrame);
 	}
 
 	return SpawnedActor;

@@ -33,14 +33,16 @@ from src.procedural.city_sample_assets import (
     PEDESTRIAN_DIMENSIONS_METERS,
     PEDESTRIAN_FACE_ASSET_PATHS,
     PEDESTRIAN_SHOE_ASSET_PATHS,
+    PEDESTRIAN_STANDING_CLIP,
     PEDESTRIAN_TOP_ASSET_PATHS,
-    PEDESTRIAN_WALKING_FRAME_RANGES,
+    PEDESTRIAN_WALKING_CLIP,
     VEHICLE_ASSET_PATHS,
     pedestrian_face_and_hair,
 )
 from src.procedural.lane_topology import LaneTopologyGenerator
 from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadType
+from src.procedural.scenario import ScenarioType, ScenarioTypeConfig
 from src.procedural.traffic_network import SpawnZoneType, TrafficNetwork, TrafficNetworkGenerator
 
 # urban_config, bounds fixtures: see tests/conftest.py
@@ -173,16 +175,13 @@ def test_pedestrian_body_and_parts_are_consistent(  # pylint: disable=too-many-l
 
 
 def test_pedestrian_pose_frame_is_real_and_diverse(urban_config, bounds) -> None:
-    """Every placed pedestrian's pose_frame falls inside one of the real,
-    live-verified-as-walking sub-ranges (PEDESTRIAN_WALKING_FRAME_RANGES
-    -- see that constant's own docstring for the live side-profile sweep
-    backing it: sampling from the full baked clips, as this project did
-    before, lands often enough on a real walk cycle's own near-neutral
-    "passing" phase to read as standing still, not walking), and this
-    config/seed places more than one distinct frame -- proving pose
-    sampling is real and active, not a constant default (the exact bug
-    this feature fixes: every pedestrian previously rendered the same
-    frozen default pose)."""
+    """Every placed pedestrian's pose_frame falls inside one of the two
+    real baked clips (PEDESTRIAN_WALKING_CLIP or PEDESTRIAN_STANDING_CLIP
+    -- see PEDESTRIAN_ANIM_CLIPS' own docstring for the evidence they're
+    real, distinct clips), and this config/seed places more than one
+    distinct frame -- proving pose sampling is real and active, not a
+    constant default (the exact bug this feature fixes: every pedestrian
+    previously rendered the same frozen default pose)."""
     edges, traffic = _generate_full_network(42, urban_config, bounds)
 
     _, pedestrians = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
@@ -190,12 +189,78 @@ def test_pedestrian_pose_frame_is_real_and_diverse(urban_config, bounds) -> None
     assert pedestrians  # sanity: this config/seed actually places some
     seen_frames = set()
     for pedestrian in pedestrians:
-        assert any(
-            window_start <= pedestrian.pose_frame <= window_end
-            for window_start, window_end in PEDESTRIAN_WALKING_FRAME_RANGES
+        in_walking_clip = (
+            PEDESTRIAN_WALKING_CLIP[0] <= pedestrian.pose_frame <= PEDESTRIAN_WALKING_CLIP[1]
         )
+        in_standing_clip = (
+            PEDESTRIAN_STANDING_CLIP[0] <= pedestrian.pose_frame <= PEDESTRIAN_STANDING_CLIP[1]
+        )
+        assert in_walking_clip or in_standing_clip
         seen_frames.add(pedestrian.pose_frame)
     assert len(seen_frames) > 1  # sanity: real diversity, not one constant frame
+
+
+def test_crossing_pedestrians_are_always_walking(urban_config, bounds) -> None:
+    """A CROSSING pedestrian's pose_frame is always inside
+    PEDESTRIAN_WALKING_CLIP, never PEDESTRIAN_STANDING_CLIP -- a
+    pedestrian actively crossing a road is definitionally walking, so
+    ``_try_place_crossing_pedestrian`` always passes
+    ``allow_standing=False``. Identifies crossing pedestrians the same
+    way ``test_pedestrian_surface_z_matches_zone_type`` does: by exact
+    center match to a real CROSSING zone position (zero jitter, per that
+    zone type's own placement logic)."""
+    edges, traffic = _generate_full_network(42, urban_config, bounds)
+    crossing_positions = [
+        tuple(z.position) for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.CROSSING
+    ]
+
+    _, pedestrians = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
+
+    crossing_pedestrians = [p for p in pedestrians if tuple(p.center) in crossing_positions]
+    assert crossing_pedestrians  # sanity: this config/seed places at least one
+
+    for pedestrian in crossing_pedestrians:
+        assert PEDESTRIAN_WALKING_CLIP[0] <= pedestrian.pose_frame <= PEDESTRIAN_WALKING_CLIP[1]
+
+
+def test_sidewalk_pedestrians_include_both_activities() -> None:
+    """Sidewalk pedestrians show a real mix of both activities -- at
+    least one walking, at least one standing -- proving
+    PEDESTRIAN_STANDING_ACTIVITY_FRACTION is genuinely sometimes
+    triggered, not a dead code path. Uses a wider config/seed than the
+    other tests in this file (0.2 probability needs a large enough
+    sidewalk-pedestrian sample to reliably include both outcomes)."""
+    config = ScenarioTypeConfig(
+        scenario_type=ScenarioType.URBAN_DENSE,
+        avg_block_size=(100.0, 150.0),
+        avg_road_width=12.0,
+        num_intersections=(3, 6),
+        intersection_types=["4way", "3way"],
+        building_density=0.6,
+        building_heights=(20.0, 40.0),
+        traffic_density=(0.6, 1.0),
+        vehicle_mix={"sedan": 0.6, "suv": 0.25, "truck": 0.1, "bus": 0.05},
+        complexity_score=60,
+    )
+    wide_bounds = (-200.0, -200.0, 200.0, 200.0)
+    edges, traffic = _generate_full_network(7, config, wide_bounds)
+    crossing_positions = [
+        tuple(z.position) for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.CROSSING
+    ]
+
+    _, pedestrians = ActorPlacementGenerator(7, config).generate(edges, traffic)
+    sidewalk_pedestrians = [p for p in pedestrians if tuple(p.center) not in crossing_positions]
+
+    saw_walking = any(
+        PEDESTRIAN_WALKING_CLIP[0] <= p.pose_frame <= PEDESTRIAN_WALKING_CLIP[1]
+        for p in sidewalk_pedestrians
+    )
+    saw_standing = any(
+        PEDESTRIAN_STANDING_CLIP[0] <= p.pose_frame <= PEDESTRIAN_STANDING_CLIP[1]
+        for p in sidewalk_pedestrians
+    )
+    assert saw_walking
+    assert saw_standing
 
 
 def test_pedestrian_pose_frame_avoids_immediate_repeat(urban_config, bounds) -> None:

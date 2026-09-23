@@ -97,6 +97,34 @@ struct FScenarioAssetData
 	// mechanism itself was always correct.
 	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
 	TMap<FString, float> MaterialScalarOverrides;
+
+	// Opt-in, per-asset flag (default false -- absent in every payload
+	// the real dataset-generation pipeline emits) enabling REAL
+	// continuous per-instance walk-cycle animation for interactive Play
+	// mode QA/review only. When true AND MaterialScalarOverrides
+	// contains "Frame" (the existing, already-reliable signal that this
+	// asset is an animatable pedestrian), SpawnVehicle attaches a
+	// UPedestrianWalkCycleComponent that ticks the real "Frame" MID
+	// parameter over elapsed wall-clock time, confined to whichever real
+	// baked clip (walking 0-319, or standing 320-429 -- see
+	// city_sample_assets.py's PEDESTRIAN_WALKING_CLIP/
+	// PEDESTRIAN_STANDING_CLIP) this pedestrian's own assigned Frame
+	// value already belongs to, starting from a random per-instance
+	// phase so pedestrians are never synchronized.
+	//
+	// Deliberately NOT the default (2026-09-23 investigation, see
+	// KNOWN_GAPS_AND_ISSUES.md): the dataset-generation pipeline's
+	// reproducibility depends on a scenario's captured pose being a
+	// deterministic function of its seed, not of wall-clock elapsed time
+	// since actor spawn -- real-time animation is correct for a human
+	// watching interactively, but would make the ACTUAL captured
+	// training frame depend on exactly when the screenshot happens to be
+	// taken, which is not acceptable for a reproducible research
+	// dataset. serialize_scenario's enable_live_pose_preview parameter
+	// (default False) is the only thing that ever sets this field to
+	// true, and the real dataset-generation pipeline never passes it.
+	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
+	bool bEnableLivePosePreview = false;
 };
 
 /**
