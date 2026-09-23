@@ -359,6 +359,35 @@ PEDESTRIAN_DIMENSIONS_METERS: Dict[str, Tuple[float, float, float]] = {
     "/Game/Crowd/VAT/Meshes/SM_m_tal_nrw_combined": (0.40, 1.11, 1.81),
 }
 
+# Real, live-verified (2026-09-22, not guessed): unlike every other
+# asset in this project (vehicles, curbs, corners, facade pieces), whose
+# own local +X axis is their "forward"/"along-the-run" direction (the
+# general rule: local +X -> python (cos r, sin r) at rotation_rad = r,
+# confirmed repeatedly throughout this project), this pedestrian VAT
+# mesh's own walking/facing direction is authored along its local +Y
+# axis instead. Confirmed via two independent, orthogonal, axis-aligned
+# camera shots at rotation_rad = 0 (the same rigorous technique used for
+# every other mesh-orientation fact in this project): a camera looking
+# along the python Y axis showed the character's BACK (facing away, i.e.
+# facing -y, matching local +Y -> python (sin 0, -cos 0) = (0, -1));  a
+# second shot looking along the python X axis showed a clean SIDE
+# PROFILE, ruling out local +X as the forward axis (a local+X-forward
+# mesh would show a front/back view here instead).
+#
+# Because of this, applying `atan2(dy, dx)` (the formula every other
+# asset's "face/run along direction (dx, dy)" heading uses) directly as
+# this mesh's `rotation_rad` does NOT make it face/walk along (dx, dy)
+# -- it needs an extra +pi/2 on top, derived algebraically (not
+# guessed): solving `local+Y -> (dx, dy)`, i.e. `(sin r, -cos r) = (dx,
+# dy)`, gives `r = atan2(dx, -dy)`, which is identically
+# `atan2(dy, dx) + pi/2` for every (dx, dy) (verified algebraically for
+# several cases). Apply this ONLY when computing the rendered mesh's
+# `rotation_rad` (see scenario_serializer.py's `_pedestrian_to_asset_json`)
+# -- `Pedestrian.heading_rad` itself stays the real physical
+# direction-of-travel value (matching the edge direction) for ground
+# truth, uncorrected by this mesh-authoring quirk.
+PEDESTRIAN_MESH_FORWARD_OFFSET_RAD = math.pi / 2
+
 
 @dataclass(frozen=True)
 class BuildingKit:  # pylint: disable=too-many-instance-attributes

@@ -52,6 +52,15 @@ from src.procedural.road_network import RoadEdge
 
 _CURB_DIR = "/Game/Megascans/3D_Assets/Modular_Curb_5_M_"
 
+# The real, measured top-of-sidewalk height above the flat z=0 road
+# surface (see this module's own docstring: "sidewalk top sits about
+# 10.8cm above the road's crown"). Exported so anything that needs to
+# stand something ON the real sidewalk surface (e.g. pedestrians) uses
+# the same real number instead of a fresh guess -- distinct from
+# ``RoadEdgeKit.sidewalk_z_m``, which is that mesh piece's own
+# pivot-to-top offset, not the walking-surface height itself.
+SIDEWALK_TOP_HEIGHT_METERS = 0.108
+
 
 @dataclass(frozen=True)
 class RoadEdgeKit:  # pylint: disable=too-many-instance-attributes

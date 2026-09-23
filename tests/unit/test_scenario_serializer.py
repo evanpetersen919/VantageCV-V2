@@ -10,11 +10,13 @@ script. See KNOWN_GAPS_AND_ISSUES.md.
 import json
 
 import numpy as np
+import pytest
 
 from src.orchestration.dataset_generator import generate_scenario
 from src.orchestration.scenario_serializer import _facade_piece_to_asset_json, serialize_scenario
 from src.procedural.building_facade import FacadePiece
-from src.procedural.city_sample_assets import VEHICLE_PART_PATHS
+from src.procedural.city_sample_assets import PEDESTRIAN_MESH_FORWARD_OFFSET_RAD, VEHICLE_PART_PATHS
+from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 
 # urban_config, bounds fixtures: see tests/conftest.py
 
@@ -114,9 +116,13 @@ def test_serialize_scenario_preserves_facade_piece_data_exactly(urban_config, bo
 
 
 def test_serialize_scenario_preserves_pedestrian_asset_data_exactly(urban_config, bounds) -> None:
-    """Every pedestrian's asset path, position, heading, and id survive
-    into its "assets" entry exactly, tagged "static_asset" with no
-    part_paths -- mirroring the vehicle test above."""
+    """Every pedestrian's asset path, (x, y) position, and id survive into
+    its "assets" entry exactly, tagged "static_asset" with no part_paths
+    -- mirroring the vehicle test above. z is the real sidewalk height
+    (not 0.0, unlike a vehicle -- pedestrians stand on the sidewalk, not
+    the road) and rotation_rad carries the real mesh-forward-axis
+    correction on top of heading_rad -- see
+    ``_pedestrian_to_asset_json``'s own docstring."""
     scenario = generate_scenario(42, urban_config, bounds, "serializer_test")
     assert scenario.pedestrians
 
@@ -129,9 +135,11 @@ def test_serialize_scenario_preserves_pedestrian_asset_data_exactly(urban_config
         assert asset["position"] == [
             float(pedestrian.center[0]),
             float(pedestrian.center[1]),
-            0.0,
+            SIDEWALK_TOP_HEIGHT_METERS,
         ]
-        assert asset["rotation_rad"] == float(pedestrian.heading_rad)
+        assert asset["rotation_rad"] == pytest.approx(
+            float(pedestrian.heading_rad) + PEDESTRIAN_MESH_FORWARD_OFFSET_RAD
+        )
         assert asset["part_paths"] == []
 
 
