@@ -30,8 +30,12 @@ import numpy as np
 import numpy.typing as npt
 
 from src.procedural.city_sample_assets import (
-    PEDESTRIAN_ASSET_PATHS,
+    PEDESTRIAN_BODY_ASSET_PATHS,
+    PEDESTRIAN_BOTTOM_ASSET_PATHS,
     PEDESTRIAN_DIMENSIONS_METERS,
+    PEDESTRIAN_FACE_ASSET_PATHS,
+    PEDESTRIAN_SHOE_ASSET_PATHS,
+    PEDESTRIAN_TOP_ASSET_PATHS,
     VEHICLE_ASSET_PATHS,
 )
 from src.procedural.road_network import RoadEdge
@@ -48,15 +52,23 @@ VEHICLE_DIMENSIONS: Dict[str, Tuple[float, float, float]] = {
     "bus": (12.0, 2.5, 3.2),
 }
 
-# Real measured bounds of the migrated VAT pedestrian mesh
-# (SM_f_tal_nrw_combined), via GetStaticMeshBounds against a live UE5
-# instance -- not a guess (the earlier 0.5/0.5/1.7 placeholder was).
-# extent_x=47.83cm (forward/depth, mid-stride pose), extent_y=16.63cm
-# (lateral/width), extent_z=83.79cm (half-height); doubled and converted
-# to meters. See city_sample_assets.py's PEDESTRIAN_ASSET_PATHS docstring.
+# Real measured bounds of the female VAT pedestrian mesh, via
+# GetStaticMeshBounds against a live UE5 instance -- not a guess (the
+# earlier 0.5/0.5/1.7 placeholder was). Used only as this dataclass's
+# default field values (e.g. for tests that don't specify explicit
+# dims); real placement always looks up PEDESTRIAN_DIMENSIONS_METERS by
+# the pedestrian's own sampled gender instead. See
+# city_sample_assets.py's PEDESTRIAN_DIMENSIONS_METERS docstring.
 PEDESTRIAN_WIDTH_METERS = 0.33
 PEDESTRIAN_DEPTH_METERS = 0.96
 PEDESTRIAN_HEIGHT_METERS = 1.68
+
+# Real gender/weight-class distribution -- not weighted, since no real
+# City Sample or demographic data was found to weight one over another;
+# an even split across genders and weight classes is the honest default
+# absent that evidence (documented here, not silently assumed).
+_PEDESTRIAN_GENDERS = ("f", "m")
+_PEDESTRIAN_WEIGHTS = ("nrw", "ovw", "unw")
 
 # ScenarioTypeConfig has no pedestrian-density field (only
 # traffic_density, for vehicles); a fixed fraction of traffic_density is
@@ -101,18 +113,25 @@ class Vehicle:  # pylint: disable=too-many-instance-attributes
 
 
 @dataclass(eq=False)
-class Pedestrian:
+class Pedestrian:  # pylint: disable=too-many-instance-attributes
     """A single procedurally placed pedestrian.
 
-    ``asset_path`` is a real City Sample VAT pedestrian static mesh path
-    (see ``city_sample_assets.py``'s ``PEDESTRIAN_ASSET_PATHS``), sampled
-    deterministically like ``Vehicle.asset_path``.
+    ``asset_path`` is the real City Sample VAT bare-body static mesh for
+    this pedestrian's own sampled gender+weight (see
+    ``city_sample_assets.py``'s ``PEDESTRIAN_BODY_ASSET_PATHS``).
+    ``part_paths`` is a real, independently-sampled top/bottom/shoe/face
+    combination for that same gender+weight, spawned as sibling static
+    mesh components at zero relative offset -- confirmed live to
+    assemble correctly, the same mechanism ``VEHICLE_PART_PATHS`` already
+    uses for wheels/doors (see that module's own docstring for the full
+    real-asset investigation).
     """
 
     pedestrian_id: int
     center: npt.NDArray[np.float64]
     heading_rad: float
     asset_path: str
+    part_paths: List[str]
     width: float = PEDESTRIAN_WIDTH_METERS
     depth: float = PEDESTRIAN_DEPTH_METERS
     height: float = PEDESTRIAN_HEIGHT_METERS
@@ -236,7 +255,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         self._vehicle_counter += 1
         return candidate
 
-    def _try_place_pedestrian(
+    def _try_place_pedestrian(  # pylint: disable=too-many-locals
         self, zone: SpawnZone, edges: Dict[int, RoadEdge], occupancy: float
     ) -> Optional[Pedestrian]:
         pedestrian_occupancy = occupancy * PEDESTRIAN_DENSITY_FRACTION_OF_TRAFFIC
@@ -244,14 +263,30 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             return None
 
         heading = _edge_heading(edges[zone.edge_id])
-        asset_index = int(self.rng.integers(0, len(PEDESTRIAN_ASSET_PATHS)))
-        asset_path = PEDESTRIAN_ASSET_PATHS[asset_index]
-        width, depth, height = PEDESTRIAN_DIMENSIONS_METERS[asset_path]
+
+        gender = _PEDESTRIAN_GENDERS[int(self.rng.integers(0, len(_PEDESTRIAN_GENDERS)))]
+        weight = _PEDESTRIAN_WEIGHTS[int(self.rng.integers(0, len(_PEDESTRIAN_WEIGHTS)))]
+        combo = (gender, weight)
+
+        body_path = PEDESTRIAN_BODY_ASSET_PATHS[combo]
+        top_options = PEDESTRIAN_TOP_ASSET_PATHS[combo]
+        bottom_options = PEDESTRIAN_BOTTOM_ASSET_PATHS[combo]
+        shoe_options = PEDESTRIAN_SHOE_ASSET_PATHS[combo]
+        face_options = PEDESTRIAN_FACE_ASSET_PATHS[gender]
+        part_paths = [
+            top_options[int(self.rng.integers(0, len(top_options)))],
+            bottom_options[int(self.rng.integers(0, len(bottom_options)))],
+            shoe_options[int(self.rng.integers(0, len(shoe_options)))],
+            face_options[int(self.rng.integers(0, len(face_options)))],
+        ]
+        width, depth, height = PEDESTRIAN_DIMENSIONS_METERS[gender]
+
         pedestrian = Pedestrian(
             pedestrian_id=self._pedestrian_counter,
             center=zone.position.copy(),
             heading_rad=heading,
-            asset_path=asset_path,
+            asset_path=body_path,
+            part_paths=part_paths,
             width=width,
             depth=depth,
             height=height,

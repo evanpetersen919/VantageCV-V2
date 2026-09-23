@@ -15,8 +15,8 @@ produced here, alongside the ``"assets"`` array -- asset-reference +
 transform entries for real City Sample content. Vehicles (``category:
 "vehicle"``), building facade pieces, and pedestrians (``category:
 "static_asset"`` for both -- see ``building_facade.py``/
-``city_sample_assets.py``'s ``PEDESTRIAN_ASSET_PATHS``) all populate
-``"assets"``.
+``city_sample_assets.py``'s ``PEDESTRIAN_BODY_ASSET_PATHS``) all
+populate ``"assets"``.
 """
 
 from typing import Any, Dict, List, Optional
@@ -91,10 +91,13 @@ def _vehicle_to_asset_json(vehicle: Vehicle) -> Dict[str, Any]:
 
 def _pedestrian_to_asset_json(pedestrian: Pedestrian, piece_id: int) -> Dict[str, Any]:
     """One ``Pedestrian`` as an ``"assets"`` entry: ``category:
-    "static_asset"`` -- the real VAT pedestrian mesh (see
-    ``city_sample_assets.py``'s ``PEDESTRIAN_ASSET_PATHS``) has no
-    skeleton and no attached parts, same as a facade piece, unlike a
-    vehicle's body-plus-parts assembly.
+    "static_asset"``. ``part_paths`` carries this pedestrian's own real,
+    independently-sampled top/bottom/shoe/face combination (see
+    ``city_sample_assets.py``'s ``PEDESTRIAN_TOP_ASSET_PATHS`` and
+    siblings), spawned as sibling static mesh components at zero
+    relative offset -- confirmed live to assemble correctly, the same
+    mechanism a vehicle's wheels/doors already use, unlike a facade
+    piece (which never has parts).
 
     ``pedestrian.center`` is a 2D (x, y) ground-plane point (see
     ``ActorPlacementGenerator``); z is ``SIDEWALK_TOP_HEIGHT_METERS``
@@ -115,7 +118,7 @@ def _pedestrian_to_asset_json(pedestrian: Pedestrian, piece_id: int) -> Dict[str
     return {
         "category": "static_asset",
         "asset_path": pedestrian.asset_path,
-        "part_paths": [],
+        "part_paths": pedestrian.part_paths,
         "position": [float(x), float(y), SIDEWALK_TOP_HEIGHT_METERS],
         "rotation_rad": float(pedestrian.heading_rad) + PEDESTRIAN_MESH_FORWARD_OFFSET_RAD,
         "id": piece_id,

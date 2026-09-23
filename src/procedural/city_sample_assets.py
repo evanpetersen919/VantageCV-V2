@@ -334,29 +334,134 @@ VEHICLE_PART_PATHS: Dict[str, List[str]] = {
 # mid-stride walking pose unconditionally, with no skeleton, AnimBP, or
 # Mass AI runtime involved at all -- confirmed via a real screenshot,
 # not just a clean spawn log (this project's own established standard
-# of evidence). ``SM_m_tal_nrw_combined`` (male, normal-weight) is the
-# only other fully pre-assembled "combined" mesh City Sample ships --
-# every other gender/weight/outfit combination only exists as separate
-# body+clothing pieces (not yet investigated whether they're pre-
-# positioned for assembly the way vehicle wheels/doors are), so this is
-# real gender diversity, not yet weight/outfit diversity. Confirmed live
-# side-by-side: the male mesh renders visibly taller (real measured
-# height 1.81m vs the female mesh's 1.68m), same natural unposed
-# standing/walking pose, no skeleton dependency.
-PEDESTRIAN_ASSET_PATHS: List[str] = [
-    "/Game/Crowd/VAT/Meshes/SM_f_tal_nrw_combined",
-    "/Game/Crowd/VAT/Meshes/SM_m_tal_nrw_combined",
-]
+# of evidence). ``SM_m_tal_nrw_combined`` (male, normal-weight) confirmed
+# the same, visibly taller (real measured height 1.81m vs the female
+# mesh's 1.68m).
+#
+# **Real outfit variety, confirmed live the same day**: every other
+# gender/weight/outfit combination exists as separate body/top/bottom/
+# shoe/face pieces rather than one pre-baked "combined" mesh. Verified
+# these assemble correctly as sibling static mesh components at zero
+# relative offset -- the exact same mechanism ``VEHICLE_PART_PATHS``
+# already uses for wheels/doors (``Pedestrian.part_paths``, spawned by
+# the same C++ path, no new code needed) -- two ways: (1) real measured
+# bounds of ``SM_f_tal_nrw_body``/``_jeans``/``_buttonDown`` stack
+# sensibly with no gaps/overlaps (legs low, waist/hands mid, shirt
+# above, all sharing the same x/y origin); (2) a live screenshot showing
+# real jeans and a real buttonDown shirt correctly shaped and positioned
+# on the body. One real gap found this way: the bare ``body`` piece has
+# no head -- the face is a genuinely separate piece
+# (``SM_<gender>_<charID>_<weight>_FaceMesh``), fused into ``combined``
+# but not into ``body`` alone.
+#
+# **Real, disclosed limitation, not a guess**: City Sample itself only
+# ships ONE normal-map texture per face character ID
+# (``Character/<Gender>/<id>/Textures/<id>_nrw_LODnormals``) -- confirmed
+# directly in CitySample's own source tree, not just this project's
+# migration. The ``ovw``/``unw`` FaceMesh variants for the same character
+# rendered as a checkerboard/missing-material in a live test; the
+# ``nrw`` FaceMesh for that same character rendered correctly. Rather
+# than chase an uncertain material-graph bug for a texture City Sample
+# itself never authored, faces always use the ``nrw`` variant regardless
+# of the paired body's own weight class -- confirmed live this produces
+# no visible seam/misalignment pairing an ``nrw`` face with an ``ovw``
+# body. Real anthropometric backing for why this is a reasonable
+# simplification, not a cop-out: these bodies' own measured bounds (see
+# ``PEDESTRIAN_DIMENSIONS_METERS`` below) show weight changes body WIDTH
+# noticeably but height/depth barely at all -- weight class doesn't
+# change standing height, which is the dimension a mismatched face most
+# depends on.
+_CROWD_MESH_DIR = "/Game/Crowd/VAT/Meshes/"
 
-# Real measured (width, depth, height) in meters per pedestrian asset,
-# via GetStaticMeshBounds against a live UE5 instance -- mirrors
-# VEHICLE_DIMENSIONS's per-type approach, since the two meshes are
-# genuinely different sizes (the male mesh is taller), not one shared
-# placeholder box. depth = local-x (forward-facing, mid-stride pose),
-# width = local-y (lateral), height = local-z * 2.
+# (gender, weight) -> that combo's one real bare-body mesh.
+PEDESTRIAN_BODY_ASSET_PATHS: Dict[Tuple[str, str], str] = {
+    (gender, weight): f"{_CROWD_MESH_DIR}SM_{gender}_tal_{weight}_body"
+    for gender in ("f", "m")
+    for weight in ("nrw", "ovw", "unw")
+}
+
+# (gender, weight) -> that combo's real top options (a "top" is one
+# complete look, some already layered -- e.g. "buttonDown_blazer" -- not
+# separate stackable pieces).
+_FEMALE_TOPS = (
+    "buttonDown",
+    "buttonDown_blazer",
+    "buttonOpen",
+    "buttonOpen_blazer",
+    "scoopneck",
+    "scoopneck_blazer",
+    "scoopneck_croppedJacket",
+    "turtleneck",
+    "turtleneck_blazer",
+)
+_MALE_TOPS = (
+    "buttonDown",
+    "buttonDown_blazer",
+    "buttonDown_tie",
+    "buttonDown_tie_blazer",
+    "buttonDown_tie_vest",
+    "buttonDown_tie_vest_blazer",
+    "buttonOpen",
+    "buttonOpen_blazer",
+    "crewneck",
+    "crewneck_blazer",
+)
+_FEMALE_BOTTOMS = ("jeans", "jeans_belt", "skirt", "slacks", "slacks_belt")
+_MALE_BOTTOMS = ("jeans", "jeans_belt", "jeansLong", "jeansLong_belt", "slacks", "slacks_belt")
+_FEMALE_SHOES = ("dressFlats", "loafers", "oxfords")
+_MALE_SHOES = ("loafers", "oxfords")
+
+
+def _garment_paths(gender: str, weight: str, names: Tuple[str, ...]) -> List[str]:
+    return [f"{_CROWD_MESH_DIR}SM_{gender}_tal_{weight}_{name}" for name in names]
+
+
+PEDESTRIAN_TOP_ASSET_PATHS: Dict[Tuple[str, str], List[str]] = {
+    (gender, weight): _garment_paths(gender, weight, _FEMALE_TOPS if gender == "f" else _MALE_TOPS)
+    for gender in ("f", "m")
+    for weight in ("nrw", "ovw", "unw")
+}
+PEDESTRIAN_BOTTOM_ASSET_PATHS: Dict[Tuple[str, str], List[str]] = {
+    (gender, weight): _garment_paths(
+        gender, weight, _FEMALE_BOTTOMS if gender == "f" else _MALE_BOTTOMS
+    )
+    for gender in ("f", "m")
+    for weight in ("nrw", "ovw", "unw")
+}
+PEDESTRIAN_SHOE_ASSET_PATHS: Dict[Tuple[str, str], List[str]] = {
+    (gender, weight): _garment_paths(
+        gender, weight, _FEMALE_SHOES if gender == "f" else _MALE_SHOES
+    )
+    for gender in ("f", "m")
+    for weight in ("nrw", "ovw", "unw")
+}
+
+# gender -> real per-character face options, always the "nrw" texture
+# variant (see this module's docstring above for why). Character IDs
+# confirmed present via direct file listing: female skips 006/007 but
+# has 008 (an asymmetry vs. the skeletal Character/ tree, which has
+# 006/007 but not 008 -- VAT's own real, independently-curated set).
+_FEMALE_FACE_IDS = ("001", "002", "003", "004", "005", "008")
+_MALE_FACE_IDS = ("001", "002", "003", "004", "005", "006")
+
+PEDESTRIAN_FACE_ASSET_PATHS: Dict[str, List[str]] = {
+    "f": [f"{_CROWD_MESH_DIR}SM_f_{char_id}_nrw_FaceMesh" for char_id in _FEMALE_FACE_IDS],
+    "m": [f"{_CROWD_MESH_DIR}SM_m_{char_id}_nrw_FaceMesh" for char_id in _MALE_FACE_IDS],
+}
+
+# Real measured (width, depth, height) in meters, via GetStaticMeshBounds
+# against a live UE5 instance, keyed by gender only (not weight): real
+# measured body-piece bounds across all 3 weights show weight changes
+# WIDTH (girth) noticeably (e.g. female nrw 0.164 vs ovw 0.133, a skin-
+# patch proxy) but height/depth barely at all -- weight class doesn't
+# change standing height, so reusing the one real combined-mesh
+# measurement (the only full-figure measurement available) per gender is
+# a disclosed, evidence-backed simplification, not a fresh guess.
+# depth = local-x (forward-facing, mid-stride pose), width = local-y
+# (lateral), height = local-z * 2.
 PEDESTRIAN_DIMENSIONS_METERS: Dict[str, Tuple[float, float, float]] = {
-    "/Game/Crowd/VAT/Meshes/SM_f_tal_nrw_combined": (0.33, 0.96, 1.68),
-    "/Game/Crowd/VAT/Meshes/SM_m_tal_nrw_combined": (0.40, 1.11, 1.81),
+    "f": (0.33, 0.96, 1.68),
+    "m": (0.40, 1.11, 1.81),
 }
 
 # Real, live-verified (2026-09-22, not guessed): unlike every other

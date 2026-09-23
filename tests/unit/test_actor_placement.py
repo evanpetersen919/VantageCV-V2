@@ -25,8 +25,12 @@ from src.procedural.actor_placement import (
     _sample_vehicle_type,
 )
 from src.procedural.city_sample_assets import (
-    PEDESTRIAN_ASSET_PATHS,
+    PEDESTRIAN_BODY_ASSET_PATHS,
+    PEDESTRIAN_BOTTOM_ASSET_PATHS,
     PEDESTRIAN_DIMENSIONS_METERS,
+    PEDESTRIAN_FACE_ASSET_PATHS,
+    PEDESTRIAN_SHOE_ASSET_PATHS,
+    PEDESTRIAN_TOP_ASSET_PATHS,
     VEHICLE_ASSET_PATHS,
 )
 from src.procedural.lane_topology import LaneTopologyGenerator
@@ -70,26 +74,40 @@ def test_pedestrians_only_at_pedestrian_zones(urban_config, bounds) -> None:
         assert tuple(pedestrian.center) in pedestrian_positions
 
 
-def test_pedestrian_asset_path_and_dimensions_are_consistent(urban_config, bounds) -> None:
-    """Every placed pedestrian's asset_path is a real registered path, and
-    its width/depth/height match that same asset's own real measured
-    dimensions (PEDESTRIAN_DIMENSIONS_METERS) -- never a mismatch (e.g. a
-    male mesh with the female mesh's height)."""
+def test_pedestrian_body_and_parts_are_consistent(  # pylint: disable=too-many-locals
+    urban_config, bounds
+) -> None:
+    """Every placed pedestrian's asset_path (body) is a real registered
+    body for some gender+weight combo, its 4 part_paths (top/bottom/shoe/
+    face) are each real options for that SAME combo (never e.g. a male
+    top on a female body), and its width/depth/height match that body's
+    own real measured dimensions (PEDESTRIAN_DIMENSIONS_METERS, keyed by
+    gender) -- never a mismatch."""
     edges, traffic = _generate_full_network(42, urban_config, bounds)
 
     _, pedestrians = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
 
     assert pedestrians  # sanity: this config/seed actually places some
-    seen_paths = set()
+    body_path_to_combo = {path: combo for combo, path in PEDESTRIAN_BODY_ASSET_PATHS.items()}
+    seen_combos = set()
     for pedestrian in pedestrians:
-        assert pedestrian.asset_path in PEDESTRIAN_ASSET_PATHS
-        seen_paths.add(pedestrian.asset_path)
+        assert pedestrian.asset_path in body_path_to_combo
+        gender, weight = body_path_to_combo[pedestrian.asset_path]
+        seen_combos.add((gender, weight))
+
+        assert len(pedestrian.part_paths) == 4
+        top, bottom, shoe, face = pedestrian.part_paths
+        assert top in PEDESTRIAN_TOP_ASSET_PATHS[(gender, weight)]
+        assert bottom in PEDESTRIAN_BOTTOM_ASSET_PATHS[(gender, weight)]
+        assert shoe in PEDESTRIAN_SHOE_ASSET_PATHS[(gender, weight)]
+        assert face in PEDESTRIAN_FACE_ASSET_PATHS[gender]
+
         assert (
             pedestrian.width,
             pedestrian.depth,
             pedestrian.height,
-        ) == PEDESTRIAN_DIMENSIONS_METERS[pedestrian.asset_path]
-    assert len(seen_paths) > 1  # sanity: this config/seed covers more than one variant
+        ) == PEDESTRIAN_DIMENSIONS_METERS[gender]
+    assert len(seen_combos) > 1  # sanity: this config/seed covers more than one combo
 
 
 def test_vehicle_types_are_from_vehicle_mix(urban_config, bounds) -> None:
@@ -363,7 +381,8 @@ def test_pedestrian_default_dimensions() -> None:
         pedestrian_id=0,
         center=np.array([0.0, 0.0]),
         heading_rad=0.0,
-        asset_path=PEDESTRIAN_ASSET_PATHS[0],
+        asset_path=PEDESTRIAN_BODY_ASSET_PATHS[("f", "nrw")],
+        part_paths=[],
     )
     assert pedestrian.width == 0.33
     assert pedestrian.depth == 0.96
