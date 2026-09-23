@@ -147,6 +147,28 @@ def test_serialize_scenario_preserves_pedestrian_asset_data_exactly(urban_config
         assert asset["material_scalar_overrides"] == {"Frame": pedestrian.pose_frame}
 
 
+def test_serialize_scenario_live_pose_preview_is_opt_in(urban_config, bounds) -> None:
+    """ "enable_live_pose_preview" is ABSENT (not just false) from every
+    pedestrian asset entry by default -- the real dataset-generation
+    pipeline never passes this, so old payloads stay byte-identical.
+    When explicitly requested, every pedestrian entry carries
+    ``"enable_live_pose_preview": True`` -- an interactive QA/review aid
+    only (see ``serialize_scenario``'s own docstring for why this must
+    never affect the real, reproducible dataset-capture path)."""
+    scenario = generate_scenario(42, urban_config, bounds, "serializer_test")
+    assert scenario.pedestrians
+
+    default_payload = serialize_scenario(scenario)
+    default_pedestrian_assets = default_payload["assets"][-len(scenario.pedestrians) :]
+    for asset in default_pedestrian_assets:
+        assert "enable_live_pose_preview" not in asset
+
+    preview_payload = serialize_scenario(scenario, enable_live_pose_preview=True)
+    preview_pedestrian_assets = preview_payload["assets"][-len(scenario.pedestrians) :]
+    for asset in preview_pedestrian_assets:
+        assert asset["enable_live_pose_preview"] is True
+
+
 def test_serialize_scenario_vehicle_and_facade_assets_have_no_material_overrides(
     urban_config, bounds
 ) -> None:

@@ -532,37 +532,37 @@ PEDESTRIAN_ANIM_NUM_FRAMES = 430
 PEDESTRIAN_ANIM_SAMPLE_RATE_FPS = 30.0
 PEDESTRIAN_ANIM_CLIPS: Tuple[Tuple[int, int], ...] = ((0, 319), (320, 429))
 
-# Real, live-verified sub-ranges of clip 0 that read as walking in a
-# rendered side-profile screenshot -- narrower than the full clip, and
-# NOT the full two-clip range above. Found empirically (2026-09-23)
-# after user reports of pedestrians looking like they were standing
-# still, and later "always standing then walking, in sync": a real walk
-# cycle's own "passing" phase (feet momentarily close together) is a
-# genuine part of walking, but a random frame from anywhere in a
-# 320-frame cycle lands there often enough to read as "standing."
+# Named, real activity meaning for the two baked clips above -- see
+# PEDESTRIAN_ANIM_CLIPS' own docstring for the evidence they're real,
+# distinct clips (123/123 real assets, zero exceptions). Clip 0 is the
+# walk cycle; clip 1 is a second, genuinely different, consistently
+# near-static baked pose (swept at 6+ points across its full width
+# during the investigation below, every one read as standing/idle, not
+# walking) -- most plausibly a real "standing" activity, not a broken
+# or lesser clip.
+PEDESTRIAN_WALKING_CLIP: Tuple[int, int] = PEDESTRIAN_ANIM_CLIPS[0]
+PEDESTRIAN_STANDING_CLIP: Tuple[int, int] = PEDESTRIAN_ANIM_CLIPS[1]
+
+# A same-day REVERSAL, not a guess corrected by a guess: an earlier pass
+# today curated pose_frame sampling down to two narrow "obviously
+# mid-stride" sub-windows of the walk cycle (140-165, 280-290; 37
+# values), because a coarse sweep found most of the cycle reads as
+# "standing" to a casual viewer. That optimized for a human's live-
+# viewing perception, not for a statistically representative dataset --
+# real pedestrian photography is not dominated by dramatic mid-stride
+# poses; most real photos show subtler stances, which the walk cycle's
+# own "passing" phase genuinely represents. Restricting to 37 curated
+# values also capped true diversity and, per real evidence, still
+# doesn't address activity diversity ("what pedestrians are doing", the
+# original ask) at all. See KNOWN_GAPS_AND_ISSUES.md for the full
+# evidence trail (both the original 430-frame sweep and this reversal).
 #
-# First pass used one window (140-190) from a coarser sweep; a
-# follow-up found its own tail (175-190) was ALSO near-neutral at finer
-# resolution (the dynamic phase is a smaller fraction of a gait cycle
-# than the passing phase around it), and that one narrow window caused
-# frequent EXACT-duplicate pose_frame values among many pedestrians
-# (only ~26 distinct values for 40+ instances) -- a second, real,
-# non-time-based "these look the same" contributor (see
-# ``ActorPlacementGenerator._sample_pose_frame``'s own docstring).
-#
-# Densely swept (every 5-20 frames) across the full 430-frame space,
-# each point individually confirmed via a live side-profile screenshot:
-# frames 0, 80, 120-135, 175, 200, 210, 230, 240, 260, 270, 300, and
-# 320-415 (6 points across clip 1's full width) all read near-neutral.
-# Exactly two windows read convincingly dynamic at multiple confirmed
-# points each, not one lucky frame: 140-165 (all of 140/145/150/155/
-# 160/165 dynamic in one continuous row) and 280-290 (280 and 290 both
-# dynamic, 270/300 neutral on either side). Frame 220 alone also read
-# dynamic, but 210/230 were neutral -- too narrow to trust, left out.
-#
-# Not exhaustive -- a real gait cycle has more extended-stride phases
-# than these two; expand this if a future session confirms more live.
-PEDESTRIAN_WALKING_FRAME_RANGES: Tuple[Tuple[int, int], ...] = ((140, 165), (280, 290))
+# Real, disclosed ESTIMATE (not measured data -- no real survey of
+# sidewalk pedestrian activity mix was found): the fraction of SIDEWALK
+# (never CROSSING -- a pedestrian actively crossing a road is
+# definitionally walking) pedestrians assigned the standing clip instead
+# of the walk cycle.
+PEDESTRIAN_STANDING_ACTIVITY_FRACTION = 0.2
 
 
 # Real measured (width, depth, height) in meters, via GetStaticMeshBounds
