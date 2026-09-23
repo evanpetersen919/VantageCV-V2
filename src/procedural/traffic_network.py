@@ -34,6 +34,19 @@ from src.procedural.road_network import IntersectionType, RoadEdge, RoadNode
 # scenario.py/building_placement.py.
 SIDEWALK_OFFSET_METERS = 1.5
 
+# Real, not guessed: Epic's own City Sample ships 4 real
+# "MassCrowdZoneGraphSpawnPointGenerator_Density{0-3}" configs
+# (Content/AI/AgentConfig) that place candidate pedestrian spawn points
+# along a ZoneGraph sidewalk lane -- queried live via a headless
+# CitySample Python session's `obj dump` on each one's class default
+# object: all 4 (which otherwise differ only by ZoneGraph tag filter,
+# not spacing) use the identical
+# `MassEntityZoneGraphSpawnPointsGenerator::MinGap = MaxGap = 300.0`
+# (centimeters), i.e. a fixed, non-randomized 3.0m gap between candidate
+# points along the lane. Reused directly here rather than inventing a
+# spacing figure.
+PEDESTRIAN_SPAWN_GAP_METERS = 3.0
+
 
 class TrafficControlType(str, Enum):
     """Right-of-way control present at an intersection node."""
@@ -165,8 +178,9 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
             The road network's directed edges.
         lanes : Dict[int, Lane]
             Per-edge lane geometry from ``LaneTopologyGenerator``, used to
-            place one driving spawn zone per lane and one pedestrian spawn
-            zone per edge (offset beyond the outermost lane).
+            place one driving spawn zone per lane and pedestrian spawn
+            zones tiled along each edge's sidewalk (offset beyond the
+            outermost lane).
 
         Returns
         -------
@@ -207,11 +221,16 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
                 controls[node_id] = TrafficControlType.NONE
         return controls
 
-    def _generate_spawn_zones(
+    def _generate_spawn_zones(  # pylint: disable=too-many-locals
         self, edges: Dict[int, RoadEdge], lanes: Dict[int, Lane]
     ) -> List[SpawnZone]:
-        """One driving spawn zone at the start of every lane, plus one
-        pedestrian spawn zone per edge offset beyond its outermost lane."""
+        """One driving spawn zone at the start of every lane, plus
+        pedestrian spawn zones tiled along each edge's sidewalk at the
+        real ``PEDESTRIAN_SPAWN_GAP_METERS`` interval (see that
+        constant's own docstring) -- not just one fixed slot per edge,
+        so a real sidewalk can hold a variable number of people spread
+        along its length, matching how City Sample's own crowd system
+        generates candidate points."""
         spawn_zones: List[SpawnZone] = []
 
         for lane in lanes.values():
@@ -233,18 +252,27 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
             outermost_lane = max(edge_lanes, key=lambda lane: lane.lane_index)
             edge = edges[edge_id]
             direction = edge.centerline[-1] - edge.centerline[0]
+            edge_length = float(np.linalg.norm(direction))
+            if edge_length < 1e-9:
+                continue
+            unit_direction = direction / edge_length
             perp = compute_perpendicular(direction)
-            pedestrian_position = outermost_lane.left_boundary[0] + perp * SIDEWALK_OFFSET_METERS
+            sidewalk_start = outermost_lane.left_boundary[0] + perp * SIDEWALK_OFFSET_METERS
 
-            spawn_zones.append(
-                SpawnZone(
-                    spawn_zone_id=self._spawn_zone_counter,
-                    zone_type=SpawnZoneType.PEDESTRIAN,
-                    position=pedestrian_position,
-                    edge_id=edge_id,
+            num_points = int(edge_length // PEDESTRIAN_SPAWN_GAP_METERS) + 1
+            for point_index in range(num_points):
+                pedestrian_position = sidewalk_start + unit_direction * (
+                    point_index * PEDESTRIAN_SPAWN_GAP_METERS
                 )
-            )
-            self._spawn_zone_counter += 1
+                spawn_zones.append(
+                    SpawnZone(
+                        spawn_zone_id=self._spawn_zone_counter,
+                        zone_type=SpawnZoneType.PEDESTRIAN,
+                        position=pedestrian_position,
+                        edge_id=edge_id,
+                    )
+                )
+                self._spawn_zone_counter += 1
 
         return spawn_zones
 
