@@ -39,11 +39,6 @@ block's inset corners, cross-checked each piece's actual in-engine position
 via ``DebugListActorsWithMesh`` against the intended python coordinates
 (exact match), and confirmed via an oblique screenshot that the 4 pieces
 occupy the expected relative screen positions for those world coordinates.
-Then verified in a real, full generated city scenario (299 buildings, 16
-blocks) in the live editor: the curb piece visibly faced the wrong way
-(into the road instead of hugging the sidewalk edge) despite sharing the
-sidewalk corner's exact footprint -- fixed with ``CURB_CORNER_ROTATION_
-OFFSET_RAD`` (see its own comment).
 
 **Why no notch is needed in ``block_pavement.py``**: that module's flat
 fill sits deliberately a hair BELOW the real sidewalk slabs' top (its own
@@ -81,15 +76,6 @@ _CURB_DIR = "/Game/Road/Kit_Small_Curb_A/Mesh/"
 CORNER_ASSET_PATH = _SIDEWALK_DIR + "SM_Sidewalk_A_Corner_01"
 CORNER_FILL_ASSET_PATH = _SIDEWALK_DIR + "SM_Sidewalk_A_Corner_Fill_01"
 CURB_CORNER_ASSET_PATH = _CURB_DIR + "SM_Small_Curb_A_Corner_01"
-
-# A real, live-observed authoring-convention mismatch (not guessed, same
-# class of fix as the traffic-light mast arm and building corner pieces
-# needing their own +pi offsets elsewhere in this project): despite
-# sharing the sidewalk corner's exact 8m x 8m footprint/pivot, the curb
-# kit's own corner mesh is authored facing the opposite way, so it needs
-# an extra half-turn on top of the sidewalk/fill pieces' own rotation to
-# actually hug the sidewalk edge instead of facing into the road.
-CURB_CORNER_ROTATION_OFFSET_RAD = math.pi
 
 # rotation_rad for each of a block's 4 corners, keyed the same way
 # block_pavement.py already names them (SW/SE/NE/NW = min/max x, min/max
@@ -154,7 +140,7 @@ def build_curved_corner_pieces(  # pylint: disable=too-many-locals
                 FacadePiece(
                     asset_path=CURB_CORNER_ASSET_PATH,
                     position=np.array([x, y, kit.curb_z_m]),
-                    rotation_rad=rotation_rad + CURB_CORNER_ROTATION_OFFSET_RAD,
+                    rotation_rad=rotation_rad,
                 )
             )
     return pieces
