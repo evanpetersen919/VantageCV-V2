@@ -521,45 +521,48 @@ def pedestrian_face_and_hair(gender: str, face_asset_path: str) -> Optional[str]
 # a live side-by-side render, not assumed from the frame count alone;
 # see KNOWN_GAPS_AND_ISSUES.md for what that second clip actually shows).
 #
-# Hair meshes have NO companion ``DA_`` of their own (a real, checked
-# asymmetry -- Content/Crowd/VAT/Data has zero ``Hair_``-named entries),
-# but their own material (e.g.
-# ``MI_VAT_Hair_Helmet_S_Pixie_...``) exposes the identical
-# ``Frame``/``NumFrames``/etc. parameter set via the same shared
+# Hair meshes have NO companion ``DA_`` of their own (Content/Crowd/
+# VAT/Data has zero ``Hair_``-named entries), but share the identical
+# ``Frame``/``NumFrames``/etc. parameter set via the same
 # ``ML_BoneAnimation`` material layer every other VAT part uses
-# (confirmed via ``MaterialEditingLibrary.get_scalar_parameter_source``)
-# -- hair is genuinely bone-animated, just riding the paired body's own
-# frame range rather than carrying an independent one, so one ``Frame``
-# value applies coherently across a whole pedestrian's body + outfit +
-# hair.
+# (confirmed via ``get_scalar_parameter_source``) -- hair rides the
+# paired body's own frame range, so one ``Frame`` value applies
+# coherently across a whole pedestrian's body + outfit + hair.
 PEDESTRIAN_ANIM_NUM_FRAMES = 430
 PEDESTRIAN_ANIM_SAMPLE_RATE_FPS = 30.0
 PEDESTRIAN_ANIM_CLIPS: Tuple[Tuple[int, int], ...] = ((0, 319), (320, 429))
 
-# Real, live-verified sub-range of clip 0 that reads as walking in a
+# Real, live-verified sub-ranges of clip 0 that read as walking in a
 # rendered side-profile screenshot -- narrower than the full clip, and
-# NOT the full two-clip range above. Found empirically (2026-09-23),
-# after a user report that pedestrians looked like they were standing
-# still: a real walk cycle's own "passing" phase (feet momentarily
-# close together) is a genuine part of walking, but freezing a random
-# frame from anywhere in a 320-frame cycle lands on that near-neutral
-# phase often enough to read as "standing," not "walking."
+# NOT the full two-clip range above. Found empirically (2026-09-23)
+# after user reports of pedestrians looking like they were standing
+# still, and later "always standing then walking, in sync": a real walk
+# cycle's own "passing" phase (feet momentarily close together) is a
+# genuine part of walking, but a random frame from anywhere in a
+# 320-frame cycle lands there often enough to read as "standing."
 #
-# Swept and visually classified via live side-profile renders across
-# both clips: frames 0, 80, 120-135, 240 all rendered near-neutral
-# (feet close together); frame 160 rendered a clearly wide, dynamic
-# mid-stride pose, with 140-155 trending toward it. Clip 1 (320-429),
-# swept at 6 points across its full width, read as near-neutral every
-# time -- excluded from this range entirely (kept in
-# PEDESTRIAN_ANIM_CLIPS above as a documented fact about the asset,
-# just not used for pose sampling).
+# First pass used one window (140-190) from a coarser sweep; a
+# follow-up found its own tail (175-190) was ALSO near-neutral at finer
+# resolution (the dynamic phase is a smaller fraction of a gait cycle
+# than the passing phase around it), and that one narrow window caused
+# frequent EXACT-duplicate pose_frame values among many pedestrians
+# (only ~26 distinct values for 40+ instances) -- a second, real,
+# non-time-based "these look the same" contributor (see
+# ``ActorPlacementGenerator._sample_pose_frame``'s own docstring).
 #
-# A single window bracketing the one confirmed peak, not an exhaustive
-# map of the full 430-frame space -- a second extended-stride phase
-# plausibly exists elsewhere in clip 0 (a real gait cycle typically has
-# two), but was not located; expand this if a future session finds and
-# confirms one live, rather than guessing.
-PEDESTRIAN_WALKING_FRAME_RANGE: Tuple[int, int] = (140, 190)
+# Densely swept (every 5-20 frames) across the full 430-frame space,
+# each point individually confirmed via a live side-profile screenshot:
+# frames 0, 80, 120-135, 175, 200, 210, 230, 240, 260, 270, 300, and
+# 320-415 (6 points across clip 1's full width) all read near-neutral.
+# Exactly two windows read convincingly dynamic at multiple confirmed
+# points each, not one lucky frame: 140-165 (all of 140/145/150/155/
+# 160/165 dynamic in one continuous row) and 280-290 (280 and 290 both
+# dynamic, 270/300 neutral on either side). Frame 220 alone also read
+# dynamic, but 210/230 were neutral -- too narrow to trust, left out.
+#
+# Not exhaustive -- a real gait cycle has more extended-stride phases
+# than these two; expand this if a future session confirms more live.
+PEDESTRIAN_WALKING_FRAME_RANGES: Tuple[Tuple[int, int], ...] = ((140, 165), (280, 290))
 
 
 # Real measured (width, depth, height) in meters, via GetStaticMeshBounds
