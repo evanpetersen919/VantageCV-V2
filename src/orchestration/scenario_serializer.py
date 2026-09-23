@@ -126,6 +126,23 @@ def _pedestrian_to_asset_json(
     baked pose instead of every pedestrian defaulting to the exact same
     frame.
 
+    Also always carries ``"Playrate": 0.0``. Real bug found by directly
+    dumping ``ML_BoneAnimation``'s own ``MaterialExpressionScalarParameter``
+    nodes via the engine console (``obj dump``), not assumed: the real
+    material graph's own ``Playrate`` parameter defaults to ``1.0`` and
+    ``bLooping`` to ``1.0`` (true) -- meaning the shader ALWAYS advances
+    ``Frame`` automatically using real elapsed wall-clock time and a
+    30fps ``SampleRate``, with our own ``Frame`` override only ever
+    acting as a per-instance starting phase offset, not an absolute
+    frozen value. Every pedestrian was therefore continuously animating
+    regardless of any C++ Tick component (confirmed live: zero
+    ``UPedestrianWalkCycleComponent`` instances existed in the world
+    while pedestrians still visibly walked/idled in a loop). Explicitly
+    overriding ``Playrate`` to ``0.0`` here is the actual fix for the
+    real dataset-capture path's reproducibility requirement -- a
+    captured pose must be a deterministic function of the scenario
+    seed, never of wall-clock time since the actor spawned.
+
     ``enable_live_pose_preview``, when true, adds
     ``"enable_live_pose_preview": true`` to this entry -- an opt-in,
     interactive-QA-only flag (see ``FScenarioAssetData::
@@ -145,7 +162,7 @@ def _pedestrian_to_asset_json(
         "part_paths": pedestrian.part_paths,
         "position": [float(x), float(y), pedestrian.surface_z],
         "rotation_rad": float(pedestrian.heading_rad) + PEDESTRIAN_MESH_FORWARD_OFFSET_RAD,
-        "material_scalar_overrides": {"Frame": pedestrian.pose_frame},
+        "material_scalar_overrides": {"Frame": pedestrian.pose_frame, "Playrate": 0.0},
         "id": piece_id,
     }
     if enable_live_pose_preview:
