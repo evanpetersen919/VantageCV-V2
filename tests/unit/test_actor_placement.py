@@ -24,7 +24,11 @@ from src.procedural.actor_placement import (
     _edge_heading,
     _sample_vehicle_type,
 )
-from src.procedural.city_sample_assets import PEDESTRIAN_ASSET_PATHS, VEHICLE_ASSET_PATHS
+from src.procedural.city_sample_assets import (
+    PEDESTRIAN_ASSET_PATHS,
+    PEDESTRIAN_DIMENSIONS_METERS,
+    VEHICLE_ASSET_PATHS,
+)
 from src.procedural.lane_topology import LaneTopologyGenerator
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadType
 from src.procedural.traffic_network import SpawnZoneType, TrafficNetwork, TrafficNetworkGenerator
@@ -64,6 +68,28 @@ def test_pedestrians_only_at_pedestrian_zones(urban_config, bounds) -> None:
 
     for pedestrian in pedestrians:
         assert tuple(pedestrian.center) in pedestrian_positions
+
+
+def test_pedestrian_asset_path_and_dimensions_are_consistent(urban_config, bounds) -> None:
+    """Every placed pedestrian's asset_path is a real registered path, and
+    its width/depth/height match that same asset's own real measured
+    dimensions (PEDESTRIAN_DIMENSIONS_METERS) -- never a mismatch (e.g. a
+    male mesh with the female mesh's height)."""
+    edges, traffic = _generate_full_network(42, urban_config, bounds)
+
+    _, pedestrians = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
+
+    assert pedestrians  # sanity: this config/seed actually places some
+    seen_paths = set()
+    for pedestrian in pedestrians:
+        assert pedestrian.asset_path in PEDESTRIAN_ASSET_PATHS
+        seen_paths.add(pedestrian.asset_path)
+        assert (
+            pedestrian.width,
+            pedestrian.depth,
+            pedestrian.height,
+        ) == PEDESTRIAN_DIMENSIONS_METERS[pedestrian.asset_path]
+    assert len(seen_paths) > 1  # sanity: this config/seed covers more than one variant
 
 
 def test_vehicle_types_are_from_vehicle_mix(urban_config, bounds) -> None:
