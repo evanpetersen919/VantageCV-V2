@@ -10,19 +10,19 @@ an ad hoc, uncommitted scratchpad script, not through anything covered by
 the test suite or reusable by future phases. See
 KNOWN_GAPS_AND_ISSUES.md.
 
-The ``"meshes"`` array (roads and pedestrian box geometry) is produced here,
-alongside the ``"assets"`` array -- asset-reference + transform entries for
-real City Sample content. Vehicles (``category: "vehicle"``, Phase 1) and
-building facade pieces (``category: "static_asset"``, the next phase of the
-same effort -- real modular wall/corner/entrance meshes tiled per building,
-see ``building_facade.py``) both populate ``"assets"``; street props are a
-deliberate later fast-follow, not part of this effort yet.
+The ``"meshes"`` array (roads and other flat procedural geometry) is
+produced here, alongside the ``"assets"`` array -- asset-reference +
+transform entries for real City Sample content. Vehicles (``category:
+"vehicle"``), building facade pieces, and pedestrians (``category:
+"static_asset"`` for both -- see ``building_facade.py``/
+``city_sample_assets.py``'s ``PEDESTRIAN_ASSET_PATHS``) all populate
+``"assets"``.
 """
 
 from typing import Any, Dict, List, Optional
 
 from src.orchestration.dataset_generator import ScenarioResult
-from src.procedural.actor_placement import Vehicle
+from src.procedural.actor_placement import Pedestrian, Vehicle
 from src.procedural.block_pavement import build_block_pavement_meshes
 from src.procedural.building_facade import FacadePiece
 from src.procedural.city_sample_assets import VEHICLE_PART_PATHS
@@ -85,6 +85,29 @@ def _vehicle_to_asset_json(vehicle: Vehicle) -> Dict[str, Any]:
         "position": [float(x), float(y), 0.0],
         "rotation_rad": float(vehicle.heading_rad),
         "id": vehicle.vehicle_id,
+    }
+
+
+def _pedestrian_to_asset_json(pedestrian: Pedestrian, piece_id: int) -> Dict[str, Any]:
+    """One ``Pedestrian`` as an ``"assets"`` entry: ``category:
+    "static_asset"`` -- the real VAT pedestrian mesh (see
+    ``city_sample_assets.py``'s ``PEDESTRIAN_ASSET_PATHS``) has no
+    skeleton and no attached parts, same as a facade piece, unlike a
+    vehicle's body-plus-parts assembly.
+
+    ``pedestrian.center`` is a 2D (x, y) ground-plane point (see
+    ``ActorPlacementGenerator``); z is always 0.0 here since every
+    pedestrian is placed on the flat ground surface, mirroring
+    ``_vehicle_to_asset_json``.
+    """
+    x, y = pedestrian.center
+    return {
+        "category": "static_asset",
+        "asset_path": pedestrian.asset_path,
+        "part_paths": [],
+        "position": [float(x), float(y), 0.0],
+        "rotation_rad": float(pedestrian.heading_rad),
+        "id": piece_id,
     }
 
 
@@ -172,6 +195,11 @@ def serialize_scenario(
         _facade_piece_to_asset_json(piece, id_offset + piece_id)
         for piece_id, piece in enumerate(result.traffic_light_pieces)
     ]
+    id_offset += len(result.traffic_light_pieces)
+    assets += [
+        _pedestrian_to_asset_json(pedestrian, id_offset + piece_id)
+        for piece_id, pedestrian in enumerate(result.pedestrians)
+    ]
     payload: Dict[str, Any] = {"meshes": meshes, "assets": assets}
     if environment is not None:
         meshes.append(_mesh_to_json(build_ground_mesh(environment)))
@@ -184,7 +212,7 @@ def serialize_scenario(
         ]
         meshes += [_mesh_to_json(mesh) for mesh in build_roof_meshes(result.buildings)]
         # Rooftop equipment goes with the roofs: only when dressing the scene.
-        id_offset += len(result.traffic_light_pieces)
+        id_offset += len(result.pedestrians)
         assets += [
             _facade_piece_to_asset_json(piece, id_offset + piece_id)
             for piece_id, piece in enumerate(generate_roof_prop_pieces(result.buildings))

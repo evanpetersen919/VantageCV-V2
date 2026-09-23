@@ -29,7 +29,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import numpy.typing as npt
 
-from src.procedural.city_sample_assets import VEHICLE_ASSET_PATHS
+from src.procedural.city_sample_assets import PEDESTRIAN_ASSET_PATHS, VEHICLE_ASSET_PATHS
 from src.procedural.road_network import RoadEdge
 from src.procedural.scenario import ScenarioTypeConfig
 from src.procedural.traffic_network import SpawnZone, SpawnZoneType, TrafficNetwork
@@ -44,10 +44,15 @@ VEHICLE_DIMENSIONS: Dict[str, Tuple[float, float, float]] = {
     "bus": (12.0, 2.5, 3.2),
 }
 
-# Average adult pedestrian footprint/height, meters.
-PEDESTRIAN_WIDTH_METERS = 0.5
-PEDESTRIAN_DEPTH_METERS = 0.5
-PEDESTRIAN_HEIGHT_METERS = 1.7
+# Real measured bounds of the migrated VAT pedestrian mesh
+# (SM_f_tal_nrw_combined), via GetStaticMeshBounds against a live UE5
+# instance -- not a guess (the earlier 0.5/0.5/1.7 placeholder was).
+# extent_x=47.83cm (forward/depth, mid-stride pose), extent_y=16.63cm
+# (lateral/width), extent_z=83.79cm (half-height); doubled and converted
+# to meters. See city_sample_assets.py's PEDESTRIAN_ASSET_PATHS docstring.
+PEDESTRIAN_WIDTH_METERS = 0.33
+PEDESTRIAN_DEPTH_METERS = 0.96
+PEDESTRIAN_HEIGHT_METERS = 1.68
 
 # ScenarioTypeConfig has no pedestrian-density field (only
 # traffic_density, for vehicles); a fixed fraction of traffic_density is
@@ -93,11 +98,17 @@ class Vehicle:  # pylint: disable=too-many-instance-attributes
 
 @dataclass(eq=False)
 class Pedestrian:
-    """A single procedurally placed pedestrian."""
+    """A single procedurally placed pedestrian.
+
+    ``asset_path`` is a real City Sample VAT pedestrian static mesh path
+    (see ``city_sample_assets.py``'s ``PEDESTRIAN_ASSET_PATHS``), sampled
+    deterministically like ``Vehicle.asset_path``.
+    """
 
     pedestrian_id: int
     center: npt.NDArray[np.float64]
     heading_rad: float
+    asset_path: str
     width: float = PEDESTRIAN_WIDTH_METERS
     depth: float = PEDESTRIAN_DEPTH_METERS
     height: float = PEDESTRIAN_HEIGHT_METERS
@@ -229,10 +240,12 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             return None
 
         heading = _edge_heading(edges[zone.edge_id])
+        asset_index = int(self.rng.integers(0, len(PEDESTRIAN_ASSET_PATHS)))
         pedestrian = Pedestrian(
             pedestrian_id=self._pedestrian_counter,
             center=zone.position.copy(),
             heading_rad=heading,
+            asset_path=PEDESTRIAN_ASSET_PATHS[asset_index],
         )
         self._pedestrian_counter += 1
         return pedestrian
