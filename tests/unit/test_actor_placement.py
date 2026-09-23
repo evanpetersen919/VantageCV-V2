@@ -18,6 +18,7 @@ import pytest
 from src.procedural.actor_placement import (
     PEDESTRIAN_KEEP_RIGHT_BIAS_METERS,
     PEDESTRIAN_LATERAL_JITTER_METERS,
+    PEDESTRIAN_ROAD_SURFACE_Z_METERS,
     VEHICLE_DIMENSIONS,
     ActorPlacementGenerator,
     Pedestrian,
@@ -27,17 +28,18 @@ from src.procedural.actor_placement import (
     _sample_vehicle_type,
 )
 from src.procedural.city_sample_assets import (
-    PEDESTRIAN_ANIM_CLIPS,
     PEDESTRIAN_BODY_ASSET_PATHS,
     PEDESTRIAN_BOTTOM_ASSET_PATHS,
     PEDESTRIAN_DIMENSIONS_METERS,
     PEDESTRIAN_FACE_ASSET_PATHS,
     PEDESTRIAN_SHOE_ASSET_PATHS,
     PEDESTRIAN_TOP_ASSET_PATHS,
+    PEDESTRIAN_WALKING_FRAME_RANGE,
     VEHICLE_ASSET_PATHS,
     pedestrian_face_and_hair,
 )
 from src.procedural.lane_topology import LaneTopologyGenerator
+from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadType
 from src.procedural.traffic_network import SpawnZoneType, TrafficNetwork, TrafficNetworkGenerator
 
@@ -92,6 +94,37 @@ def test_pedestrians_only_at_pedestrian_or_crossing_zones(urban_config, bounds) 
         assert min(distances) <= max_offset + 1e-6
 
 
+def test_pedestrian_surface_z_matches_zone_type(urban_config, bounds) -> None:
+    """A CROSSING pedestrian's surface_z is the real road surface height
+    (PEDESTRIAN_ROAD_SURFACE_Z_METERS, 0.0 -- matching how vehicles are
+    placed), never the sidewalk height -- a real bug, live-confirmed
+    (crossing pedestrians visibly floating above the road), fixed by
+    giving Pedestrian its own surface_z instead of a single hardcoded
+    constant applied to every pedestrian regardless of placement. A
+    sidewalk pedestrian's surface_z is still the real sidewalk height. A
+    crossing pedestrian's own center exactly matches its real CROSSING
+    zone position (zero jitter, per this zone type's own placement
+    logic), which is what lets this test identify which pedestrians were
+    actually placed on the road without needing zone type stored on
+    Pedestrian itself."""
+    edges, traffic = _generate_full_network(42, urban_config, bounds)
+    crossing_positions = [
+        tuple(z.position) for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.CROSSING
+    ]
+
+    _, pedestrians = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
+
+    crossing_pedestrians = [p for p in pedestrians if tuple(p.center) in crossing_positions]
+    sidewalk_pedestrians = [p for p in pedestrians if tuple(p.center) not in crossing_positions]
+    assert crossing_pedestrians  # sanity: this config/seed places at least one
+    assert sidewalk_pedestrians  # sanity: this config/seed places at least one
+
+    for pedestrian in crossing_pedestrians:
+        assert pedestrian.surface_z == PEDESTRIAN_ROAD_SURFACE_Z_METERS
+    for pedestrian in sidewalk_pedestrians:
+        assert pedestrian.surface_z == SIDEWALK_TOP_HEIGHT_METERS
+
+
 def test_pedestrian_body_and_parts_are_consistent(  # pylint: disable=too-many-locals
     urban_config, bounds
 ) -> None:
@@ -140,24 +173,25 @@ def test_pedestrian_body_and_parts_are_consistent(  # pylint: disable=too-many-l
 
 
 def test_pedestrian_pose_frame_is_real_and_diverse(urban_config, bounds) -> None:
-    """Every placed pedestrian's pose_frame falls inside one of the real,
-    comprehensively-verified baked clips (PEDESTRIAN_ANIM_CLIPS -- see
-    that constant's own docstring for the 123/123 real-asset check
-    backing it), and this config/seed places more than one distinct
-    frame -- proving pose sampling is real and active, not a constant
-    default (the exact bug this feature fixes: every pedestrian
-    previously rendered the same frozen default pose)."""
+    """Every placed pedestrian's pose_frame falls inside the real,
+    live-verified-as-walking sub-range (PEDESTRIAN_WALKING_FRAME_RANGE --
+    see that constant's own docstring for the live side-profile sweep
+    backing it: sampling from the full baked clips, as this project did
+    before, lands often enough on a real walk cycle's own near-neutral
+    "passing" phase to read as standing still, not walking), and this
+    config/seed places more than one distinct frame -- proving pose
+    sampling is real and active, not a constant default (the exact bug
+    this feature fixes: every pedestrian previously rendered the same
+    frozen default pose)."""
     edges, traffic = _generate_full_network(42, urban_config, bounds)
 
     _, pedestrians = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
 
     assert pedestrians  # sanity: this config/seed actually places some
+    walk_start, walk_end = PEDESTRIAN_WALKING_FRAME_RANGE
     seen_frames = set()
     for pedestrian in pedestrians:
-        assert any(
-            clip_start <= pedestrian.pose_frame <= clip_end
-            for clip_start, clip_end in PEDESTRIAN_ANIM_CLIPS
-        )
+        assert walk_start <= pedestrian.pose_frame <= walk_end
         seen_frames.add(pedestrian.pose_frame)
     assert len(seen_frames) > 1  # sanity: real diversity, not one constant frame
 
@@ -436,6 +470,7 @@ def test_pedestrian_default_dimensions() -> None:
         asset_path=PEDESTRIAN_BODY_ASSET_PATHS[("f", "nrw")],
         part_paths=[],
         pose_frame=0.0,
+        surface_z=0.108,
     )
     assert pedestrian.width == 0.33
     assert pedestrian.depth == 0.96
