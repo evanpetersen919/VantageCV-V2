@@ -41,8 +41,71 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "Materials/MaterialInstanceDynamic.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogVehicleActorSpawner, Log, All);
+
+namespace
+{
+	// Real, evidence-backed mechanism for pedestrian pose variety (see
+	// FScenarioAssetData::MaterialScalarOverrides' own comment): City
+	// Sample's crowd VAT materials bake pose into a "Frame" scalar
+	// parameter of a shared material layer (confirmed live by reading
+	// the real parameter source via UE Python's
+	// MaterialEditingLibrary.get_scalar_parameter_source -- it resolves
+	// to /Game/Crowd/VAT/Materials/ML_BoneAnimation, not a per-mesh
+	// material), so freezing a specific pose is exactly the same
+	// well-known "per-instance MaterialInstanceDynamic scalar override"
+	// pattern already used throughout the engine for cheap runtime
+	// material variation. A no-op (does nothing, allocates nothing) when
+	// Overrides is empty -- every existing caller (vehicles, facade
+	// pieces) passes an empty map and is completely unaffected.
+	//
+	// Iterates every material slot, not just slot 0: a real live query
+	// of one crowd FaceMesh found a SEPARATE eye-refractive material
+	// instance on its own slot (MI_VAT_EyeRefractive_Inst_L_...) --
+	// setting Frame on slot 0 alone would leave the eyes rendering a
+	// different, unsynchronized pose than the rest of the face.
+	//
+	// A live test (2026-09-23) initially found this alone had ZERO
+	// visible effect: two pedestrians with different "Frame" overrides
+	// rendered pixel-identical. Root-caused via engine C++ headers +
+	// live "obj dump" queries (not guessed) to three STATIC SWITCH
+	// parameters on the shared /Game/Crowd/VAT/Materials/ML_BoneAnimation
+	// material layer -- "Animate" and "UseFourInfluences" -- both
+	// defaulting to False in the migrated content, which compiles the
+	// whole pose-driving shader branch out entirely regardless of any
+	// runtime MID scalar value. Static switches can't be overridden by a
+	// MaterialInstanceDynamic at all (they're baked into the shader
+	// permutation at the Material Instance Constant level); fixed
+	// instead by editing those two expression nodes' own DefaultValue
+	// directly on ML_BoneAnimation (a real, project-owned asset, not
+	// shared engine content) via UE Python, confirmed live afterward:
+	// three pedestrians with different Frame values now render three
+	// genuinely distinct walking poses. See KNOWN_GAPS_AND_ISSUES.md for
+	// the full investigation.
+	void ApplyMaterialScalarOverrides(UStaticMeshComponent* Component, const TMap<FString, float>& Overrides)
+	{
+		if (Overrides.Num() == 0 || Component == nullptr)
+		{
+			return;
+		}
+
+		const int32 NumMaterials = Component->GetNumMaterials();
+		for (int32 ElementIndex = 0; ElementIndex < NumMaterials; ++ElementIndex)
+		{
+			UMaterialInstanceDynamic* MID = Component->CreateDynamicMaterialInstance(ElementIndex);
+			if (MID == nullptr)
+			{
+				continue;
+			}
+			for (const TPair<FString, float>& Override : Overrides)
+			{
+				MID->SetScalarParameterValue(FName(*Override.Key), Override.Value);
+			}
+		}
+	}
+}
 
 UVehicleActorSpawner::UVehicleActorSpawner()
 {
@@ -112,6 +175,7 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 	MeshComponent->RegisterComponent();
 	SpawnedActor->SetRootComponent(MeshComponent);
 	MeshComponent->SetSimulatePhysics(false);
+	ApplyMaterialScalarOverrides(MeshComponent, AssetData.MaterialScalarOverrides);
 
 	// SpawnActor's own SpawnTransform argument only takes effect by
 	// being applied to a RootComponent, and a bare AActor::StaticClass()
@@ -157,6 +221,7 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 		PartComponent->RegisterComponent();
 		PartComponent->AttachToComponent(MeshComponent, FAttachmentTransformRules::KeepRelativeTransform);
 		PartComponent->SetSimulatePhysics(false);
+		ApplyMaterialScalarOverrides(PartComponent, AssetData.MaterialScalarOverrides);
 	}
 
 	return SpawnedActor;

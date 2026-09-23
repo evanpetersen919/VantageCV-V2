@@ -184,6 +184,25 @@ namespace
 			}
 		}
 
+		// "material_scalar_overrides" is optional (missing/absent treated
+		// as an empty map, not a parse failure), same forward/backward-
+		// compatibility pattern as "part_paths" above -- see
+		// FScenarioAssetData::MaterialScalarOverrides' own comment for
+		// what this drives (real pedestrian pose selection).
+		OutAssetData.MaterialScalarOverrides.Reset();
+		const TSharedPtr<FJsonObject>* MaterialScalarOverridesJson = nullptr;
+		if (AssetObject.TryGetObjectField(TEXT("material_scalar_overrides"), MaterialScalarOverridesJson))
+		{
+			for (const auto& Pair : (*MaterialScalarOverridesJson)->Values)
+			{
+				double Value = 0.0;
+				if (Pair.Value.IsValid() && Pair.Value->TryGetNumber(Value))
+				{
+					OutAssetData.MaterialScalarOverrides.Add(Pair.Key, static_cast<float>(Value));
+				}
+			}
+		}
+
 		// "scale" is optional ([sx, sy, sz] along the mesh's own local
 		// axes; absent means unscaled). Not run through
 		// ApplyCoordinateConvention: it is a local-axis quantity, not a

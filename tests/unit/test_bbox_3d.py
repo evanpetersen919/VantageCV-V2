@@ -210,6 +210,7 @@ def _sample_pedestrian() -> Pedestrian:
         heading_rad=np.pi / 3,
         asset_path=PEDESTRIAN_BODY_ASSET_PATHS[("f", "nrw")],
         part_paths=[],
+        pose_frame=0.0,
     )
 
 
@@ -246,6 +247,7 @@ def test_extract_bboxes_3d_pedestrians_preserves_count_and_offset() -> None:
             heading_rad=0.0,
             asset_path=PEDESTRIAN_BODY_ASSET_PATHS[("f", "nrw")],
             part_paths=[],
+            pose_frame=0.0,
         )
         for i in range(3)
     ]
