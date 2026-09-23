@@ -95,6 +95,7 @@ for any normal intersection.
 """
 
 import math
+from dataclasses import dataclass
 from typing import Dict, List, Set, Tuple
 
 import numpy as np
@@ -180,15 +181,29 @@ def _ladder_bars_at(
     return bars
 
 
-def generate_crosswalk_pieces(  # pylint: disable=too-many-locals
+@dataclass(frozen=True)
+class CrosswalkAnchor:
+    """One real crosswalk's own geometry -- shared by both the painted
+    ladder bars below and (via ``compute_crosswalk_anchors``)
+    `traffic_network.py`'s crossing-pedestrian spawn zones, so both
+    reference the exact same real position/width, never independently
+    re-derived (and so never able to drift apart)."""
+
+    node_id: int
+    pivot: npt.NDArray[np.float64]
+    perp: npt.NDArray[np.float64]
+    rotation_rad: float
+    road_width_m: float
+
+
+def compute_crosswalk_anchors(  # pylint: disable=too-many-locals
     nodes: Dict[int, RoadNode], edges: Dict[int, RoadEdge]
-) -> List[FacadePiece]:
-    """Continental-style crosswalk bars at each end of every physical
-    road, spanning that road's own real combined pavement width and
-    positioned flush against the paved intersection surface at that
-    end."""
+) -> List[CrosswalkAnchor]:
+    """The real anchor geometry of every crosswalk this scenario will
+    paint -- one per road end, at the same real position/width/rotation
+    ``generate_crosswalk_pieces`` uses for its own painted bars."""
     clearance = compute_node_clearance(edges)
-    pieces: List[FacadePiece] = []
+    anchors: List[CrosswalkAnchor] = []
 
     for edge, total_lanes in _physical_road_pairs(edges):
         road_width_m = total_lanes * LANE_WIDTH_METERS
@@ -221,5 +236,20 @@ def generate_crosswalk_pieces(  # pylint: disable=too-many-locals
             pivot = nodes[node_id].position + away_from_node * depth_center
             toward_node = -away_from_node
             rotation_rad = math.atan2(float(toward_node[0]), -float(toward_node[1]))
-            pieces += _ladder_bars_at(pivot, rotation_rad, perp, road_width_m)
+            anchors.append(CrosswalkAnchor(node_id, pivot, perp, rotation_rad, road_width_m))
+    return anchors
+
+
+def generate_crosswalk_pieces(
+    nodes: Dict[int, RoadNode], edges: Dict[int, RoadEdge]
+) -> List[FacadePiece]:
+    """Continental-style crosswalk bars at each end of every physical
+    road, spanning that road's own real combined pavement width and
+    positioned flush against the paved intersection surface at that
+    end."""
+    pieces: List[FacadePiece] = []
+    for anchor in compute_crosswalk_anchors(nodes, edges):
+        pieces += _ladder_bars_at(
+            anchor.pivot, anchor.rotation_rad, anchor.perp, anchor.road_width_m
+        )
     return pieces

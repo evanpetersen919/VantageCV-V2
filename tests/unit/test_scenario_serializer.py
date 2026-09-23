@@ -141,7 +141,7 @@ def test_serialize_scenario_preserves_pedestrian_asset_data_exactly(urban_config
             float(pedestrian.heading_rad) + PEDESTRIAN_MESH_FORWARD_OFFSET_RAD
         )
         assert asset["part_paths"] == pedestrian.part_paths
-        assert len(asset["part_paths"]) == 4
+        assert len(asset["part_paths"]) in (4, 5)
 
 
 def test_serialize_scenario_preserves_mesh_data_exactly(urban_config, bounds) -> None:

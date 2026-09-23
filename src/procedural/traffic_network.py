@@ -17,6 +17,7 @@ not per-lane -- full per-lane turn graphs are deferred further still).
 """
 
 import heapq
+import math
 from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
@@ -24,6 +25,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import numpy.typing as npt
 
+from src.procedural.crosswalks import compute_crosswalk_anchors
 from src.procedural.lane_topology import (
     MAX_TRIM_FRACTION_OF_EDGE_LENGTH,
     Lane,
@@ -65,16 +67,28 @@ class SpawnZoneType(str, Enum):
 
     DRIVING = "driving"
     PEDESTRIAN = "pedestrian"
+    CROSSING = "crossing"
 
 
 @dataclass(eq=False)
 class SpawnZone:
-    """A single point where an actor (vehicle or pedestrian) may spawn."""
+    """A single point where an actor (vehicle or pedestrian) may spawn.
+
+    ``edge_id`` is ``None`` for ``CROSSING`` zones (a crosswalk spans a
+    whole road at a node, not one directed edge) and ``heading_rad`` is
+    ``None`` for ``DRIVING``/``PEDESTRIAN`` zones (their heading is
+    derived from their own edge's direction at placement time instead --
+    see ``actor_placement.py``); a ``CROSSING`` zone's ``heading_rad`` is
+    the crosswalk's own real across-the-road crossing direction (see
+    ``crosswalks.CrosswalkAnchor.perp``), since it has no directed edge
+    of its own to derive one from.
+    """
 
     spawn_zone_id: int
     zone_type: SpawnZoneType
     position: npt.NDArray[np.float64]
-    edge_id: int
+    edge_id: Optional[int] = None
+    heading_rad: Optional[float] = None
 
     def __hash__(self) -> int:
         return hash(self.spawn_zone_id)
@@ -192,6 +206,7 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
         """
         traffic_controls = self._assign_traffic_controls(nodes)
         spawn_zones = self._generate_spawn_zones(edges, lanes)
+        spawn_zones += self._generate_crossing_zones(nodes, edges)
         navigation_graph = self._build_navigation_graph(edges)
 
         return TrafficNetwork(
@@ -300,6 +315,32 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
                 )
                 self._spawn_zone_counter += 1
 
+        return spawn_zones
+
+    def _generate_crossing_zones(
+        self, nodes: Dict[int, RoadNode], edges: Dict[int, RoadEdge]
+    ) -> List[SpawnZone]:
+        """Pedestrian spawn zones tiled across the real width of every
+        real crosswalk (see ``crosswalks.compute_crosswalk_anchors``),
+        at the same real ``PEDESTRIAN_SPAWN_GAP_METERS`` interval used
+        along sidewalks -- so a real generated scenario can show people
+        actually crossing a road, not just standing on its sidewalks."""
+        spawn_zones: List[SpawnZone] = []
+        for anchor in compute_crosswalk_anchors(nodes, edges):
+            heading_rad = math.atan2(float(anchor.perp[1]), float(anchor.perp[0]))
+            num_points = max(1, round(anchor.road_width_m / PEDESTRIAN_SPAWN_GAP_METERS))
+            pitch_m = anchor.road_width_m / num_points
+            for point_index in range(num_points):
+                offset_m = -anchor.road_width_m / 2.0 + pitch_m * (point_index + 0.5)
+                spawn_zones.append(
+                    SpawnZone(
+                        spawn_zone_id=self._spawn_zone_counter,
+                        zone_type=SpawnZoneType.CROSSING,
+                        position=anchor.pivot + anchor.perp * offset_m,
+                        heading_rad=heading_rad,
+                    )
+                )
+                self._spawn_zone_counter += 1
         return spawn_zones
 
     @staticmethod
