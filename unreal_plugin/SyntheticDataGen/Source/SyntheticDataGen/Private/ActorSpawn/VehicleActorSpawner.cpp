@@ -256,10 +256,17 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 		const float ClipStartFrame = AssignedFrame < 320.0f ? 0.0f : 320.0f;
 		const float ClipEndFrame = AssignedFrame < 320.0f ? 319.0f : 429.0f;
 
+		// Initialize() BEFORE RegisterComponent(): RegisterComponent()
+		// synchronously calls this component's own BeginPlay() when (as
+		// here) the owning actor has already begun play (confirmed via
+		// AActor::HandleRegisterComponentWithWorld in engine source) --
+		// calling Initialize() first ensures BeginPlay's own random
+		// phase-offset roll uses the real clip bounds, not this class's
+		// default (0,0) construction-time values.
 		UPedestrianWalkCycleComponent* WalkCycleComponent =
 			NewObject<UPedestrianWalkCycleComponent>(SpawnedActor);
-		WalkCycleComponent->RegisterComponent();
 		WalkCycleComponent->Initialize(AllMIDs, ClipStartFrame, ClipEndFrame);
+		WalkCycleComponent->RegisterComponent();
 	}
 
 	return SpawnedActor;
