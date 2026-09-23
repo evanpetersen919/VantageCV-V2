@@ -37,7 +37,7 @@ from src.procedural.city_sample_assets import (
     PEDESTRIAN_FACE_ASSET_PATHS,
     PEDESTRIAN_SHOE_ASSET_PATHS,
     PEDESTRIAN_TOP_ASSET_PATHS,
-    PEDESTRIAN_WALKING_FRAME_RANGE,
+    PEDESTRIAN_WALKING_FRAME_RANGES,
     VEHICLE_ASSET_PATHS,
     pedestrian_face_and_hair,
 )
@@ -176,7 +176,7 @@ class Pedestrian:  # pylint: disable=too-many-instance-attributes
     uses for wheels/doors (see that module's own docstring for the full
     real-asset investigation). ``pose_frame`` is a real, independently
     sampled baked-animation frame index (see
-    ``city_sample_assets.py``'s ``PEDESTRIAN_WALKING_FRAME_RANGE``) applied as a
+    ``city_sample_assets.py``'s ``PEDESTRIAN_WALKING_FRAME_RANGES``) applied as a
     material scalar override to the body AND every part, freezing this
     pedestrian at one specific, real, distinct static pose instead of
     every pedestrian sharing the exact same default frame.
@@ -251,6 +251,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         self.rng = np.random.Generator(np.random.PCG64(seed))
         self._vehicle_counter = 0
         self._pedestrian_counter = 0
+        self._last_pose_frame: Optional[float] = None
 
     def generate(
         self, edges: Dict[int, RoadEdge], traffic: TrafficNetwork
@@ -392,6 +393,37 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             zone.position.copy(), heading, PEDESTRIAN_ROAD_SURFACE_Z_METERS
         )
 
+    def _sample_pose_frame(self) -> float:
+        """A real, live-verified-as-walking baked pose frame (see
+        ``city_sample_assets.py``'s ``PEDESTRIAN_WALKING_FRAME_RANGES``
+        for the two confirmed windows and the evidence behind them):
+        picks one of the confirmed windows, then a frame within it.
+
+        Real, live-confirmed exact-duplicate frames among many
+        pedestrians were common with a single narrow window (only ~26
+        distinct values across 40+ instances) and read as visually
+        identical, cloned poses -- a real, non-time-based contributor to
+        a "these all look the same" perception. Re-rolls (bounded, not
+        an unbounded loop) against the immediately PRECEDING
+        pedestrian's own frame (the one most likely to be spatially
+        adjacent, since pedestrians are placed in order along the same
+        real sidewalk/crossing zones) rather than a full duplicate-
+        tracking structure across the whole scenario -- this doesn't
+        guarantee zero repeats scenario-wide, but directly targets the
+        specific case a person would actually notice: two neighbors
+        captured in the same glance. 8 attempts against a smallest real
+        window of 11 values keeps the chance of exhausting every retry
+        astronomically small without ever looping unboundedly."""
+        window_index = int(self.rng.integers(0, len(PEDESTRIAN_WALKING_FRAME_RANGES)))
+        window_start, window_end = PEDESTRIAN_WALKING_FRAME_RANGES[window_index]
+        pose_frame = float(self.rng.integers(window_start, window_end + 1))
+        attempts = 0
+        while pose_frame == self._last_pose_frame and attempts < 8:
+            pose_frame = float(self.rng.integers(window_start, window_end + 1))
+            attempts += 1
+        self._last_pose_frame = pose_frame
+        return pose_frame
+
     def _build_pedestrian(  # pylint: disable=too-many-locals
         self, position: npt.NDArray[np.float64], heading: float, surface_z: float
     ) -> Pedestrian:
@@ -423,8 +455,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             part_paths.append(hair_path)
         width, depth, height = PEDESTRIAN_DIMENSIONS_METERS[gender]
 
-        walk_start, walk_end = PEDESTRIAN_WALKING_FRAME_RANGE
-        pose_frame = float(self.rng.integers(walk_start, walk_end + 1))
+        pose_frame = self._sample_pose_frame()
 
         pedestrian = Pedestrian(
             pedestrian_id=self._pedestrian_counter,

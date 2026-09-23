@@ -34,7 +34,7 @@ from src.procedural.city_sample_assets import (
     PEDESTRIAN_FACE_ASSET_PATHS,
     PEDESTRIAN_SHOE_ASSET_PATHS,
     PEDESTRIAN_TOP_ASSET_PATHS,
-    PEDESTRIAN_WALKING_FRAME_RANGE,
+    PEDESTRIAN_WALKING_FRAME_RANGES,
     VEHICLE_ASSET_PATHS,
     pedestrian_face_and_hair,
 )
@@ -173,9 +173,9 @@ def test_pedestrian_body_and_parts_are_consistent(  # pylint: disable=too-many-l
 
 
 def test_pedestrian_pose_frame_is_real_and_diverse(urban_config, bounds) -> None:
-    """Every placed pedestrian's pose_frame falls inside the real,
-    live-verified-as-walking sub-range (PEDESTRIAN_WALKING_FRAME_RANGE --
-    see that constant's own docstring for the live side-profile sweep
+    """Every placed pedestrian's pose_frame falls inside one of the real,
+    live-verified-as-walking sub-ranges (PEDESTRIAN_WALKING_FRAME_RANGES
+    -- see that constant's own docstring for the live side-profile sweep
     backing it: sampling from the full baked clips, as this project did
     before, lands often enough on a real walk cycle's own near-neutral
     "passing" phase to read as standing still, not walking), and this
@@ -188,12 +188,33 @@ def test_pedestrian_pose_frame_is_real_and_diverse(urban_config, bounds) -> None
     _, pedestrians = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
 
     assert pedestrians  # sanity: this config/seed actually places some
-    walk_start, walk_end = PEDESTRIAN_WALKING_FRAME_RANGE
     seen_frames = set()
     for pedestrian in pedestrians:
-        assert walk_start <= pedestrian.pose_frame <= walk_end
+        assert any(
+            window_start <= pedestrian.pose_frame <= window_end
+            for window_start, window_end in PEDESTRIAN_WALKING_FRAME_RANGES
+        )
         seen_frames.add(pedestrian.pose_frame)
     assert len(seen_frames) > 1  # sanity: real diversity, not one constant frame
+
+
+def test_pedestrian_pose_frame_avoids_immediate_repeat(urban_config, bounds) -> None:
+    """No two consecutively-placed pedestrians share the exact same
+    pose_frame -- a real, live-confirmed issue with a single narrow
+    window (only ~26 distinct values for 40+ instances meant frequent
+    exact duplicates among spatially adjacent pedestrians, reading as
+    visually identical clones) that ``_sample_pose_frame``'s one-retry
+    guard specifically targets. This checks pedestrians in PLACEMENT
+    order (the order most likely to reflect real spatial adjacency,
+    since pedestrians are placed walking along the same real zones),
+    not sorted by position."""
+    edges, traffic = _generate_full_network(42, urban_config, bounds)
+
+    _, pedestrians = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
+
+    assert len(pedestrians) > 1  # sanity: this config/seed places more than one
+    for previous, current in zip(pedestrians, pedestrians[1:]):
+        assert previous.pose_frame != current.pose_frame
 
 
 def test_vehicle_types_are_from_vehicle_mix(urban_config, bounds) -> None:

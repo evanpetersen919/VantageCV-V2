@@ -117,7 +117,7 @@ def _pedestrian_to_asset_json(pedestrian: Pedestrian, piece_id: int) -> Dict[str
 
     ``material_scalar_overrides`` carries ``pedestrian.pose_frame`` as
     the real VAT material's ``"Frame"`` parameter (see
-    ``city_sample_assets.py``'s ``PEDESTRIAN_WALKING_FRAME_RANGE``) --
+    ``city_sample_assets.py``'s ``PEDESTRIAN_WALKING_FRAME_RANGES``) --
     ``ProceduralScenarioLoader.cpp`` applies it to the body AND every
     part component identically, so a pedestrian's whole outfit freezes
     at the same one real, distinct baked pose instead of every
