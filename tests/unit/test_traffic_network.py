@@ -5,11 +5,13 @@ validity", "Navigation path existence") plus QOL_RESEARCH_CHECKLIST.md
 Section G considerations.
 """
 
+import math
 from typing import Dict, List
 
 import numpy as np
 import pytest
 
+from src.procedural.crosswalks import compute_crosswalk_anchors
 from src.procedural.lane_topology import (
     MAX_TRIM_FRACTION_OF_EDGE_LENGTH,
     LaneTopologyGenerator,
@@ -174,6 +176,37 @@ def test_pedestrian_spawn_zones_tiled_along_each_edge(  # pylint: disable=too-ma
         assert along_distance == pytest.approx(start_trim, abs=1e-6)
 
 
+def test_crossing_zones_tiled_across_real_crosswalk_width(urban_config, bounds) -> None:
+    """CROSSING spawn zones exist, are tiled at the real
+    PEDESTRIAN_SPAWN_GAP_METERS interval across each real crosswalk's own
+    combined-road width, and each carries a real heading_rad (the
+    crosswalk's own across-the-road crossing direction) instead of an
+    edge_id (a crosswalk spans a whole road at a node, not one directed
+    edge)."""
+    nodes, edges, _, traffic = _generate_full_network(42, urban_config, bounds)
+
+    crossing_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.CROSSING]
+    assert crossing_zones  # sanity: this config/seed has real crosswalks
+
+    anchors = compute_crosswalk_anchors(nodes, edges)
+    assert anchors
+
+    for zone in crossing_zones:
+        assert zone.edge_id is None
+        assert zone.heading_rad is not None
+
+    for anchor in anchors:
+        expected_heading = math.atan2(float(anchor.perp[1]), float(anchor.perp[0]))
+        num_points = max(1, round(anchor.road_width_m / PEDESTRIAN_SPAWN_GAP_METERS))
+        matching_zones = [
+            z
+            for z in crossing_zones
+            if np.isclose(z.heading_rad, expected_heading)
+            and np.linalg.norm(z.position - anchor.pivot) <= anchor.road_width_m / 2.0 + 1e-6
+        ]
+        assert len(matching_zones) == num_points
+
+
 def test_spawn_zone_ids_unique(urban_config, bounds) -> None:
     """No two spawn zones share a spawn_zone_id."""
     _, _, _, traffic = _generate_full_network(42, urban_config, bounds)
@@ -190,14 +223,20 @@ def test_spawn_zone_positions_finite(urban_config, bounds) -> None:
         assert np.isfinite(zone.position).all()
 
 
-def test_no_lanes_yields_no_spawn_zones(urban_config, bounds) -> None:
-    """An empty lane dict produces no spawn zones at all."""
+def test_no_lanes_yields_no_driving_or_pedestrian_spawn_zones(urban_config, bounds) -> None:
+    """An empty lane dict produces no DRIVING/PEDESTRIAN spawn zones (both
+    are derived from lane geometry) -- but CROSSING zones may still exist,
+    since crosswalk geometry (crosswalks.compute_crosswalk_anchors) comes
+    from nodes/edges directly, independent of lanes."""
     road_gen = RoadNetworkGenerator(42, urban_config)
     nodes, edges = road_gen.generate(bounds)
 
     traffic = TrafficNetworkGenerator().generate(nodes, edges, {})
 
-    assert not traffic.spawn_zones
+    assert not any(
+        z.zone_type in (SpawnZoneType.DRIVING, SpawnZoneType.PEDESTRIAN)
+        for z in traffic.spawn_zones
+    )
 
 
 @pytest.mark.parametrize("seed", [0, 1, 99])

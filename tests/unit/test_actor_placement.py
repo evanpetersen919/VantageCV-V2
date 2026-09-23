@@ -16,6 +16,8 @@ import numpy as np
 import pytest
 
 from src.procedural.actor_placement import (
+    PEDESTRIAN_KEEP_RIGHT_BIAS_METERS,
+    PEDESTRIAN_LATERAL_JITTER_METERS,
     VEHICLE_DIMENSIONS,
     ActorPlacementGenerator,
     Pedestrian,
@@ -32,6 +34,7 @@ from src.procedural.city_sample_assets import (
     PEDESTRIAN_SHOE_ASSET_PATHS,
     PEDESTRIAN_TOP_ASSET_PATHS,
     VEHICLE_ASSET_PATHS,
+    pedestrian_face_and_hair,
 )
 from src.procedural.lane_topology import LaneTopologyGenerator
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadType
@@ -61,28 +64,44 @@ def test_vehicles_only_at_driving_zones(urban_config, bounds) -> None:
         assert tuple(vehicle.center) in driving_positions
 
 
-def test_pedestrians_only_at_pedestrian_zones(urban_config, bounds) -> None:
-    """Every placed pedestrian's spawn position matches a real PEDESTRIAN zone."""
+def test_pedestrians_only_at_pedestrian_or_crossing_zones(urban_config, bounds) -> None:
+    """Every placed pedestrian's spawn position is within the real,
+    documented lateral jitter distance of a real PEDESTRIAN or CROSSING
+    zone -- not an exact match to a PEDESTRIAN zone, since real lateral
+    jitter/keep-right bias (see PEDESTRIAN_LATERAL_JITTER_METERS's own
+    docstring) now perturbs each sidewalk pedestrian off the zone's own
+    exact centerline position (a crossing pedestrian gets no such
+    jitter, so its distance to its own CROSSING zone is exactly 0)."""
     edges, traffic = _generate_full_network(42, urban_config, bounds)
-    pedestrian_positions = [
-        tuple(z.position) for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.PEDESTRIAN
+    zone_positions = [
+        z.position
+        for z in traffic.spawn_zones
+        if z.zone_type in (SpawnZoneType.PEDESTRIAN, SpawnZoneType.CROSSING)
     ]
 
     _, pedestrians = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
 
+    assert pedestrians  # sanity: this config/seed actually places some
+    max_offset = PEDESTRIAN_KEEP_RIGHT_BIAS_METERS + PEDESTRIAN_LATERAL_JITTER_METERS
     for pedestrian in pedestrians:
-        assert tuple(pedestrian.center) in pedestrian_positions
+        distances = [
+            float(np.linalg.norm(pedestrian.center - zone_position))
+            for zone_position in zone_positions
+        ]
+        assert min(distances) <= max_offset + 1e-6
 
 
 def test_pedestrian_body_and_parts_are_consistent(  # pylint: disable=too-many-locals
     urban_config, bounds
 ) -> None:
     """Every placed pedestrian's asset_path (body) is a real registered
-    body for some gender+weight combo, its 4 part_paths (top/bottom/shoe/
-    face) are each real options for that SAME combo (never e.g. a male
-    top on a female body), and its width/depth/height match that body's
-    own real measured dimensions (PEDESTRIAN_DIMENSIONS_METERS, keyed by
-    gender) -- never a mismatch."""
+    body for some gender+weight combo, its first 4 part_paths (top/
+    bottom/shoe/face) are each real options for that SAME combo (never
+    e.g. a male top on a female body), and its width/depth/height match
+    that body's own real measured dimensions (PEDESTRIAN_DIMENSIONS_
+    METERS, keyed by gender) -- never a mismatch. A 5th part_path
+    (hair), when present, is exactly that same sampled face's own real
+    paired hairstyle -- never an unrelated character's hair."""
     edges, traffic = _generate_full_network(42, urban_config, bounds)
 
     _, pedestrians = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
@@ -90,17 +109,25 @@ def test_pedestrian_body_and_parts_are_consistent(  # pylint: disable=too-many-l
     assert pedestrians  # sanity: this config/seed actually places some
     body_path_to_combo = {path: combo for combo, path in PEDESTRIAN_BODY_ASSET_PATHS.items()}
     seen_combos = set()
+    saw_hair = False
     for pedestrian in pedestrians:
         assert pedestrian.asset_path in body_path_to_combo
         gender, weight = body_path_to_combo[pedestrian.asset_path]
         seen_combos.add((gender, weight))
 
-        assert len(pedestrian.part_paths) == 4
-        top, bottom, shoe, face = pedestrian.part_paths
+        assert len(pedestrian.part_paths) in (4, 5)
+        top, bottom, shoe, face = pedestrian.part_paths[:4]
         assert top in PEDESTRIAN_TOP_ASSET_PATHS[(gender, weight)]
         assert bottom in PEDESTRIAN_BOTTOM_ASSET_PATHS[(gender, weight)]
         assert shoe in PEDESTRIAN_SHOE_ASSET_PATHS[(gender, weight)]
         assert face in PEDESTRIAN_FACE_ASSET_PATHS[gender]
+
+        expected_hair = pedestrian_face_and_hair(gender, face)
+        if expected_hair is None:
+            assert len(pedestrian.part_paths) == 4
+        else:
+            assert pedestrian.part_paths[4] == expected_hair
+            saw_hair = True
 
         assert (
             pedestrian.width,
@@ -108,6 +135,7 @@ def test_pedestrian_body_and_parts_are_consistent(  # pylint: disable=too-many-l
             pedestrian.height,
         ) == PEDESTRIAN_DIMENSIONS_METERS[gender]
     assert len(seen_combos) > 1  # sanity: this config/seed covers more than one combo
+    assert saw_hair  # sanity: this config/seed places at least one real hairstyle
 
 
 def test_vehicle_types_are_from_vehicle_mix(urban_config, bounds) -> None:

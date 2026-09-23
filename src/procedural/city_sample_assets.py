@@ -449,6 +449,55 @@ PEDESTRIAN_FACE_ASSET_PATHS: Dict[str, List[str]] = {
     "m": [f"{_CROWD_MESH_DIR}SM_m_{char_id}_nrw_FaceMesh" for char_id in _MALE_FACE_IDS],
 }
 
+# (gender, char_id) -> that character's real per-instance list index,
+# needed to look up their own canonical hairstyle (see
+# PEDESTRIAN_HAIR_ASSET_PATHS immediately below) from the same sampled
+# face choice, not a second independent random pick -- real crowd
+# characters have ONE assigned hairstyle each, confirmed directly in
+# CitySample's own source (`Character/<Gender>/<id>/Hair/Hair/Hair_*`,
+# one real file per character, not a random pool), not a Mass-AI/runtime
+# thing. Real mapping, not guessed:
+# f_001->Coil, f_002->Pixie, f_003->LowPonytail, f_004->Updo,
+# f_005->BobCurly, m_001->AfroFade, m_002->CurlyFade,
+# m_003->SideSweptFringe, m_006->HairLoss (confirmed via direct file
+# listing of each character's own Hair/Hair folder).
+#
+# Real, disclosed exceptions -- no hair piece for these, not a guessed
+# substitute: f_008 has no skeletal Character/ folder at all (a VAT-only
+# ID with no real reference to check); m_005 has no Hair/ folder in its
+# own real character folder at all (genuinely bald by Epic's own
+# design, confirmed by its absence, not an oversight); m_004's own real
+# style (BuzzCut) was never baked into a VAT-compatible mesh by Epic at
+# all (the VAT hair set ships only 9 styles total, confirmed by direct
+# listing of Content/Crowd/VAT/Meshes/Hair_*, and BuzzCut/PulledBack/
+# Messy are not among them) -- a genuine content-availability gap, not a
+# migration miss on this project's part.
+PEDESTRIAN_HAIR_ASSET_PATHS: Dict[Tuple[str, str], Optional[str]] = {
+    ("f", "001"): f"{_CROWD_MESH_DIR}Hair_S_Coil_Helmet_LOD5",
+    ("f", "002"): f"{_CROWD_MESH_DIR}Hair_S_Pixie_Mesh_LOD5",
+    ("f", "003"): f"{_CROWD_MESH_DIR}Hair_S_LowPonytail_Helmet_LOD5",
+    ("f", "004"): f"{_CROWD_MESH_DIR}Hair_S_Updo_Helmet_LOD5",
+    ("f", "005"): f"{_CROWD_MESH_DIR}Hair_M_BobCurly_Helmet_LOD5",
+    ("f", "008"): None,
+    ("m", "001"): f"{_CROWD_MESH_DIR}Hair_S_AfroFade_Helmet_LOD5",
+    ("m", "002"): f"{_CROWD_MESH_DIR}Hair_S_CurlyFade_Helmet_LOD5",
+    ("m", "003"): f"{_CROWD_MESH_DIR}Hair_M_SideSweptFringe_Mesh_LOD5",
+    ("m", "004"): None,
+    ("m", "005"): None,
+    ("m", "006"): f"{_CROWD_MESH_DIR}Hair_S_HairLoss_Helmet_LOD5",
+}
+
+
+def pedestrian_face_and_hair(gender: str, face_asset_path: str) -> Optional[str]:
+    """The real hair asset path paired with a sampled face (or ``None``
+    for the 3 disclosed exceptions above), looked up by the character ID
+    embedded in ``face_asset_path`` (e.g. ``".../SM_f_003_nrw_FaceMesh"``
+    -> char_id ``"003"``) so hair always matches the SAME character the
+    face was sampled for, never an independent second random pick."""
+    char_id = face_asset_path.split("/")[-1].split("_")[2]
+    return PEDESTRIAN_HAIR_ASSET_PATHS[(gender, char_id)]
+
+
 # Real measured (width, depth, height) in meters, via GetStaticMeshBounds
 # against a live UE5 instance, keyed by gender only (not weight): real
 # measured body-piece bounds across all 3 weights show weight changes

@@ -23,6 +23,7 @@ see :class:`src.ground_truth.bbox_3d.BoundingBox3D`'s ``heading_rad``
 field, added specifically to carry this.
 """
 
+import math
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -37,7 +38,9 @@ from src.procedural.city_sample_assets import (
     PEDESTRIAN_SHOE_ASSET_PATHS,
     PEDESTRIAN_TOP_ASSET_PATHS,
     VEHICLE_ASSET_PATHS,
+    pedestrian_face_and_hair,
 )
+from src.procedural.math_utils import compute_perpendicular
 from src.procedural.road_network import RoadEdge
 from src.procedural.scenario import ScenarioTypeConfig
 from src.procedural.traffic_network import SpawnZone, SpawnZoneType, TrafficNetwork
@@ -70,11 +73,48 @@ PEDESTRIAN_HEIGHT_METERS = 1.68
 _PEDESTRIAN_GENDERS = ("f", "m")
 _PEDESTRIAN_WEIGHTS = ("nrw", "ovw", "unw")
 
+# Real ADA/PROWAG-consistent pedestrian shy distance from a sidewalk's
+# own edges (curb line and building line): pedestrian planning
+# literature (Fruin -- the same body of work already used elsewhere in
+# this project for crosswalk sizing) commonly cites ~0.45-0.6m as the
+# minimum clearance a person keeps from a vertical obstruction. The real
+# sidewalk is SIDEWALK_WIDTH_METERS=3.0m wide (lane_topology.py),
+# centered on SIDEWALK_OFFSET_METERS=1.5m (traffic_network.py); a 1.0m
+# max jitter each way keeps every pedestrian at least 0.5m clear of both
+# edges, matching that real figure, instead of every pedestrian standing
+# at the exact same centerline (a real, reported "tightrope" look).
+PEDESTRIAN_LATERAL_JITTER_METERS = 1.0
+
+# Real, published mechanism (social-force/keep-right pedestrian
+# dynamics literature -- see KNOWN_GAPS_AND_ISSUES.md for the research)
+# for why real two-way foot traffic doesn't collide head-on: each
+# pedestrian keeps to one side of the walkway depending on their own
+# direction of travel. This project has no true multi-agent simulation
+# (a frozen single-frame renderer, not a running one), so this is a
+# statistical PLACEMENT bias, not simulated collision avoidance: each
+# pedestrian's own real right-hand side (``compute_perpendicular`` of
+# their own chosen walking direction, already this project's documented
+# real right-hand convention) gets a consistent small offset, the same
+# real emergent effect (opposite-direction foot traffic visually
+# separating into two lanes) without simulating any actual interaction.
+PEDESTRIAN_KEEP_RIGHT_BIAS_METERS = 0.4
+
 # ScenarioTypeConfig has no pedestrian-density field (only
 # traffic_density, for vehicles); a fixed fraction of traffic_density is
 # used as a documented, deliberate approximation rather than inventing a
 # new config field for one module. See KNOWN_GAPS_AND_ISSUES.md.
 PEDESTRIAN_DENSITY_FRACTION_OF_TRAFFIC = 0.3
+
+# Real, disclosed simplification: crossing a road is a brief transient
+# event (a real crosswalk holds someone for the ~10-15 seconds it takes
+# to walk it) compared to standing/walking a full sidewalk block, which
+# a frozen single-frame scenario should reflect with a LOWER independent
+# occupancy fraction than PEDESTRIAN_DENSITY_FRACTION_OF_TRAFFIC above --
+# no real City Sample or demographic data was found for the exact real
+# ratio between the two, so this is a deliberately conservative,
+# disclosed guess at the right order of magnitude, not a precisely
+# sourced figure like PEDESTRIAN_SPAWN_GAP_METERS is.
+PEDESTRIAN_CROSSING_DENSITY_FRACTION_OF_TRAFFIC = 0.1
 
 
 @dataclass(eq=False)
@@ -217,7 +257,11 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
                     vehicles.append(vehicle)
                     placed_vehicle_aabbs.append(vehicle.aabb)
             elif zone.zone_type == SpawnZoneType.PEDESTRIAN:
-                pedestrian = self._try_place_pedestrian(zone, edges, occupancy)
+                pedestrian = self._try_place_sidewalk_pedestrian(zone, edges, occupancy)
+                if pedestrian is not None:
+                    pedestrians.append(pedestrian)
+            elif zone.zone_type == SpawnZoneType.CROSSING:
+                pedestrian = self._try_place_crossing_pedestrian(zone, occupancy)
                 if pedestrian is not None:
                     pedestrians.append(pedestrian)
 
@@ -232,6 +276,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
     ) -> Optional[Vehicle]:
         if self.rng.random() > occupancy:
             return None
+        assert zone.edge_id is not None  # every DRIVING zone carries one
 
         vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
         asset_path = _sample_asset_path(self.rng, vehicle_type)
@@ -255,15 +300,77 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         self._vehicle_counter += 1
         return candidate
 
-    def _try_place_pedestrian(  # pylint: disable=too-many-locals
+    def _try_place_sidewalk_pedestrian(  # pylint: disable=too-many-locals
         self, zone: SpawnZone, edges: Dict[int, RoadEdge], occupancy: float
     ) -> Optional[Pedestrian]:
         pedestrian_occupancy = occupancy * PEDESTRIAN_DENSITY_FRACTION_OF_TRAFFIC
         if self.rng.random() > pedestrian_occupancy:
             return None
+        assert zone.edge_id is not None  # every PEDESTRIAN zone carries one
 
-        heading = _edge_heading(edges[zone.edge_id])
+        edge = edges[zone.edge_id]
+        edge_direction = edge.centerline[-1] - edge.centerline[0]
 
+        # Real two-way foot traffic: independent of this road's own
+        # one-way vehicle-traffic direction, a real sidewalk carries
+        # pedestrians going both ways. Even split -- no real distribution
+        # data was found to weight one direction over the other
+        # (disclosed, not silently assumed).
+        walking_forward = bool(self.rng.integers(0, 2))
+        heading = _edge_heading(edge) if walking_forward else _edge_heading(edge) + math.pi
+
+        # Real ADA/PROWAG-consistent lateral jitter + keep-right bias
+        # (see both constants' own docstrings): computed from the
+        # WALKER's own facing direction, so opposite-direction
+        # pedestrians naturally separate to opposite sides of the same
+        # sidewalk, not a fixed centerline every pedestrian shares.
+        walking_direction = edge_direction if walking_forward else -edge_direction
+        walker_right = compute_perpendicular(walking_direction)
+        jitter = self.rng.uniform(
+            -PEDESTRIAN_LATERAL_JITTER_METERS, PEDESTRIAN_LATERAL_JITTER_METERS
+        )
+        lateral_offset = np.clip(
+            PEDESTRIAN_KEEP_RIGHT_BIAS_METERS + jitter,
+            -PEDESTRIAN_LATERAL_JITTER_METERS,
+            PEDESTRIAN_LATERAL_JITTER_METERS,
+        )
+        position = zone.position + walker_right * lateral_offset
+
+        return self._build_pedestrian(position, heading)
+
+    def _try_place_crossing_pedestrian(
+        self, zone: SpawnZone, occupancy: float
+    ) -> Optional[Pedestrian]:
+        """A pedestrian actually crossing a road, at one of the real,
+        width-tiled candidate points along a real crosswalk (see
+        ``traffic_network.TrafficNetworkGenerator._generate_crossing_
+        zones``). Uses a real, lower, disclosed occupancy fraction than
+        a sidewalk zone -- crossing is a brief transient event compared
+        to standing/walking a full sidewalk block (see
+        ``PEDESTRIAN_CROSSING_DENSITY_FRACTION_OF_TRAFFIC``'s own
+        docstring)."""
+        crossing_occupancy = occupancy * PEDESTRIAN_CROSSING_DENSITY_FRACTION_OF_TRAFFIC
+        if self.rng.random() > crossing_occupancy:
+            return None
+        assert zone.heading_rad is not None  # every CROSSING zone carries one
+
+        # Real two-way crossing: crossing direction is independent of
+        # either intersecting road's own vehicle-traffic direction (a
+        # crosswalk runs perpendicular to the road it crosses, not along
+        # it -- see crosswalks.py), so which side someone crosses FROM is
+        # an even, undocumented-elsewhere split, not tied to traffic.
+        crossing_forward = bool(self.rng.integers(0, 2))
+        heading = zone.heading_rad if crossing_forward else zone.heading_rad + math.pi
+
+        return self._build_pedestrian(zone.position.copy(), heading)
+
+    def _build_pedestrian(  # pylint: disable=too-many-locals
+        self, position: npt.NDArray[np.float64], heading: float
+    ) -> Pedestrian:
+        """Sample a real gender+weight+outfit+hair combination and build
+        the ``Pedestrian`` at ``position``/``heading`` -- shared by both
+        sidewalk and crossing placement, since appearance sampling
+        doesn't depend on where/how a pedestrian was placed."""
         gender = _PEDESTRIAN_GENDERS[int(self.rng.integers(0, len(_PEDESTRIAN_GENDERS)))]
         weight = _PEDESTRIAN_WEIGHTS[int(self.rng.integers(0, len(_PEDESTRIAN_WEIGHTS)))]
         combo = (gender, weight)
@@ -273,17 +380,22 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         bottom_options = PEDESTRIAN_BOTTOM_ASSET_PATHS[combo]
         shoe_options = PEDESTRIAN_SHOE_ASSET_PATHS[combo]
         face_options = PEDESTRIAN_FACE_ASSET_PATHS[gender]
+        face_path = face_options[int(self.rng.integers(0, len(face_options)))]
+        hair_path = pedestrian_face_and_hair(gender, face_path)
+
         part_paths = [
             top_options[int(self.rng.integers(0, len(top_options)))],
             bottom_options[int(self.rng.integers(0, len(bottom_options)))],
             shoe_options[int(self.rng.integers(0, len(shoe_options)))],
-            face_options[int(self.rng.integers(0, len(face_options)))],
+            face_path,
         ]
+        if hair_path is not None:
+            part_paths.append(hair_path)
         width, depth, height = PEDESTRIAN_DIMENSIONS_METERS[gender]
 
         pedestrian = Pedestrian(
             pedestrian_id=self._pedestrian_counter,
-            center=zone.position.copy(),
+            center=position,
             heading_rad=heading,
             asset_path=body_path,
             part_paths=part_paths,
