@@ -2060,12 +2060,31 @@ still very sparse -- exactly one spawn slot per directed edge
 (`traffic_network.py::_generate_spawn_zones`), at one fixed point, unlike
 street furniture which tiles multiple items along a sidewalk run. A real
 sidewalk should hold a variable number of people distributed along its
-length. Also not yet done: more gender/weight/outfit variants for visual
-diversity, and pose diversity (the VAT material's `GetFrame` material
-function strongly suggests a frame/time parameter could pick a different
-baked pose per instance -- untested).
+length. Also not yet done: pose diversity (the VAT material's `GetFrame`
+material function strongly suggests a frame/time parameter could pick a
+different baked pose per instance -- untested).
 
-Full suite green (556/556) after adding/updating tests across
+**Update (same session): added the male variant for gender diversity.**
+`SM_m_tal_nrw_combined` -- the only other fully pre-assembled "combined"
+mesh City Sample ships (every other weight/outfit combination only
+exists as separate body+clothing pieces, not yet investigated for
+assembly) -- migrated (676MB -> still 676MB, only 5 new files: the
+shared MetaHuman skin/material dependencies were already pulled in by
+the female migration). Real measured bounds differ genuinely from the
+female mesh (1.81m tall vs 1.68m), so `PEDESTRIAN_DIMENSIONS_METERS`
+(`city_sample_assets.py`) now keys per-asset-path dimensions, mirroring
+`VEHICLE_DIMENSIONS`'s per-type approach, rather than one shared
+placeholder box -- `ActorPlacementGenerator._try_place_pedestrian` looks
+up each sampled pedestrian's own real dimensions after choosing its
+asset. Live-verified twice: an isolated side-by-side spawn showed the
+male mesh visibly taller than the female one, then a real generated
+scenario showed both variants placed correctly (12 pedestrians, mixed
+genders) alongside vehicles/buses/lit traffic signals. New test
+(`test_pedestrian_asset_path_and_dimensions_are_consistent`) asserts
+every placed pedestrian's dimensions match its own asset's real bounds,
+not a mismatched pairing.
+
+Full suite green (557/557) after adding/updating tests across
 `test_actor_placement.py`, `test_bbox_3d.py`, `test_mesh_factory.py`,
 `test_validator.py`, and `test_scenario_serializer.py` for the new
 `Pedestrian.asset_path` field and its real measured dimensions.

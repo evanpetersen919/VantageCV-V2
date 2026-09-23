@@ -334,12 +334,30 @@ VEHICLE_PART_PATHS: Dict[str, List[str]] = {
 # mid-stride walking pose unconditionally, with no skeleton, AnimBP, or
 # Mass AI runtime involved at all -- confirmed via a real screenshot,
 # not just a clean spawn log (this project's own established standard
-# of evidence). Only one variant migrated/verified so far; more
-# gender/weight/outfit variants are a real, deliberate fast-follow for
-# visual diversity, not done yet.
+# of evidence). ``SM_m_tal_nrw_combined`` (male, normal-weight) is the
+# only other fully pre-assembled "combined" mesh City Sample ships --
+# every other gender/weight/outfit combination only exists as separate
+# body+clothing pieces (not yet investigated whether they're pre-
+# positioned for assembly the way vehicle wheels/doors are), so this is
+# real gender diversity, not yet weight/outfit diversity. Confirmed live
+# side-by-side: the male mesh renders visibly taller (real measured
+# height 1.81m vs the female mesh's 1.68m), same natural unposed
+# standing/walking pose, no skeleton dependency.
 PEDESTRIAN_ASSET_PATHS: List[str] = [
     "/Game/Crowd/VAT/Meshes/SM_f_tal_nrw_combined",
+    "/Game/Crowd/VAT/Meshes/SM_m_tal_nrw_combined",
 ]
+
+# Real measured (width, depth, height) in meters per pedestrian asset,
+# via GetStaticMeshBounds against a live UE5 instance -- mirrors
+# VEHICLE_DIMENSIONS's per-type approach, since the two meshes are
+# genuinely different sizes (the male mesh is taller), not one shared
+# placeholder box. depth = local-x (forward-facing, mid-stride pose),
+# width = local-y (lateral), height = local-z * 2.
+PEDESTRIAN_DIMENSIONS_METERS: Dict[str, Tuple[float, float, float]] = {
+    "/Game/Crowd/VAT/Meshes/SM_f_tal_nrw_combined": (0.33, 0.96, 1.68),
+    "/Game/Crowd/VAT/Meshes/SM_m_tal_nrw_combined": (0.40, 1.11, 1.81),
+}
 
 
 @dataclass(frozen=True)

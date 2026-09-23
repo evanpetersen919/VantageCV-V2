@@ -29,7 +29,11 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import numpy.typing as npt
 
-from src.procedural.city_sample_assets import PEDESTRIAN_ASSET_PATHS, VEHICLE_ASSET_PATHS
+from src.procedural.city_sample_assets import (
+    PEDESTRIAN_ASSET_PATHS,
+    PEDESTRIAN_DIMENSIONS_METERS,
+    VEHICLE_ASSET_PATHS,
+)
 from src.procedural.road_network import RoadEdge
 from src.procedural.scenario import ScenarioTypeConfig
 from src.procedural.traffic_network import SpawnZone, SpawnZoneType, TrafficNetwork
@@ -241,11 +245,16 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
 
         heading = _edge_heading(edges[zone.edge_id])
         asset_index = int(self.rng.integers(0, len(PEDESTRIAN_ASSET_PATHS)))
+        asset_path = PEDESTRIAN_ASSET_PATHS[asset_index]
+        width, depth, height = PEDESTRIAN_DIMENSIONS_METERS[asset_path]
         pedestrian = Pedestrian(
             pedestrian_id=self._pedestrian_counter,
             center=zone.position.copy(),
             heading_rad=heading,
-            asset_path=PEDESTRIAN_ASSET_PATHS[asset_index],
+            asset_path=asset_path,
+            width=width,
+            depth=depth,
+            height=height,
         )
         self._pedestrian_counter += 1
         return pedestrian
