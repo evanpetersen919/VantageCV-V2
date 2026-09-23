@@ -81,6 +81,12 @@ DEFAULT_ROAD_EDGE_KIT = RoadEdgeKit(
 # Runs shorter than this get no pieces (a stub between two intersections).
 MIN_RUN_LENGTH_METERS = 1.0
 
+# Real measured footprint of the curved corner pieces (curved_corners.py):
+# 8m x 8m, pivot at one corner. Straight runs must stop this far short of
+# a block's inset corner so they don't overlap the curve there -- see
+# curved_corners.py's own docstring.
+CURVED_CORNER_SIZE_METERS = 8.0
+
 
 def _outer_boundaries(lanes: Dict[int, Lane]) -> Dict[int, npt.NDArray[np.float64]]:
     """Per edge, the outer boundary of its outermost lane (the pavement's
@@ -125,10 +131,17 @@ def edge_runs(lanes: Dict[int, Lane], edges: Dict[int, RoadEdge]) -> List[EdgeRu
         run_direction = np.array([-outward[1], outward[0]])
 
         first, last = boundary[0], boundary[-1]
-        length = float(np.linalg.norm(last - first))
+        full_length = float(np.linalg.norm(last - first))
+        start = first if float(np.dot(last - first, run_direction)) >= 0.0 else last
+        # Trim both ends short of the curved corner pieces
+        # (curved_corners.py) placed at each block's inset corner -- their
+        # real 8m x 8m footprint would otherwise overlap the last straight
+        # tile at either end. See curved_corners.py's own docstring for
+        # why this trim amount is exactly right, not a guess.
+        length = full_length - 2.0 * CURVED_CORNER_SIZE_METERS
         if length < MIN_RUN_LENGTH_METERS:
             continue
-        start = first if float(np.dot(last - first, run_direction)) >= 0.0 else last
+        start = start + run_direction * CURVED_CORNER_SIZE_METERS
         runs.append(EdgeRun(edge_id, start, run_direction, outward, length))
     return runs
 
