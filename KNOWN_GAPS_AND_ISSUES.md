@@ -2745,3 +2745,133 @@ shifted); (3) two different pedestrians screenshotted at the same
 instant showed different, desynced poses (not lockstep) -- confirming
 the per-instance random phase offset works as designed. Full suite
 green (532/532), pylint 10.00, mypy --strict clean.
+
+### [OPEN, NOT RESOLVED] Pedestrians visibly walk/idle-cycle in Play mode even on the real, non-live-preview dataset-capture path -- real root cause found, real fix NOT yet achieved
+
+User reported pedestrians animating (idle a few seconds, then visibly
+walk) in a scenario loaded WITHOUT `enable_live_pose_preview` -- i.e.
+on the path that is supposed to be a single frozen, deterministic pose
+per pedestrian. This directly threatens the project's core
+reproducibility requirement (a captured frame must be a function of
+the scenario seed, not of wall-clock time), so it was investigated
+heavily rather than dismissed as cosmetic.
+
+**Real, hard-evidence findings, in the order they were established:**
+
+1. **Not the live-preview component.** `obj list class=
+   PedestrianWalkCycleComponent` repeatedly showed 0 live instances
+   while the animation was still visibly happening -- ruled out
+   immediately, correctly, early.
+
+2. **A real methodology bug that produced a long run of false
+   "it's frozen" readings.** Every automated screenshot-based
+   verification this session (via the `TakeScreenshot`/
+   `DebugMoveCameraTo` RPCs, run from an unfocused window since the
+   controlling terminal holds OS focus, not the game) showed the pose
+   completely static, contradicting the user's live, focused
+   observation and two screen recordings they provided. Bringing the
+   game window to actual OS foreground before repeating the identical
+   automated test immediately reproduced the same real motion the user
+   saw. Root cause: Unreal throttles/reduces game time updates while
+   the window lacks OS focus, so wall-clock time barely advances
+   during an unfocused automated test even though real wall-clock
+   seconds pass. **Any future live-verification of animation timing in
+   this project must bring the game window to OS foreground first**
+   (see the `SetForegroundWindow`/`ShowWindow` PowerShell snippet used
+   this session) -- screenshots taken while unfocused are not reliable
+   evidence of "frozen."
+
+3. **Real root cause, found via direct engine node-graph inspection
+   (`obj dump` on the live objects, not assumed):** `/Game/Crowd/VAT/
+   MaterialFunctions/GetFrame`'s own graph has a `StaticSwitch` whose
+   condition is the `Animate` static bool parameter. Per Unreal's own
+   `UMaterialExpressionStaticSwitch::Compile` source
+   (`Engine/Source/Runtime/Engine/Private/Materials/
+   MaterialExpressions.cpp`): `return bValue ? A.Compile(Compiler) :
+   B.Compile(Compiler);`. `A` is a real, purely time-driven chain
+   (`Clamp(Time - TimeStartOffset, 0) * Playrate * SampleRate`, fed by
+   a real `MaterialExpressionTime` node) with **no connection to
+   "Frame" at all**; `B` is `FunctionInput_3`, literally named
+   `"Frame"` -- a plain, non-time-dependent passthrough. `Animate=True`
+   (set earlier this same session, and required at the time for
+   "Frame" to have any visible effect at all -- see the "[RESOLVED]
+   Pedestrian pose/activity diversity" entry above) selects `A`,
+   discarding "Frame" entirely at the shader level. This is a genuine,
+   sourced fact, not a guess.
+
+4. **The only edit that provably changed the live-rendered result:**
+   directly setting `DefaultValue=False` on the shared layer's own
+   `MaterialExpressionStaticBoolParameter_1` node inside `/Game/Crowd/
+   VAT/Materials/ML_BoneAnimation` itself (via `unreal.load_object` +
+   `get/set_editor_property("DefaultValue")`, run through a headless
+   `-ExecutePythonScript` editor pass -- NOT the live `-game` RPC
+   session, since a similar edit attempted live crashed the engine
+   once via GPU device-lost, a known flakiness pattern in this
+   environment already documented elsewhere in this file, most likely
+   triggered by a heavy synchronous shader recompile happening
+   alongside an already-rendering scene). This DID freeze the one
+   pedestrian mesh tested, confirmed via a rigorous, window-focused,
+   camera-recentered timelapse.
+
+5. **The fix does NOT fully propagate, and this is the actual open
+   gap.** Individual per-character/per-outfit-piece
+   `MaterialInstanceConstant` assets (593 found under `/Game/Crowd`,
+   confirmed via `unreal.AssetRegistryHelpers`) each carry their OWN
+   explicit instance-level override for `Animate`
+   (`bOverride=True, Value=True`), which takes precedence over the
+   shared layer default regardless of what the layer's own default is
+   set to. Two separate scripted attempts to clear/flip this specific
+   per-instance override were made, neither crashed, both reported
+   success, and **neither actually changed the on-disk value** (directly
+   re-verified via `obj dump` after each, both still showing
+   `Animate: Value=True, bOverride=True` on the exact same test
+   asset): (a) `unreal.MaterialEditingLibrary.
+   set_material_instance_static_switch_parameter_value(mic, "Animate",
+   False)` alone; (b) the same call followed by `unreal.
+   MaterialEditingLibrary.update_material_instance(mic)` (this second
+   attempt visibly did much more work -- 85s across 593 assets vs 10s
+   for the first -- but still did not change the verified value). This
+   matches a fact already established earlier this same session
+   (`set_material_instance_static_switch_parameter_value` "silently
+   fails for both GLOBAL_PARAMETER and LAYER_PARAMETER association" on
+   layer/nested-function-sourced parameters) -- now confirmed to also
+   survive a follow-up `update_material_instance` call, and to survive
+   even when reported as a successful save.
+
+6. **A separate, real, and independently disproven hypothesis:**
+   `FScenarioAssetData`'s pedestrian spawn path
+   (`VehicleActorSpawner.cpp`) calls
+   `Component->SetCustomPrimitiveDataFloat(2, 0.0f)` on spawn, on the
+   theory that the `GetFrame` call's "Playrate" input is wired to a
+   `MaterialExpressionPerInstanceCustomData` node at `DataIndex=2`
+   (confirmed via `obj dump` on that exact expression). Live-verified
+   this write has **zero effect on the actual rendered animation
+   speed**: setting it to 0 and, separately, to an extreme 1000 (which
+   should cycle roughly 94x/second if correctly wired) produced
+   visually indistinguishable motion over the same short window. The
+   custom-primitive-data index/write is not reaching the real shader
+   input, for a reason not yet found. Left in the code (harmless,
+   possibly one contributing factor among several) but is NOT, by
+   itself, a fix.
+
+**Honest current state**: pedestrians on the real dataset-capture path
+(no `enable_live_pose_preview`) are NOT reliably frozen when the game
+window has real OS focus, for at least some fraction of the 593 real
+character/outfit material instances (exactly which ones, and whether
+ALL or only SOME exhibit this, was not exhaustively re-audited after
+the fixes above -- the one specific test asset re-checked,
+`MI_VAT_BodySynthesized_SM_f_tal_ovw_body`, still shows the override).
+This is a real, open gap in the project's core reproducibility
+guarantee, not merely a live-viewing cosmetic issue. A future session
+resuming this should: (a) NOT repeat the two already-disproven
+scripted per-instance override edits; (b) consider whether the UE5
+Editor UI (Material Instance Editor, manual "Reset to Default" on the
+`Animate` static switch per asset) is required instead, given the
+Python API's demonstrated unreliability for this exact case; (c)
+consider whether duplicating each affected `MaterialInstanceConstant`
+fresh (inheriting cleanly from the now-corrected `False` layer default,
+if duplication does not also copy the override) is viable; (d)
+re-derive the real `PerInstanceCustomData` index mapping for
+"Playrate" from scratch if pursuing that angle further, since
+`DataIndex=2` was read directly off the node but demonstrably has no
+real effect.
