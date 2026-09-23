@@ -172,11 +172,6 @@ def serialize_scenario(
         _facade_piece_to_asset_json(piece, id_offset + piece_id)
         for piece_id, piece in enumerate(result.traffic_light_pieces)
     ]
-    id_offset += len(result.traffic_light_pieces)
-    assets += [
-        _facade_piece_to_asset_json(piece, id_offset + piece_id)
-        for piece_id, piece in enumerate(result.curved_corner_pieces)
-    ]
     payload: Dict[str, Any] = {"meshes": meshes, "assets": assets}
     if environment is not None:
         meshes.append(_mesh_to_json(build_ground_mesh(environment)))
@@ -189,7 +184,7 @@ def serialize_scenario(
         ]
         meshes += [_mesh_to_json(mesh) for mesh in build_roof_meshes(result.buildings)]
         # Rooftop equipment goes with the roofs: only when dressing the scene.
-        id_offset += len(result.curved_corner_pieces)
+        id_offset += len(result.traffic_light_pieces)
         assets += [
             _facade_piece_to_asset_json(piece, id_offset + piece_id)
             for piece_id, piece in enumerate(generate_roof_prop_pieces(result.buildings))

@@ -13,11 +13,7 @@ from src.procedural.lane_topology import (
     Lane,
     LaneTopologyGenerator,
 )
-from src.procedural.road_edge_kit import (
-    CURVED_CORNER_SIZE_METERS,
-    DEFAULT_ROAD_EDGE_KIT,
-    generate_road_edge_pieces,
-)
+from src.procedural.road_edge_kit import DEFAULT_ROAD_EDGE_KIT, generate_road_edge_pieces
 from src.procedural.road_network import IntersectionType, RoadEdge, RoadNode, RoadType
 
 
@@ -64,13 +60,11 @@ def test_pieces_sit_on_the_pavement_outer_edge() -> None:
 
 
 def test_curb_and_sidewalk_runs_fill_the_trimmed_length_exactly() -> None:
-    """Stretched pieces exactly tile the run between the trimmed ends,
-    which stop an additional CURVED_CORNER_SIZE_METERS short at each end
-    to leave room for the curved corner pieces (curved_corners.py)."""
+    """Stretched pieces exactly tile the run between the trimmed ends."""
     lanes, edges = _straight_road(100.0)
     pieces = generate_road_edge_pieces(lanes, edges)
     outer = next(iter(lanes.values())).left_boundary
-    run_length = float(np.linalg.norm(outer[-1] - outer[0])) - 2.0 * CURVED_CORNER_SIZE_METERS
+    run_length = float(np.linalg.norm(outer[-1] - outer[0]))
 
     for asset_paths, tile in (
         (DEFAULT_ROAD_EDGE_KIT.curb_asset_paths, DEFAULT_ROAD_EDGE_KIT.curb_length_m),

@@ -29,7 +29,6 @@ from src.procedural.building_facade import FacadePiece, generate_building_facade
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
 from src.procedural.city_sample_assets import BUILDING_STYLES
 from src.procedural.crosswalks import generate_crosswalk_pieces
-from src.procedural.curved_corners import build_curved_corner_pieces
 from src.procedural.environment import Season, season_has_trees
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
@@ -76,7 +75,6 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     street_furniture_pieces: List[FacadePiece]
     crosswalk_pieces: List[FacadePiece]
     traffic_light_pieces: List[FacadePiece]
-    curved_corner_pieces: List[FacadePiece]
     season: Season
     validation_report: ValidationReport
 
@@ -184,7 +182,6 @@ def generate_scenario(  # pylint: disable=too-many-locals
 
     crosswalk_pieces = generate_crosswalk_pieces(nodes, edges)
     traffic_light_pieces = generate_traffic_light_pieces(lanes, edges)
-    curved_corner_pieces = build_curved_corner_pieces(nodes, edges)
 
     validation_report = ScenarioValidator().validate(
         bounds, nodes, edges, lanes, buildings, meshes, vehicles, pedestrians, lane_connectivity
@@ -210,7 +207,6 @@ def generate_scenario(  # pylint: disable=too-many-locals
         street_furniture_pieces=street_furniture_pieces,
         crosswalk_pieces=crosswalk_pieces,
         traffic_light_pieces=traffic_light_pieces,
-        curved_corner_pieces=curved_corner_pieces,
         season=chosen_season,
         validation_report=validation_report,
     )
