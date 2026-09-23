@@ -10,7 +10,11 @@ from typing import Dict, List
 import numpy as np
 import pytest
 
-from src.procedural.lane_topology import LaneTopologyGenerator
+from src.procedural.lane_topology import (
+    MAX_TRIM_FRACTION_OF_EDGE_LENGTH,
+    LaneTopologyGenerator,
+    compute_node_clearance,
+)
 from src.procedural.road_network import IntersectionType, RoadEdge, RoadNetworkGenerator, RoadType
 from src.procedural.traffic_network import (
     PEDESTRIAN_SPAWN_GAP_METERS,
@@ -131,7 +135,10 @@ def test_pedestrian_spawn_zones_tiled_along_each_edge(  # pylint: disable=too-ma
 ) -> None:
     """Pedestrian spawn zones are tiled along every edge that has lanes,
     at the real PEDESTRIAN_SPAWN_GAP_METERS interval (see that constant's
-    own docstring) -- not just one fixed slot per edge."""
+    own docstring) -- not just one fixed slot per edge -- and stop short
+    of each end node by that node's own real clearance, so no zone lands
+    inside the intersection box (a real bug found live: pedestrians
+    appearing to stand in the road at intersections)."""
     _, edges, lanes, traffic = _generate_full_network(42, urban_config, bounds)
 
     edges_with_lanes = {lane.edge_id for lane in lanes.values()}
@@ -142,16 +149,29 @@ def test_pedestrian_spawn_zones_tiled_along_each_edge(  # pylint: disable=too-ma
     zones_by_edge: Dict[int, List[SpawnZone]] = {}
     for zone in pedestrian_zones:
         zones_by_edge.setdefault(zone.edge_id, []).append(zone)
-    assert set(zones_by_edge) == edges_with_lanes
+    assert set(zones_by_edge) <= edges_with_lanes
 
+    node_clearance = compute_node_clearance(edges)
     for edge_id, zones in zones_by_edge.items():
         edge = edges[edge_id]
         edge_length = float(np.linalg.norm(edge.centerline[-1] - edge.centerline[0]))
-        expected_count = int(edge_length // PEDESTRIAN_SPAWN_GAP_METERS) + 1
+        max_trim_each_side = edge_length * MAX_TRIM_FRACTION_OF_EDGE_LENGTH
+        start_trim = min(node_clearance.get(edge.start_node_id, 0.0), max_trim_each_side)
+        end_trim = min(node_clearance.get(edge.end_node_id, 0.0), max_trim_each_side)
+        usable_length = edge_length - start_trim - end_trim
+        expected_count = int(usable_length // PEDESTRIAN_SPAWN_GAP_METERS) + 1
         assert len(zones) == expected_count
         for zone_a, zone_b in zip(zones, zones[1:]):
             gap = float(np.linalg.norm(zone_b.position - zone_a.position))
             assert gap == pytest.approx(PEDESTRIAN_SPAWN_GAP_METERS)
+
+        # No zone lands inside the intersection box: the first zone's
+        # along-edge distance from the start node must equal the real
+        # start_trim exactly (projected onto the edge's own direction,
+        # since the sidewalk's perpendicular offset doesn't affect this).
+        unit_direction = (edge.centerline[-1] - edge.centerline[0]) / edge_length
+        along_distance = float(np.dot(zones[0].position - edge.centerline[0], unit_direction))
+        assert along_distance == pytest.approx(start_trim, abs=1e-6)
 
 
 def test_spawn_zone_ids_unique(urban_config, bounds) -> None:
