@@ -5,13 +5,17 @@ validity", "Navigation path existence") plus QOL_RESEARCH_CHECKLIST.md
 Section G considerations.
 """
 
+from typing import Dict, List
+
 import numpy as np
 import pytest
 
 from src.procedural.lane_topology import LaneTopologyGenerator
 from src.procedural.road_network import IntersectionType, RoadEdge, RoadNetworkGenerator, RoadType
 from src.procedural.traffic_network import (
+    PEDESTRIAN_SPAWN_GAP_METERS,
     NavigationGraph,
+    SpawnZone,
     SpawnZoneType,
     TrafficControlType,
     TrafficNetworkGenerator,
@@ -122,14 +126,32 @@ def test_driving_spawn_zone_per_lane(urban_config, bounds) -> None:
     assert len(driving_zones) == len(lanes)
 
 
-def test_pedestrian_spawn_zone_per_edge(urban_config, bounds) -> None:
-    """Exactly one pedestrian spawn zone exists per edge that has lanes."""
+def test_pedestrian_spawn_zones_tiled_along_each_edge(  # pylint: disable=too-many-locals
+    urban_config, bounds
+) -> None:
+    """Pedestrian spawn zones are tiled along every edge that has lanes,
+    at the real PEDESTRIAN_SPAWN_GAP_METERS interval (see that constant's
+    own docstring) -- not just one fixed slot per edge."""
     _, edges, lanes, traffic = _generate_full_network(42, urban_config, bounds)
 
     edges_with_lanes = {lane.edge_id for lane in lanes.values()}
     pedestrian_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.PEDESTRIAN]
-    assert len(pedestrian_zones) == len(edges_with_lanes)
     assert len(edges_with_lanes) <= len(edges)
+    assert len(pedestrian_zones) > len(edges_with_lanes)  # more than one slot per edge now
+
+    zones_by_edge: Dict[int, List[SpawnZone]] = {}
+    for zone in pedestrian_zones:
+        zones_by_edge.setdefault(zone.edge_id, []).append(zone)
+    assert set(zones_by_edge) == edges_with_lanes
+
+    for edge_id, zones in zones_by_edge.items():
+        edge = edges[edge_id]
+        edge_length = float(np.linalg.norm(edge.centerline[-1] - edge.centerline[0]))
+        expected_count = int(edge_length // PEDESTRIAN_SPAWN_GAP_METERS) + 1
+        assert len(zones) == expected_count
+        for zone_a, zone_b in zip(zones, zones[1:]):
+            gap = float(np.linalg.norm(zone_b.position - zone_a.position))
+            assert gap == pytest.approx(PEDESTRIAN_SPAWN_GAP_METERS)
 
 
 def test_spawn_zone_ids_unique(urban_config, bounds) -> None:
