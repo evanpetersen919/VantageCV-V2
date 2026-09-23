@@ -29,7 +29,6 @@ from src.procedural.city_sample_assets import PEDESTRIAN_MESH_FORWARD_OFFSET_RAD
 from src.procedural.environment import EnvironmentConfig, build_ground_mesh
 from src.procedural.intersection_pavement import build_intersection_pavement_meshes
 from src.procedural.mesh_factory import Mesh
-from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 from src.procedural.roofs import build_roof_meshes, generate_roof_prop_pieces
 
 
@@ -100,12 +99,14 @@ def _pedestrian_to_asset_json(pedestrian: Pedestrian, piece_id: int) -> Dict[str
     piece (which never has parts).
 
     ``pedestrian.center`` is a 2D (x, y) ground-plane point (see
-    ``ActorPlacementGenerator``); z is ``SIDEWALK_TOP_HEIGHT_METERS``
-    (real, measured -- see ``road_edge_kit.py``), not 0.0 like a vehicle:
-    pedestrians are placed ON the real sidewalk surface, not the road
-    surface, and this mesh's own pivot sits at its feet (confirmed via
-    ``GetStaticMeshBounds``: both migrated meshes' vertical extent starts
-    at ~0), so this is the exact height its feet need to be at.
+    ``ActorPlacementGenerator``); z is ``pedestrian.surface_z`` -- either
+    the real sidewalk height or the real road surface height (matching a
+    vehicle's own 0.0), depending on how this pedestrian was placed (see
+    ``Pedestrian.surface_z``'s own docstring for the real floating-on-
+    the-road bug this fixes). This mesh's own pivot sits at its feet
+    (confirmed via ``GetStaticMeshBounds``: both migrated meshes'
+    vertical extent starts at ~0), so ``surface_z`` is exactly the height
+    its feet need to be at.
 
     ``rotation_rad`` adds ``PEDESTRIAN_MESH_FORWARD_OFFSET_RAD`` on top
     of ``pedestrian.heading_rad`` -- a real, live-verified correction for
@@ -116,7 +117,7 @@ def _pedestrian_to_asset_json(pedestrian: Pedestrian, piece_id: int) -> Dict[str
 
     ``material_scalar_overrides`` carries ``pedestrian.pose_frame`` as
     the real VAT material's ``"Frame"`` parameter (see
-    ``city_sample_assets.py``'s ``PEDESTRIAN_ANIM_CLIPS``) --
+    ``city_sample_assets.py``'s ``PEDESTRIAN_WALKING_FRAME_RANGE``) --
     ``ProceduralScenarioLoader.cpp`` applies it to the body AND every
     part component identically, so a pedestrian's whole outfit freezes
     at the same one real, distinct baked pose instead of every
@@ -127,7 +128,7 @@ def _pedestrian_to_asset_json(pedestrian: Pedestrian, piece_id: int) -> Dict[str
         "category": "static_asset",
         "asset_path": pedestrian.asset_path,
         "part_paths": pedestrian.part_paths,
-        "position": [float(x), float(y), SIDEWALK_TOP_HEIGHT_METERS],
+        "position": [float(x), float(y), pedestrian.surface_z],
         "rotation_rad": float(pedestrian.heading_rad) + PEDESTRIAN_MESH_FORWARD_OFFSET_RAD,
         "material_scalar_overrides": {"Frame": pedestrian.pose_frame},
         "id": piece_id,

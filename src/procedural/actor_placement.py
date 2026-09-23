@@ -31,20 +31,29 @@ import numpy as np
 import numpy.typing as npt
 
 from src.procedural.city_sample_assets import (
-    PEDESTRIAN_ANIM_CLIPS,
     PEDESTRIAN_BODY_ASSET_PATHS,
     PEDESTRIAN_BOTTOM_ASSET_PATHS,
     PEDESTRIAN_DIMENSIONS_METERS,
     PEDESTRIAN_FACE_ASSET_PATHS,
     PEDESTRIAN_SHOE_ASSET_PATHS,
     PEDESTRIAN_TOP_ASSET_PATHS,
+    PEDESTRIAN_WALKING_FRAME_RANGE,
     VEHICLE_ASSET_PATHS,
     pedestrian_face_and_hair,
 )
 from src.procedural.math_utils import compute_perpendicular
+from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 from src.procedural.road_network import RoadEdge
 from src.procedural.scenario import ScenarioTypeConfig
 from src.procedural.traffic_network import SpawnZone, SpawnZoneType, TrafficNetwork
+
+# The real road surface height -- matching the convention
+# ``_vehicle_to_asset_json`` already uses (vehicles sit at z=0.0, "the
+# flat road surface"). A CROSSING pedestrian stands on this same road
+# surface, not the sidewalk -- see ``Pedestrian.surface_z``'s own
+# docstring for the real bug this constant fixes (crossing pedestrians
+# rendering at sidewalk height, visibly floating above the road).
+PEDESTRIAN_ROAD_SURFACE_Z_METERS = 0.0
 
 # (length, width, height) in meters, approximate real-world dimensions.
 # Keys must match ScenarioTypeConfig.vehicle_mix's own keys exactly (see
@@ -167,10 +176,19 @@ class Pedestrian:  # pylint: disable=too-many-instance-attributes
     uses for wheels/doors (see that module's own docstring for the full
     real-asset investigation). ``pose_frame`` is a real, independently
     sampled baked-animation frame index (see
-    ``city_sample_assets.py``'s ``PEDESTRIAN_ANIM_CLIPS``) applied as a
+    ``city_sample_assets.py``'s ``PEDESTRIAN_WALKING_FRAME_RANGE``) applied as a
     material scalar override to the body AND every part, freezing this
     pedestrian at one specific, real, distinct static pose instead of
     every pedestrian sharing the exact same default frame.
+
+    ``surface_z`` is the real world-space height this pedestrian's feet
+    stand on: ``SIDEWALK_TOP_HEIGHT_METERS`` for a sidewalk walker, or
+    ``PEDESTRIAN_ROAD_SURFACE_Z_METERS`` (0.0, matching how vehicles are
+    placed) for a CROSSING pedestrian actually standing on the road at a
+    crosswalk. A real bug, live-confirmed (2026-09-23): before this
+    field existed, every pedestrian serialized at the sidewalk height
+    unconditionally, so crossing pedestrians rendered visibly floating
+    above the road surface.
     """
 
     pedestrian_id: int
@@ -179,6 +197,7 @@ class Pedestrian:  # pylint: disable=too-many-instance-attributes
     asset_path: str
     part_paths: List[str]
     pose_frame: float
+    surface_z: float
     width: float = PEDESTRIAN_WIDTH_METERS
     depth: float = PEDESTRIAN_DEPTH_METERS
     height: float = PEDESTRIAN_HEIGHT_METERS
@@ -343,7 +362,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         )
         position = zone.position + walker_right * lateral_offset
 
-        return self._build_pedestrian(position, heading)
+        return self._build_pedestrian(position, heading, SIDEWALK_TOP_HEIGHT_METERS)
 
     def _try_place_crossing_pedestrian(
         self, zone: SpawnZone, occupancy: float
@@ -369,15 +388,19 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         crossing_forward = bool(self.rng.integers(0, 2))
         heading = zone.heading_rad if crossing_forward else zone.heading_rad + math.pi
 
-        return self._build_pedestrian(zone.position.copy(), heading)
+        return self._build_pedestrian(
+            zone.position.copy(), heading, PEDESTRIAN_ROAD_SURFACE_Z_METERS
+        )
 
     def _build_pedestrian(  # pylint: disable=too-many-locals
-        self, position: npt.NDArray[np.float64], heading: float
+        self, position: npt.NDArray[np.float64], heading: float, surface_z: float
     ) -> Pedestrian:
         """Sample a real gender+weight+outfit+hair combination and build
         the ``Pedestrian`` at ``position``/``heading`` -- shared by both
         sidewalk and crossing placement, since appearance sampling
-        doesn't depend on where/how a pedestrian was placed."""
+        doesn't depend on where/how a pedestrian was placed. ``surface_z``
+        is passed straight through from the caller -- see
+        ``Pedestrian.surface_z``'s own docstring."""
         gender = _PEDESTRIAN_GENDERS[int(self.rng.integers(0, len(_PEDESTRIAN_GENDERS)))]
         weight = _PEDESTRIAN_WEIGHTS[int(self.rng.integers(0, len(_PEDESTRIAN_WEIGHTS)))]
         combo = (gender, weight)
@@ -400,9 +423,8 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             part_paths.append(hair_path)
         width, depth, height = PEDESTRIAN_DIMENSIONS_METERS[gender]
 
-        clip_index = int(self.rng.integers(0, len(PEDESTRIAN_ANIM_CLIPS)))
-        clip_start, clip_end = PEDESTRIAN_ANIM_CLIPS[clip_index]
-        pose_frame = float(self.rng.integers(clip_start, clip_end + 1))
+        walk_start, walk_end = PEDESTRIAN_WALKING_FRAME_RANGE
+        pose_frame = float(self.rng.integers(walk_start, walk_end + 1))
 
         pedestrian = Pedestrian(
             pedestrian_id=self._pedestrian_counter,
@@ -411,6 +433,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             asset_path=body_path,
             part_paths=part_paths,
             pose_frame=pose_frame,
+            surface_z=surface_z,
             width=width,
             depth=depth,
             height=height,

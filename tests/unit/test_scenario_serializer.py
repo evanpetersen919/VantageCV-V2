@@ -16,7 +16,6 @@ from src.orchestration.dataset_generator import generate_scenario
 from src.orchestration.scenario_serializer import _facade_piece_to_asset_json, serialize_scenario
 from src.procedural.building_facade import FacadePiece
 from src.procedural.city_sample_assets import PEDESTRIAN_MESH_FORWARD_OFFSET_RAD, VEHICLE_PART_PATHS
-from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 
 # urban_config, bounds fixtures: see tests/conftest.py
 
@@ -118,11 +117,14 @@ def test_serialize_scenario_preserves_facade_piece_data_exactly(urban_config, bo
 def test_serialize_scenario_preserves_pedestrian_asset_data_exactly(urban_config, bounds) -> None:
     """Every pedestrian's asset path, (x, y) position, id, and real
     top/bottom/shoe/face part_paths survive into its "assets" entry
-    exactly -- mirroring the vehicle test above. z is the real sidewalk
-    height (not 0.0, unlike a vehicle -- pedestrians stand on the
-    sidewalk, not the road) and rotation_rad carries the real
-    mesh-forward-axis correction on top of heading_rad -- see
-    ``_pedestrian_to_asset_json``'s own docstring."""
+    exactly -- mirroring the vehicle test above. z is the pedestrian's
+    own real ``surface_z`` (sidewalk height for a sidewalk walker, real
+    road-surface height for a CROSSING pedestrian -- see
+    ``Pedestrian.surface_z``'s own docstring for the real floating-on-
+    the-road bug this distinction fixes), not a single hardcoded
+    constant, and rotation_rad carries the real mesh-forward-axis
+    correction on top of heading_rad -- see ``_pedestrian_to_asset_json``'s
+    own docstring."""
     scenario = generate_scenario(42, urban_config, bounds, "serializer_test")
     assert scenario.pedestrians
 
@@ -135,7 +137,7 @@ def test_serialize_scenario_preserves_pedestrian_asset_data_exactly(urban_config
         assert asset["position"] == [
             float(pedestrian.center[0]),
             float(pedestrian.center[1]),
-            SIDEWALK_TOP_HEIGHT_METERS,
+            pedestrian.surface_z,
         ]
         assert asset["rotation_rad"] == pytest.approx(
             float(pedestrian.heading_rad) + PEDESTRIAN_MESH_FORWARD_OFFSET_RAD

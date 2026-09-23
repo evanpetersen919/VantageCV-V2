@@ -536,6 +536,31 @@ PEDESTRIAN_ANIM_NUM_FRAMES = 430
 PEDESTRIAN_ANIM_SAMPLE_RATE_FPS = 30.0
 PEDESTRIAN_ANIM_CLIPS: Tuple[Tuple[int, int], ...] = ((0, 319), (320, 429))
 
+# Real, live-verified sub-range of clip 0 that reads as walking in a
+# rendered side-profile screenshot -- narrower than the full clip, and
+# NOT the full two-clip range above. Found empirically (2026-09-23),
+# after a user report that pedestrians looked like they were standing
+# still: a real walk cycle's own "passing" phase (feet momentarily
+# close together) is a genuine part of walking, but freezing a random
+# frame from anywhere in a 320-frame cycle lands on that near-neutral
+# phase often enough to read as "standing," not "walking."
+#
+# Swept and visually classified via live side-profile renders across
+# both clips: frames 0, 80, 120-135, 240 all rendered near-neutral
+# (feet close together); frame 160 rendered a clearly wide, dynamic
+# mid-stride pose, with 140-155 trending toward it. Clip 1 (320-429),
+# swept at 6 points across its full width, read as near-neutral every
+# time -- excluded from this range entirely (kept in
+# PEDESTRIAN_ANIM_CLIPS above as a documented fact about the asset,
+# just not used for pose sampling).
+#
+# A single window bracketing the one confirmed peak, not an exhaustive
+# map of the full 430-frame space -- a second extended-stride phase
+# plausibly exists elsewhere in clip 0 (a real gait cycle typically has
+# two), but was not located; expand this if a future session finds and
+# confirms one live, rather than guessing.
+PEDESTRIAN_WALKING_FRAME_RANGE: Tuple[int, int] = (140, 190)
+
 
 # Real measured (width, depth, height) in meters, via GetStaticMeshBounds
 # against a live UE5 instance, keyed by gender only (not weight): real

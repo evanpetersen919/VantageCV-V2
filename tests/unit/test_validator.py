@@ -258,6 +258,7 @@ def test_pedestrian_non_finite_center_flagged() -> None:
         asset_path=PEDESTRIAN_BODY_ASSET_PATHS[("f", "nrw")],
         part_paths=[],
         pose_frame=0.0,
+        surface_z=0.108,
     )
     report = ScenarioValidator().validate(
         (0.0, 0.0, 100.0, 100.0), {}, {}, {}, [], [], [], [pedestrian]
