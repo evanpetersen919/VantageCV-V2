@@ -10,7 +10,6 @@ from src.procedural.curved_corners import (
     CORNER_ASSET_PATH,
     CORNER_FILL_ASSET_PATH,
     CURB_CORNER_ASSET_PATH,
-    CURB_CORNER_ROTATION_OFFSET_RAD,
     build_curved_corner_pieces,
 )
 from src.procedural.lane_topology import LANE_WIDTH_METERS
@@ -60,10 +59,7 @@ def test_corner_and_fill_share_position_and_rotation_curb_is_separate_height() -
     """Corner_01 and Corner_Fill_01 are placed identically (position and
     rotation), per the real live-verified fact that placing them
     identically produces a seamless paved corner; the curb piece shares
-    the same position and sits at the curb's own real height, but is
-    rotated an extra half-turn (a real, live-observed mesh-authoring
-    mismatch, not a guess -- see CURB_CORNER_ROTATION_OFFSET_RAD's own
-    comment)."""
+    the same rotation but sits at the curb's own real height."""
     lanes_edges = _two_by_two_grid()
     pieces = build_curved_corner_pieces(*lanes_edges)
 
@@ -76,12 +72,10 @@ def test_corner_and_fill_share_position_and_rotation_curb_is_separate_height() -
         assert len(group) == 3
         paths = {p.asset_path for p in group}
         assert paths == {CORNER_ASSET_PATH, CORNER_FILL_ASSET_PATH, CURB_CORNER_ASSET_PATH}
+        rotations = {round(p.rotation_rad, 9) for p in group}
+        assert len(rotations) == 1  # all 3 pieces share the same rotation
         sidewalk = [p for p in group if p.asset_path in (CORNER_ASSET_PATH, CORNER_FILL_ASSET_PATH)]
         curb = next(p for p in group if p.asset_path == CURB_CORNER_ASSET_PATH)
-        sidewalk_rotations = {round(p.rotation_rad, 9) for p in sidewalk}
-        assert len(sidewalk_rotations) == 1  # corner + fill share the same rotation
-        (sidewalk_rotation,) = sidewalk_rotations
-        assert math.isclose(curb.rotation_rad, sidewalk_rotation + CURB_CORNER_ROTATION_OFFSET_RAD)
         assert all(p.position[2] == DEFAULT_ROAD_EDGE_KIT.sidewalk_z_m for p in sidewalk)
         assert curb.position[2] == DEFAULT_ROAD_EDGE_KIT.curb_z_m
 
