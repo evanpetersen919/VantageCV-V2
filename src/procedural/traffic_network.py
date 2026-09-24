@@ -31,6 +31,7 @@ from src.procedural.crosswalks import (
     compute_crosswalk_anchors,
 )
 from src.procedural.lane_topology import (
+    LANE_WIDTH_METERS,
     MAX_TRIM_FRACTION_OF_EDGE_LENGTH,
     Lane,
     compute_node_clearance,
@@ -71,23 +72,35 @@ PEDESTRIAN_SPAWN_GAP_METERS = 3.0
 # lengths left completely empty, however busy config.traffic_density was.
 VEHICLE_SPAWN_GAP_METERS = 7.6
 
-# How far short of a lane's own real intersection-facing end
-# (Lane.centerline[-1], already trimmed to the node's own
-# compute_node_clearance boundary -- see lane_topology.py) a vehicle
-# actually stopped at a red light must additionally sit, so it queues
-# BEHIND the real painted crosswalk instead of on top of/past it. Real bug
-# reported live (2026-09-24): the lane's own trimmed end sits at exactly
-# the intersection box's edge, which is INSIDE (nearer the node than) the
-# crosswalk's own far edge (crosswalks.py flush-places the crosswalk just
-# outside that same box edge, extending CROSSWALK_DEPTH_M further out) --
-# so a vehicle queued at the lane's raw trimmed end was rendering as if
-# stopped on/past the crosswalk stripes, not before them. This constant is
-# exactly the crosswalk's own real depth-minus-nudge (the same figure
-# crosswalks.py's own bar placement uses for its far edge), reused
-# directly rather than re-derived, so the stop line this module computes
-# always lands exactly flush with the crosswalk's real far edge, never
-# independently guessed.
-VEHICLE_STOP_LINE_SETBACK_METERS = CROSSWALK_DEPTH_M - CROSSWALK_INTERSECTION_NUDGE_M
+# How far a vehicle stopped at a red light must sit from its own
+# destination node -- measured from the node itself, exactly like
+# crosswalks.py's own ``far_edge``/``depth_center`` math -- so it queues
+# BEHIND the real painted crosswalk instead of on/past it. Equal to the
+# real node clearance (the intersection box's own half-width) PLUS the
+# crosswalk's own real depth-minus-nudge (the same
+# CROSSWALK_DEPTH_M/CROSSWALK_INTERSECTION_NUDGE_M figures crosswalks.py
+# itself uses for its far edge), i.e. this constant alone is only the
+# crosswalk-depth portion; ``_generate_driving_zones`` adds the per-node
+# clearance to it, never re-deriving the crosswalk geometry independently.
+#
+# Second real bug, found from live re-testing after the first attempt at
+# this fix (2026-09-24): an earlier version measured this setback from
+# ``Lane.centerline[-1]`` (the lane's own already-trimmed end) instead of
+# from the real node position directly. ``Lane.centerline[-1]`` is
+# trimmed by ``min(node_clearance, edge_length *
+# MAX_TRIM_FRACTION_OF_EDGE_LENGTH)`` (lane_topology.py's own 0.4x cap on
+# any single trim) -- on a dense small-block layout where a wide
+# intersection's real clearance exceeds 40% of its own block length, that
+# cap silently under-trims the lane, leaving ``centerline[-1]`` sitting
+# INSIDE the real intersection box, not at its true edge. Subtracting a
+# fixed setback from that already-wrong point still left vehicles
+# overlapping the box/crosswalk, confirmed live (screenshot showed
+# vehicles straddling both the intersection and the crosswalk on every
+# approach). Fixed by computing the stop line straight from the edge's
+# own real endpoint (``RoadEdge.centerline[-1]``, the true, unclamped node
+# position) and the real, unclamped ``compute_node_clearance`` value,
+# never from the lane's own (possibly clamped) trim.
+VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M = CROSSWALK_DEPTH_M - CROSSWALK_INTERSECTION_NUDGE_M
 
 
 class TrafficControlType(str, Enum):
@@ -129,9 +142,10 @@ class SpawnZone:
     zone closest to a lane's own destination node (multiple ``DRIVING``
     zones now tile each lane's full length -- see
     ``TrafficNetworkGenerator._generate_driving_zones``): the real
-    position, set back behind the real painted crosswalk by
-    ``VEHICLE_STOP_LINE_SETBACK_METERS``, a vehicle queues at when its own
-    approach direction doesn't have the right of way (see
+    position, set back behind the real painted crosswalk (see
+    ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M``'s own docstring), a vehicle
+    queues at when its own approach direction doesn't have the right of
+    way (see
     ``actor_placement.py``'s vehicle placement). Every other ``DRIVING``
     zone on the same lane (further back from the intersection) carries
     ``None`` -- this pipeline generates frozen single-frame snapshots, not
@@ -299,41 +313,93 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
                 controls[node_id] = TrafficControlType.NONE
         return controls
 
-    def _generate_driving_zones(self, lanes: Dict[int, Lane]) -> List[SpawnZone]:
+    def _generate_driving_zones(  # pylint: disable=too-many-locals
+        self, edges: Dict[int, RoadEdge], lanes: Dict[int, Lane], node_clearance: Dict[int, float]
+    ) -> List[SpawnZone]:
         """One or more DRIVING spawn zones per lane, tiled at the real
-        ``VEHICLE_SPAWN_GAP_METERS`` interval along its own already-
-        trimmed length (``Lane.centerline`` -- trimmed short of both its
-        edge's end nodes by ``LaneTopologyGenerator``, so every tiled
-        point already stays clear of intersections without any further
-        clamping here). See ``_generate_spawn_zones``'s own docstring for
-        why only the LAST (closest-to-node) point carries a real
-        ``stop_line_position``."""
+        ``VEHICLE_SPAWN_GAP_METERS`` interval, bounded at BOTH ends by the
+        real crosswalk-clearing setback (``VEHICLE_STOP_LINE_CROSSWALK_
+        SETBACK_M``) for whichever node each end is near -- never by
+        ``Lane.centerline``, which trims each end only by that node's raw
+        ``compute_node_clearance`` (the intersection box's own half-
+        width), clamped further by ``MAX_TRIM_FRACTION_OF_EDGE_LENGTH``.
+        Neither of those accounts for the real painted crosswalk sitting
+        just beyond the box edge.
+
+        Fourth real bug, found from live re-testing after the third fix
+        (2026-09-24, direct in-engine actor-position cross-check):
+        bounding only the DESTINATION end (the real stop line a vehicle
+        queues behind) left a lane's OWN START end -- i.e. the first tile
+        of the edge going the OPPOSITE direction out of that same node --
+        still anchored on the plain, crosswalk-unaware
+        ``compute_node_clearance`` trim. Since a typical node clearance
+        (e.g. 7m for a 2-lane road) sits well inside a real crosswalk's
+        real span (5.5m-20.5m from the node, in this project's own
+        figures), a vehicle just departing an intersection could still be
+        tiled directly onto the same crosswalk from the other side. Per
+        the same explicit request 2026-09-24 ("all vehicles unless
+        crossing should be behind the crosswalk"), the correct, symmetric
+        rule is: no tile, at EITHER end of ANY lane, may fall closer to a
+        node than that node's own real crosswalk-clearing setback -- so
+        both ends of every lane now use the exact same formula, just
+        measured from their own respective node.
+
+        The last tile is snapped exactly to the destination boundary (not
+        merely the nearest ``VEHICLE_SPAWN_GAP_METERS`` multiple short of
+        it) and carries a real ``stop_line_position`` equal to its own
+        ``position`` -- see ``_generate_spawn_zones``'s own docstring for
+        why only that one tile carries it. Recomputes direction/
+        perpendicular offset directly from ``edge`` and ``lane.
+        lane_index`` (lane_topology.py's own real offset formula, reused
+        exactly) rather than trusting either end of ``Lane.centerline``,
+        since -- per the bug above -- neither end can be assumed
+        crosswalk-clear."""
         spawn_zones: List[SpawnZone] = []
         for lane in lanes.values():
-            direction = lane.centerline[-1] - lane.centerline[0]
-            lane_length = float(np.linalg.norm(direction))
-            num_points = max(1, int(lane_length // VEHICLE_SPAWN_GAP_METERS) + 1)
-            unit_direction = direction / lane_length if lane_length > 1e-9 else None
+            edge = edges[lane.edge_id]
+            edge_direction = edge.centerline[-1] - edge.centerline[0]
+            edge_length = float(np.linalg.norm(edge_direction))
 
+            if edge_length < 1e-9:
+                # Degenerate (near-zero-length) edge: no real direction to
+                # tile along -- one zone at the lane's own single point.
+                spawn_zones.append(
+                    SpawnZone(
+                        spawn_zone_id=self._spawn_zone_counter,
+                        zone_type=SpawnZoneType.DRIVING,
+                        position=lane.centerline[0].copy(),
+                        edge_id=lane.edge_id,
+                        stop_line_position=lane.centerline[0].copy(),
+                    )
+                )
+                self._spawn_zone_counter += 1
+                continue
+
+            unit_direction = edge_direction / edge_length
+            perp = compute_perpendicular(edge_direction)
+            offset_distance = (lane.lane_index + 0.5) * LANE_WIDTH_METERS
+
+            start_clearance = node_clearance.get(edge.start_node_id, 0.0)
+            start_boundary_along = min(
+                start_clearance + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M, edge_length
+            )
+            end_clearance = node_clearance.get(edge.end_node_id, 0.0)
+            end_boundary_along = edge_length - min(
+                end_clearance + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M, edge_length
+            )
+            usable_length = max(end_boundary_along - start_boundary_along, 0.0)
+
+            num_points = max(1, int(usable_length // VEHICLE_SPAWN_GAP_METERS) + 1)
             for point_index in range(num_points):
                 is_last = point_index == num_points - 1
-                if unit_direction is None:
-                    position = lane.centerline[0].copy()
-                else:
-                    position = lane.centerline[0] + unit_direction * (
-                        point_index * VEHICLE_SPAWN_GAP_METERS
-                    )
-
-                stop_line_position = None
-                if is_last:
-                    if unit_direction is None:
-                        # Degenerate (near-zero-length) lane: no real
-                        # direction to set the stop line back along: the
-                        # lane's own single point is the only safe choice.
-                        stop_line_position = lane.centerline[-1].copy()
-                    else:
-                        setback = min(VEHICLE_STOP_LINE_SETBACK_METERS, lane_length)
-                        stop_line_position = lane.centerline[-1] - unit_direction * setback
+                distance_along = (
+                    usable_length if is_last else point_index * VEHICLE_SPAWN_GAP_METERS
+                )
+                position = (
+                    edge.centerline[0]
+                    + unit_direction * (start_boundary_along + distance_along)
+                    + perp * offset_distance
+                )
 
                 spawn_zones.append(
                     SpawnZone(
@@ -341,7 +407,7 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
                         zone_type=SpawnZoneType.DRIVING,
                         position=position,
                         edge_id=lane.edge_id,
-                        stop_line_position=stop_line_position,
+                        stop_line_position=position.copy() if is_last else None,
                     )
                 )
                 self._spawn_zone_counter += 1
@@ -364,9 +430,10 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
         Only the LAST (closest-to-node) tiled point on each lane carries
         a real ``stop_line_position`` -- the one vehicle actually at the
         front of a real queue needs to be precisely placed behind the
-        real crosswalk (see ``VEHICLE_STOP_LINE_SETBACK_METERS``'s own
-        docstring for the real bug this fixes: a naively-trimmed lane end
-        sits INSIDE the crosswalk's own far edge, not behind it). Earlier
+        real crosswalk (see ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M``'s
+        own docstring for the real bug this fixes: a naively-trimmed lane
+        end can sit INSIDE the crosswalk's own far edge, not behind it).
+        Earlier
         tiled points further back on the same lane keep ``None``: this
         pipeline generates frozen single-frame snapshots, not a running
         queue simulation, so a vehicle several car-lengths from the
@@ -393,14 +460,14 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
         the intersection's own paved box/crosswalk area -- i.e.
         pedestrians appearing to stand in the road at an intersection,
         not on a sidewalk."""
+        node_clearance = compute_node_clearance(edges)
+
         spawn_zones: List[SpawnZone] = []
-        spawn_zones += self._generate_driving_zones(lanes)
+        spawn_zones += self._generate_driving_zones(edges, lanes, node_clearance)
 
         lanes_by_edge: Dict[int, List[Lane]] = {}
         for lane in lanes.values():
             lanes_by_edge.setdefault(lane.edge_id, []).append(lane)
-
-        node_clearance = compute_node_clearance(edges)
 
         for edge_id, edge_lanes in lanes_by_edge.items():
             outermost_lane = max(edge_lanes, key=lambda lane: lane.lane_index)

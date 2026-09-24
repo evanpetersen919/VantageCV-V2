@@ -49,7 +49,6 @@ from src.procedural.signal_phasing import (
     PhaseKind,
     approach_direction_from_heading,
     build_signal_plans,
-    classify_approach_direction,
     resolve_active_phases,
 )
 from src.procedural.traffic_network import SpawnZoneType, TrafficNetwork, TrafficNetworkGenerator
@@ -100,72 +99,55 @@ def test_vehicles_only_at_driving_zones(urban_config, bounds) -> None:
         _match_vehicle_to_zone(vehicle, driving_zones)  # raises if no real zone matches
 
 
-def test_vehicle_queues_at_stop_line_when_not_flowing() -> None:  # pylint: disable=too-many-locals
-    """A vehicle placed at its own lane's real stop_line_position (rather
-    than that same zone's normal flowing-traffic position) happens
-    exactly when that lane's own currently-resolved signal phase does NOT
-    grant its approach direction the right of way. This only constrains
-    the one zone per lane that actually carries a stop_line_position (the
-    front-of-queue zone, closest to the node) -- every earlier zone
-    further back on the same lane has no stop_line_position at all and
-    keeps its normal position regardless of phase (a disclosed
-    simplification: this pipeline doesn't simulate a full multi-vehicle
-    queue, see traffic_network.py's own docstring), so those are exempt
-    from this check. Replays the exact same rng draws ``generate`` makes
-    internally (up to and including phase resolution) from a fresh
-    generator with the same seed, to independently derive the expected
-    flowing/stopped verdict per lane without depending on ``generate``'s
-    own internals. Tries a small batch of real seeds against a small,
-    fast config/bounds (rather than one fixed seed against this file's
-    much larger, slower urban_config/bounds fixtures) since, with
-    vehicles now tiled densely along the whole lane
-    (VEHICLE_SPAWN_GAP_METERS apart -- see traffic_network.py), whether
-    the one front-of-queue zone specifically ends up occupied (and not
-    rejected by a neighboring vehicle's AABB overlap) varies by seed; the
-    invariant itself is checked for every vehicle in every seed, so this
-    only widens the search for at least one real, live example of a
-    queued vehicle, it never weakens the assertion."""
-    small_config = ScenarioTypeConfig(
-        scenario_type=ScenarioType.URBAN_DENSE,
-        avg_block_size=(60.0, 80.0),
-        avg_road_width=12.0,
-        num_intersections=(2, 4),
-        intersection_types=["4way"],
-        building_density=0.3,
-        building_heights=(20.0, 40.0),
-        traffic_density=(0.85, 1.0),
-        vehicle_mix={"sedan": 0.6, "suv": 0.25, "truck": 0.1, "bus": 0.05},
-        complexity_score=50,
-    )
-    small_bounds = (-90.0, -90.0, 90.0, 90.0)
+def test_front_of_queue_vehicle_always_behind_real_stop_line(urban_config, bounds) -> None:
+    """The one vehicle at the front of each lane (the zone whose
+    ``stop_line_position`` is not ``None``) is ALWAYS placed with its
+    front bumper flush with that real stop line, regardless of the
+    currently-resolved signal phase -- per explicit request 2026-09-24
+    ("all vehicles unless crossing should be behind the crosswalk"): a
+    real bug, reported live via screenshot (vehicles from every approach
+    simultaneously visible inside the intersection/on the crosswalk),
+    traced to the FLOWING case never having been capped by the stop line
+    at all, only the stopped case. Fixed by bounding the tiling itself at
+    the real stop line for every point (see traffic_network.py's
+    ``_generate_driving_zones``), so flowing and stopped vehicles now
+    converge on the exact same front-of-queue position -- this test
+    checks that convergence directly, independent of phase."""
+    edges, traffic = _generate_full_network(42, urban_config, bounds)
+    driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
+    front_zones = [z for z in driving_zones if z.stop_line_position is not None]
+    assert front_zones  # sanity
 
-    saw_queued = False
-    for seed in range(20):
-        edges, traffic = _generate_full_network(seed, small_config, small_bounds)
-        vehicles, _ = ActorPlacementGenerator(seed, small_config).generate(edges, traffic)
+    vehicles, _ = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
+    assert vehicles  # sanity
 
-        replay = ActorPlacementGenerator(seed, small_config)
-        replay.rng.uniform(*small_config.traffic_density)
-        plans = build_signal_plans(edges, traffic)
-        active_phases = resolve_active_phases(plans, replay.rng)
+    checked_any = False
+    for vehicle in vehicles:
+        zone, _ = _match_vehicle_to_zone(vehicle, driving_zones)
+        if zone.stop_line_position is None:
+            continue  # not a front-of-queue vehicle -- unconstrained tiled position
+        checked_any = True
+        heading_vector = np.array([np.cos(vehicle.heading_rad), np.sin(vehicle.heading_rad)])
+        front_bumper = vehicle.center + heading_vector * (vehicle.length / 2.0)
+        assert np.allclose(front_bumper, zone.stop_line_position, atol=1e-6)
+    assert checked_any  # sanity: at least one placed vehicle is a front-of-queue vehicle
 
-        driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
-        for vehicle in vehicles:
-            zone, is_queued = _match_vehicle_to_zone(vehicle, driving_zones)
-            if zone.stop_line_position is None:
-                continue  # not the front-of-queue zone -- exempt, see docstring above
-            edge = edges[zone.edge_id]
-            phase = active_phases.get(edge.end_node_id)
-            flowing = phase is None or (
-                phase.kind == PhaseKind.GREEN
-                and classify_approach_direction(edge) in phase.moving_approaches
-            )
-            if is_queued:
-                saw_queued = True
-                assert not flowing
-            else:
-                assert flowing
-    assert saw_queued  # sanity: at least one of these seeds produces a queued vehicle
+
+def test_driving_zone_stop_line_equals_its_own_position(urban_config, bounds) -> None:
+    """Direct check on the real spawn-zone geometry itself (not on which
+    vehicles got placed): every DRIVING zone that carries a
+    stop_line_position has that value exactly equal to its own
+    ``position`` -- proving the tiling bound (traffic_network.py) and the
+    stop-line computation converge on the same real point, so a vehicle's
+    normal/flowing placement and its queued placement can never diverge
+    into two different spots (one possibly inside the crosswalk)."""
+    _, traffic = _generate_full_network(42, urban_config, bounds)
+    driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
+    front_zones = [z for z in driving_zones if z.stop_line_position is not None]
+    assert front_zones  # sanity
+
+    for zone in front_zones:
+        assert np.allclose(zone.position, zone.stop_line_position)
 
 
 def test_crossing_pedestrian_only_placed_when_axis_has_green(  # pylint: disable=too-many-locals

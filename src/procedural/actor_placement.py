@@ -54,7 +54,6 @@ from src.procedural.signal_phasing import (
     SignalPhase,
     approach_direction_from_heading,
     build_signal_plans,
-    classify_approach_direction,
     resolve_active_phases,
 )
 from src.procedural.traffic_network import SpawnZone, SpawnZoneType, TrafficNetwork
@@ -273,21 +272,31 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         pedestrians at a fraction of pedestrian spawn zones, both
         consistent with one real, randomly-resolved instant in every
         signalized intersection's own real signal cycle (see
-        ``signal_phasing.py``): a vehicle whose approach doesn't have the
-        right of way at that instant is queued at its lane's real stop
-        line instead of shown flowing, and a crossing pedestrian is only
-        ever placed when their own crossing direction has the concurrent
-        green (MUTCD's standard concurrent walk scheme) -- both derived
-        from the exact same resolved phase per intersection, so vehicles,
-        pedestrians, and (should traffic-light visual state ever be added)
-        signal indications all agree with each other.
+        ``signal_phasing.py``): a crossing pedestrian is only ever placed
+        when their own crossing direction has the concurrent green
+        (MUTCD's standard concurrent walk scheme).
+
+        Every vehicle (regardless of phase) is confined to its own real
+        stop line at an intersection -- never placed inside the
+        crosswalk/intersection box -- per explicit request 2026-09-24:
+        this pipeline has no representation of a vehicle actually
+        mid-transit through an intersection (a static single-frame
+        snapshot can't depict "moving" distinctly from "stopped" at the
+        same boundary anyway), so the resolved signal phase no longer
+        branches vehicle POSITION (see traffic_network.py's own
+        ``_generate_driving_zones`` docstring for the real bug this
+        fixes: an earlier version only capped the position for a vehicle
+        without the right of way, leaving a flowing vehicle's own normal
+        tile still able to land inside the box). The resolved phase
+        remains used for pedestrian crossing gating below, and remains
+        available for future work (e.g. an actual mid-crossing vehicle
+        placement mode).
 
         Parameters
         ----------
         edges : Dict[int, RoadEdge]
             The road network's directed edges (used to derive each spawn
-            zone's heading from its own edge's direction, and each
-            driving zone's own approach direction).
+            zone's heading from its own edge's direction).
         traffic : TrafficNetwork
             Provides the spawn zones to place actors at.
 
@@ -306,9 +315,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
 
         for zone in traffic.spawn_zones:
             if zone.zone_type == SpawnZoneType.DRIVING:
-                vehicle = self._try_place_vehicle(
-                    zone, edges, occupancy, placed_vehicle_aabbs, active_phases
-                )
+                vehicle = self._try_place_vehicle(zone, edges, occupancy, placed_vehicle_aabbs)
                 if vehicle is not None:
                     vehicles.append(vehicle)
                     placed_vehicle_aabbs.append(vehicle.aabb)
@@ -323,34 +330,12 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
 
         return vehicles, pedestrians
 
-    @staticmethod
-    def _vehicle_is_flowing(
-        edge: RoadEdge, node_id: int, active_phases: Dict[int, SignalPhase]
-    ) -> bool:
-        """Whether a vehicle following ``edge`` toward ``node_id`` has the
-        right of way at the currently-resolved instant. A node absent from
-        ``active_phases`` (T-junction/stop-sign/uncontrolled -- see
-        ``signal_phasing.py``'s scope note) always flows: this project
-        doesn't model stop-sign right-of-way, only signalized
-        intersections. At a signalized node, a vehicle flows only during
-        its own axis's real ``GREEN`` phase -- yellow and all-red both
-        mean "do not newly proceed" for placement purposes (this is a
-        single-frame snapshot, not a simulation of vehicles already
-        mid-intersection when the light changed)."""
-        phase = active_phases.get(node_id)
-        if phase is None:
-            return True
-        return phase.kind == PhaseKind.GREEN and classify_approach_direction(edge) in (
-            phase.moving_approaches
-        )
-
-    def _try_place_vehicle(  # pylint: disable=too-many-arguments,too-many-locals
+    def _try_place_vehicle(
         self,
         zone: SpawnZone,
         edges: Dict[int, RoadEdge],
         occupancy: float,
         placed_vehicle_aabbs: List[Tuple[float, float, float, float]],
-        active_phases: Dict[int, SignalPhase],
     ) -> Optional[Vehicle]:
         if self.rng.random() > occupancy:
             return None
@@ -363,24 +348,19 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         heading = _edge_heading(edge)
 
         position = zone.position
-        # Only the one lane-end zone closest to a signalized intersection
-        # carries a real stop_line_position (see SpawnZone's own
-        # docstring) -- earlier zones further back on the same lane keep
-        # their normal tiled position regardless of phase (this pipeline
-        # is a frozen snapshot, not a queue simulation; see
-        # traffic_network.py's own docstring for why only the front
-        # vehicle is precisely positioned).
-        if zone.stop_line_position is not None and not self._vehicle_is_flowing(
-            edge, edge.end_node_id, active_phases
-        ):
+        if zone.stop_line_position is not None:
             # The stop line itself is real, evidence-derived geometry
             # (flush with the crosswalk's own far edge -- see
-            # VEHICLE_STOP_LINE_SETBACK_METERS's docstring), but it marks
-            # where a vehicle's FRONT bumper stops, not its center. Offset
-            # backward (opposite the direction of travel) by half this
-            # vehicle's own real length so the front -- not the middle --
-            # lands exactly there, keeping the whole vehicle behind the
-            # crosswalk rather than straddling it.
+            # traffic_network.py's VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
+            # docstring), but it marks where a vehicle's FRONT bumper
+            # stops, not its center. Offset backward (opposite the
+            # direction of travel) by half this vehicle's own real length
+            # so the front -- not the middle -- lands exactly there,
+            # keeping the whole vehicle behind the crosswalk rather than
+            # straddling it. Applied unconditionally (not just when this
+            # approach lacks the right of way): see this method's own
+            # ``generate`` docstring for why vehicle position no longer
+            # branches on signal phase.
             heading_vector = np.array([np.cos(heading), np.sin(heading)])
             position = zone.stop_line_position - heading_vector * (length / 2.0)
 
