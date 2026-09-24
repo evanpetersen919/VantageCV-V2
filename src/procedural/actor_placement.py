@@ -49,6 +49,14 @@ from src.procedural.math_utils import compute_perpendicular
 from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 from src.procedural.road_network import RoadEdge
 from src.procedural.scenario import ScenarioTypeConfig
+from src.procedural.signal_phasing import (
+    PhaseKind,
+    SignalPhase,
+    approach_direction_from_heading,
+    build_signal_plans,
+    classify_approach_direction,
+    resolve_active_phases,
+)
 from src.procedural.traffic_network import SpawnZone, SpawnZoneType, TrafficNetwork
 
 # The real road surface height -- matching the convention
@@ -262,13 +270,24 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         self, edges: Dict[int, RoadEdge], traffic: TrafficNetwork
     ) -> Tuple[List[Vehicle], List[Pedestrian]]:
         """Place vehicles at a fraction of driving spawn zones and
-        pedestrians at a fraction of pedestrian spawn zones.
+        pedestrians at a fraction of pedestrian spawn zones, both
+        consistent with one real, randomly-resolved instant in every
+        signalized intersection's own real signal cycle (see
+        ``signal_phasing.py``): a vehicle whose approach doesn't have the
+        right of way at that instant is queued at its lane's real stop
+        line instead of shown flowing, and a crossing pedestrian is only
+        ever placed when their own crossing direction has the concurrent
+        green (MUTCD's standard concurrent walk scheme) -- both derived
+        from the exact same resolved phase per intersection, so vehicles,
+        pedestrians, and (should traffic-light visual state ever be added)
+        signal indications all agree with each other.
 
         Parameters
         ----------
         edges : Dict[int, RoadEdge]
             The road network's directed edges (used to derive each spawn
-            zone's heading from its own edge's direction).
+            zone's heading from its own edge's direction, and each
+            driving zone's own approach direction).
         traffic : TrafficNetwork
             Provides the spawn zones to place actors at.
 
@@ -278,13 +297,18 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         """
         occupancy = self.rng.uniform(*self.config.traffic_density)
 
+        signal_plans = build_signal_plans(edges, traffic)
+        active_phases = resolve_active_phases(signal_plans, self.rng)
+
         vehicles: List[Vehicle] = []
         placed_vehicle_aabbs: List[Tuple[float, float, float, float]] = []
         pedestrians: List[Pedestrian] = []
 
         for zone in traffic.spawn_zones:
             if zone.zone_type == SpawnZoneType.DRIVING:
-                vehicle = self._try_place_vehicle(zone, edges, occupancy, placed_vehicle_aabbs)
+                vehicle = self._try_place_vehicle(
+                    zone, edges, occupancy, placed_vehicle_aabbs, active_phases
+                )
                 if vehicle is not None:
                     vehicles.append(vehicle)
                     placed_vehicle_aabbs.append(vehicle.aabb)
@@ -293,33 +317,61 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
                 if pedestrian is not None:
                     pedestrians.append(pedestrian)
             elif zone.zone_type == SpawnZoneType.CROSSING:
-                pedestrian = self._try_place_crossing_pedestrian(zone, occupancy)
+                pedestrian = self._try_place_crossing_pedestrian(zone, occupancy, active_phases)
                 if pedestrian is not None:
                     pedestrians.append(pedestrian)
 
         return vehicles, pedestrians
 
-    def _try_place_vehicle(
+    @staticmethod
+    def _vehicle_is_flowing(
+        edge: RoadEdge, node_id: int, active_phases: Dict[int, SignalPhase]
+    ) -> bool:
+        """Whether a vehicle following ``edge`` toward ``node_id`` has the
+        right of way at the currently-resolved instant. A node absent from
+        ``active_phases`` (T-junction/stop-sign/uncontrolled -- see
+        ``signal_phasing.py``'s scope note) always flows: this project
+        doesn't model stop-sign right-of-way, only signalized
+        intersections. At a signalized node, a vehicle flows only during
+        its own axis's real ``GREEN`` phase -- yellow and all-red both
+        mean "do not newly proceed" for placement purposes (this is a
+        single-frame snapshot, not a simulation of vehicles already
+        mid-intersection when the light changed)."""
+        phase = active_phases.get(node_id)
+        if phase is None:
+            return True
+        return phase.kind == PhaseKind.GREEN and classify_approach_direction(edge) in (
+            phase.moving_approaches
+        )
+
+    def _try_place_vehicle(  # pylint: disable=too-many-arguments
         self,
         zone: SpawnZone,
         edges: Dict[int, RoadEdge],
         occupancy: float,
         placed_vehicle_aabbs: List[Tuple[float, float, float, float]],
+        active_phases: Dict[int, SignalPhase],
     ) -> Optional[Vehicle]:
         if self.rng.random() > occupancy:
             return None
         assert zone.edge_id is not None  # every DRIVING zone carries one
 
+        edge = edges[zone.edge_id]
         vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
         asset_path = _sample_asset_path(self.rng, vehicle_type)
         length, width, height = VEHICLE_DIMENSIONS[vehicle_type]
-        heading = _edge_heading(edges[zone.edge_id])
+        heading = _edge_heading(edge)
+
+        position = zone.position
+        if not self._vehicle_is_flowing(edge, edge.end_node_id, active_phases):
+            assert zone.stop_line_position is not None  # every DRIVING zone carries one
+            position = zone.stop_line_position
 
         candidate = Vehicle(
             vehicle_id=self._vehicle_counter,
             vehicle_type=vehicle_type,
             asset_path=asset_path,
-            center=zone.position.copy(),
+            center=position.copy(),
             heading_rad=heading,
             length=length,
             width=width,
@@ -373,7 +425,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         )
 
     def _try_place_crossing_pedestrian(
-        self, zone: SpawnZone, occupancy: float
+        self, zone: SpawnZone, occupancy: float, active_phases: Dict[int, SignalPhase]
     ) -> Optional[Pedestrian]:
         """A pedestrian actually crossing a road, at one of the real,
         width-tiled candidate points along a real crosswalk (see
@@ -382,11 +434,34 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         a sidewalk zone -- crossing is a brief transient event compared
         to standing/walking a full sidewalk block (see
         ``PEDESTRIAN_CROSSING_DENSITY_FRACTION_OF_TRAFFIC``'s own
-        docstring)."""
+        docstring).
+
+        Gated on the same resolved signal phase vehicles use (see
+        ``generate``): a crossing is only ever placed when the currently-
+        resolved phase at this crosswalk's own intersection (``zone.
+        node_id``) is a real ``GREEN`` phase whose moving axis matches
+        this crossing's own direction of travel -- MUTCD's standard
+        concurrent walk scheme (pedestrians cross a road exactly when the
+        traffic THEY conflict with, i.e. that same road's own vehicle
+        traffic, is stopped, which happens precisely when the
+        perpendicular axis has the green -- and the perpendicular axis's
+        green shares the same axis label as this crossing's own direction
+        of travel, since a crosswalk's crossing direction is always
+        perpendicular to the road it crosses, i.e. parallel to the road
+        that's still moving). A node absent from ``active_phases``
+        (uncontrolled/stop-sign -- see ``signal_phasing.py``'s scope
+        note) always allows crossing, unaffected by this gate."""
         crossing_occupancy = occupancy * PEDESTRIAN_CROSSING_DENSITY_FRACTION_OF_TRAFFIC
         if self.rng.random() > crossing_occupancy:
             return None
         assert zone.heading_rad is not None  # every CROSSING zone carries one
+
+        if zone.node_id is not None:
+            phase = active_phases.get(zone.node_id)
+            if phase is not None:
+                crossing_axis = approach_direction_from_heading(zone.heading_rad)
+                if not (phase.kind == PhaseKind.GREEN and crossing_axis in phase.moving_approaches):
+                    return None
 
         # Real two-way crossing: crossing direction is independent of
         # either intersecting road's own vehicle-traffic direction (a

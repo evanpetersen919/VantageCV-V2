@@ -45,6 +45,13 @@ from src.procedural.lane_topology import LaneTopologyGenerator
 from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadType
 from src.procedural.scenario import ScenarioType, ScenarioTypeConfig
+from src.procedural.signal_phasing import (
+    PhaseKind,
+    approach_direction_from_heading,
+    build_signal_plans,
+    classify_approach_direction,
+    resolve_active_phases,
+)
 from src.procedural.traffic_network import SpawnZoneType, TrafficNetwork, TrafficNetworkGenerator
 
 # urban_config, bounds fixtures: see tests/conftest.py
@@ -59,16 +66,106 @@ def _generate_full_network(seed: int, config, bounds):
 
 
 def test_vehicles_only_at_driving_zones(urban_config, bounds) -> None:
-    """Every placed vehicle's spawn position matches a real DRIVING zone."""
+    """Every placed vehicle's spawn position matches a real DRIVING zone's
+    own position -- either its normal flowing-traffic spot, or (when its
+    own approach is stopped at the currently-resolved signal phase --
+    see signal_phasing.py) its own lane's real stop_line_position, never
+    an unrelated point."""
     edges, traffic = _generate_full_network(42, urban_config, bounds)
-    driving_positions = [
-        tuple(z.position) for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING
-    ]
+    driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
+    valid_positions = {tuple(z.position) for z in driving_zones}
+    valid_positions |= {
+        tuple(z.stop_line_position) for z in driving_zones if z.stop_line_position is not None
+    }
 
     vehicles, _ = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
 
     for vehicle in vehicles:
-        assert tuple(vehicle.center) in driving_positions
+        assert tuple(vehicle.center) in valid_positions
+
+
+def test_vehicle_queues_at_stop_line_when_not_flowing(  # pylint: disable=too-many-locals
+    urban_config, bounds
+) -> None:
+    """A vehicle placed at its own lane's real stop_line_position (rather
+    than the zone's normal flowing-traffic position) happens exactly when
+    that lane's own currently-resolved signal phase does NOT grant its
+    approach direction the right of way -- and a vehicle at the zone's
+    normal position is always either flowing or at an unsignalized node.
+    Replays the exact same rng draws ``generate`` makes internally (up to
+    and including phase resolution) from a fresh generator with the same
+    seed, to independently derive the expected flowing/stopped verdict
+    per lane without depending on ``generate``'s own internals."""
+    edges, traffic = _generate_full_network(42, urban_config, bounds)
+    vehicles, _ = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
+    assert vehicles  # sanity
+
+    replay = ActorPlacementGenerator(42, urban_config)
+    replay.rng.uniform(*urban_config.traffic_density)
+    plans = build_signal_plans(edges, traffic)
+    active_phases = resolve_active_phases(plans, replay.rng)
+
+    driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
+    saw_queued = False
+    for vehicle in vehicles:
+        center = tuple(vehicle.center)
+        zone = next(
+            z
+            for z in driving_zones
+            if tuple(z.position) == center
+            or (z.stop_line_position is not None and tuple(z.stop_line_position) == center)
+        )
+        edge = edges[zone.edge_id]
+        phase = active_phases.get(edge.end_node_id)
+        flowing = phase is None or (
+            phase.kind == PhaseKind.GREEN
+            and classify_approach_direction(edge) in phase.moving_approaches
+        )
+        is_queued = zone.stop_line_position is not None and center == tuple(zone.stop_line_position)
+        if is_queued:
+            saw_queued = True
+            assert not flowing
+        else:
+            assert flowing
+    assert saw_queued  # sanity: this config/seed produces at least one queued vehicle
+
+
+def test_crossing_pedestrian_only_placed_when_axis_has_green(  # pylint: disable=too-many-locals
+    urban_config, bounds
+) -> None:
+    """A crossing pedestrian at a signalized intersection is only ever
+    placed when the currently-resolved phase for that intersection is a
+    real GREEN phase whose moving axis matches the crossing's own
+    direction of travel (MUTCD concurrent walk scheme) -- see
+    ``_try_place_crossing_pedestrian``'s docstring. Uses full occupancy so
+    the phase gate (not the occupancy roll) is what's being exercised."""
+    full_config = urban_config.model_copy(update={"traffic_density": (1.0, 1.0)})
+    edges, traffic = _generate_full_network(42, full_config, bounds)
+    _, pedestrians = ActorPlacementGenerator(42, full_config).generate(edges, traffic)
+
+    replay = ActorPlacementGenerator(42, full_config)
+    replay.rng.uniform(*full_config.traffic_density)
+    plans = build_signal_plans(edges, traffic)
+    active_phases = resolve_active_phases(plans, replay.rng)
+
+    crossing_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.CROSSING]
+    crossing_by_position = {tuple(z.position): z for z in crossing_zones}
+    crossing_pedestrians = [p for p in pedestrians if tuple(p.center) in crossing_by_position]
+
+    checked_any_signalized = False
+    for pedestrian in crossing_pedestrians:
+        zone = crossing_by_position[tuple(pedestrian.center)]
+        if zone.node_id is None:
+            continue
+        phase = active_phases.get(zone.node_id)
+        if phase is None:
+            continue
+        checked_any_signalized = True
+        assert zone.heading_rad is not None
+        axis = approach_direction_from_heading(zone.heading_rad)
+        assert phase.kind == PhaseKind.GREEN
+        assert axis in phase.moving_approaches
+    assert checked_any_signalized  # sanity: this config/seed has a signalized crossing
 
 
 def test_pedestrians_only_at_pedestrian_or_crossing_zones(urban_config, bounds) -> None:

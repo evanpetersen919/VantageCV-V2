@@ -82,6 +82,23 @@ class SpawnZone:
     the crosswalk's own real across-the-road crossing direction (see
     ``crosswalks.CrosswalkAnchor.perp``), since it has no directed edge
     of its own to derive one from.
+
+    ``node_id`` is populated only for ``CROSSING`` zones, from the same
+    real ``CrosswalkAnchor.node_id`` this project's painted crosswalk bars
+    already use (``crosswalks.py``) -- the intersection this crosswalk
+    belongs to, needed to look up which real signal phase currently
+    governs whether crossing here is safe (see ``signal_phasing.py``).
+
+    ``stop_line_position`` is populated only for ``DRIVING`` zones, from
+    the same lane's own real trimmed-far-end position
+    (``Lane.centerline[-1]``) that ``lane_topology.py`` already computes
+    by trimming a lane short of its destination node's real
+    ``compute_node_clearance`` boundary -- i.e. the real physical stop
+    line a vehicle queues behind when its own approach direction doesn't
+    have the right of way (see ``actor_placement.py``'s vehicle
+    placement). ``position`` (the lane's near/start end) remains a
+    driving zone's normal, flowing-traffic spawn point; this is a
+    second, distinct point on the same lane, not a replacement.
     """
 
     spawn_zone_id: int
@@ -89,6 +106,8 @@ class SpawnZone:
     position: npt.NDArray[np.float64]
     edge_id: Optional[int] = None
     heading_rad: Optional[float] = None
+    node_id: Optional[int] = None
+    stop_line_position: Optional[npt.NDArray[np.float64]] = None
 
     def __hash__(self) -> int:
         return hash(self.spawn_zone_id)
@@ -272,6 +291,7 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
                     zone_type=SpawnZoneType.DRIVING,
                     position=lane.centerline[0].copy(),
                     edge_id=lane.edge_id,
+                    stop_line_position=lane.centerline[-1].copy(),
                 )
             )
             self._spawn_zone_counter += 1
@@ -338,6 +358,7 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
                         zone_type=SpawnZoneType.CROSSING,
                         position=anchor.pivot + anchor.perp * offset_m,
                         heading_rad=heading_rad,
+                        node_id=anchor.node_id,
                     )
                 )
                 self._spawn_zone_counter += 1
