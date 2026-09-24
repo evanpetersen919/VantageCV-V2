@@ -317,43 +317,52 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
         self, edges: Dict[int, RoadEdge], lanes: Dict[int, Lane], node_clearance: Dict[int, float]
     ) -> List[SpawnZone]:
         """One or more DRIVING spawn zones per lane, tiled at the real
-        ``VEHICLE_SPAWN_GAP_METERS`` interval, bounded at BOTH ends by the
-        real crosswalk-clearing setback (``VEHICLE_STOP_LINE_CROSSWALK_
-        SETBACK_M``) for whichever node each end is near -- never by
-        ``Lane.centerline``, which trims each end only by that node's raw
-        ``compute_node_clearance`` (the intersection box's own half-
-        width), clamped further by ``MAX_TRIM_FRACTION_OF_EDGE_LENGTH``.
-        Neither of those accounts for the real painted crosswalk sitting
-        just beyond the box edge.
+        ``VEHICLE_SPAWN_GAP_METERS`` interval along the lane's own plain
+        ``compute_node_clearance`` trim at each end (the same trim
+        ``LaneTopologyGenerator._generate_lanes_for_edge`` already applies
+        to ``Lane.centerline``, clamped by ``MAX_TRIM_FRACTION_OF_EDGE_
+        LENGTH``) -- deliberately NOT the wider, crosswalk-aware
+        ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M`` boundary.
 
-        Fourth real bug, found from live re-testing after the third fix
-        (2026-09-24, direct in-engine actor-position cross-check):
-        bounding only the DESTINATION end (the real stop line a vehicle
-        queues behind) left a lane's OWN START end -- i.e. the first tile
-        of the edge going the OPPOSITE direction out of that same node --
-        still anchored on the plain, crosswalk-unaware
-        ``compute_node_clearance`` trim. Since a typical node clearance
-        (e.g. 7m for a 2-lane road) sits well inside a real crosswalk's
-        real span (5.5m-20.5m from the node, in this project's own
-        figures), a vehicle just departing an intersection could still be
-        tiled directly onto the same crosswalk from the other side. Per
-        the same explicit request 2026-09-24 ("all vehicles unless
-        crossing should be behind the crosswalk"), the correct, symmetric
-        rule is: no tile, at EITHER end of ANY lane, may fall closer to a
-        node than that node's own real crosswalk-clearing setback -- so
-        both ends of every lane now use the exact same formula, just
-        measured from their own respective node.
+        Fifth real design correction (2026-09-24, explicit user request):
+        an earlier version of this method bounded tiling by the
+        crosswalk-clearing setback UNCONDITIONALLY at both ends, so no
+        vehicle could ever be tiled inside a crosswalk/intersection box
+        regardless of signal phase. That was too strict: on a real green
+        light, vehicles legitimately drive straight through an
+        intersection ("the intersection is just an extended road"), and
+        this pipeline's own resolved ``signal_phasing`` state already
+        knows, per scenario, which axis currently has that right of way.
+        Zone GENERATION has no access to that phase (it's resolved later,
+        randomly, in ``ActorPlacementGenerator`` -- one instant per
+        scenario), so it goes back to being purely geometric here; the
+        real phase-vs-crosswalk gating decision now lives in
+        ``actor_placement.py``'s ``_try_place_vehicle``, which DOES know
+        the resolved phase and decides, per candidate position and per
+        nearby node independently, whether to keep the natural tiled
+        position (flowing) or redirect/exclude it (not flowing).
 
-        The last tile is snapped exactly to the destination boundary (not
-        merely the nearest ``VEHICLE_SPAWN_GAP_METERS`` multiple short of
-        it) and carries a real ``stop_line_position`` equal to its own
-        ``position`` -- see ``_generate_spawn_zones``'s own docstring for
-        why only that one tile carries it. Recomputes direction/
-        perpendicular offset directly from ``edge`` and ``lane.
-        lane_index`` (lane_topology.py's own real offset formula, reused
-        exactly) rather than trusting either end of ``Lane.centerline``,
-        since -- per the bug above -- neither end can be assumed
-        crosswalk-clear."""
+        The last tile per lane still carries a real ``stop_line_position``
+        (unchanged: the true crosswalk-clearing setback from the
+        destination node, computed straight from ``RoadEdge.centerline``
+        and the real, unclamped ``node_clearance`` -- never from
+        ``Lane.centerline``, which can itself be clamped short, see
+        ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M``'s own docstring) --
+        this is pure geometry (matches the real painted crosswalk's own
+        far edge from ``crosswalks.py``) and needs no phase information,
+        so it stays computed here. It now generally sits FARTHER from the
+        node than that same zone's own ``position`` (which uses the
+        smaller, plain-clearance bound) -- that gap is exactly the
+        dedicated "queue behind the crosswalk" candidate
+        ``actor_placement.py`` redirects to when this lane's axis does
+        NOT have the right of way at that node.
+
+        Recomputes direction/perpendicular offset directly from ``edge``
+        and ``lane.lane_index`` (lane_topology.py's own real offset
+        formula, reused exactly) rather than trusting ``Lane.centerline``,
+        since its own end-trims can differ from the plain formula above
+        under floating-point edge cases; deriving fresh from ``edge``
+        keeps this method's own geometry internally consistent."""
         spawn_zones: List[SpawnZone] = []
         for lane in lanes.values():
             edge = edges[lane.edge_id]
@@ -379,15 +388,27 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
             perp = compute_perpendicular(edge_direction)
             offset_distance = (lane.lane_index + 0.5) * LANE_WIDTH_METERS
 
-            start_clearance = node_clearance.get(edge.start_node_id, 0.0)
+            max_trim_each_side = edge_length * MAX_TRIM_FRACTION_OF_EDGE_LENGTH
             start_boundary_along = min(
-                start_clearance + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M, edge_length
+                node_clearance.get(edge.start_node_id, 0.0), max_trim_each_side
             )
-            end_clearance = node_clearance.get(edge.end_node_id, 0.0)
             end_boundary_along = edge_length - min(
-                end_clearance + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M, edge_length
+                node_clearance.get(edge.end_node_id, 0.0), max_trim_each_side
             )
             usable_length = max(end_boundary_along - start_boundary_along, 0.0)
+
+            # The real stop line for this lane's destination node -- pure
+            # geometry, independent of the plain tiling bound above (see
+            # this method's own docstring).
+            end_clearance = node_clearance.get(edge.end_node_id, 0.0)
+            stop_line_distance_from_node = min(
+                end_clearance + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M, edge_length
+            )
+            stop_line_position = (
+                edge.centerline[-1]
+                - unit_direction * stop_line_distance_from_node
+                + perp * offset_distance
+            )
 
             num_points = max(1, int(usable_length // VEHICLE_SPAWN_GAP_METERS) + 1)
             for point_index in range(num_points):
@@ -407,7 +428,7 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
                         zone_type=SpawnZoneType.DRIVING,
                         position=position,
                         edge_id=lane.edge_id,
-                        stop_line_position=position.copy() if is_last else None,
+                        stop_line_position=stop_line_position.copy() if is_last else None,
                     )
                 )
                 self._spawn_zone_counter += 1
