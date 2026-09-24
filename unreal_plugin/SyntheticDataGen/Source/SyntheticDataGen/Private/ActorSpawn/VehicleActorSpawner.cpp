@@ -37,7 +37,6 @@
 // trucks have 6 wheels, the trailer has no doors/glass/interior).
 
 #include "ActorSpawn/VehicleActorSpawner.h"
-#include "ActorSpawn/PedestrianPoseFreezeComponent.h"
 #include "ActorSpawn/PedestrianWalkCycleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -194,34 +193,6 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 	TArray<UMaterialInstanceDynamic*> AllMIDs =
 		ApplyMaterialScalarOverrides(MeshComponent, AssetData.MaterialScalarOverrides);
 
-	// Real bug found via direct engine node-graph inspection (obj dump,
-	// not assumed): ML_BoneAnimation's GetFrame call wires its
-	// "Playrate"/"Looping"/"TimeStartOffset"/"NumFrames"/"FrameOffset"
-	// inputs to MaterialExpressionPerInstanceCustomData nodes (DataIndex
-	// 2/3/4/1/0 respectively), NOT to the like-named material scalar
-	// parameters -- those parameter nodes are ONLY the *fallback default*
-	// used when a component's own per-instance custom data slot was
-	// never set. A UMaterialInstanceDynamic's SetScalarParameterValue
-	// therefore can never reach "Playrate" for this content; only
-	// UPrimitiveComponent::SetCustomPrimitiveDataFloat can. Every
-	// pedestrian ("Frame" present in MaterialScalarOverrides -- the
-	// same existing signal used elsewhere in this function) gets
-	// Playrate forced to 0 on this authoritative channel so its pose
-	// truly stops advancing with wall-clock time, matching the real
-	// dataset-capture requirement that a scenario's pose be a
-	// deterministic function of its seed alone.
-	constexpr int32 PlayrateCustomDataIndex = 2;
-	// Live-verified (2026-09-23) that writing here has NO effect on the
-	// actual rendered animation speed at all (tested Playrate=0 and
-	// Playrate=1000 -- both produced visually identical motion), meaning
-	// this custom-primitive-data index does not reach the shader's real
-	// Playrate input for this content. Left in place (harmless either
-	// way) pending a real fix; see KNOWN_GAPS_AND_ISSUES.md.
-	if (AssetData.MaterialScalarOverrides.Contains(TEXT("Frame")))
-	{
-		MeshComponent->SetCustomPrimitiveDataFloat(PlayrateCustomDataIndex, 0.0f);
-	}
-
 	// SpawnActor's own SpawnTransform argument only takes effect by
 	// being applied to a RootComponent, and a bare AActor::StaticClass()
 	// has none at spawn time -- spawning at FTransform::Identity above
@@ -267,10 +238,6 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 		PartComponent->AttachToComponent(MeshComponent, FAttachmentTransformRules::KeepRelativeTransform);
 		PartComponent->SetSimulatePhysics(false);
 		AllMIDs.Append(ApplyMaterialScalarOverrides(PartComponent, AssetData.MaterialScalarOverrides));
-		if (AssetData.MaterialScalarOverrides.Contains(TEXT("Frame")))
-		{
-			PartComponent->SetCustomPrimitiveDataFloat(PlayrateCustomDataIndex, 0.0f);
-		}
 	}
 
 	// Opt-in ONLY -- see FScenarioAssetData::bEnableLivePosePreview's own
@@ -300,22 +267,6 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 			NewObject<UPedestrianWalkCycleComponent>(SpawnedActor);
 		WalkCycleComponent->Initialize(AllMIDs, ClipStartFrame, ClipEndFrame);
 		WalkCycleComponent->RegisterComponent();
-	}
-	else if (AssetData.MaterialScalarOverrides.Contains(TEXT("Frame")))
-	{
-		// See UPedestrianPoseFreezeComponent's own header comment: the
-		// real dataset-capture path (this branch) needs a pedestrian's
-		// pose to be genuinely frozen, and forcing "Playrate" to 0 via
-		// per-instance custom primitive data (above) was NOT sufficient
-		// on its own -- live-verified with the game window actually
-		// focused. This component re-asserts the correct static "Frame"
-		// every tick so the rendered pose can never drift regardless of
-		// whatever the material's own internal logic does.
-		const float FrozenFrame = AssetData.MaterialScalarOverrides[TEXT("Frame")];
-		UPedestrianPoseFreezeComponent* FreezeComponent =
-			NewObject<UPedestrianPoseFreezeComponent>(SpawnedActor);
-		FreezeComponent->Initialize(AllMIDs, FrozenFrame);
-		FreezeComponent->RegisterComponent();
 	}
 
 	return SpawnedActor;

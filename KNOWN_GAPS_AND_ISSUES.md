@@ -2746,7 +2746,7 @@ instant showed different, desynced poses (not lockstep) -- confirming
 the per-instance random phase offset works as designed. Full suite
 green (532/532), pylint 10.00, mypy --strict clean.
 
-### [OPEN, NOT RESOLVED] Pedestrians visibly walk/idle-cycle in Play mode even on the real, non-live-preview dataset-capture path -- real root cause found, real fix NOT yet achieved
+### [RESOLVED] Pedestrians visibly walk/idle-cycle in Play mode even on the real, non-live-preview dataset-capture path
 
 User reported pedestrians animating (idle a few seconds, then visibly
 walk) in a scenario loaded WITHOUT `enable_live_pose_preview` -- i.e.
@@ -2854,24 +2854,84 @@ heavily rather than dismissed as cosmetic.
    possibly one contributing factor among several) but is NOT, by
    itself, a fix.
 
-**Honest current state**: pedestrians on the real dataset-capture path
-(no `enable_live_pose_preview`) are NOT reliably frozen when the game
-window has real OS focus, for at least some fraction of the 593 real
-character/outfit material instances (exactly which ones, and whether
-ALL or only SOME exhibit this, was not exhaustively re-audited after
-the fixes above -- the one specific test asset re-checked,
-`MI_VAT_BodySynthesized_SM_f_tal_ovw_body`, still shows the override).
-This is a real, open gap in the project's core reproducibility
-guarantee, not merely a live-viewing cosmetic issue. A future session
-resuming this should: (a) NOT repeat the two already-disproven
-scripted per-instance override edits; (b) consider whether the UE5
-Editor UI (Material Instance Editor, manual "Reset to Default" on the
-`Animate` static switch per asset) is required instead, given the
-Python API's demonstrated unreliability for this exact case; (c)
-consider whether duplicating each affected `MaterialInstanceConstant`
-fresh (inheriting cleanly from the now-corrected `False` layer default,
-if duplication does not also copy the override) is viable; (d)
-re-derive the real `PerInstanceCustomData` index mapping for
-"Playrate" from scratch if pursuing that angle further, since
-`DataIndex=2` was read directly off the node but demonstrably has no
-real effect.
+**The actual fix, found immediately after the above was written up as an open gap:**
+
+The two scripted per-instance override attempts (point 5 above) both
+had the SAME real bug, found by reading `UMaterialEditingLibrary::
+SetMaterialInstanceStaticSwitchParameterValue`'s own C++ implementation
+(`Engine/Source/Editor/MaterialEditor/Private/MaterialEditingLibrary.cpp`)
+rather than more guessing: its Python-exposed wrapper,
+`set_material_instance_static_switch_parameter_value`, takes an
+`association` parameter that defaults to
+`MaterialParameterAssociation.GLOBAL_PARAMETER`. Every prior call this
+session omitted it. Since "Animate" is specifically
+`Association=LayerParameter, Index=0` (confirmed via `obj dump` many
+times over), every prior "fix" was silently writing a harmless,
+unused `GlobalParameter`-associated "Animate" entry that nothing reads,
+while the real `LayerParameter`-associated entry -- the one `GetFrame`'s
+function call actually wires to -- was never touched. This is exactly
+why every previous attempt reported success (the call really did
+succeed, against the wrong parameter) yet visibly changed nothing.
+
+Fixed by calling `set_material_instance_static_switch_parameter_value(
+mic, "Animate", False, unreal.MaterialParameterAssociation.
+LAYER_PARAMETER)`, immediately followed by `unreal.MaterialEditingLibrary
+.update_material_instance(mic)` (`MarkPackageDirty` +
+`PreEditChange`/`PostEditChange` + `UpdateStaticPermutation`) before
+`EditorAssetLibrary.save_loaded_asset(mic)` -- the `update_material_
+instance` call turned out to be a second, independently necessary
+step: a save without it reported success and even rewrote the
+`.uasset` file's timestamp, but a genuinely fresh process re-reading
+that "saved" file from disk still showed the old value (verified
+several times, isolating the discrepancy to the save path specifically
+before finding this missing call).
+
+Applied via a headless `-ExecutePythonScript` pass (not the live
+`-game` RPC session, per the established crash-avoidance pattern) to
+the real, complete set of 215 material instances this project's own
+pedestrian pipeline actually uses (enumerated from a live scenario's
+own real spawned `MaterialInstanceDynamic` names, not guessed) --
+notably NOT all 593 assets under `/Game/Crowd` in general, since that
+superset includes unrelated `TrafficDriver` vehicle-material variants.
+The script waits 120s after the edit loop before quitting, since an
+earlier attempt that quit immediately (10s for 215 assets) also failed
+to persist -- static-switch changes trigger a real, and apparently
+not-optional-to-wait-for, asynchronous shader recompile.
+
+**Live-verified end to end, properly this time**: a completely fresh
+process (no in-memory carryover) reading the saved asset from disk
+shows `Animate` correctly resolved to `false`. With the game window
+brought to genuine OS foreground (see point 2's methodology finding),
+a pedestrian's pose is now pixel-identical across a properly-focused,
+camera-recentered timelapse (multiple runs, ~7.5-9.6s apart), AND a
+live 5-pedestrian cluster shot still shows genuinely diverse stances
+(no collapse to one shared pose) -- both the freeze and the
+per-instance "Frame" diversity work correctly together. User confirmed
+live: "they are all frozen now."
+
+**Cleanup after the real fix landed**: the two workaround mechanisms
+built while chasing this (both now unnecessary, since the content
+itself is correct) were removed: `UPedestrianPoseFreezeComponent` (a
+per-tick "Frame" reassertion component -- pointless once the shader
+isn't drifting the value on its own) and the `SetCustomPrimitiveDataFloat`
+/`"Playrate"` scalar-override code (proven to have zero real effect on
+this content, per point 6 above -- left in briefly as "harmless" but
+removed since it no longer serves any purpose and only obscures the
+real fix's location). `UPedestrianWalkCycleComponent` (the opt-in,
+live-preview-only feature) is unaffected and still correct: it works
+by writing "Frame" directly on the branch this fix keeps selected
+(`Animate=false`'s manual passthrough), so continuous live-preview
+motion still functions exactly as designed.
+
+**If a future session touches `/Game/Crowd`'s materials again**: the
+real, working technique is `set_material_instance_static_switch_
+parameter_value(mic, name, value, association)` -- ALWAYS pass
+`association` explicitly (check via a real `obj dump` what association
+the target parameter actually uses; do not assume `GLOBAL_PARAMETER`)
+-- followed by `update_material_instance(mic)` before saving, and wait
+for shader compilation (tens of seconds, scales with asset count)
+before the process exits. Skipping either the association or the
+`update_material_instance` call, or quitting too early, all independently
+produce a false "it worked" (no crash, no error, save reports success)
+that only a genuinely fresh process re-reading from disk reveals as
+unchanged.
