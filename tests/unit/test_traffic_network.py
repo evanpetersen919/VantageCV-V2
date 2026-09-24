@@ -6,7 +6,7 @@ Section G considerations.
 """
 
 import math
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import pytest
@@ -20,6 +20,8 @@ from src.procedural.lane_topology import (
 from src.procedural.road_network import IntersectionType, RoadEdge, RoadNetworkGenerator, RoadType
 from src.procedural.traffic_network import (
     PEDESTRIAN_SPAWN_GAP_METERS,
+    VEHICLE_SPAWN_GAP_METERS,
+    VEHICLE_STOP_LINE_SETBACK_METERS,
     NavigationGraph,
     SpawnZone,
     SpawnZoneType,
@@ -124,36 +126,79 @@ def test_shortest_path_no_route_returns_none() -> None:
     assert path is None
 
 
-def test_driving_spawn_zone_per_lane(urban_config, bounds) -> None:
-    """Exactly one driving spawn zone exists per generated lane."""
-    _, _, lanes, traffic = _generate_full_network(42, urban_config, bounds)
+def _along_lane(position: np.ndarray, lane) -> Optional[float]:
+    """Distance of ``position`` along ``lane``'s own centerline direction
+    from its start, or ``None`` if ``position`` isn't exactly collinear
+    with it (used to attribute a DRIVING zone to the one specific lane it
+    belongs to, since two lanes on the same edge are parallel but offset,
+    and zones don't carry a lane_id directly)."""
+    direction = lane.centerline[-1] - lane.centerline[0]
+    length = float(np.linalg.norm(direction))
+    if length < 1e-9:
+        return None
+    unit_direction = direction / length
+    offset = position - lane.centerline[0]
+    projected = float(np.dot(offset, unit_direction))
+    if not np.allclose(lane.centerline[0] + unit_direction * projected, position):
+        return None
+    return projected
 
+
+def _zones_for_lane(zones: List[SpawnZone], lane) -> List[SpawnZone]:
+    """The subset of ``zones`` (already filtered to one edge_id) whose
+    position lies exactly on ``lane``'s own offset centerline line."""
+    return [
+        z for z in zones if z.edge_id == lane.edge_id and _along_lane(z.position, lane) is not None
+    ]
+
+
+def test_driving_spawn_zones_tiled_along_each_lane(urban_config, bounds) -> None:
+    """Every lane gets at least one DRIVING zone, and a lane longer than
+    VEHICLE_SPAWN_GAP_METERS gets more than one, tiled at that real
+    interval -- not just a single slot at the lane's intersection-facing
+    end (a real bug, reported live: vehicles clustered only at
+    intersections, leaving entire mid-block lane lengths empty)."""
+    _, _, lanes, traffic = _generate_full_network(42, urban_config, bounds)
     driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
-    assert len(driving_zones) == len(lanes)
+
+    saw_multi_tiled_lane = False
+    for lane in lanes.values():
+        lane_length = float(np.linalg.norm(lane.centerline[-1] - lane.centerline[0]))
+        expected_count = max(1, int(lane_length // VEHICLE_SPAWN_GAP_METERS) + 1)
+        matching = _zones_for_lane(driving_zones, lane)
+        assert len(matching) == expected_count
+        if expected_count > 1:
+            saw_multi_tiled_lane = True
+    assert saw_multi_tiled_lane  # sanity: this config/seed has long enough lanes to tile
 
 
 def test_driving_spawn_zone_carries_real_stop_line_position(urban_config, bounds) -> None:
-    """Every DRIVING zone's stop_line_position exactly matches its own
-    lane's trimmed far end (Lane.centerline[-1]) -- the same real,
-    already-computed stop-line boundary signal_phasing/actor_placement
-    reuse for queuing a vehicle stopped at a red light, not a fresh,
-    independently-derived position."""
+    """Only the single DRIVING zone closest to each lane's own destination
+    node carries a real stop_line_position -- set back from the lane's
+    own trimmed far end (Lane.centerline[-1]) by the real crosswalk depth
+    (VEHICLE_STOP_LINE_SETBACK_METERS), so it lands flush BEHIND the
+    crosswalk's own far edge rather than on/past it (a real bug, reported
+    live: a vehicle queued at the raw trimmed lane end rendered as if
+    stopped on the crosswalk stripes). Every other DRIVING zone on the
+    same lane carries None."""
     _, _, lanes, traffic = _generate_full_network(42, urban_config, bounds)
-    lanes_by_edge: Dict[int, List] = {}
-    for lane in lanes.values():
-        lanes_by_edge.setdefault(lane.edge_id, []).append(lane)
-
     driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
     assert driving_zones  # sanity
 
-    for zone in driving_zones:
-        assert zone.stop_line_position is not None
-        matching_lanes = lanes_by_edge[zone.edge_id]
-        matching = [
-            lane for lane in matching_lanes if np.array_equal(lane.centerline[0], zone.position)
-        ]
-        assert len(matching) == 1
-        assert np.array_equal(zone.stop_line_position, matching[0].centerline[-1])
+    saw_a_stop_line = False
+    for lane in lanes.values():
+        lane_zones = _zones_for_lane(driving_zones, lane)
+        with_stop_line = [z for z in lane_zones if z.stop_line_position is not None]
+        assert len(with_stop_line) == 1  # exactly one per lane
+        zone = with_stop_line[0]
+        saw_a_stop_line = True
+
+        lane_length = float(np.linalg.norm(lane.centerline[-1] - lane.centerline[0]))
+        unit_direction = (lane.centerline[-1] - lane.centerline[0]) / lane_length
+        setback = min(VEHICLE_STOP_LINE_SETBACK_METERS, lane_length)
+        expected = lane.centerline[-1] - unit_direction * setback
+        assert np.allclose(zone.stop_line_position, expected)
+    assert saw_a_stop_line  # sanity
 
 
 def test_crossing_zone_carries_real_node_id(urban_config, bounds) -> None:
