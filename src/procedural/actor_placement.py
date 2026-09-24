@@ -40,6 +40,8 @@ from src.procedural.city_sample_assets import (
     PEDESTRIAN_STANDING_CLIP,
     PEDESTRIAN_TOP_ASSET_PATHS,
     PEDESTRIAN_WALKING_CLIP,
+    PEDESTRIAN_WALKING_DYNAMIC_WINDOWS,
+    PEDESTRIAN_WALKING_POSE_BIAS_FRACTION,
     VEHICLE_ASSET_PATHS,
     pedestrian_face_and_hair,
 )
@@ -417,6 +419,16 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         cycle is both more statistically representative and gives more
         true diversity than a curated highlight reel.
 
+        Within the walking clip specifically, biases toward the two
+        confirmed-dynamic sub-windows (``PEDESTRIAN_WALKING_DYNAMIC_
+        WINDOWS``, live-verified via side-profile screenshots to read as
+        clearly mid-stride) with real, disclosed probability
+        ``PEDESTRIAN_WALKING_POSE_BIAS_FRACTION`` -- per explicit user
+        request 2026-09-24 that most walking pedestrians read as
+        obviously walking at a glance -- while still sampling the full
+        clip the rest of the time so real diversity (including subtler,
+        near-neutral stances) isn't lost entirely.
+
         Re-rolls (bounded, not an unbounded loop) against the
         immediately PRECEDING pedestrian's own frame (the one most
         likely to be spatially adjacent, since pedestrians are placed in
@@ -430,6 +442,9 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         unboundedly."""
         if allow_standing and self.rng.random() < PEDESTRIAN_STANDING_ACTIVITY_FRACTION:
             clip_start, clip_end = PEDESTRIAN_STANDING_CLIP
+        elif self.rng.random() < PEDESTRIAN_WALKING_POSE_BIAS_FRACTION:
+            window_index = int(self.rng.integers(0, len(PEDESTRIAN_WALKING_DYNAMIC_WINDOWS)))
+            clip_start, clip_end = PEDESTRIAN_WALKING_DYNAMIC_WINDOWS[window_index]
         else:
             clip_start, clip_end = PEDESTRIAN_WALKING_CLIP
         pose_frame = float(self.rng.integers(clip_start, clip_end + 1))
