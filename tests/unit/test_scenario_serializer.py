@@ -144,10 +144,7 @@ def test_serialize_scenario_preserves_pedestrian_asset_data_exactly(urban_config
         )
         assert asset["part_paths"] == pedestrian.part_paths
         assert len(asset["part_paths"]) in (4, 5)
-        assert asset["material_scalar_overrides"] == {
-            "Frame": pedestrian.pose_frame,
-            "Playrate": 0.0,
-        }
+        assert asset["material_scalar_overrides"] == {"Frame": pedestrian.pose_frame}
 
 
 def test_serialize_scenario_live_pose_preview_is_opt_in(urban_config, bounds) -> None:
