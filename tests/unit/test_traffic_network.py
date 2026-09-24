@@ -132,6 +132,46 @@ def test_driving_spawn_zone_per_lane(urban_config, bounds) -> None:
     assert len(driving_zones) == len(lanes)
 
 
+def test_driving_spawn_zone_carries_real_stop_line_position(urban_config, bounds) -> None:
+    """Every DRIVING zone's stop_line_position exactly matches its own
+    lane's trimmed far end (Lane.centerline[-1]) -- the same real,
+    already-computed stop-line boundary signal_phasing/actor_placement
+    reuse for queuing a vehicle stopped at a red light, not a fresh,
+    independently-derived position."""
+    _, _, lanes, traffic = _generate_full_network(42, urban_config, bounds)
+    lanes_by_edge: Dict[int, List] = {}
+    for lane in lanes.values():
+        lanes_by_edge.setdefault(lane.edge_id, []).append(lane)
+
+    driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
+    assert driving_zones  # sanity
+
+    for zone in driving_zones:
+        assert zone.stop_line_position is not None
+        matching_lanes = lanes_by_edge[zone.edge_id]
+        matching = [
+            lane for lane in matching_lanes if np.array_equal(lane.centerline[0], zone.position)
+        ]
+        assert len(matching) == 1
+        assert np.array_equal(zone.stop_line_position, matching[0].centerline[-1])
+
+
+def test_crossing_zone_carries_real_node_id(urban_config, bounds) -> None:
+    """Every CROSSING zone's node_id matches a real crosswalk anchor's own
+    node_id -- the intersection this crossing belongs to, needed to look
+    up which signal phase governs it."""
+    nodes, edges, _, traffic = _generate_full_network(42, urban_config, bounds)
+    anchors = compute_crosswalk_anchors(nodes, edges)
+    real_node_ids = {anchor.node_id for anchor in anchors}
+
+    crossing_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.CROSSING]
+    assert crossing_zones  # sanity
+
+    for zone in crossing_zones:
+        assert zone.node_id is not None
+        assert zone.node_id in real_node_ids
+
+
 def test_pedestrian_spawn_zones_tiled_along_each_edge(  # pylint: disable=too-many-locals
     urban_config, bounds
 ) -> None:
