@@ -45,18 +45,26 @@ from src.procedural.city_sample_assets import (
     VEHICLE_ASSET_PATHS,
     pedestrian_face_and_hair,
 )
+from src.procedural.lane_topology import compute_node_clearance
 from src.procedural.math_utils import compute_perpendicular
 from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 from src.procedural.road_network import RoadEdge
 from src.procedural.scenario import ScenarioTypeConfig
 from src.procedural.signal_phasing import (
+    ApproachDirection,
     PhaseKind,
     SignalPhase,
     approach_direction_from_heading,
     build_signal_plans,
+    classify_approach_direction,
     resolve_active_phases,
 )
-from src.procedural.traffic_network import SpawnZone, SpawnZoneType, TrafficNetwork
+from src.procedural.traffic_network import (
+    VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M,
+    SpawnZone,
+    SpawnZoneType,
+    TrafficNetwork,
+)
 
 # The real road surface height -- matching the convention
 # ``_vehicle_to_asset_json`` already uses (vehicles sit at z=0.0, "the
@@ -276,21 +284,17 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         when their own crossing direction has the concurrent green
         (MUTCD's standard concurrent walk scheme).
 
-        Every vehicle (regardless of phase) is confined to its own real
-        stop line at an intersection -- never placed inside the
-        crosswalk/intersection box -- per explicit request 2026-09-24:
-        this pipeline has no representation of a vehicle actually
-        mid-transit through an intersection (a static single-frame
-        snapshot can't depict "moving" distinctly from "stopped" at the
-        same boundary anyway), so the resolved signal phase no longer
-        branches vehicle POSITION (see traffic_network.py's own
-        ``_generate_driving_zones`` docstring for the real bug this
-        fixes: an earlier version only capped the position for a vehicle
-        without the right of way, leaving a flowing vehicle's own normal
-        tile still able to land inside the box). The resolved phase
-        remains used for pedestrian crossing gating below, and remains
-        available for future work (e.g. an actual mid-crossing vehicle
-        placement mode).
+        A vehicle whose own axis has the right of way at a nearby
+        signalized node may occupy that node's own crosswalk/intersection
+        zone -- "the intersection is just an extended road" on a green
+        light, per explicit request 2026-09-24 -- while a vehicle whose
+        axis does NOT have the right of way there is confined behind that
+        node's own real crosswalk. This is decided per lane, per node,
+        independently at BOTH ends of every lane (see ``_try_place_
+        vehicle``): zone GENERATION (``traffic_network.py``) has no phase
+        information (phase is resolved once per scenario, right here,
+        randomly), so it tiles the full geometric lane; this method is
+        where the phase-vs-crosswalk decision actually happens.
 
         Parameters
         ----------
@@ -308,6 +312,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
 
         signal_plans = build_signal_plans(edges, traffic)
         active_phases = resolve_active_phases(signal_plans, self.rng)
+        node_clearance = compute_node_clearance(edges)
 
         vehicles: List[Vehicle] = []
         placed_vehicle_aabbs: List[Tuple[float, float, float, float]] = []
@@ -315,7 +320,9 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
 
         for zone in traffic.spawn_zones:
             if zone.zone_type == SpawnZoneType.DRIVING:
-                vehicle = self._try_place_vehicle(zone, edges, occupancy, placed_vehicle_aabbs)
+                vehicle = self._try_place_vehicle(
+                    zone, edges, occupancy, placed_vehicle_aabbs, active_phases, node_clearance
+                )
                 if vehicle is not None:
                     vehicles.append(vehicle)
                     placed_vehicle_aabbs.append(vehicle.aabb)
@@ -330,39 +337,101 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
 
         return vehicles, pedestrians
 
-    def _try_place_vehicle(
+    @staticmethod
+    def _axis_is_flowing(
+        node_id: int, axis: ApproachDirection, active_phases: Dict[int, SignalPhase]
+    ) -> bool:
+        """Whether a lane on cardinal ``axis`` has the right of way at
+        ``node_id`` at the one real instant resolved for this scenario. A
+        node absent from ``active_phases`` (T-junction/stop-sign/
+        uncontrolled -- see ``signal_phasing.py``'s scope note) always
+        flows: this project doesn't model stop-sign right-of-way, only
+        signalized intersections. At a signalized node, flowing requires
+        the real ``GREEN`` phase whose ``moving_approaches`` contains
+        ``axis`` -- valid at EITHER end of an edge, since opposing
+        cardinals (e.g. NORTH and SOUTH) always share the same
+        ``AXIS_PAIRS`` entry, so an edge's own single
+        ``classify_approach_direction`` axis means the same thing
+        whether the node being checked is that edge's start or end."""
+        phase = active_phases.get(node_id)
+        if phase is None:
+            return True
+        return phase.kind == PhaseKind.GREEN and axis in phase.moving_approaches
+
+    def _try_place_vehicle(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         zone: SpawnZone,
         edges: Dict[int, RoadEdge],
         occupancy: float,
         placed_vehicle_aabbs: List[Tuple[float, float, float, float]],
+        active_phases: Dict[int, SignalPhase],
+        node_clearance: Dict[int, float],
     ) -> Optional[Vehicle]:
         if self.rng.random() > occupancy:
             return None
         assert zone.edge_id is not None  # every DRIVING zone carries one
 
         edge = edges[zone.edge_id]
+        edge_direction = edge.centerline[-1] - edge.centerline[0]
+        edge_length = float(np.linalg.norm(edge_direction))
+        unit_direction = edge_direction / edge_length
+        axis = classify_approach_direction(edge)
+
+        position = zone.position
+        along_from_start = float(np.dot(position - edge.centerline[0], unit_direction))
+        along_from_end = edge_length - along_from_start
+        queued_at_stop_line = False
+
+        # Destination end: redirect to the real stop line (front bumper
+        # flush with the crosswalk's own far edge -- see
+        # traffic_network.py's VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
+        # docstring) only when this lane's own axis does NOT have the
+        # right of way there AND this candidate actually falls inside
+        # that node's real crosswalk-clearing zone. Otherwise (flowing,
+        # or already outside the zone) the natural tiled position stands
+        # -- "driving through a green light".
+        end_required = node_clearance.get(edge.end_node_id, 0.0) + (
+            VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
+        )
+        if along_from_end < end_required and not self._axis_is_flowing(
+            edge.end_node_id, axis, active_phases
+        ):
+            if zone.stop_line_position is None:
+                return None  # not the front-of-queue tile: no precise fallback, exclude
+            position = zone.stop_line_position
+            queued_at_stop_line = True
+
+        # Start end: re-derive from whatever `position` is now (after the
+        # destination check above), not the original tiled position --
+        # a redirected front-of-queue vehicle sits farther from the node
+        # it just queued at, so its relationship to the OTHER (start)
+        # node must be re-evaluated against where it actually ends up,
+        # not where it started.
+        along_from_start = float(np.dot(position - edge.centerline[0], unit_direction))
+        start_required = node_clearance.get(edge.start_node_id, 0.0) + (
+            VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
+        )
+        if along_from_start < start_required and not self._axis_is_flowing(
+            edge.start_node_id, axis, active_phases
+        ):
+            # A vehicle just departing a node it doesn't have the right
+            # of way to have entered has no sensible stop-line position
+            # (that concept only applies to a vehicle queuing to ENTER an
+            # intersection) -- it simply isn't placed.
+            return None
+
         vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
         asset_path = _sample_asset_path(self.rng, vehicle_type)
         length, width, height = VEHICLE_DIMENSIONS[vehicle_type]
         heading = _edge_heading(edge)
 
-        position = zone.position
-        if zone.stop_line_position is not None:
-            # The stop line itself is real, evidence-derived geometry
-            # (flush with the crosswalk's own far edge -- see
-            # traffic_network.py's VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
-            # docstring), but it marks where a vehicle's FRONT bumper
-            # stops, not its center. Offset backward (opposite the
-            # direction of travel) by half this vehicle's own real length
-            # so the front -- not the middle -- lands exactly there,
-            # keeping the whole vehicle behind the crosswalk rather than
-            # straddling it. Applied unconditionally (not just when this
-            # approach lacks the right of way): see this method's own
-            # ``generate`` docstring for why vehicle position no longer
-            # branches on signal phase.
+        if queued_at_stop_line:
+            # The stop line marks where a vehicle's FRONT bumper stops,
+            # not its center. Offset backward (opposite the direction of
+            # travel) by half this vehicle's own real length so the
+            # front -- not the middle -- lands exactly there.
             heading_vector = np.array([np.cos(heading), np.sin(heading)])
-            position = zone.stop_line_position - heading_vector * (length / 2.0)
+            position = position - heading_vector * (length / 2.0)
 
         candidate = Vehicle(
             vehicle_id=self._vehicle_counter,

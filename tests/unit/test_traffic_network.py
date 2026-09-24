@@ -169,12 +169,14 @@ def test_driving_spawn_zones_tiled_along_each_lane(  # pylint: disable=too-many-
     interval -- not just a single slot at the lane's intersection-facing
     end (a real bug, reported live: vehicles clustered only at
     intersections, leaving entire mid-block lane lengths empty). The
-    expected count is derived from the real, bounded ``usable_length``
-    (the edge's own real crosswalk-clearing setback at BOTH its start and
-    end node -- see ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M``'s own
-    docstring), not from ``Lane.centerline``'s own (possibly clamped)
-    span -- see traffic_network.py's ``_generate_driving_zones`` docstring
-    for why those two can differ."""
+    expected count is derived from the plain, ``MAX_TRIM_FRACTION_OF_EDGE_
+    LENGTH``-clamped ``compute_node_clearance`` trim at BOTH ends (the
+    same trim ``Lane.centerline`` itself uses) -- NOT the wider,
+    crosswalk-aware ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M`` boundary:
+    zone generation has no signal-phase information, so it tiles the
+    full geometric lane; the phase-aware crosswalk gating happens later,
+    at placement time, in ``actor_placement.py`` (see
+    ``_generate_driving_zones``'s own docstring, 2026-09-24)."""
     _, edges, lanes, traffic = _generate_full_network(42, urban_config, bounds)
     node_clearance = compute_node_clearance(edges)
     driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
@@ -184,13 +186,10 @@ def test_driving_spawn_zones_tiled_along_each_lane(  # pylint: disable=too-many-
         edge = edges[lane.edge_id]
         edge_direction = edge.centerline[-1] - edge.centerline[0]
         edge_length = float(np.linalg.norm(edge_direction))
-        start_clearance = node_clearance.get(edge.start_node_id, 0.0)
-        start_boundary_along = min(
-            start_clearance + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M, edge_length
-        )
-        end_clearance = node_clearance.get(edge.end_node_id, 0.0)
+        max_trim_each_side = edge_length * MAX_TRIM_FRACTION_OF_EDGE_LENGTH
+        start_boundary_along = min(node_clearance.get(edge.start_node_id, 0.0), max_trim_each_side)
         end_boundary_along = edge_length - min(
-            end_clearance + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M, edge_length
+            node_clearance.get(edge.end_node_id, 0.0), max_trim_each_side
         )
         usable_length = max(end_boundary_along - start_boundary_along, 0.0)
 
@@ -202,25 +201,26 @@ def test_driving_spawn_zones_tiled_along_each_lane(  # pylint: disable=too-many-
     assert saw_multi_tiled_lane  # sanity: this config/seed has long enough lanes to tile
 
 
-def test_driving_zones_never_inside_crosswalk_at_either_end(  # pylint: disable=too-many-locals
+def test_driving_zones_may_sit_inside_crosswalk_range(  # pylint: disable=too-many-locals
     urban_config, bounds
 ) -> None:
-    """Every DRIVING zone on every lane -- not just the front-of-queue
-    one -- clears the real crosswalk-respecting setback
-    (VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M) at BOTH the lane's start node
-    and its end node. Real bug, found from live re-testing (2026-09-24,
-    direct in-engine actor-position cross-check): an earlier version only
-    bounded the destination (stop-line) end, leaving a lane's own START
-    tile (right after departing the OPPOSITE node) still anchored on the
-    plain, crosswalk-unaware node clearance -- a typical clearance (7m)
-    sits well inside a real crosswalk's real span (5.5m-20.5m from the
-    node in this project's own figures), so a just-departed vehicle could
-    still land on the same crosswalk from the other side."""
+    """At least one DRIVING zone's own tiled position is CLOSER to its
+    nearer node than that node's real crosswalk-clearing setback
+    (``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M``) -- proving zone
+    generation no longer bounds tiling by the crosswalk (reverted
+    2026-09-24, per explicit request: a vehicle on the green axis must be
+    able to occupy the intersection itself, so generation-time geometry
+    must not pre-exclude those positions; the real phase-vs-crosswalk
+    decision moves to placement time in ``actor_placement.py``). Without
+    this reversion, every zone would clear the setback at both ends
+    unconditionally (the prior, too-strict behavior) and this test would
+    fail -- it exists specifically to catch a regression back to that
+    unconditional behavior."""
     _, edges, lanes, traffic = _generate_full_network(42, urban_config, bounds)
     node_clearance = compute_node_clearance(edges)
     driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
 
-    checked_any = False
+    saw_inside_crosswalk_range = False
     for lane in lanes.values():
         edge = edges[lane.edge_id]
         edge_direction = edge.centerline[-1] - edge.centerline[0]
@@ -228,18 +228,19 @@ def test_driving_zones_never_inside_crosswalk_at_either_end(  # pylint: disable=
         if edge_length < 1e-9:
             continue
         unit_direction = edge_direction / edge_length
-        start_clearance = node_clearance.get(edge.start_node_id, 0.0)
-        start_required = min(start_clearance + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M, edge_length)
-        end_clearance = node_clearance.get(edge.end_node_id, 0.0)
-        end_required = min(end_clearance + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M, edge_length)
+        start_required = node_clearance.get(edge.start_node_id, 0.0) + (
+            VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
+        )
+        end_required = node_clearance.get(edge.end_node_id, 0.0) + (
+            VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
+        )
 
         for zone in _zones_for_lane(driving_zones, lane):
-            checked_any = True
             along_from_start = float(np.dot(zone.position - edge.centerline[0], unit_direction))
             along_from_end = edge_length - along_from_start
-            assert along_from_start >= start_required - 1e-6
-            assert along_from_end >= end_required - 1e-6
-    assert checked_any  # sanity
+            if along_from_start < start_required or along_from_end < end_required:
+                saw_inside_crosswalk_range = True
+    assert saw_inside_crosswalk_range
 
 
 def test_driving_spawn_zone_carries_real_stop_line_position(  # pylint: disable=too-many-locals
