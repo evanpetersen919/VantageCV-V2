@@ -64,6 +64,11 @@ classification), giving both categories real variety consistent with
 every scenario template).
 """
 
+# pylint: disable=too-many-lines
+# A large, real asset-path/constant data module by nature (vehicle,
+# pedestrian, and outfit path tables) -- splitting it would not make any
+# single piece easier to review.
+
 import math
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
@@ -563,6 +568,16 @@ PEDESTRIAN_STANDING_CLIP: Tuple[int, int] = PEDESTRIAN_ANIM_CLIPS[1]
 # definitionally walking) pedestrians assigned the standing clip instead
 # of the walk cycle.
 PEDESTRIAN_STANDING_ACTIVITY_FRACTION = 0.2
+
+# Confirmed-dynamic sub-windows from the investigation above (verified
+# via live side-profile screenshots, not a guess). Used to BIAS walking
+# sampling toward an obviously mid-stride look (user request
+# 2026-09-24), not to restrict it -- the full clip stays in play too.
+PEDESTRIAN_WALKING_DYNAMIC_WINDOWS: Tuple[Tuple[int, int], ...] = ((140, 165), (280, 290))
+
+# Disclosed ESTIMATE (no real source for this fraction exists): user's
+# starting point 2026-09-24, flagged by them as subject to adjustment.
+PEDESTRIAN_WALKING_POSE_BIAS_FRACTION = 0.8
 
 
 # Real measured (width, depth, height) in meters, via GetStaticMeshBounds

@@ -36,6 +36,8 @@ from src.procedural.city_sample_assets import (
     PEDESTRIAN_STANDING_CLIP,
     PEDESTRIAN_TOP_ASSET_PATHS,
     PEDESTRIAN_WALKING_CLIP,
+    PEDESTRIAN_WALKING_DYNAMIC_WINDOWS,
+    PEDESTRIAN_WALKING_POSE_BIAS_FRACTION,
     VEHICLE_ASSET_PATHS,
     pedestrian_face_and_hair,
 )
@@ -261,6 +263,46 @@ def test_sidewalk_pedestrians_include_both_activities() -> None:
     )
     assert saw_walking
     assert saw_standing
+
+
+def test_walking_pose_frame_is_biased_toward_confirmed_dynamic_windows() -> None:
+    """Most walking pedestrians land in one of the two confirmed-dynamic
+    sub-windows (PEDESTRIAN_WALKING_DYNAMIC_WINDOWS), per
+    PEDESTRIAN_WALKING_POSE_BIAS_FRACTION -- real, evidence-backed
+    per-frame verdicts (live side-profile screenshots), not a guess.
+    Checks the ACTUAL fraction lands close to the configured bias rather
+    than just "at least one", since a bias that silently didn't apply
+    would still pass a weaker assertion."""
+    config = ScenarioTypeConfig(
+        scenario_type=ScenarioType.URBAN_DENSE,
+        avg_block_size=(100.0, 150.0),
+        avg_road_width=12.0,
+        num_intersections=(3, 6),
+        intersection_types=["4way", "3way"],
+        building_density=0.6,
+        building_heights=(20.0, 40.0),
+        traffic_density=(0.6, 1.0),
+        vehicle_mix={"sedan": 0.6, "suv": 0.25, "truck": 0.1, "bus": 0.05},
+        complexity_score=60,
+    )
+    wide_bounds = (-200.0, -200.0, 200.0, 200.0)
+    edges, traffic = _generate_full_network(7, config, wide_bounds)
+
+    _, pedestrians = ActorPlacementGenerator(7, config).generate(edges, traffic)
+    walking_pedestrians = [
+        p
+        for p in pedestrians
+        if PEDESTRIAN_WALKING_CLIP[0] <= p.pose_frame <= PEDESTRIAN_WALKING_CLIP[1]
+    ]
+    assert len(walking_pedestrians) > 20  # sanity: a large enough sample to check a fraction
+
+    in_dynamic_window = sum(
+        1
+        for p in walking_pedestrians
+        if any(start <= p.pose_frame <= end for start, end in PEDESTRIAN_WALKING_DYNAMIC_WINDOWS)
+    )
+    observed_fraction = in_dynamic_window / len(walking_pedestrians)
+    assert observed_fraction == pytest.approx(PEDESTRIAN_WALKING_POSE_BIAS_FRACTION, abs=0.1)
 
 
 def test_pedestrian_pose_frame_avoids_immediate_repeat(urban_config, bounds) -> None:
