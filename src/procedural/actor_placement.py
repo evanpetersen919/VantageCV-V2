@@ -344,7 +344,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             phase.moving_approaches
         )
 
-    def _try_place_vehicle(  # pylint: disable=too-many-arguments
+    def _try_place_vehicle(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         zone: SpawnZone,
         edges: Dict[int, RoadEdge],
@@ -363,9 +363,26 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         heading = _edge_heading(edge)
 
         position = zone.position
-        if not self._vehicle_is_flowing(edge, edge.end_node_id, active_phases):
-            assert zone.stop_line_position is not None  # every DRIVING zone carries one
-            position = zone.stop_line_position
+        # Only the one lane-end zone closest to a signalized intersection
+        # carries a real stop_line_position (see SpawnZone's own
+        # docstring) -- earlier zones further back on the same lane keep
+        # their normal tiled position regardless of phase (this pipeline
+        # is a frozen snapshot, not a queue simulation; see
+        # traffic_network.py's own docstring for why only the front
+        # vehicle is precisely positioned).
+        if zone.stop_line_position is not None and not self._vehicle_is_flowing(
+            edge, edge.end_node_id, active_phases
+        ):
+            # The stop line itself is real, evidence-derived geometry
+            # (flush with the crosswalk's own far edge -- see
+            # VEHICLE_STOP_LINE_SETBACK_METERS's docstring), but it marks
+            # where a vehicle's FRONT bumper stops, not its center. Offset
+            # backward (opposite the direction of travel) by half this
+            # vehicle's own real length so the front -- not the middle --
+            # lands exactly there, keeping the whole vehicle behind the
+            # crosswalk rather than straddling it.
+            heading_vector = np.array([np.cos(heading), np.sin(heading)])
+            position = zone.stop_line_position - heading_vector * (length / 2.0)
 
         candidate = Vehicle(
             vehicle_id=self._vehicle_counter,

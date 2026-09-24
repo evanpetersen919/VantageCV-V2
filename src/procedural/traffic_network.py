@@ -25,7 +25,11 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import numpy.typing as npt
 
-from src.procedural.crosswalks import compute_crosswalk_anchors
+from src.procedural.crosswalks import (
+    CROSSWALK_DEPTH_M,
+    CROSSWALK_INTERSECTION_NUDGE_M,
+    compute_crosswalk_anchors,
+)
 from src.procedural.lane_topology import (
     MAX_TRIM_FRACTION_OF_EDGE_LENGTH,
     Lane,
@@ -52,6 +56,38 @@ SIDEWALK_OFFSET_METERS = 1.5
 # points along the lane. Reused directly here rather than inventing a
 # spacing figure.
 PEDESTRIAN_SPAWN_GAP_METERS = 3.0
+
+# Real, cited industry-standard figure (Highway Capacity Manual: typical
+# stopped-queue vehicle spacing -- car length plus following gap -- is
+# commonly cited as ~25 feet, 7.6m, corresponding to HCM's usual ~190-250
+# veh/mi/lane jam-density figure for a single travel lane). Reused here as
+# the tiling interval for DRIVING candidate spawn points along a lane's
+# own real length, exactly mirroring how PEDESTRIAN_SPAWN_GAP_METERS
+# already tiles pedestrian candidates along a sidewalk instead of placing
+# just one slot per edge (see that constant's own docstring): a real bug,
+# reported live (2026-09-24) -- with only one candidate point per lane
+# (at its very end, right next to the intersection), every vehicle in a
+# scenario visibly clustered at intersections, with entire mid-block lane
+# lengths left completely empty, however busy config.traffic_density was.
+VEHICLE_SPAWN_GAP_METERS = 7.6
+
+# How far short of a lane's own real intersection-facing end
+# (Lane.centerline[-1], already trimmed to the node's own
+# compute_node_clearance boundary -- see lane_topology.py) a vehicle
+# actually stopped at a red light must additionally sit, so it queues
+# BEHIND the real painted crosswalk instead of on top of/past it. Real bug
+# reported live (2026-09-24): the lane's own trimmed end sits at exactly
+# the intersection box's edge, which is INSIDE (nearer the node than) the
+# crosswalk's own far edge (crosswalks.py flush-places the crosswalk just
+# outside that same box edge, extending CROSSWALK_DEPTH_M further out) --
+# so a vehicle queued at the lane's raw trimmed end was rendering as if
+# stopped on/past the crosswalk stripes, not before them. This constant is
+# exactly the crosswalk's own real depth-minus-nudge (the same figure
+# crosswalks.py's own bar placement uses for its far edge), reused
+# directly rather than re-derived, so the stop line this module computes
+# always lands exactly flush with the crosswalk's real far edge, never
+# independently guessed.
+VEHICLE_STOP_LINE_SETBACK_METERS = CROSSWALK_DEPTH_M - CROSSWALK_INTERSECTION_NUDGE_M
 
 
 class TrafficControlType(str, Enum):
@@ -89,16 +125,20 @@ class SpawnZone:
     belongs to, needed to look up which real signal phase currently
     governs whether crossing here is safe (see ``signal_phasing.py``).
 
-    ``stop_line_position`` is populated only for ``DRIVING`` zones, from
-    the same lane's own real trimmed-far-end position
-    (``Lane.centerline[-1]``) that ``lane_topology.py`` already computes
-    by trimming a lane short of its destination node's real
-    ``compute_node_clearance`` boundary -- i.e. the real physical stop
-    line a vehicle queues behind when its own approach direction doesn't
-    have the right of way (see ``actor_placement.py``'s vehicle
-    placement). ``position`` (the lane's near/start end) remains a
-    driving zone's normal, flowing-traffic spawn point; this is a
-    second, distinct point on the same lane, not a replacement.
+    ``stop_line_position`` is populated only for the single ``DRIVING``
+    zone closest to a lane's own destination node (multiple ``DRIVING``
+    zones now tile each lane's full length -- see
+    ``TrafficNetworkGenerator._generate_driving_zones``): the real
+    position, set back behind the real painted crosswalk by
+    ``VEHICLE_STOP_LINE_SETBACK_METERS``, a vehicle queues at when its own
+    approach direction doesn't have the right of way (see
+    ``actor_placement.py``'s vehicle placement). Every other ``DRIVING``
+    zone on the same lane (further back from the intersection) carries
+    ``None`` -- this pipeline generates frozen single-frame snapshots, not
+    a running queue simulation, so only the front-of-queue vehicle is
+    precisely positioned; earlier zones keep their own natural tiled
+    position regardless of signal phase (a disclosed simplification, not
+    an oversight).
     """
 
     spawn_zone_id: int
@@ -259,12 +299,83 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
                 controls[node_id] = TrafficControlType.NONE
         return controls
 
+    def _generate_driving_zones(self, lanes: Dict[int, Lane]) -> List[SpawnZone]:
+        """One or more DRIVING spawn zones per lane, tiled at the real
+        ``VEHICLE_SPAWN_GAP_METERS`` interval along its own already-
+        trimmed length (``Lane.centerline`` -- trimmed short of both its
+        edge's end nodes by ``LaneTopologyGenerator``, so every tiled
+        point already stays clear of intersections without any further
+        clamping here). See ``_generate_spawn_zones``'s own docstring for
+        why only the LAST (closest-to-node) point carries a real
+        ``stop_line_position``."""
+        spawn_zones: List[SpawnZone] = []
+        for lane in lanes.values():
+            direction = lane.centerline[-1] - lane.centerline[0]
+            lane_length = float(np.linalg.norm(direction))
+            num_points = max(1, int(lane_length // VEHICLE_SPAWN_GAP_METERS) + 1)
+            unit_direction = direction / lane_length if lane_length > 1e-9 else None
+
+            for point_index in range(num_points):
+                is_last = point_index == num_points - 1
+                if unit_direction is None:
+                    position = lane.centerline[0].copy()
+                else:
+                    position = lane.centerline[0] + unit_direction * (
+                        point_index * VEHICLE_SPAWN_GAP_METERS
+                    )
+
+                stop_line_position = None
+                if is_last:
+                    if unit_direction is None:
+                        # Degenerate (near-zero-length) lane: no real
+                        # direction to set the stop line back along: the
+                        # lane's own single point is the only safe choice.
+                        stop_line_position = lane.centerline[-1].copy()
+                    else:
+                        setback = min(VEHICLE_STOP_LINE_SETBACK_METERS, lane_length)
+                        stop_line_position = lane.centerline[-1] - unit_direction * setback
+
+                spawn_zones.append(
+                    SpawnZone(
+                        spawn_zone_id=self._spawn_zone_counter,
+                        zone_type=SpawnZoneType.DRIVING,
+                        position=position,
+                        edge_id=lane.edge_id,
+                        stop_line_position=stop_line_position,
+                    )
+                )
+                self._spawn_zone_counter += 1
+        return spawn_zones
+
     def _generate_spawn_zones(  # pylint: disable=too-many-locals
         self, edges: Dict[int, RoadEdge], lanes: Dict[int, Lane]
     ) -> List[SpawnZone]:
-        """One driving spawn zone at the start of every lane, plus
-        pedestrian spawn zones tiled along each edge's sidewalk at the
-        real ``PEDESTRIAN_SPAWN_GAP_METERS`` interval (see that
+        """Driving spawn zones tiled along the FULL real length of every
+        lane at the real ``VEHICLE_SPAWN_GAP_METERS`` interval (see that
+        constant's own docstring) -- not just one slot at the lane's
+        intersection-facing end, so vehicles spread along an entire real
+        block the way pedestrian zones already spread along a sidewalk.
+        A real bug, reported live (2026-09-24): with only one candidate
+        point per lane, right next to the intersection, every vehicle in
+        a scenario visibly clustered at intersections regardless of
+        ``config.traffic_density``, leaving whole mid-block lane lengths
+        empty.
+
+        Only the LAST (closest-to-node) tiled point on each lane carries
+        a real ``stop_line_position`` -- the one vehicle actually at the
+        front of a real queue needs to be precisely placed behind the
+        real crosswalk (see ``VEHICLE_STOP_LINE_SETBACK_METERS``'s own
+        docstring for the real bug this fixes: a naively-trimmed lane end
+        sits INSIDE the crosswalk's own far edge, not behind it). Earlier
+        tiled points further back on the same lane keep ``None``: this
+        pipeline generates frozen single-frame snapshots, not a running
+        queue simulation, so a vehicle several car-lengths from the
+        light -- whether the light is red or green -- is left at its own
+        natural tiled lane position either way, a deliberate, disclosed
+        simplification rather than modeling full queue-length dynamics.
+
+        Plus pedestrian spawn zones tiled along each edge's sidewalk at
+        the real ``PEDESTRIAN_SPAWN_GAP_METERS`` interval (see that
         constant's own docstring) -- not just one fixed slot per edge,
         so a real sidewalk can hold a variable number of people spread
         along its length, matching how City Sample's own crowd system
@@ -283,18 +394,7 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
         pedestrians appearing to stand in the road at an intersection,
         not on a sidewalk."""
         spawn_zones: List[SpawnZone] = []
-
-        for lane in lanes.values():
-            spawn_zones.append(
-                SpawnZone(
-                    spawn_zone_id=self._spawn_zone_counter,
-                    zone_type=SpawnZoneType.DRIVING,
-                    position=lane.centerline[0].copy(),
-                    edge_id=lane.edge_id,
-                    stop_line_position=lane.centerline[-1].copy(),
-                )
-            )
-            self._spawn_zone_counter += 1
+        spawn_zones += self._generate_driving_zones(lanes)
 
         lanes_by_edge: Dict[int, List[Lane]] = {}
         for lane in lanes.values():
