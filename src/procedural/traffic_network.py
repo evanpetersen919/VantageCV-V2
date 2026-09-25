@@ -20,7 +20,7 @@ import heapq
 import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -282,7 +282,7 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
         -------
         TrafficNetwork
         """
-        traffic_controls = self._assign_traffic_controls(nodes)
+        traffic_controls = self._assign_traffic_controls(nodes, edges)
         spawn_zones = self._generate_spawn_zones(edges, lanes)
         spawn_zones += self._generate_crossing_zones(nodes, edges)
         navigation_graph = self._build_navigation_graph(edges)
@@ -295,20 +295,47 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
 
     @staticmethod
     def _assign_traffic_controls(
-        nodes: Dict[int, RoadNode],
+        nodes: Dict[int, RoadNode], edges: Dict[int, RoadEdge]
     ) -> Dict[int, TrafficControlType]:
         """Assign traffic lights to four-way intersections and stop signs
         to T-junctions, mutating each RoadNode's own
         ``traffic_light``/``stop_sign`` fields (populated here for the
         first time -- see module docstring) and returning the same
-        information as a lookup dict for convenience."""
+        information as a lookup dict for convenience.
+
+        A node the master prompt's own classification keeps as
+        ``ISOLATED`` despite having 2 real connections (see
+        ``road_network.py``'s ``_assign_road_attributes`` docstring) is
+        NOT always a true dead end or straight pass-through: a real
+        STREET CORNER -- two separate roads meeting at a right angle,
+        this project's own grid perimeter turning a corner -- is
+        classified exactly the same way, but has BOTH real cardinal axes
+        physically present there, unlike a genuine dead end or straight
+        pass-through (only one axis). Found live: without real gating,
+        both perpendicular streams occupied a corner simultaneously with
+        no right-of-way discipline at all -- unrealistic even for an
+        unsignalized crossing. Real, cheap, exact test (no new geometry):
+        a node with edges on 2 distinct real cardinal axes gets
+        ``STOP_SIGN`` too; ``compute_minor_axis_by_node`` already handles
+        an equal-count node (no clear through road) by requiring a full
+        stop on every axis, not just one."""
+        axis_count_by_node: Dict[int, Set[bool]] = {}
+        for edge in edges.values():
+            dx, dy = edge.centerline[-1] - edge.centerline[0]
+            is_east_west = abs(dx) >= abs(dy)
+            for node_id in (edge.start_node_id, edge.end_node_id):
+                axis_count_by_node.setdefault(node_id, set()).add(is_east_west)
+
         controls: Dict[int, TrafficControlType] = {}
         for node_id, node in nodes.items():
             if node.node_type == IntersectionType.FOUR_WAY:
                 node.traffic_light = True
                 node.stop_sign = False
                 controls[node_id] = TrafficControlType.TRAFFIC_LIGHT
-            elif node.node_type == IntersectionType.T_JUNCTION:
+            elif (
+                node.node_type == IntersectionType.T_JUNCTION
+                or len(axis_count_by_node.get(node_id, set())) == 2
+            ):
                 node.traffic_light = False
                 node.stop_sign = True
                 controls[node_id] = TrafficControlType.STOP_SIGN

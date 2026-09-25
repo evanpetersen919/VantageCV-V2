@@ -118,10 +118,33 @@ def test_compute_minor_axis_by_node_skips_a_dead_end() -> None:
     assert 1 not in compute_minor_axis_by_node(edges)
 
 
-def test_compute_minor_axis_by_node_skips_a_genuine_four_way() -> None:
-    """A real 4-way (edges on both axes, equal counts) has no minor axis
-    -- it's signalized, not stop-controlled, and shouldn't get a static
-    stop rule even if it happened to also appear here."""
+def test_compute_minor_axis_by_node_reports_both_axes_at_a_real_street_corner() -> None:
+    """A real street corner -- 2 physical connections, non-collinear, one
+    on each real axis (1/1 split) -- has BOTH axes minor: neither road is
+    a "through" road relative to the other, so both must stop, matching
+    a real unsignalized corner crossing. This is the case
+    ``road_network.py``'s own docstring flags: kept ``ISOLATED`` by the
+    master prompt's own classification despite having 2 real
+    connections, which is NOT the same as a true dead end/pass-through
+    (only one axis) -- see ``traffic_network.py``'s
+    ``_assign_traffic_controls``."""
+    edges = {
+        0: _node_edge(2, 1, (-10.0, 0.0), (0.0, 0.0)),  # west connection (EAST_WEST_AXIS)
+        1: _node_edge(1, 2, (0.0, 0.0), (-10.0, 0.0)),
+        2: _node_edge(1, 3, (0.0, 0.0), (0.0, 10.0)),  # north connection (NORTH_SOUTH_AXIS)
+        3: _node_edge(3, 1, (0.0, 10.0), (0.0, 0.0)),
+    }
+    assert compute_minor_axis_by_node(edges)[1] == NORTH_SOUTH_AXIS | EAST_WEST_AXIS
+
+
+def test_compute_minor_axis_by_node_reports_both_axes_for_equal_counts() -> None:
+    """Equal counts on both axes (no clear through road) means BOTH axes
+    are minor -- the real, symmetric-stop treatment this function's own
+    docstring describes for a corner or comparable-volume crossing. A
+    genuine 4-way also has equal counts, but is always TRAFFIC_LIGHT-
+    controlled and never actually reaches this fallback in
+    ``_axis_is_flowing``, so this result being present here is harmless
+    for that case -- not specifically about 4-ways."""
     edges = {
         0: _node_edge(2, 1, (-10.0, 0.0), (0.0, 0.0)),
         1: _node_edge(1, 2, (0.0, 0.0), (-10.0, 0.0)),
@@ -132,7 +155,7 @@ def test_compute_minor_axis_by_node_skips_a_genuine_four_way() -> None:
         6: _node_edge(5, 1, (0.0, -10.0), (0.0, 0.0)),
         7: _node_edge(1, 5, (0.0, 0.0), (0.0, -10.0)),
     }
-    assert 1 not in compute_minor_axis_by_node(edges)
+    assert compute_minor_axis_by_node(edges)[1] == NORTH_SOUTH_AXIS | EAST_WEST_AXIS
 
 
 def test_approach_direction_from_heading_matches_classify() -> None:
