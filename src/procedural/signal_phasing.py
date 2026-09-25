@@ -14,15 +14,25 @@ pedestrians consistently with it.
 
 Scope, deliberately: only ``RoadNode``s with ``TrafficControlType.
 TRAFFIC_LIGHT`` (four-way intersections -- see ``traffic_network.py``) get
-a signal plan. T-junctions/stop-signs are out of scope here, matching
-real-world practice: an uncontrolled/stop-sign intersection has no
-coordinated signal cycle, right-of-way there is a first-come/right-hand
-rule, not a timed phase. Left-turn phasing is also out of scope for this
+a full timed signal plan. Left-turn phasing is out of scope for this
 first pass (this project does not yet place any turning vehicles at all
 -- see ``lane_connectivity.TurnType``, not used here); every moving
 direction on a green axis is treated as permissive (proceed when clear),
 which is itself a real, common, MUTCD-legal configuration, just not the
 only one real intersections use.
+
+``TrafficControlType.STOP_SIGN`` (T-junctions) get a simpler, static rule
+instead of a timed plan (see ``compute_minor_axis_by_node`` below): a
+real 2-way stop only controls the minor/stub road, never the major/
+through road, and -- unlike a signal -- always requires a full stop, not
+a timed share of green. Since this pipeline can't model "stops, then
+proceeds" within one frozen frame, the correct single-frame equivalent is
+that the minor axis is ALWAYS treated as not having the right of way
+(permanently queued at its own stop line), while the through axis always
+flows -- this is the static, MUTCD-consistent limit of a 2-way stop, not
+an invented rule. A genuine all-way stop is not modeled (no per-approach
+arrival-order tracking exists), so ``TrafficControlType.NONE`` (any
+other/uncontrolled node) still always flows, unchanged.
 
 Real road network guarantee this module leans on (see
 ``road_network.py``'s own module docstring): every edge is exactly
@@ -151,6 +161,43 @@ def approach_direction_from_heading(heading_rad: float) -> ApproachDirection:
     from ``compute_perpendicular`` of an axis-aligned road direction, so
     it is itself exactly axis-aligned."""
     return _classify_direction_vector(math.cos(heading_rad), math.sin(heading_rad))
+
+
+def compute_minor_axis_by_node(
+    edges: Dict[int, RoadEdge]
+) -> Dict[int, FrozenSet[ApproachDirection]]:
+    """For a real T-junction (exactly one through axis, one stub axis),
+    the axis pair that is the minor/stub road -- the one a real 2-way
+    stop sign controls (see module docstring). Derived purely from
+    geometry, not ``TrafficControlType``: at any node, group every
+    incident directed edge (as either its ``start_node_id`` or
+    ``end_node_id``) by which of the two real ``AXIS_PAIRS`` its
+    direction vector falls on (exact for this project's axis-aligned grid
+    -- same guarantee ``classify_approach_direction`` relies on). A real
+    T-shape is exactly 3 physical two-way connections: 2 collinear
+    (through, contributing 4 directed edges) and 1 perpendicular (stub,
+    contributing 2) -- so the axis with the smaller of two unequal counts
+    is the stub. A node with edges on only one axis (dead end) or equal
+    counts on both (a genuine 4-way) has no minor axis at all and is
+    absent from the result -- callers must treat a missing node_id like
+    ``active_phases`` treats one: no rule applies there."""
+    axis_counts: Dict[int, Dict[FrozenSet[ApproachDirection], int]] = {}
+    for edge in edges.values():
+        dx, dy = edge.centerline[-1] - edge.centerline[0]
+        axis_pair = EAST_WEST_AXIS if abs(dx) >= abs(dy) else NORTH_SOUTH_AXIS
+        for node_id in (edge.start_node_id, edge.end_node_id):
+            counts = axis_counts.setdefault(node_id, {})
+            counts[axis_pair] = counts.get(axis_pair, 0) + 1
+
+    minor_axis: Dict[int, FrozenSet[ApproachDirection]] = {}
+    for node_id, counts in axis_counts.items():
+        if len(counts) != 2:
+            continue
+        (axis_a, count_a), (axis_b, count_b) = counts.items()
+        if count_a == count_b:
+            continue
+        minor_axis[node_id] = axis_a if count_a < count_b else axis_b
+    return minor_axis
 
 
 class PhaseKind(str, Enum):

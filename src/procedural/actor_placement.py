@@ -25,7 +25,7 @@ field, added specifically to carry this.
 
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, FrozenSet, List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -57,12 +57,14 @@ from src.procedural.signal_phasing import (
     approach_direction_from_heading,
     build_signal_plans,
     classify_approach_direction,
+    compute_minor_axis_by_node,
     resolve_active_phases,
 )
 from src.procedural.traffic_network import (
     VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M,
     SpawnZone,
     SpawnZoneType,
+    TrafficControlType,
     TrafficNetwork,
 )
 
@@ -313,6 +315,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         signal_plans = build_signal_plans(edges, traffic)
         active_phases = resolve_active_phases(signal_plans, self.rng)
         node_clearance = compute_node_clearance(edges)
+        minor_axis_by_node = compute_minor_axis_by_node(edges)
 
         vehicles: List[Vehicle] = []
         placed_vehicle_aabbs: List[Tuple[float, float, float, float]] = []
@@ -321,7 +324,14 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         for zone in traffic.spawn_zones:
             if zone.zone_type == SpawnZoneType.DRIVING:
                 vehicle = self._try_place_vehicle(
-                    zone, edges, occupancy, placed_vehicle_aabbs, active_phases, node_clearance
+                    zone,
+                    edges,
+                    occupancy,
+                    placed_vehicle_aabbs,
+                    active_phases,
+                    node_clearance,
+                    traffic.traffic_controls,
+                    minor_axis_by_node,
                 )
                 if vehicle is not None:
                     vehicles.append(vehicle)
@@ -339,24 +349,40 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
 
     @staticmethod
     def _axis_is_flowing(
-        node_id: int, axis: ApproachDirection, active_phases: Dict[int, SignalPhase]
+        node_id: int,
+        axis: ApproachDirection,
+        active_phases: Dict[int, SignalPhase],
+        traffic_controls: Dict[int, TrafficControlType],
+        minor_axis_by_node: Dict[int, FrozenSet[ApproachDirection]],
     ) -> bool:
         """Whether a lane on cardinal ``axis`` has the right of way at
-        ``node_id`` at the one real instant resolved for this scenario. A
-        node absent from ``active_phases`` (T-junction/stop-sign/
-        uncontrolled -- see ``signal_phasing.py``'s scope note) always
-        flows: this project doesn't model stop-sign right-of-way, only
-        signalized intersections. At a signalized node, flowing requires
-        the real ``GREEN`` phase whose ``moving_approaches`` contains
-        ``axis`` -- valid at EITHER end of an edge, since opposing
-        cardinals (e.g. NORTH and SOUTH) always share the same
-        ``AXIS_PAIRS`` entry, so an edge's own single
+        ``node_id``. At a signalized node (present in ``active_phases``),
+        flowing requires the real ``GREEN`` phase whose
+        ``moving_approaches`` contains ``axis`` -- valid at EITHER end of
+        an edge, since opposing cardinals (e.g. NORTH and SOUTH) always
+        share the same ``AXIS_PAIRS`` entry, so an edge's own single
         ``classify_approach_direction`` axis means the same thing
-        whether the node being checked is that edge's start or end."""
+        whether the node being checked is that edge's start or end.
+
+        At a ``STOP_SIGN`` node (a real T-junction), there is no timed
+        phase to resolve -- instead the minor/stub axis (``
+        compute_minor_axis_by_node``) never flows (a real 2-way stop
+        always requires a full stop there) while the major/through axis
+        always does -- see ``signal_phasing.py``'s module docstring for
+        why this static rule is the correct single-frame equivalent of a
+        real stop sign, not an invented one. Any other node (uncontrolled/
+        isolated/dead-end, or a T-shape with no clean minor axis) always
+        flows: this project still doesn't model all-way-stop right-of-
+        way, which needs real arrival-order tracking this pipeline has no
+        concept of."""
         phase = active_phases.get(node_id)
-        if phase is None:
-            return True
-        return phase.kind == PhaseKind.GREEN and axis in phase.moving_approaches
+        if phase is not None:
+            return phase.kind == PhaseKind.GREEN and axis in phase.moving_approaches
+        if traffic_controls.get(node_id) == TrafficControlType.STOP_SIGN:
+            minor_axis = minor_axis_by_node.get(node_id)
+            if minor_axis is not None:
+                return axis not in minor_axis
+        return True
 
     def _try_place_vehicle(  # pylint: disable=too-many-arguments,too-many-locals
         self,
@@ -366,6 +392,8 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         placed_vehicle_aabbs: List[Tuple[float, float, float, float]],
         active_phases: Dict[int, SignalPhase],
         node_clearance: Dict[int, float],
+        traffic_controls: Dict[int, TrafficControlType],
+        minor_axis_by_node: Dict[int, FrozenSet[ApproachDirection]],
     ) -> Optional[Vehicle]:
         if self.rng.random() > occupancy:
             return None
@@ -394,7 +422,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
         )
         if along_from_end < end_required and not self._axis_is_flowing(
-            edge.end_node_id, axis, active_phases
+            edge.end_node_id, axis, active_phases, traffic_controls, minor_axis_by_node
         ):
             if zone.stop_line_position is None:
                 return None  # not the front-of-queue tile: no precise fallback, exclude
@@ -412,7 +440,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
         )
         if along_from_start < start_required and not self._axis_is_flowing(
-            edge.start_node_id, axis, active_phases
+            edge.start_node_id, axis, active_phases, traffic_controls, minor_axis_by_node
         ):
             # A vehicle just departing a node it doesn't have the right
             # of way to have entered has no sensible stop-line position
