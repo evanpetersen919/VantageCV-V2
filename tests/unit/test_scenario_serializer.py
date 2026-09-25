@@ -258,6 +258,7 @@ def test_serialize_scenario_handles_empty_meshes() -> None:
         street_furniture_pieces: list = []
         crosswalk_pieces: list = []
         traffic_light_pieces: list = []
+        parking_lot_pieces: list = []
         pedestrians: list = []
         time_of_day = TimeOfDay.DAY
 

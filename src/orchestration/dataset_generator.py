@@ -38,9 +38,10 @@ from src.procedural.parking_lots import (
     ParkingLot,
     parked_vehicles,
     parking_lot_meshes,
+    parking_lot_pieces,
     plan_parking_lots,
 )
-from src.procedural.road_edge_kit import DEFAULT_ROAD_EDGE_KIT, generate_road_edge_pieces
+from src.procedural.road_edge_kit import DEFAULT_ROAD_EDGE_KIT, Rect, generate_road_edge_pieces
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadNode
 from src.procedural.scenario import ScenarioTypeConfig
 from src.procedural.street_furniture import (
@@ -88,6 +89,7 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     # Night only: whether each entry of building_facade_pieces is lit.
     building_pieces_lit: List[bool] = field(default_factory=list)
     parking_lots: List[ParkingLot] = field(default_factory=list)
+    parking_lot_pieces: List[FacadePiece] = field(default_factory=list)
     building_piece_room_ids: List[int] = field(default_factory=list)
 
 
@@ -182,7 +184,6 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     # pedestrians derives boxes from Pedestrian's own fields, not from
     # meshes.
     meshes: List[Mesh] = [MeshFactory.build_road_mesh(lane) for lane in lanes.values()]
-    meshes += parking_lot_meshes(parking_lots)
 
     building_facade_pieces: List[FacadePiece] = []
     for building in buildings:
@@ -194,22 +195,35 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     # seed (an isolated stream, so it never disturbs any other generator's
     # random sequence): every tile matches, scenarios differ.
     style_rng = np.random.Generator(np.random.PCG64([seed, 0x51DE]))
+    # Curbs and sidewalks are cut away where a lot's driveway crosses them,
+    # and each driveway is then widened to cover the curb pieces removed.
+    removed_curbs: List[Rect] = []
     road_edge_pieces = generate_road_edge_pieces(
         lanes,
         edges,
         curb_variant=int(style_rng.integers(len(DEFAULT_ROAD_EDGE_KIT.curb_asset_paths))),
         sidewalk_variant=int(style_rng.integers(len(DEFAULT_ROAD_EDGE_KIT.sidewalk_asset_paths))),
+        gap_rects=[lot.driveway.gap for lot in parking_lots if lot.driveway is not None],
+        removed_curbs=removed_curbs,
     )
+    for lot in parking_lots:
+        if lot.driveway is not None:
+            lot.driveway = lot.driveway.widened(removed_curbs)
+    meshes += parking_lot_meshes(parking_lots)
 
     # Drawn LAST from the style stream so every earlier style choice for a
     # given seed is unchanged by the season feature.
     chosen_season = season if season is not None else _draw_season(style_rng)
 
+    lamp_style = int(style_rng.integers(len(LAMP_STYLES)))
+    tree_base_style = int(style_rng.integers(len(TREE_BASE_STYLES)))
+    parking_lot_props = parking_lot_pieces(parking_lots, lamp_style)
+
     street_furniture_pieces = generate_street_furniture_pieces(
         lanes,
         edges,
-        lamp_style=int(style_rng.integers(len(LAMP_STYLES))),
-        tree_base_style=int(style_rng.integers(len(TREE_BASE_STYLES))),
+        lamp_style=lamp_style,
+        tree_base_style=tree_base_style,
         seed=seed,
         include_trees=season_has_trees(chosen_season),
     )
@@ -245,6 +259,7 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         validation_report=validation_report,
         time_of_day=time_of_day,
         parking_lots=parking_lots,
+        parking_lot_pieces=parking_lot_props,
         building_pieces_lit=(
             building_pieces_lit(len(building_facade_pieces), seed)
             if time_of_day == TimeOfDay.NIGHT

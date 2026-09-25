@@ -13,16 +13,23 @@ from src.procedural.night_lights import vehicle_glows, vehicle_lights
 from src.procedural.parking_lots import (
     AISLE_OVERHANG_M,
     AISLE_WIDTH_M,
+    DRIVEWAY_RAMP_OUTER_Z_M,
+    DRIVEWAY_WIDTH_M,
+    ISLAND_PERIOD_STALLS,
     LOT_SURFACE_Z_M,
     MIN_STALLS_PER_ROW,
     PARKED_MIX_EXPONENT,
     PARKED_MODELS,
     PARKED_VEHICLE_TYPES,
+    PARKING_BLOCK_ASSET_PATHS,
     STALL_LENGTH_M,
     STALL_WIDTH_M,
+    WHEEL_STOP_SETBACK_M,
+    Driveway,
     layout_lot,
     parked_vehicles,
     parking_lot_meshes,
+    parking_lot_pieces,
     plan_parking_lots,
 )
 
@@ -49,12 +56,13 @@ def test_stall_and_aisle_are_the_cited_us_dimensions() -> None:
 
 def test_a_double_loaded_lot_has_the_expected_stall_count_and_geometry() -> None:
     """A lot exactly one module (two rows + aisle) deep and 20 stalls long
-    (plus edge margins) holds 2 rows x 20 stalls, every stall inside the
-    bounds, and evenly spaced by one stall width."""
+    (plus edge margins) holds 2 rows of 20 positions, one of which is a
+    landscape island, every stall inside the bounds, and stalls spaced in
+    whole stall widths."""
     depth = 2 * STALL_LENGTH_M + AISLE_WIDTH_M + 2.0
     length = 20 * STALL_WIDTH_M + 2.0
     lot = layout_lot(0, (0.0, 0.0, length, depth))
-    assert len(lot.stalls) == 40
+    assert len(lot.stalls) == 2 * (20 - 1)
     x_min, y_min, x_max, y_max = lot.bounds
     for stall in lot.stalls:
         cx, cy = stall.center
@@ -64,7 +72,9 @@ def test_a_double_loaded_lot_has_the_expected_stall_count_and_geometry() -> None
     assert len(rows) == 2
     assert rows[1] - rows[0] == pytest.approx(STALL_LENGTH_M + AISLE_WIDTH_M)
     row_one = sorted(s.center[0] for s in lot.stalls if round(s.center[1], 6) == rows[0])
-    assert np.diff(row_one) == pytest.approx(STALL_WIDTH_M)
+    steps = np.diff(row_one) / STALL_WIDTH_M
+    assert steps == pytest.approx(np.round(steps))
+    assert sorted(set(np.round(steps).astype(int))) == [1, 2]
 
 
 def test_stalls_face_away_from_their_aisle() -> None:
@@ -169,13 +179,21 @@ def test_parked_vehicle_types_follow_the_flattened_class_mix(urban_config) -> No
 
 
 def test_lot_meshes_are_a_surface_and_one_stripe_mesh_per_lot(urban_config, bounds) -> None:
-    """Each lot yields an asphalt surface and a paint_white stripe mesh."""
+    """Each lot yields an asphalt surface, a paint_white stripe mesh, and
+    a driveway apron and ramp; all are flat except the ramp."""
     result = generate_scenario(42, _config(urban_config, 0.6), bounds, "x")
     meshes = parking_lot_meshes(result.parking_lots)
-    assert [m.material for m in meshes].count("asphalt") == len(result.parking_lots)
-    assert [m.material for m in meshes].count("paint_white") == len(result.parking_lots)
-    for mesh in meshes:
-        assert np.allclose(mesh.vertices[:, 2], mesh.vertices[0, 2])
+    lots = len(result.parking_lots)
+    assert [m.material for m in meshes].count("asphalt") == 3 * lots
+    assert [m.material for m in meshes].count("paint_white") == lots
+    ramps = [m for m in meshes if not np.allclose(m.vertices[:, 2], m.vertices[0, 2])]
+    assert len(ramps) == lots
+    for ramp in ramps:
+        assert ramp.vertices[:, 2].min() == pytest.approx(DRIVEWAY_RAMP_OUTER_Z_M)
+        assert ramp.vertices[:, 2].max() == pytest.approx(LOT_SURFACE_Z_M)
+        tri = ramp.vertices[ramp.triangles[:3]]
+        normal = np.cross(tri[1] - tri[0], tri[2] - tri[0])
+        assert normal[2] > 0.0
 
 
 def test_plan_needs_edges_and_positive_fraction(urban_config) -> None:
@@ -224,3 +242,124 @@ def test_vehicle_defaults_are_unparked_on_the_road() -> None:
     """A plain Vehicle is not parked and stands at z 0."""
     car = Vehicle(0, "sedan", "/p", np.zeros(2), 0.0, *VEHICLE_DIMENSIONS["sedan"])
     assert not car.parked and car.surface_z == 0.0
+
+
+def test_islands_hold_a_lamp_at_every_head_line() -> None:
+    """A row longer than the island period gets an island every period; each
+    island holds one lamp at each head line (rows meeting back to back or
+    ending), so a two-module lot has three head lines."""
+    depth = 2 * (2 * STALL_LENGTH_M + AISLE_WIDTH_M) + 2.0
+    length = (2 * ISLAND_PERIOD_STALLS + 3) * STALL_WIDTH_M + 2.0
+    lot = layout_lot(0, (0.0, 0.0, length, depth))
+    stalls_per_row = 2 * ISLAND_PERIOD_STALLS + 3
+    islands = len(range(ISLAND_PERIOD_STALLS - 1, stalls_per_row - 1, ISLAND_PERIOD_STALLS))
+    assert islands == 2
+    assert len(lot.lamp_positions) == islands * 3
+    assert len(lot.stalls) == 4 * (stalls_per_row - islands)
+    assert len(lot.aisle_centers) == 2
+    assert not any(
+        abs(stall.center[0] - x) < STALL_WIDTH_M / 2 and abs(stall.center[1] - y) < STALL_LENGTH_M
+        for stall in lot.stalls
+        for x, y in lot.lamp_positions
+    )
+
+
+def test_a_short_row_still_gets_one_island_and_lamps() -> None:
+    """A row shorter than the island period has a single mid-row island."""
+    lot = layout_lot(0, (0.0, 0.0, 8 * STALL_WIDTH_M + 2.0, STALL_LENGTH_M + AISLE_WIDTH_M + 2.0))
+    assert len(lot.lamp_positions) == 1  # one island, one head line
+    assert len(lot.stalls) == 7
+
+
+def test_driveway_widening_only_grows_over_overlapping_removed_curbs() -> None:
+    """A removed curb piece overlapping the gap stretches the span to its
+    extent along the road; one elsewhere changes nothing."""
+    driveway = Driveway("x0", road_edge=10.0, lot_edge=14.0, span=(20.0, 27.0))
+    assert driveway.apron == (10.0, 20.0, 14.0, 27.0)
+    assert driveway.ramp[2] == 10.0 and driveway.ramp[0] < 10.0
+    grown = driveway.widened([(9.5, 17.0, 10.5, 22.0), (9.5, 26.0, 10.5, 32.0)])
+    assert grown.span == (17.0, 32.0)
+    assert driveway.widened([(9.5, 50.0, 10.5, 55.0)]).span == (20.0, 27.0)
+    east = Driveway("x1", road_edge=90.0, lot_edge=86.0, span=(20.0, 27.0))
+    assert east.apron == (86.0, 20.0, 90.0, 27.0)
+    assert east.ramp[0] == 90.0 and east.ramp[2] > 90.0
+    north = Driveway("y1", road_edge=90.0, lot_edge=86.0, span=(20.0, 27.0))
+    assert north.apron == (20.0, 86.0, 27.0, 90.0)
+    assert north.widened([(18.0, 89.5, 30.0, 90.5)]).span == (18.0, 30.0)
+
+
+def test_every_lot_has_a_driveway_lined_up_with_an_aisle(urban_config, bounds) -> None:
+    """Each lot's driveway leaves by a short side, is one aisle wide before
+    widening, is centered on an aisle, and the lot edge is its inner end."""
+    result = generate_scenario(42, _config(urban_config, 0.6), bounds, "x")
+    assert result.parking_lots
+    for lot in result.parking_lots:
+        driveway = lot.driveway
+        assert driveway is not None
+        assert (driveway.side in ("x0", "x1")) == lot.aisle_along_x
+        assert driveway.span[1] - driveway.span[0] >= DRIVEWAY_WIDTH_M - 1e-6
+        centers = [
+            (driveway.span[0] + driveway.span[1]) / 2.0,
+        ]
+        assert any(abs(centers[0] - aisle) < DRIVEWAY_WIDTH_M for aisle in lot.aisle_centers)
+        edge = {
+            "x0": lot.bounds[0],
+            "x1": lot.bounds[2],
+            "y0": lot.bounds[1],
+            "y1": lot.bounds[3],
+        }[driveway.side]
+        assert driveway.lot_edge == pytest.approx(edge)
+
+
+def test_the_curb_and_sidewalk_are_cut_where_a_driveway_crosses(urban_config, bounds) -> None:
+    """With lots the road-edge pieces have a gap at each driveway: no curb or
+    sidewalk piece overlaps a driveway's apron; without lots nothing is cut."""
+    with_lots = generate_scenario(42, _config(urban_config, 0.6), bounds, "x")
+    plain = generate_scenario(42, urban_config, bounds, "y")
+    assert len(with_lots.road_edge_pieces) < len(plain.road_edge_pieces) + 1
+    curb_x = {round(float(p.position[0]), 3) for p in with_lots.road_edge_pieces}
+    for lot in with_lots.parking_lots:
+        x0, y0, x1, y1 = lot.driveway.apron
+        for piece in with_lots.road_edge_pieces:
+            px, py = float(piece.position[0]), float(piece.position[1])
+            assert not (x0 < px < x1 and y0 < py < y1)
+    assert curb_x
+
+
+def test_lot_props_are_lamps_and_optional_wheel_stops(urban_config, bounds) -> None:
+    """One lamp per lamp position, and wheel stops (one per stall, the
+    cited 2.5 ft back from the head line, turned across the stall) only in
+    lots that have them."""
+    result = generate_scenario(42, _config(urban_config, 0.6), bounds, "x")
+    lamps = sum(len(lot.lamp_positions) for lot in result.parking_lots)
+    pieces = parking_lot_pieces(result.parking_lots, lamp_style=1)
+    stops = [p for p in pieces if p.asset_path in PARKING_BLOCK_ASSET_PATHS]
+    with_stops = [lot for lot in result.parking_lots if lot.wheel_stop_style is not None]
+    assert len(pieces) == lamps + len(stops)
+    assert len(stops) == sum(len(lot.stalls) for lot in with_stops)
+    for lot in with_stops:
+        stall = lot.stalls[0]
+        head = np.array([np.cos(stall.head_heading_rad), np.sin(stall.head_heading_rad)])
+        expected = np.array(stall.center) + head * (stall.length / 2.0 - WHEEL_STOP_SETBACK_M)
+        block = PARKING_BLOCK_ASSET_PATHS[lot.wheel_stop_style]
+        matches = [
+            p
+            for p in pieces
+            if p.asset_path == block and np.allclose(p.position[:2], expected, atol=1e-9)
+        ]
+        assert len(matches) == 1
+        assert matches[0].position[2] == pytest.approx(LOT_SURFACE_Z_M)
+        assert matches[0].rotation_rad == pytest.approx(stall.head_heading_rad + np.pi / 2.0)
+
+
+def test_lot_pieces_reach_the_payload_with_unique_ids(urban_config, bounds) -> None:
+    """Lot lamps and wheel stops are serialized as static assets and every
+    asset id in the payload stays unique."""
+    result = generate_scenario(42, _config(urban_config, 0.6), bounds, "x")
+    payload = serialize_scenario(result)
+    paths = [a["asset_path"] for a in payload["assets"]]
+    assert sum(p in PARKING_BLOCK_ASSET_PATHS for p in paths) == sum(
+        1 for p in result.parking_lot_pieces if p.asset_path in PARKING_BLOCK_ASSET_PATHS
+    )
+    ids = [a["id"] for a in payload["assets"] if a["category"] == "static_asset"]
+    assert len(ids) == len(set(ids))
