@@ -23,6 +23,7 @@ from src.procedural.traffic_network import (
     SpawnZoneType,
     TrafficControlType,
 )
+from src.procedural.vehicle_spacing import moving_regime, queued_regime
 
 # urban_config, bounds fixtures: see tests/conftest.py
 
@@ -126,187 +127,199 @@ def test_axis_is_flowing_true_at_stop_sign_node_with_no_identified_minor_axis() 
     )
 
 
-def test_vehicle_excluded_at_start_end_when_not_flowing_and_within_clearance(
-    urban_config,
-) -> None:
-    """A candidate whose along-edge distance from its lane's own START
-    node is within that node's real crosswalk-clearing zone, and whose
-    axis does NOT have the green there, is never placed."""
-    edge = _make_edge()  # (0,0) -> (100,0), start_node_id=10, end_node_id=20
-    zone = SpawnZone(
+def _make_zone(edge, node_clearance, edge_id=0) -> SpawnZone:
+    """A real DRIVING zone for ``edge``, matching exactly what
+    ``_generate_driving_zones`` would produce: ``position`` at the
+    lane's destination node, ``stop_line_position`` at the real
+    crosswalk-clearing setback."""
+    edge_direction = edge.centerline[-1] - edge.centerline[0]
+    edge_length = float(np.linalg.norm(edge_direction))
+    unit_direction = edge_direction / edge_length
+    end_clearance = node_clearance.get(edge.end_node_id, 0.0)
+    stop_line_distance = min(end_clearance + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M, edge_length)
+    return SpawnZone(
         spawn_zone_id=0,
         zone_type=SpawnZoneType.DRIVING,
-        position=np.array([10.0, 0.0]),  # 10m from start node -- inside clearance+setback (~18.5m)
-        edge_id=0,
+        position=edge.centerline[-1].copy(),
+        edge_id=edge_id,
+        stop_line_position=edge.centerline[-1] - unit_direction * stop_line_distance,
+        lateral_offset_m=0.0,
     )
-    active_phases = {10: _green_phase({ApproachDirection.NORTH, ApproachDirection.SOUTH})}
+
+
+def test_front_vehicle_front_bumper_at_stop_line_when_not_flowing(urban_config) -> None:
+    """The first (closest-to-node) vehicle on a lane whose destination
+    axis does NOT have the green is placed with its FRONT BUMPER (not
+    center) exactly on the real stop line -- true regardless of any
+    sampled gap, since no gap is involved until the SECOND vehicle."""
+    edge = _make_edge()  # (0,0) -> (100,0), end_node_id=20
     node_clearance = {10: 5.0, 20: 5.0}
-
-    generator = ActorPlacementGenerator(0, urban_config)
-    result = generator._try_place_vehicle(  # pylint: disable=protected-access
-        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}
-    )
-    assert result is None
-
-
-def test_vehicle_allowed_at_start_end_when_flowing_even_within_clearance(
-    urban_config,
-) -> None:
-    """Same geometry as above, but the start node's axis DOES have the
-    green there -- the vehicle is placed at its exact natural tiled
-    position, even though it sits within what would otherwise be the
-    crosswalk-clearing zone ("driving through a green light")."""
-    edge = _make_edge()
-    zone = SpawnZone(
-        spawn_zone_id=0,
-        zone_type=SpawnZoneType.DRIVING,
-        position=np.array([10.0, 0.0]),
-        edge_id=0,
-    )
-    active_phases = {10: _green_phase({ApproachDirection.EAST, ApproachDirection.WEST})}
-    node_clearance = {10: 5.0, 20: 5.0}
-
-    generator = ActorPlacementGenerator(0, urban_config)
-    result = generator._try_place_vehicle(  # pylint: disable=protected-access
-        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}
-    )
-    assert result is not None
-    assert np.array_equal(result.center, zone.position)
-
-
-def test_vehicle_redirected_to_stop_line_at_destination_end_when_not_flowing(
-    urban_config,
-) -> None:
-    """A front-of-queue candidate (real ``stop_line_position``) within its
-    destination node's crosswalk-clearing zone, on an axis that does NOT
-    have the green there, is redirected so its FRONT BUMPER (not center)
-    lands exactly on the real stop line."""
-    edge = _make_edge()  # end_node_id=20 at (100, 0)
-    stop_line_position = np.array([81.5, 0.0])  # 100 - (5.0 clearance + 13.5 setback)
-    zone = SpawnZone(
-        spawn_zone_id=0,
-        zone_type=SpawnZoneType.DRIVING,
-        position=np.array([85.0, 0.0]),  # 15m from end node -- inside the ~18.5m zone
-        edge_id=0,
-        stop_line_position=stop_line_position,
-    )
+    zone = _make_zone(edge, node_clearance)
     active_phases = {20: _green_phase({ApproachDirection.NORTH, ApproachDirection.SOUTH})}
-    node_clearance = {10: 5.0, 20: 5.0}
 
     generator = ActorPlacementGenerator(0, urban_config)
-    result = generator._try_place_vehicle(  # pylint: disable=protected-access
+    vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
         zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}
     )
-    assert result is not None
-    heading_vector = np.array([np.cos(result.heading_rad), np.sin(result.heading_rad)])
-    front_bumper = result.center + heading_vector * (result.length / 2.0)
-    assert np.allclose(front_bumper, stop_line_position, atol=1e-6)
+    assert vehicles
+    front = max(vehicles, key=lambda v: v.center[0])
+    heading_vector = np.array([np.cos(front.heading_rad), np.sin(front.heading_rad)])
+    front_bumper = front.center + heading_vector * (front.length / 2.0)
+    assert np.allclose(front_bumper, zone.stop_line_position, atol=1e-6)
 
 
-def test_vehicle_uses_natural_position_at_destination_end_when_flowing(
-    urban_config,
-) -> None:
-    """Same front-of-queue geometry, but the destination node's axis DOES
-    have the green -- the vehicle is placed at its own natural tiled
-    position (85m), further into the intersection than the real stop
-    line (81.5m) would allow, proving it actually "drives through"."""
+def test_front_vehicle_at_natural_node_position_when_flowing(urban_config) -> None:
+    """The first vehicle on a FLOWING lane sits at its own natural anchor
+    (the node itself, ``zone.position``) -- "driving through a green
+    light" -- not redirected to the stop line."""
     edge = _make_edge()
-    stop_line_position = np.array([81.5, 0.0])
-    zone = SpawnZone(
-        spawn_zone_id=0,
-        zone_type=SpawnZoneType.DRIVING,
-        position=np.array([85.0, 0.0]),
-        edge_id=0,
-        stop_line_position=stop_line_position,
-    )
+    node_clearance = {10: 5.0, 20: 5.0}
+    zone = _make_zone(edge, node_clearance)
     active_phases = {20: _green_phase({ApproachDirection.EAST, ApproachDirection.WEST})}
-    node_clearance = {10: 5.0, 20: 5.0}
 
     generator = ActorPlacementGenerator(0, urban_config)
-    result = generator._try_place_vehicle(  # pylint: disable=protected-access
+    vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
         zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}
     )
-    assert result is not None
-    assert np.array_equal(result.center, zone.position)
+    assert vehicles
+    front = max(vehicles, key=lambda v: v.center[0])
+    assert np.array_equal(front.center, zone.position)
 
 
-def test_non_front_zone_excluded_at_destination_end_when_not_flowing(urban_config) -> None:
-    """A mid-lane zone (no real stop_line_position) within its destination
-    node's crosswalk-clearing zone, on an axis without the green there,
-    has no precise fallback position and is simply excluded."""
+def test_second_vehicle_sits_one_sampled_gap_behind_the_first(urban_config, monkeypatch) -> None:
+    """The second vehicle in the chain sits exactly ``gap`` meters behind
+    the first, along the lane -- proven by forcing ``sample_gap`` to a
+    known, fixed value rather than trusting its real randomized output
+    (already exhaustively proven in test_vehicle_spacing.py)."""
     edge = _make_edge()
-    zone = SpawnZone(
-        spawn_zone_id=0,
-        zone_type=SpawnZoneType.DRIVING,
-        position=np.array([85.0, 0.0]),
-        edge_id=0,
-        stop_line_position=None,
-    )
-    active_phases = {20: _green_phase({ApproachDirection.NORTH, ApproachDirection.SOUTH})}
     node_clearance = {10: 5.0, 20: 5.0}
+    zone = _make_zone(edge, node_clearance)
+    active_phases = {20: _green_phase({ApproachDirection.EAST, ApproachDirection.WEST})}
+    fixed_gap = 12.34
+    monkeypatch.setattr("src.procedural.actor_placement.sample_gap", lambda rng, regime: fixed_gap)
 
     generator = ActorPlacementGenerator(0, urban_config)
-    result = generator._try_place_vehicle(  # pylint: disable=protected-access
+    vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
         zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}
     )
-    assert result is None
+    ordered = sorted(vehicles, key=lambda v: v.center[0], reverse=True)
+    assert len(ordered) >= 2
+    assert ordered[0].center[0] == pytest.approx(100.0)
+    assert ordered[1].center[0] == pytest.approx(100.0 - fixed_gap)
+    assert ordered[0].center[1] == pytest.approx(ordered[1].center[1])
 
 
-def test_vehicle_queued_at_stop_line_on_minor_axis_of_a_stop_sign_node(
-    urban_config,
+def test_walk_uses_queued_regime_near_node_and_moving_regime_farther_back(
+    urban_config, monkeypatch
 ) -> None:
-    """A front-of-queue candidate approaching a real T-junction on the
-    minor/stub axis is redirected to its own stop line -- unconditionally
-    (a real 2-way stop always requires a full stop there, no resolved
-    instant needed)."""
-    edge = _make_edge()  # (0,0) -> (100,0): an EAST-WEST-axis edge
-    stop_line_position = np.array([81.5, 0.0])
-    zone = SpawnZone(
-        spawn_zone_id=0,
-        zone_type=SpawnZoneType.DRIVING,
-        position=np.array([85.0, 0.0]),
-        edge_id=0,
-        stop_line_position=stop_line_position,
-    )
+    """A candidate still inside the destination node's real crosswalk-
+    clearing zone (and not flowing there) samples from the QUEUED
+    regime; once the walk passes that boundary, it samples from the
+    MOVING regime instead -- proven by making ``sample_gap`` echo back
+    which regime it was called with (its real, distinct mean), then
+    reading off which mean was actually used at each step from the
+    resulting real gap sizes."""
+    edge = _make_edge()
     node_clearance = {10: 5.0, 20: 5.0}
+    zone = _make_zone(edge, node_clearance)
+    active_phases = {20: _green_phase({ApproachDirection.NORTH, ApproachDirection.SOUTH})}
+    monkeypatch.setattr(
+        "src.procedural.actor_placement.sample_gap", lambda rng, regime: regime.mean_gap_m
+    )
+
+    generator = ActorPlacementGenerator(0, urban_config)
+    vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
+        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}
+    )
+    ordered = sorted(vehicles, key=lambda v: v.center[0], reverse=True)
+    # The front vehicle's own CENTER is offset back from the real walk
+    # position by half its own (randomly-typed, variable) length -- see
+    # _place_vehicles_for_lane's bumper-offset comment -- so the first
+    # real gap is measured from the stop line itself, not the front
+    # vehicle's center, to avoid contaminating it with that offset.
+    end_required = node_clearance[20] + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
+    stop_line_x = 100.0 - end_required
+    gaps = [round(stop_line_x - ordered[1].center[0], 6)] + [
+        round(a.center[0] - b.center[0], 6) for a, b in zip(ordered[1:], ordered[2:])
+    ]
+    assert gaps  # sanity: this geometry produces at least one step
+    assert gaps[0] == pytest.approx(queued_regime().mean_gap_m)
+    # A gap sampled once the walk has moved past the real crosswalk-
+    # clearing boundary is the MOVING regime's mean instead.
+    assert any(gap == pytest.approx(moving_regime(edge.speed_limit_kmh).mean_gap_m) for gap in gaps)
+    assert stop_line_x < 100.0  # sanity: the boundary is a real, positive setback
+
+
+def test_walk_stops_once_inside_a_not_flowing_start_nodes_zone(urban_config, monkeypatch) -> None:
+    """The chain walk excludes (does not place) any candidate that falls
+    within the START node's own real crosswalk-clearing zone when that
+    axis doesn't flow there either -- "a vehicle just departing a node
+    it didn't have the right of way to enter has no sensible position."
+    A large fixed gap forces the second candidate deep into that zone,
+    proving the walk stops instead of placing it there."""
+    edge = _make_edge()
+    node_clearance = {10: 5.0, 20: 5.0}
+    zone = _make_zone(edge, node_clearance)
+    active_phases = {
+        20: _green_phase({ApproachDirection.EAST, ApproachDirection.WEST}),
+        10: _green_phase(
+            {ApproachDirection.NORTH, ApproachDirection.SOUTH}
+        ),  # NOT this edge's axis
+    }
+    monkeypatch.setattr("src.procedural.actor_placement.sample_gap", lambda rng, regime: 95.0)
+
+    generator = ActorPlacementGenerator(0, urban_config)
+    vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
+        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}
+    )
+    # Only the first (flowing, at the node) vehicle -- the second
+    # candidate would land at along=5.0, inside node 10's own
+    # ~18.5m not-flowing zone, and is excluded.
+    assert len(vehicles) == 1
+    assert vehicles[0].center[0] == pytest.approx(100.0)
+
+
+def test_vehicle_queued_at_stop_line_on_minor_axis_of_a_stop_sign_node(urban_config) -> None:
+    """A front-of-queue vehicle approaching a real T-junction on the
+    minor/stub axis is placed with its front bumper at the real stop
+    line -- unconditionally (a real 2-way stop always requires a full
+    stop there, no resolved instant needed)."""
+    edge = _make_edge()  # (0,0) -> (100,0): an EAST-WEST-axis edge
+    node_clearance = {10: 5.0, 20: 5.0}
+    zone = _make_zone(edge, node_clearance)
     traffic_controls = {20: TrafficControlType.STOP_SIGN}
     minor_axis_by_node = {20: frozenset({ApproachDirection.EAST, ApproachDirection.WEST})}
 
     generator = ActorPlacementGenerator(0, urban_config)
-    result = generator._try_place_vehicle(  # pylint: disable=protected-access
+    vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
         zone, {0: edge}, 1.0, [], {}, node_clearance, traffic_controls, minor_axis_by_node
     )
-    assert result is not None
-    heading_vector = np.array([np.cos(result.heading_rad), np.sin(result.heading_rad)])
-    front_bumper = result.center + heading_vector * (result.length / 2.0)
-    assert np.allclose(front_bumper, stop_line_position, atol=1e-6)
+    assert vehicles
+    front = max(vehicles, key=lambda v: v.center[0])
+    heading_vector = np.array([np.cos(front.heading_rad), np.sin(front.heading_rad)])
+    front_bumper = front.center + heading_vector * (front.length / 2.0)
+    assert np.allclose(front_bumper, zone.stop_line_position, atol=1e-6)
 
 
 def test_vehicle_flows_on_major_axis_of_a_stop_sign_node(urban_config) -> None:
     """Same geometry, but this edge's axis is the T-junction's major/
-    through axis -- it never has to stop, so the vehicle keeps its
-    natural tiled position even inside what would otherwise be the
-    crosswalk-clearing zone."""
+    through axis -- it never has to stop, so the front vehicle sits at
+    the node itself, not redirected to any stop line."""
     edge = _make_edge()  # EAST-WEST-axis edge
-    zone = SpawnZone(
-        spawn_zone_id=0,
-        zone_type=SpawnZoneType.DRIVING,
-        position=np.array([85.0, 0.0]),
-        edge_id=0,
-        stop_line_position=np.array([81.5, 0.0]),
-    )
     node_clearance = {10: 5.0, 20: 5.0}
+    zone = _make_zone(edge, node_clearance)
     traffic_controls = {20: TrafficControlType.STOP_SIGN}
     # The minor axis at node 20 is NORTH-SOUTH here, not this edge's own
     # EAST-WEST axis, so this edge's axis is the (always-flowing) major one.
     minor_axis_by_node = {20: frozenset({ApproachDirection.NORTH, ApproachDirection.SOUTH})}
 
     generator = ActorPlacementGenerator(0, urban_config)
-    result = generator._try_place_vehicle(  # pylint: disable=protected-access
+    vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
         zone, {0: edge}, 1.0, [], {}, node_clearance, traffic_controls, minor_axis_by_node
     )
-    assert result is not None
-    assert np.array_equal(result.center, zone.position)
+    assert vehicles
+    front = max(vehicles, key=lambda v: v.center[0])
+    assert np.array_equal(front.center, zone.position)
 
 
 def test_projection_formula_exact_numbers() -> None:

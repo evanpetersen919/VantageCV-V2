@@ -67,6 +67,7 @@ from src.procedural.traffic_network import (
     TrafficControlType,
     TrafficNetwork,
 )
+from src.procedural.vehicle_spacing import moving_regime, queued_regime, sample_gap
 
 # The real road surface height -- matching the convention
 # ``_vehicle_to_asset_json`` already uses (vehicles sit at z=0.0, "the
@@ -323,19 +324,18 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
 
         for zone in traffic.spawn_zones:
             if zone.zone_type == SpawnZoneType.DRIVING:
-                vehicle = self._try_place_vehicle(
-                    zone,
-                    edges,
-                    occupancy,
-                    placed_vehicle_aabbs,
-                    active_phases,
-                    node_clearance,
-                    traffic.traffic_controls,
-                    minor_axis_by_node,
+                vehicles.extend(
+                    self._place_vehicles_for_lane(
+                        zone,
+                        edges,
+                        occupancy,
+                        placed_vehicle_aabbs,
+                        active_phases,
+                        node_clearance,
+                        traffic.traffic_controls,
+                        minor_axis_by_node,
+                    )
                 )
-                if vehicle is not None:
-                    vehicles.append(vehicle)
-                    placed_vehicle_aabbs.append(vehicle.aabb)
             elif zone.zone_type == SpawnZoneType.PEDESTRIAN:
                 pedestrian = self._try_place_sidewalk_pedestrian(zone, edges, occupancy)
                 if pedestrian is not None:
@@ -384,7 +384,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
                 return axis not in minor_axis
         return True
 
-    def _try_place_vehicle(  # pylint: disable=too-many-arguments,too-many-locals
+    def _place_vehicles_for_lane(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         zone: SpawnZone,
         edges: Dict[int, RoadEdge],
@@ -394,89 +394,129 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         node_clearance: Dict[int, float],
         traffic_controls: Dict[int, TrafficControlType],
         minor_axis_by_node: Dict[int, FrozenSet[ApproachDirection]],
-    ) -> Optional[Vehicle]:
-        if self.rng.random() > occupancy:
-            return None
+    ) -> List[Vehicle]:
+        """Every vehicle on one real lane, placed by walking backward
+        from its destination node (or, if that axis doesn't have the
+        right of way there, from the real stop line -- see
+        ``_axis_is_flowing``), sampling a real, randomized gap to each
+        next vehicle from ``vehicle_spacing.py``'s queued or moving
+        regime, whichever this walk's own CURRENT position calls for:
+        queued (tight, HCM jam-density mean) while still inside the
+        destination node's real crosswalk-clearing zone AND that axis
+        isn't flowing there -- a real clump behind a red light -- moving
+        (looser, real-speed-derived mean) everywhere else, including the
+        whole length of a flowing lane. This is how a real clump-near-
+        the-light-with-looser-stragglers-behind pattern falls out of one
+        real per-candidate rule, not a separately invented "clumping"
+        mechanism.
+
+        Exactly mirrors the prior per-zone design's two other rules,
+        now applied per real candidate along the walk instead of per
+        fixed tile: a vehicle within the START node's own crosswalk-
+        clearing zone, on an axis that doesn't flow there either, has no
+        sensible position (a vehicle just departing a node it didn't
+        have the right of way to enter) -- the walk simply stops instead
+        of continuing past it, since anything further back is even
+        deeper inside that same excluded zone or off the real edge
+        entirely."""
         assert zone.edge_id is not None  # every DRIVING zone carries one
 
         edge = edges[zone.edge_id]
         edge_direction = edge.centerline[-1] - edge.centerline[0]
         edge_length = float(np.linalg.norm(edge_direction))
+
+        if edge_length < 1e-9:
+            # Degenerate (near-zero-length) edge: exactly one candidate,
+            # at the zone's own single point, no chain to walk.
+            if self.rng.random() > occupancy:
+                return []
+            vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
+            asset_path = _sample_asset_path(self.rng, vehicle_type)
+            length, width, height = VEHICLE_DIMENSIONS[vehicle_type]
+            candidate = Vehicle(
+                vehicle_id=self._vehicle_counter,
+                vehicle_type=vehicle_type,
+                asset_path=asset_path,
+                center=zone.position.copy(),
+                heading_rad=_edge_heading(edge),
+                length=length,
+                width=width,
+                height=height,
+            )
+            if any(_aabb_overlap(candidate.aabb, other) for other in placed_vehicle_aabbs):
+                return []
+            self._vehicle_counter += 1
+            placed_vehicle_aabbs.append(candidate.aabb)
+            return [candidate]
+
         unit_direction = edge_direction / edge_length
         axis = classify_approach_direction(edge)
+        heading = _edge_heading(edge)
 
-        position = zone.position
-        along_from_start = float(np.dot(position - edge.centerline[0], unit_direction))
-        along_from_end = edge_length - along_from_start
-        queued_at_stop_line = False
-
-        # Destination end: redirect to the real stop line (front bumper
-        # flush with the crosswalk's own far edge -- see
-        # traffic_network.py's VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
-        # docstring) only when this lane's own axis does NOT have the
-        # right of way there AND this candidate actually falls inside
-        # that node's real crosswalk-clearing zone. Otherwise (flowing,
-        # or already outside the zone) the natural tiled position stands
-        # -- "driving through a green light".
+        end_flowing = self._axis_is_flowing(
+            edge.end_node_id, axis, active_phases, traffic_controls, minor_axis_by_node
+        )
+        start_flowing = self._axis_is_flowing(
+            edge.start_node_id, axis, active_phases, traffic_controls, minor_axis_by_node
+        )
         end_required = node_clearance.get(edge.end_node_id, 0.0) + (
             VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
         )
-        if along_from_end < end_required and not self._axis_is_flowing(
-            edge.end_node_id, axis, active_phases, traffic_controls, minor_axis_by_node
-        ):
-            if zone.stop_line_position is None:
-                return None  # not the front-of-queue tile: no precise fallback, exclude
-            position = zone.stop_line_position
-            queued_at_stop_line = True
-
-        # Start end: re-derive from whatever `position` is now (after the
-        # destination check above), not the original tiled position --
-        # a redirected front-of-queue vehicle sits farther from the node
-        # it just queued at, so its relationship to the OTHER (start)
-        # node must be re-evaluated against where it actually ends up,
-        # not where it started.
-        along_from_start = float(np.dot(position - edge.centerline[0], unit_direction))
         start_required = node_clearance.get(edge.start_node_id, 0.0) + (
             VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
         )
-        if along_from_start < start_required and not self._axis_is_flowing(
-            edge.start_node_id, axis, active_phases, traffic_controls, minor_axis_by_node
-        ):
-            # A vehicle just departing a node it doesn't have the right
-            # of way to have entered has no sensible stop-line position
-            # (that concept only applies to a vehicle queuing to ENTER an
-            # intersection) -- it simply isn't placed.
-            return None
 
-        vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
-        asset_path = _sample_asset_path(self.rng, vehicle_type)
-        length, width, height = VEHICLE_DIMENSIONS[vehicle_type]
-        heading = _edge_heading(edge)
+        if end_flowing:
+            walk_along = edge_length
+        else:
+            assert zone.stop_line_position is not None  # every DRIVING zone carries one
+            walk_along = float(np.dot(zone.stop_line_position - edge.centerline[0], unit_direction))
 
-        if queued_at_stop_line:
-            # The stop line marks where a vehicle's FRONT bumper stops,
-            # not its center. Offset backward (opposite the direction of
-            # travel) by half this vehicle's own real length so the
-            # front -- not the middle -- lands exactly there.
-            heading_vector = np.array([np.cos(heading), np.sin(heading)])
-            position = position - heading_vector * (length / 2.0)
+        vehicles: List[Vehicle] = []
+        is_front = True
+        while walk_along >= 0.0:
+            if walk_along < start_required and not start_flowing:
+                break  # no sensible position this deep in the start node's own zone
 
-        candidate = Vehicle(
-            vehicle_id=self._vehicle_counter,
-            vehicle_type=vehicle_type,
-            asset_path=asset_path,
-            center=position.copy(),
-            heading_rad=heading,
-            length=length,
-            width=width,
-            height=height,
-        )
+            if self.rng.random() <= occupancy:
+                position = (
+                    edge.centerline[0]
+                    + unit_direction * walk_along
+                    + compute_perpendicular(edge_direction) * (zone.lateral_offset_m or 0.0)
+                )
+                vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
+                asset_path = _sample_asset_path(self.rng, vehicle_type)
+                length, width, height = VEHICLE_DIMENSIONS[vehicle_type]
 
-        if any(_aabb_overlap(candidate.aabb, other) for other in placed_vehicle_aabbs):
-            return None
+                if is_front and not end_flowing:
+                    # The stop line marks where the front-of-queue
+                    # vehicle's FRONT bumper sits, not its center --
+                    # offset backward by half its own real length so the
+                    # front, not the middle, lands exactly there.
+                    heading_vector = np.array([np.cos(heading), np.sin(heading)])
+                    position = position - heading_vector * (length / 2.0)
 
-        self._vehicle_counter += 1
-        return candidate
+                candidate = Vehicle(
+                    vehicle_id=self._vehicle_counter,
+                    vehicle_type=vehicle_type,
+                    asset_path=asset_path,
+                    center=position.copy(),
+                    heading_rad=heading,
+                    length=length,
+                    width=width,
+                    height=height,
+                )
+                if not any(_aabb_overlap(candidate.aabb, other) for other in placed_vehicle_aabbs):
+                    self._vehicle_counter += 1
+                    placed_vehicle_aabbs.append(candidate.aabb)
+                    vehicles.append(candidate)
+
+            in_end_zone = (edge_length - walk_along) <= end_required and not end_flowing
+            regime = queued_regime() if in_end_zone else moving_regime(edge.speed_limit_kmh)
+            walk_along -= sample_gap(self.rng, regime)
+            is_front = False
+
+        return vehicles
 
     def _try_place_sidewalk_pedestrian(  # pylint: disable=too-many-locals
         self, zone: SpawnZone, edges: Dict[int, RoadEdge], occupancy: float

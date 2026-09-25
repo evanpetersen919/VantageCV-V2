@@ -42,6 +42,7 @@ from src.procedural.city_sample_assets import (
     pedestrian_face_and_hair,
 )
 from src.procedural.lane_topology import LaneTopologyGenerator, compute_node_clearance
+from src.procedural.math_utils import compute_perpendicular
 from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadType
 from src.procedural.scenario import ScenarioType, ScenarioTypeConfig
@@ -49,6 +50,8 @@ from src.procedural.signal_phasing import (
     PhaseKind,
     approach_direction_from_heading,
     build_signal_plans,
+    classify_approach_direction,
+    compute_minor_axis_by_node,
     resolve_active_phases,
 )
 from src.procedural.traffic_network import (
@@ -69,76 +72,97 @@ def _generate_full_network(seed: int, config, bounds):
     return edges, traffic
 
 
-def _match_vehicle_to_zone(vehicle, driving_zones):
-    """The one real DRIVING zone a placed ``vehicle`` came from: either its
-    normal flowing position (exact match), or -- when queued at a red
-    light -- its own zone's stop_line_position offset back by half the
-    vehicle's own real length (see ``_try_place_vehicle``'s docstring for
-    why the offset exists: the stop line marks where the front bumper,
-    not the center, stops). Returns ``(zone, is_queued)``."""
-    heading_vector = np.array([np.cos(vehicle.heading_rad), np.sin(vehicle.heading_rad)])
-    for zone in driving_zones:
-        if np.allclose(zone.position, vehicle.center):
-            return zone, False
-        if zone.stop_line_position is not None:
-            expected_queued = zone.stop_line_position - heading_vector * (vehicle.length / 2.0)
-            if np.allclose(expected_queued, vehicle.center):
-                return zone, True
-    raise AssertionError(f"vehicle {vehicle.vehicle_id} matches no real DRIVING zone")
+def _vehicles_on_lane(vehicles, edges, zone):
+    """Real placed vehicles that lie exactly on ``zone``'s own lane line
+    (matched by heading + lateral offset from the edge centerline, since
+    a placed vehicle carries no lane_id of its own) -- returns
+    ``(along_from_start, vehicle)`` pairs, closest-to-destination first."""
+    edge = edges[zone.edge_id]
+    edge_direction = edge.centerline[-1] - edge.centerline[0]
+    edge_length = float(np.linalg.norm(edge_direction))
+    unit_direction = edge_direction / edge_length
+    perp = compute_perpendicular(edge_direction)
+    expected_perp_component = perp * (zone.lateral_offset_m or 0.0)
+
+    matches = []
+    for vehicle in vehicles:
+        heading_vector = np.array([np.cos(vehicle.heading_rad), np.sin(vehicle.heading_rad)])
+        if not np.allclose(heading_vector, unit_direction, atol=1e-6):
+            continue
+        offset = vehicle.center - edge.centerline[0]
+        along = float(np.dot(offset, unit_direction))
+        if not -1e-6 <= along <= edge_length + 1e-6:
+            continue  # a different, merely-collinear edge (e.g. the next block up)
+        perp_component = offset - unit_direction * along
+        if not np.allclose(perp_component, expected_perp_component, atol=1e-6):
+            continue
+        matches.append((along, vehicle))
+    matches.sort(key=lambda pair: pair[0], reverse=True)
+    return matches
 
 
-def test_vehicles_only_at_driving_zones(urban_config, bounds) -> None:
-    """Every placed vehicle's spawn position matches a real DRIVING zone's
-    own position -- either its normal flowing-traffic spot, or (when its
-    own approach is stopped at the currently-resolved signal phase --
-    see signal_phasing.py) its own lane's real stop_line_position (offset
-    back by half the vehicle's own length, so its front bumper -- not
-    center -- lands there), never an unrelated point."""
+def test_vehicles_only_at_real_lane_positions(urban_config, bounds) -> None:
+    """Every placed vehicle lies exactly on some real lane's own line
+    (heading matches the edge direction, lateral offset matches the
+    lane's own real perpendicular offset) -- proving the per-lane chain
+    walk (``ActorPlacementGenerator._place_vehicles_for_lane``) never
+    invents a position off a real lane."""
     edges, traffic = _generate_full_network(42, urban_config, bounds)
     driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
 
     vehicles, _ = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
     assert vehicles  # sanity
 
-    for vehicle in vehicles:
-        _match_vehicle_to_zone(vehicle, driving_zones)  # raises if no real zone matches
+    matched_vehicle_ids = set()
+    for zone in driving_zones:
+        for _, vehicle in _vehicles_on_lane(vehicles, edges, zone):
+            matched_vehicle_ids.add(vehicle.vehicle_id)
+    assert matched_vehicle_ids == {v.vehicle_id for v in vehicles}
 
 
-def test_front_of_queue_vehicle_is_either_flowing_or_at_real_stop_line(
+def test_front_of_queue_vehicle_front_bumper_matches_real_stop_line(  # pylint: disable=too-many-locals
     urban_config, bounds
 ) -> None:
-    """A vehicle placed at a front-of-queue zone (``stop_line_position is
-    not None``) is EITHER (a) at that zone's own natural tiled
-    ``position`` -- when its axis has the right of way there (flowing
-    through the intersection, per explicit request 2026-09-24: "the
-    intersection is just an extended road" on green), OR (b) with its
-    front bumper flush with the real ``stop_line_position`` -- when it
-    doesn't. Never anywhere else. This integration-level check accepts
-    either outcome (which one occurs depends on the randomly-resolved
-    signal phase for this seed); the exact per-case arithmetic is proven
-    independently, deterministically, by the ``_try_place_vehicle`` unit
-    tests below, which don't depend on random phase resolution."""
-    edges, traffic = _generate_full_network(42, urban_config, bounds)
+    """On any lane whose destination axis does NOT have the right of way
+    at the currently-resolved signal phase, the real vehicle closest to
+    that node has its FRONT bumper -- not its center -- exactly on that
+    lane's own real ``stop_line_position``. Uses full occupancy so the
+    front-of-queue candidate is never skipped by the occupancy roll --
+    the only thing that could still exclude it (an AABB overlap) can't
+    happen to the very first candidate placed on a lane."""
+    full_density_config = urban_config.model_copy(update={"traffic_density": (1.0, 1.0)})
+    edges, traffic = _generate_full_network(42, full_density_config, bounds)
     driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
-    front_zones = [z for z in driving_zones if z.stop_line_position is not None]
-    assert front_zones  # sanity
 
-    vehicles, _ = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
+    vehicles, _ = ActorPlacementGenerator(42, full_density_config).generate(edges, traffic)
     assert vehicles  # sanity
 
+    replay = ActorPlacementGenerator(42, full_density_config)
+    replay.rng.uniform(*full_density_config.traffic_density)
+    plans = build_signal_plans(edges, traffic)
+    active_phases = resolve_active_phases(plans, replay.rng)
+    minor_axis_by_node = compute_minor_axis_by_node(edges)
+
     checked_any = False
-    for vehicle in vehicles:
-        zone, is_queued = _match_vehicle_to_zone(vehicle, driving_zones)
-        if zone.stop_line_position is None:
-            continue  # not a front-of-queue vehicle -- unconstrained tiled position
+    for zone in driving_zones:
+        edge = edges[zone.edge_id]
+        axis = classify_approach_direction(edge)
+        end_flowing = ActorPlacementGenerator._axis_is_flowing(  # pylint: disable=protected-access
+            edge.end_node_id, axis, active_phases, traffic.traffic_controls, minor_axis_by_node
+        )
+        if end_flowing:
+            continue
+        lane_vehicles = _vehicles_on_lane(vehicles, edges, zone)
+        if not lane_vehicles:
+            continue
         checked_any = True
-        if is_queued:
-            heading_vector = np.array([np.cos(vehicle.heading_rad), np.sin(vehicle.heading_rad)])
-            front_bumper = vehicle.center + heading_vector * (vehicle.length / 2.0)
-            assert np.allclose(front_bumper, zone.stop_line_position, atol=1e-6)
-        else:
-            assert np.allclose(vehicle.center, zone.position, atol=1e-6)
-    assert checked_any  # sanity: at least one placed vehicle is a front-of-queue vehicle
+        _, front_vehicle = lane_vehicles[0]  # largest along-from-start == closest to node
+        heading_vector = np.array(
+            [np.cos(front_vehicle.heading_rad), np.sin(front_vehicle.heading_rad)]
+        )
+        front_bumper = front_vehicle.center + heading_vector * (front_vehicle.length / 2.0)
+        assert np.allclose(front_bumper, zone.stop_line_position, atol=1e-6)
+    assert checked_any  # sanity: this config/seed has at least one real not-flowing queue
 
 
 def test_driving_zone_stop_line_generally_differs_from_its_own_position(  # pylint: disable=too-many-locals
@@ -151,9 +175,10 @@ def test_driving_zone_stop_line_generally_differs_from_its_own_position(  # pyli
     (now the node itself, since generation tiles the lane's full,
     untrimmed length -- see ``_generate_driving_zones``'s own docstring,
     2026-09-25) -- proving zone generation still produces two genuinely
-    different candidate points, which is what lets ``_try_place_vehicle``
-    choose between "flowing" (natural position, possibly inside the
-    crosswalk) and "queued" (the real stop line) based on signal phase.
+    different candidate points, which is what lets
+    ``_place_vehicles_for_lane`` choose between "flowing" (natural
+    position, possibly inside the crosswalk) and "queued" (the real stop
+    line) based on signal phase.
     Hand-recomputes the expected gap independently rather than just
     asserting inequality."""
     edges, traffic = _generate_full_network(42, urban_config, bounds)
@@ -620,19 +645,25 @@ def test_zero_occupancy_places_nothing(urban_config, bounds) -> None:
     assert not pedestrians
 
 
-def test_full_occupancy_places_at_every_driving_zone_unless_overlapping(
-    urban_config, bounds
-) -> None:
-    """With traffic_density fixed at 1.0, every driving zone either gets a
-    vehicle or is rejected purely for overlapping an already-placed one."""
+def test_full_occupancy_places_more_than_one_vehicle_per_long_lane(urban_config, bounds) -> None:
+    """With traffic_density fixed at 1.0, a real lane long enough to hold
+    more than one real vehicle-to-vehicle gap gets more than one vehicle
+    -- each real lane's own per-lane chain walk (``_place_vehicles_for_
+    lane``), not the old one-zone-one-vehicle model, decides how many a
+    lane holds."""
     full_density_config = urban_config.model_copy(update={"traffic_density": (1.0, 1.0)})
     edges, traffic = _generate_full_network(42, full_density_config, bounds)
     driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
 
     vehicles, _ = ActorPlacementGenerator(42, full_density_config).generate(edges, traffic)
+    assert vehicles  # sanity
 
-    assert len(vehicles) <= len(driving_zones)
-    assert len(vehicles) > 0
+    saw_multi_vehicle_lane = False
+    for zone in driving_zones:
+        if len(_vehicles_on_lane(vehicles, edges, zone)) > 1:
+            saw_multi_vehicle_lane = True
+            break
+    assert saw_multi_vehicle_lane
 
 
 def test_edge_heading_matches_direction() -> None:

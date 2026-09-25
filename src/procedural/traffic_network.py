@@ -120,7 +120,7 @@ class SpawnZoneType(str, Enum):
 
 
 @dataclass(eq=False)
-class SpawnZone:
+class SpawnZone:  # pylint: disable=too-many-instance-attributes
     """A single point where an actor (vehicle or pedestrian) may spawn.
 
     ``edge_id`` is ``None`` for ``CROSSING`` zones (a crosswalk spans a
@@ -138,21 +138,25 @@ class SpawnZone:
     belongs to, needed to look up which real signal phase currently
     governs whether crossing here is safe (see ``signal_phasing.py``).
 
-    ``stop_line_position`` is populated only for the single ``DRIVING``
-    zone closest to a lane's own destination node (multiple ``DRIVING``
-    zones now tile each lane's full length -- see
-    ``TrafficNetworkGenerator._generate_driving_zones``): the real
-    position, set back behind the real painted crosswalk (see
-    ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M``'s own docstring), a vehicle
-    queues at when its own approach direction doesn't have the right of
-    way (see
-    ``actor_placement.py``'s vehicle placement). Every other ``DRIVING``
-    zone on the same lane (further back from the intersection) carries
-    ``None`` -- this pipeline generates frozen single-frame snapshots, not
-    a running queue simulation, so only the front-of-queue vehicle is
-    precisely positioned; earlier zones keep their own natural tiled
-    position regardless of signal phase (a disclosed simplification, not
-    an oversight).
+    Exactly one ``DRIVING`` zone exists per real lane (2026-09-25 design
+    correction: earlier versions tiled many fixed-interval candidate
+    points per lane, but real vehicle spacing isn't uniform -- see
+    ``vehicle_spacing.py`` and ``actor_placement.py``'s per-lane chain
+    placement, which now derives however many vehicles a lane holds, and
+    their real randomized spacing, from this one zone's own real
+    geometry at placement time, not from a fixed grid at generation
+    time). ``stop_line_position`` is the real position, set back behind
+    the real painted crosswalk (see ``VEHICLE_STOP_LINE_CROSSWALK_
+    SETBACK_M``'s own docstring), the front-of-queue vehicle's FRONT
+    BUMPER lands on when this lane's own approach direction doesn't have
+    the right of way at its destination node; ``position`` is the lane's
+    own natural, unconstrained anchor point AT its destination node
+    (used when flowing -- "driving through a green light"). ``
+    lateral_offset_m`` is this lane's own real perpendicular offset from
+    its edge's centerline (``(lane.lane_index + 0.5) * LANE_WIDTH_
+    METERS``) -- placement recomputes the offset DIRECTION fresh from
+    the edge (``compute_perpendicular``), so only the scalar magnitude
+    needs to be carried here.
     """
 
     spawn_zone_id: int
@@ -162,6 +166,7 @@ class SpawnZone:
     heading_rad: Optional[float] = None
     node_id: Optional[int] = None
     stop_line_position: Optional[npt.NDArray[np.float64]] = None
+    lateral_offset_m: Optional[float] = None
 
     def __hash__(self) -> int:
         return hash(self.spawn_zone_id)
@@ -316,63 +321,25 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
     def _generate_driving_zones(  # pylint: disable=too-many-locals
         self, edges: Dict[int, RoadEdge], lanes: Dict[int, Lane], node_clearance: Dict[int, float]
     ) -> List[SpawnZone]:
-        """One or more DRIVING spawn zones per lane, tiled at the real
-        ``VEHICLE_SPAWN_GAP_METERS`` interval along the lane's ENTIRE real
-        ``edge_length`` -- deliberately NOT stopping short at
-        ``compute_node_clearance`` (the trim ``LaneTopologyGenerator.
-        _generate_lanes_for_edge`` applies to ``Lane.centerline`` for
-        pavement-mesh purposes) or at the wider, crosswalk-aware
-        ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M`` boundary.
-
-        Fifth real design correction (2026-09-24, explicit user request):
-        an earlier version of this method bounded tiling by the
-        crosswalk-clearing setback UNCONDITIONALLY at both ends, so no
-        vehicle could ever be tiled inside a crosswalk/intersection box
-        regardless of signal phase. That was too strict: on a real green
-        light, vehicles legitimately drive straight through an
-        intersection ("the intersection is just an extended road"), and
-        this pipeline's own resolved ``signal_phasing`` state already
-        knows, per scenario, which axis currently has that right of way.
-        Zone GENERATION has no access to that phase (it's resolved later,
-        randomly, in ``ActorPlacementGenerator`` -- one instant per
-        scenario), so it goes back to being purely geometric here; the
-        real phase-vs-crosswalk gating decision lives in
-        ``actor_placement.py``'s ``_try_place_vehicle``, which DOES know
-        the resolved phase and decides, per candidate position and per
-        nearby node independently, whether to keep the natural tiled
-        position (flowing) or redirect/exclude it (not flowing).
-
-        Sixth real design correction (2026-09-25, explicit user request):
-        the fifth fix above still clamped tiling to the plain
-        ``compute_node_clearance`` trim at each end, so no candidate
-        position ever existed INSIDE the intersection box at all --
-        regardless of phase, there was simply nothing there for
-        ``_try_place_vehicle`` to allow. On a real green light this
-        produced a visible gap the width of the whole box at every
-        intersection along a straight through-corridor, instead of one
-        continuous lane of traffic. Since ``_try_place_vehicle`` already
-        independently decides, per candidate and per nearby node, whether
-        a position is allowed (exactly the mechanism the fifth fix
-        introduced), the fix is to simply stop clamping at generation
-        time and tile the lane's full, real, untrimmed length -- letting
-        placement time keep excluding/redirecting these candidates when
-        the axis does NOT have the right of way, and allow them at their
-        natural position (reaching all the way to the node) when it does.
-
-        The last tile per lane still carries a real ``stop_line_position``
-        (unchanged: the true crosswalk-clearing setback from the
-        destination node, computed straight from ``RoadEdge.centerline``
-        and the real, unclamped ``node_clearance`` -- never from
-        ``Lane.centerline``, which can itself be clamped short, see
-        ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M``'s own docstring) --
-        this is pure geometry (matches the real painted crosswalk's own
-        far edge from ``crosswalks.py``) and needs no phase information,
-        so it stays computed here. It now generally sits FARTHER from the
-        node than that same zone's own ``position`` (which uses the
-        smaller, plain-clearance bound) -- that gap is exactly the
-        dedicated "queue behind the crosswalk" candidate
-        ``actor_placement.py`` redirects to when this lane's axis does
-        NOT have the right of way at that node.
+        """Exactly one DRIVING spawn zone per real lane (2026-09-25
+        design correction: earlier versions tiled fixed-interval
+        candidate points per lane -- first several per lane, most
+        recently the lane's entire real length -- but a real fixed
+        interval can't produce real vehicle spacing variety no matter
+        how it's tuned. Zone generation still has no signal-phase
+        information (resolved later, randomly, per scenario, in
+        ActorPlacementGenerator), so it stays purely geometric: one real
+        anchor point per lane (``position``, at the lane's own
+        destination node -- "driving through a green light") plus the
+        real crosswalk-clearing stop line (``stop_line_position``,
+        unchanged formula) and the lane's own real lateral offset
+        (``lateral_offset_m``). ``actor_placement.py``'s per-lane chain
+        placement uses these three real quantities, plus this lane's own
+        edge geometry and speed limit, to walk backward from the
+        destination node sampling real, randomized vehicle-to-vehicle
+        gaps (see ``vehicle_spacing.py``) -- deciding how MANY vehicles a
+        lane holds and exactly where, rather than consuming a fixed set
+        of pre-tiled positions.
 
         Recomputes direction/perpendicular offset directly from ``edge``
         and ``lane.lane_index`` (lane_topology.py's own real offset
@@ -388,7 +355,7 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
 
             if edge_length < 1e-9:
                 # Degenerate (near-zero-length) edge: no real direction to
-                # tile along -- one zone at the lane's own single point.
+                # place along -- one zone at the lane's own single point.
                 spawn_zones.append(
                     SpawnZone(
                         spawn_zone_id=self._spawn_zone_counter,
@@ -396,6 +363,7 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
                         position=lane.centerline[0].copy(),
                         edge_id=lane.edge_id,
                         stop_line_position=lane.centerline[0].copy(),
+                        lateral_offset_m=0.0,
                     )
                 )
                 self._spawn_zone_counter += 1
@@ -405,17 +373,9 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
             perp = compute_perpendicular(edge_direction)
             offset_distance = (lane.lane_index + 0.5) * LANE_WIDTH_METERS
 
-            # Tile the FULL real edge length -- see this method's own
-            # docstring (sixth design correction): no clamping at either
-            # end, so candidate positions exist all the way to each node,
-            # closing what would otherwise be an unconditional gap the
-            # width of the intersection box.
-            start_boundary_along = 0.0
-            usable_length = edge_length
-
             # The real stop line for this lane's destination node -- pure
-            # geometry, independent of the plain tiling bound above (see
-            # this method's own docstring).
+            # geometry (matches the real painted crosswalk's own far
+            # edge from crosswalks.py).
             end_clearance = node_clearance.get(edge.end_node_id, 0.0)
             stop_line_distance_from_node = min(
                 end_clearance + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M, edge_length
@@ -426,28 +386,21 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
                 + perp * offset_distance
             )
 
-            num_points = max(1, int(usable_length // VEHICLE_SPAWN_GAP_METERS) + 1)
-            for point_index in range(num_points):
-                is_last = point_index == num_points - 1
-                distance_along = (
-                    usable_length if is_last else point_index * VEHICLE_SPAWN_GAP_METERS
-                )
-                position = (
-                    edge.centerline[0]
-                    + unit_direction * (start_boundary_along + distance_along)
-                    + perp * offset_distance
-                )
+            # The lane's own natural anchor, at its destination node --
+            # used when this lane's axis is flowing there.
+            position = edge.centerline[-1] + perp * offset_distance
 
-                spawn_zones.append(
-                    SpawnZone(
-                        spawn_zone_id=self._spawn_zone_counter,
-                        zone_type=SpawnZoneType.DRIVING,
-                        position=position,
-                        edge_id=lane.edge_id,
-                        stop_line_position=stop_line_position.copy() if is_last else None,
-                    )
+            spawn_zones.append(
+                SpawnZone(
+                    spawn_zone_id=self._spawn_zone_counter,
+                    zone_type=SpawnZoneType.DRIVING,
+                    position=position,
+                    edge_id=lane.edge_id,
+                    stop_line_position=stop_line_position,
+                    lateral_offset_m=offset_distance,
                 )
-                self._spawn_zone_counter += 1
+            )
+            self._spawn_zone_counter += 1
         return spawn_zones
 
     def _generate_spawn_zones(  # pylint: disable=too-many-locals

@@ -29,7 +29,6 @@ from src.procedural.math_utils import compute_perpendicular
 from src.procedural.road_network import IntersectionType, RoadEdge, RoadNetworkGenerator, RoadType
 from src.procedural.traffic_network import (
     PEDESTRIAN_SPAWN_GAP_METERS,
-    VEHICLE_SPAWN_GAP_METERS,
     VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M,
     NavigationGraph,
     SpawnZone,
@@ -161,96 +160,64 @@ def _zones_for_lane(zones: List[SpawnZone], lane) -> List[SpawnZone]:
     ]
 
 
-def test_driving_spawn_zones_tiled_along_each_lane(  # pylint: disable=too-many-locals
-    urban_config, bounds
-) -> None:
-    """Every lane gets at least one DRIVING zone, and a lane longer than
-    VEHICLE_SPAWN_GAP_METERS gets more than one, tiled at that real
-    interval -- not just a single slot at the lane's intersection-facing
-    end (a real bug, reported live: vehicles clustered only at
-    intersections, leaving entire mid-block lane lengths empty). The
-    expected count is derived from the lane's own FULL, untrimmed real
-    ``edge_length`` -- not the plain ``compute_node_clearance`` trim, and
-    not the wider, crosswalk-aware ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M``
-    boundary either: zone generation has no signal-phase information, so
-    it tiles the entire geometric lane, right up to each node, so a
-    green-axis vehicle has a real candidate position anywhere in the
-    intersection box; the phase-aware crosswalk gating happens later, at
-    placement time, in ``actor_placement.py`` (see
-    ``_generate_driving_zones``'s own docstring, 2026-09-25)."""
-    _, edges, lanes, traffic = _generate_full_network(42, urban_config, bounds)
+def test_exactly_one_driving_zone_per_lane(urban_config, bounds) -> None:
+    """Every real lane gets exactly one DRIVING zone (2026-09-25 design
+    correction: a fixed tiling interval can't produce real vehicle
+    spacing variety, so generation now emits one real anchor per lane and
+    ``actor_placement.py``'s per-lane chain placement decides how many
+    vehicles it holds and where, from real randomized gaps -- see
+    ``_generate_driving_zones``'s own docstring)."""
+    _, _, lanes, traffic = _generate_full_network(42, urban_config, bounds)
     driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
+    assert driving_zones  # sanity
 
-    saw_multi_tiled_lane = False
     for lane in lanes.values():
-        edge = edges[lane.edge_id]
-        edge_direction = edge.centerline[-1] - edge.centerline[0]
-        edge_length = float(np.linalg.norm(edge_direction))
-
-        expected_count = max(1, int(edge_length // VEHICLE_SPAWN_GAP_METERS) + 1)
         matching = _zones_for_lane(driving_zones, lane)
-        assert len(matching) == expected_count
-        if expected_count > 1:
-            saw_multi_tiled_lane = True
-    assert saw_multi_tiled_lane  # sanity: this config/seed has long enough lanes to tile
+        assert len(matching) == 1
 
 
-def test_driving_zones_may_sit_inside_crosswalk_range(  # pylint: disable=too-many-locals
+def test_driving_zone_position_sits_at_the_lanes_destination_node(  # pylint: disable=too-many-locals
     urban_config, bounds
 ) -> None:
-    """At least one DRIVING zone's own tiled position is CLOSER to its
-    nearer node than that node's real crosswalk-clearing setback
-    (``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M``) -- proving zone
-    generation no longer bounds tiling by the crosswalk (reverted
-    2026-09-24, per explicit request: a vehicle on the green axis must be
-    able to occupy the intersection itself, so generation-time geometry
-    must not pre-exclude those positions; the real phase-vs-crosswalk
-    decision moves to placement time in ``actor_placement.py``). Without
-    this reversion, every zone would clear the setback at both ends
-    unconditionally (the prior, too-strict behavior) and this test would
-    fail -- it exists specifically to catch a regression back to that
-    unconditional behavior."""
+    """A DRIVING zone's ``position`` is exactly at its own lane's
+    destination node (offset only by the real lateral lane offset) --
+    the natural anchor used when this lane's axis is flowing there
+    ("driving through a green light"), not clamped short by
+    ``compute_node_clearance`` or the crosswalk setback (that clamping
+    happens at placement time, per resolved signal phase, in
+    ``actor_placement.py``)."""
     _, edges, lanes, traffic = _generate_full_network(42, urban_config, bounds)
-    node_clearance = compute_node_clearance(edges)
     driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
 
-    saw_inside_crosswalk_range = False
+    checked_any = False
     for lane in lanes.values():
         edge = edges[lane.edge_id]
         edge_direction = edge.centerline[-1] - edge.centerline[0]
-        edge_length = float(np.linalg.norm(edge_direction))
-        if edge_length < 1e-9:
+        if float(np.linalg.norm(edge_direction)) < 1e-9:
             continue
-        unit_direction = edge_direction / edge_length
-        start_required = node_clearance.get(edge.start_node_id, 0.0) + (
-            VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
-        )
-        end_required = node_clearance.get(edge.end_node_id, 0.0) + (
-            VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
-        )
+        perp = compute_perpendicular(edge_direction)
+        offset_distance = (lane.lane_index + 0.5) * LANE_WIDTH_METERS
+        expected = edge.centerline[-1] + perp * offset_distance
 
-        for zone in _zones_for_lane(driving_zones, lane):
-            along_from_start = float(np.dot(zone.position - edge.centerline[0], unit_direction))
-            along_from_end = edge_length - along_from_start
-            if along_from_start < start_required or along_from_end < end_required:
-                saw_inside_crosswalk_range = True
-    assert saw_inside_crosswalk_range
+        (zone,) = _zones_for_lane(driving_zones, lane)
+        assert np.allclose(zone.position, expected)
+        assert zone.lateral_offset_m == pytest.approx(offset_distance)
+        checked_any = True
+    assert checked_any  # sanity
 
 
 def test_driving_spawn_zone_carries_real_stop_line_position(  # pylint: disable=too-many-locals
     urban_config, bounds
 ) -> None:
-    """Only the single DRIVING zone closest to each lane's own destination
-    node carries a real stop_line_position -- computed straight from the
-    edge's own real (untrimmed) endpoint and the real, unclamped
-    ``compute_node_clearance`` value (never from
+    """Each lane's one DRIVING zone carries a real stop_line_position --
+    computed straight from the edge's own real (untrimmed) endpoint and
+    the real, unclamped ``compute_node_clearance`` value (never from
     ``Lane.centerline[-1]``, which can itself be clamped short -- see
     ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M``'s own docstring for the real
     bug this avoids), so it lands flush BEHIND the crosswalk's own far
     edge rather than on/past it, even on a dense small-block layout where
     the lane's own trim clamp would otherwise put its raw far end inside
-    the intersection box. Every other DRIVING zone on the same lane
-    carries None."""
+    the intersection box."""
     _, edges, lanes, traffic = _generate_full_network(42, urban_config, bounds)
     node_clearance = compute_node_clearance(edges)
     driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
@@ -259,10 +226,8 @@ def test_driving_spawn_zone_carries_real_stop_line_position(  # pylint: disable=
     saw_a_stop_line = False
     for lane in lanes.values():
         edge = edges[lane.edge_id]
-        lane_zones = _zones_for_lane(driving_zones, lane)
-        with_stop_line = [z for z in lane_zones if z.stop_line_position is not None]
-        assert len(with_stop_line) == 1  # exactly one per lane
-        zone = with_stop_line[0]
+        (zone,) = _zones_for_lane(driving_zones, lane)
+        assert zone.stop_line_position is not None
         saw_a_stop_line = True
 
         direction = edge.centerline[-1] - edge.centerline[0]
@@ -298,10 +263,8 @@ def test_stop_line_never_inside_real_crosswalk(  # pylint: disable=too-many-loca
     checked_any = False
     for lane in lanes.values():
         edge = edges[lane.edge_id]
-        lane_zones = _zones_for_lane(driving_zones, lane)
-        with_stop_line = [z for z in lane_zones if z.stop_line_position is not None]
-        assert len(with_stop_line) == 1
-        zone = with_stop_line[0]
+        (zone,) = _zones_for_lane(driving_zones, lane)
+        assert zone.stop_line_position is not None
 
         # The real anchor for THIS edge's approach to its own end node:
         # the one whose pivot lies along this edge's own incoming
