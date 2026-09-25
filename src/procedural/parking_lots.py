@@ -27,6 +27,13 @@ import numpy.typing as npt
 from src.procedural.actor_placement import Vehicle
 from src.procedural.building_facade import FacadePiece
 from src.procedural.building_placement import identify_city_blocks
+from src.procedural.crosswalks import (
+    BAR_PITCH_M,
+    STOP_LINE_ASSET_PATH,
+    STOP_LINE_REAL_SIZE_M,
+    STOP_LINE_WIDTH_M,
+    STOP_LINE_Z_LIFT_M,
+)
 from src.procedural.lane_topology import LANE_WIDTH_METERS, SIDEWALK_WIDTH_METERS
 from src.procedural.mesh_factory import Mesh, flat_quad_mesh
 from src.procedural.road_network import RoadEdge, RoadNode
@@ -628,4 +635,55 @@ def parking_lot_pieces(lots: Sequence[ParkingLot], lamp_style: int = 0) -> List[
                     float(stall.head_heading_rad + np.pi / 2.0),
                 )
             )
+    return pieces
+
+
+# The bar mesh's painted length per unit of its Y scale, measured live: at Y
+# scales 0.5, 1, 2, 3 and 4 the painted length came out at 0.263-0.270 of
+# the mesh's X extent per unit scale, and the X extent is
+# STOP_LINE_REAL_SIZE_M (5.12 m) per unit scale.
+STOP_LINE_PAINTED_DEPTH_M = STOP_LINE_REAL_SIZE_M * 0.267
+
+# Direction into the lot from each driveway side (python frame).
+_INWARD = {"x0": (1.0, 0.0), "x1": (-1.0, 0.0), "y0": (0.0, 1.0), "y1": (0.0, -1.0)}
+
+
+def _crosswalk_stripes(  # pylint: disable=too-many-locals
+    driveway: Driveway,
+) -> List[FacadePiece]:
+    """One driveway's crosswalk stripes (see ``driveway_crosswalk_pieces``)."""
+    inward = _INWARD[driveway.side]
+    apron_length = abs(driveway.lot_edge - driveway.road_edge)
+    depth_scale = min(SIDEWALK_WIDTH_METERS, apron_length) / STOP_LINE_PAINTED_DEPTH_M
+    width_scale = STOP_LINE_WIDTH_M / STOP_LINE_REAL_SIZE_M
+    rotation = float(np.arctan2(inward[0], -inward[1]))
+    low, high = driveway.span
+    count = max(1, round((high - low) / BAR_PITCH_M))
+    pitch = (high - low) / count
+    depth_middle = driveway.road_edge + (inward[0] + inward[1]) * apron_length / 2.0
+    stripes: List[FacadePiece] = []
+    for i in range(count):
+        across = low + pitch * (i + 0.5)
+        x, y = (depth_middle, across) if driveway.side in ("x0", "x1") else (across, depth_middle)
+        stripes.append(
+            FacadePiece(
+                STOP_LINE_ASSET_PATH,
+                np.array([x, y, LOT_SURFACE_Z_M + STOP_LINE_Z_LIFT_M]),
+                rotation,
+                (width_scale, depth_scale, 1.0),
+            )
+        )
+    return stripes
+
+
+def driveway_crosswalk_pieces(lots: Sequence[ParkingLot]) -> List[FacadePiece]:
+    """A continental (ladder) crosswalk across each driveway mouth, so
+    pedestrians on the sidewalk cross where cars enter the lot. It uses the
+    street crosswalks' own bar asset, bar width and pitch: the bars run along
+    the driveway (into the lot), one bar every ``BAR_PITCH_M`` across the
+    driveway's width, over the sidewalk-wide strip of the apron."""
+    pieces: List[FacadePiece] = []
+    for lot in lots:
+        if lot.driveway is not None:
+            pieces += _crosswalk_stripes(lot.driveway)
     return pieces

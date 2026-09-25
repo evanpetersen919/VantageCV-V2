@@ -8,6 +8,12 @@ import pytest
 from src.orchestration.dataset_generator import generate_scenario
 from src.orchestration.scenario_serializer import serialize_scenario
 from src.procedural.actor_placement import VEHICLE_DIMENSIONS, Vehicle
+from src.procedural.crosswalks import (
+    BAR_PITCH_M,
+    STOP_LINE_ASSET_PATH,
+    STOP_LINE_REAL_SIZE_M,
+    STOP_LINE_WIDTH_M,
+)
 from src.procedural.environment import TimeOfDay
 from src.procedural.night_lights import vehicle_glows, vehicle_lights
 from src.procedural.parking_lots import (
@@ -24,8 +30,10 @@ from src.procedural.parking_lots import (
     PARKING_BLOCK_ASSET_PATHS,
     STALL_LENGTH_M,
     STALL_WIDTH_M,
+    STOP_LINE_PAINTED_DEPTH_M,
     WHEEL_STOP_SETBACK_M,
     Driveway,
+    driveway_crosswalk_pieces,
     layout_lot,
     parked_vehicles,
     parking_lot_meshes,
@@ -363,3 +371,54 @@ def test_lot_pieces_reach_the_payload_with_unique_ids(urban_config, bounds) -> N
     )
     ids = [a["id"] for a in payload["assets"] if a["category"] == "static_asset"]
     assert len(ids) == len(set(ids))
+
+
+def test_each_driveway_gets_a_ladder_crosswalk_across_its_mouth(  # pylint: disable=too-many-locals
+    urban_config, bounds
+) -> None:
+    """Every lot's driveway has stripes on the street crosswalks' own asset,
+    one per BAR_PITCH_M across its width, lying on the apron, long axis into
+    the lot, thin like a street crosswalk stripe, just above the lot surface."""
+    result = generate_scenario(42, _config(urban_config, 0.6), bounds, "x")
+    pieces = driveway_crosswalk_pieces(result.parking_lots)
+    assert pieces
+    width_scale = STOP_LINE_WIDTH_M / STOP_LINE_REAL_SIZE_M
+    for lot in result.parking_lots:
+        driveway = lot.driveway
+        x0, y0, x1, y1 = driveway.apron
+        stripes = [
+            p
+            for p in pieces
+            if x0 - 1e-6 <= p.position[0] <= x1 + 1e-6 and y0 - 1e-6 <= p.position[1] <= y1 + 1e-6
+        ]
+        span = driveway.span[1] - driveway.span[0]
+        assert len(stripes) == max(1, round(span / BAR_PITCH_M))
+        along_x = driveway.side in ("x0", "x1")
+        centers = sorted(float(p.position[1] if along_x else p.position[0]) for p in stripes)
+        assert np.diff(centers) == pytest.approx(span / len(stripes)) if len(stripes) > 1 else True
+        assert centers[0] == pytest.approx(driveway.span[0] + span / len(stripes) / 2.0)
+        for stripe in stripes:
+            assert stripe.asset_path == STOP_LINE_ASSET_PATH
+            assert stripe.scale[0] == pytest.approx(width_scale)
+            assert stripe.scale[1] * STOP_LINE_PAINTED_DEPTH_M <= 3.0 + 1e-9
+            assert stripe.position[2] > LOT_SURFACE_Z_M
+        inward = {"x0": (1, 0), "x1": (-1, 0), "y0": (0, 1), "y1": (0, -1)}[driveway.side]
+        expected = np.arctan2(inward[0], -inward[1])
+        assert all(stripe.rotation_rad == pytest.approx(expected) for stripe in stripes)
+
+
+def test_driveway_crosswalk_is_centered_on_the_apron_depth() -> None:
+    """On a driveway whose apron is 3.5 m deep, the stripes sit 1.75 m in from
+    the road edge, and the band is the sidewalk width (3 m) long."""
+    lot = layout_lot(0, (0.0, 0.0, 60.0, 30.0))
+    lot.driveway = Driveway("x0", road_edge=-3.5, lot_edge=0.0, span=(8.0, 15.0))
+    stripes = driveway_crosswalk_pieces([lot])
+    assert all(stripe.position[0] == pytest.approx(-1.75) for stripe in stripes)
+    assert all(
+        stripe.scale[1] * STOP_LINE_PAINTED_DEPTH_M == pytest.approx(3.0) for stripe in stripes
+    )
+    north = layout_lot(1, (0.0, 0.0, 30.0, 60.0))
+    north.driveway = Driveway("y1", road_edge=63.5, lot_edge=60.0, span=(8.0, 15.0))
+    stripes = driveway_crosswalk_pieces([north])
+    assert all(stripe.position[1] == pytest.approx(61.75) for stripe in stripes)
+    assert all(stripe.rotation_rad == pytest.approx(np.arctan2(0.0, 1.0)) for stripe in stripes)

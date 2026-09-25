@@ -36,6 +36,7 @@ from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
 from src.procedural.parking_lots import (
     ParkingLot,
+    driveway_crosswalk_pieces,
     parked_vehicles,
     parking_lot_meshes,
     parking_lot_pieces,
@@ -220,6 +221,7 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     lamp_style = int(style_rng.integers(len(LAMP_STYLES)))
     tree_base_style = int(style_rng.integers(len(TREE_BASE_STYLES)))
     parking_lot_props = parking_lot_pieces(parking_lots, lamp_style)
+    parking_lot_props += driveway_crosswalk_pieces(parking_lots)
 
     street_furniture_pieces = generate_street_furniture_pieces(
         lanes,
