@@ -77,11 +77,34 @@ def test_fog_is_denser_than_overcast_haze() -> None:
     assert max(densities, key=densities.get) == Weather.FOG
 
 
-def test_non_clear_weather_is_daytime_only() -> None:
-    """Night keeps its own lighting and rejects any other weather."""
+def test_night_takes_clear_or_rain_and_rejects_the_rest() -> None:
+    """Night keeps its moonlit sky, allows rain (wet surfaces and dimmer
+    streaks on top of it) and rejects every other weather."""
     assert scenario_environment(Season.SUMMER, TimeOfDay.NIGHT) is NIGHT_ENVIRONMENT
-    with pytest.raises(ValueError):
-        scenario_environment(Season.SUMMER, TimeOfDay.NIGHT, Weather.FOG)
+    night_rain = scenario_environment(Season.SUMMER, TimeOfDay.NIGHT, Weather.RAIN)
+    assert night_rain.exposure_bias == NIGHT_ENVIRONMENT.exposure_bias
+    assert night_rain.color_gain == NIGHT_ENVIRONMENT.color_gain
+    assert night_rain.sun_temperature_k == NIGHT_ENVIRONMENT.sun_temperature_k
+    assert night_rain.mie_scale is None
+    assert set(night_rain.surface_scalars) == {"asphalt", "ground", "pavement"}
+    day_rain = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN)
+    assert 0.0 < night_rain.rain_intensity < day_rain.rain_intensity
+    for weather in Weather:
+        if weather not in (Weather.CLEAR, Weather.RAIN):
+            with pytest.raises(ValueError):
+                scenario_environment(Season.SUMMER, TimeOfDay.NIGHT, weather)
+
+
+def test_rain_streaks_are_in_the_payload_only_for_rain() -> None:
+    """Only rain adds a "rain" object (intensity, slant, seed)."""
+    rain = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN).to_json()
+    assert rain["rain"] == {"intensity": 0.9, "slant": 0.12, "seed": 1.0}
+    for weather in Weather:
+        if weather != Weather.RAIN:
+            assert (
+                "rain" not in scenario_environment(Season.SUMMER, TimeOfDay.DAY, weather).to_json()
+            )
+    assert scenario_environment(Season.SUMMER, TimeOfDay.NIGHT).to_json().get("rain") is None
 
 
 def test_json_carries_only_the_fields_a_weather_sets() -> None:

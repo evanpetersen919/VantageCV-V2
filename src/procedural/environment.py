@@ -49,6 +49,11 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
     # Scalar overrides per procedural-mesh material tag ("asphalt", "ground",
     # "pavement"): how wet the roads and paving look.
     surface_scalars: Optional[Dict[str, Dict[str, float]]] = None
+    # Rain streaks drawn over the frame (see create_rain_material.py): opacity
+    # (0 is none), the horizontal shear per unit height, and a pattern seed.
+    rain_intensity: Optional[float] = None
+    rain_slant: float = 0.12
+    rain_seed: float = 1.0
     rayleigh_scale: Optional[float] = None
     mie_scale: Optional[float] = None
     mie_absorption_scale: Optional[float] = None
@@ -88,6 +93,12 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
             "fog": fog,
             "post_process": post_process,
         }
+        if self.rain_intensity is not None:
+            result["rain"] = {
+                "intensity": self.rain_intensity,
+                "slant": self.rain_slant,
+                "seed": self.rain_seed,
+            }
         if self.surface_scalars:
             result["surface_scalars"] = {
                 tag: dict(values) for tag, values in self.surface_scalars.items()
@@ -248,6 +259,7 @@ _WEATHER_OVERRIDES: Dict[Weather, Dict[str, Any]] = {
         "fog_density": 0.012,
         "fog_color": _FOG_GREY,
         "surface_scalars": _WET_SURFACES,
+        "rain_intensity": 0.9,
     },
     Weather.FOG: {"sun_intensity_lux": 1.5, "fog_density": 0.05, "fog_color": _FOG_GREY},
     Weather.GOLDEN_HOUR: {
@@ -267,6 +279,15 @@ _WEATHER_OVERRIDES: Dict[Weather, Dict[str, Any]] = {
         "fog_density": 0.012,
         "fog_color": (0.55, 0.5, 0.45),
     },
+}
+
+# Night rain: the moonlit sky stays, roads and paving get wet (street lamps and
+# headlights then reflect in them), a little haze, and streaks at a lower opacity
+# because bright streaks over a dark scene overpower it.
+_NIGHT_RAIN_OVERRIDES: Dict[str, Any] = {
+    "fog_density": 0.004,
+    "surface_scalars": _WET_SURFACES,
+    "rain_intensity": 0.45,
 }
 
 # How often each weather is drawn when a dataset picks one at random. These
@@ -299,14 +320,19 @@ def scenario_environment(
     (season-independent), otherwise the season's daytime preset with the
     weather's overrides on top.
 
+    Night takes clear or rain (its own moonlit sky is kept; rain adds wet
+    surfaces, a little haze and dimmer streaks).
+
     Raises
     ------
     ValueError
-        If a non-clear ``weather`` is combined with night.
+        If a weather other than clear or rain is combined with night.
     """
     if time_of_day == TimeOfDay.NIGHT:
+        if weather == Weather.RAIN:
+            return dataclasses.replace(NIGHT_ENVIRONMENT, **_NIGHT_RAIN_OVERRIDES)
         if weather != Weather.CLEAR:
-            raise ValueError(f"weather {weather.value!r} is only defined for daytime scenarios")
+            raise ValueError(f"weather {weather.value!r} is not defined for night scenarios")
         return NIGHT_ENVIRONMENT
     return dataclasses.replace(season_environment(season), **_WEATHER_OVERRIDES[weather])
 

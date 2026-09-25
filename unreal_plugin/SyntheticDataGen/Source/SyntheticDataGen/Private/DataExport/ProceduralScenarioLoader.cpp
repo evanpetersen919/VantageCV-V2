@@ -567,6 +567,43 @@ void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& 
 		}
 	}
 
+	const TSharedPtr<FJsonObject>* RainJson = nullptr;
+	if (Env->TryGetObjectField(TEXT("rain"), RainJson))
+	{
+		UMaterialInterface* RainBase = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/VantageCV/M_RainStreaks.M_RainStreaks"));
+		if (RainBase == nullptr)
+		{
+			UE_LOG(LogProceduralScenarioLoader, Warning, TEXT("ApplyEnvironment: rain requested but /Game/VantageCV/M_RainStreaks is missing; run unreal_plugin/tools/create_rain_material.py"));
+		}
+		else
+		{
+			UMaterialInstanceDynamic* RainMaterial = UMaterialInstanceDynamic::Create(RainBase, this);
+			double Value = 0.0;
+			if ((*RainJson)->TryGetNumberField(TEXT("intensity"), Value))
+			{
+				RainMaterial->SetScalarParameterValue(TEXT("Intensity"), static_cast<float>(Value));
+			}
+			if ((*RainJson)->TryGetNumberField(TEXT("slant"), Value))
+			{
+				RainMaterial->SetScalarParameterValue(TEXT("Slant"), static_cast<float>(Value));
+			}
+			if ((*RainJson)->TryGetNumberField(TEXT("seed"), Value))
+			{
+				RainMaterial->SetScalarParameterValue(TEXT("Seed"), static_cast<float>(Value));
+			}
+			FActorSpawnParameters RainSpawnParams;
+			RainSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			if (APostProcessVolume* RainVolume = World->SpawnActor<APostProcessVolume>(FVector::ZeroVector, FRotator::ZeroRotator, RainSpawnParams))
+			{
+				RainVolume->bUnbound = true;
+				RainVolume->BlendWeight = 1.0f;
+				RainVolume->Priority = 101.0f;
+				RainVolume->Settings.AddBlendable(RainMaterial, 1.0f);
+				SpawnedAssetActors.Add(RainVolume);
+			}
+		}
+	}
+
 	const TSharedPtr<FJsonObject>* SkyLightJson = nullptr;
 	if (Env->TryGetObjectField(TEXT("sky_light"), SkyLightJson))
 	{
