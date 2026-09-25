@@ -19,17 +19,19 @@ occupancy statistics were sourced.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import numpy.typing as npt
 
 from src.procedural.actor_placement import Vehicle
+from src.procedural.building_facade import FacadePiece
 from src.procedural.building_placement import identify_city_blocks
 from src.procedural.lane_topology import LANE_WIDTH_METERS, SIDEWALK_WIDTH_METERS
 from src.procedural.mesh_factory import Mesh, flat_quad_mesh
 from src.procedural.road_network import RoadEdge, RoadNode
 from src.procedural.scenario import ScenarioTypeConfig
+from src.procedural.street_furniture import LAMP_STYLES
 
 FEET_TO_METERS = 0.3048
 STALL_WIDTH_M = 9.0 * FEET_TO_METERS
@@ -68,6 +70,31 @@ PARK_YAW_MAX_RAD = 0.06
 STALL_LINE_CLEARANCE_M = 0.1
 # How far toward the aisle a car may stand beyond its stall's tail line.
 AISLE_OVERHANG_M = 0.25
+# A lot's driveway is as wide as its aisles; the ramp is the short slope from
+# road level up to the lot surface across the gutter (a design choice: no
+# driveway-width source was found).
+DRIVEWAY_WIDTH_M = AISLE_WIDTH_M
+DRIVEWAY_RAMP_LENGTH_M = 0.8
+DRIVEWAY_RAMP_OUTER_Z_M = 0.003
+
+# A landscape island (one stall wide, no stall) is left every this many
+# stalls along a row, at the head lines between rows, to hold a light pole.
+ISLAND_PERIOD_STALLS = 14
+
+# Wheel stops sit centered in the stall, this far back from its head line
+# (2.5 ft, per parking-lot guides), in this share of lots.
+WHEEL_STOP_SETBACK_M = 2.5 * FEET_TO_METERS
+WHEEL_STOP_LOT_FRACTION = 0.5
+_PARKING_BLOCK_DIR = "/Game/Megascans/3D_Assets"
+# The five Megascans parking blocks (one style per lot), the mesh path of each.
+PARKING_BLOCK_ASSET_PATHS: Tuple[str, ...] = (
+    f"{_PARKING_BLOCK_DIR}/Parking_Block_00/Parking_Block_LOD0_tltrecmfa",
+    f"{_PARKING_BLOCK_DIR}/Parking_Block_01/Parking_Block_LOD0_tlnvfh1fa",
+    f"{_PARKING_BLOCK_DIR}/Parking_Block_02/Parking_Block_LOD0_tlovdcvfa",
+    f"{_PARKING_BLOCK_DIR}/Parking_Block_03/Parking_Block_LOD0_tlnvfjyfa",
+    f"{_PARKING_BLOCK_DIR}/Parking_Block_04/Parking_Block_LOD0_tltqfbxfa",
+)
+
 PARKED_VEHICLE_TYPES = ("sedan", "suv", "truck")
 # The scenario's class mix, raised to this power before drawing a parked car's
 # type. The city sample pool has five suitable sedans but only one suitable
@@ -159,15 +186,81 @@ class ParkingStall:
     length: float = STALL_LENGTH_M
 
 
+Rect = Tuple[float, float, float, float]
+
+
+@dataclass(frozen=True)
+class Driveway:
+    """The lot's opening onto the road it faces.
+
+    ``side`` is the lot side it leaves by (``"x0"``/``"x1"`` for the low/high
+    x side, ``"y0"``/``"y1"`` likewise for y). ``road_edge`` is the
+    coordinate (x for an x side, y for a y side) of the road pavement's outer
+    edge, ``lot_edge`` that of the lot's own edge, and ``span`` the extent
+    along the road (y for an x side, x for a y side)."""
+
+    side: str
+    road_edge: float
+    lot_edge: float
+    span: Tuple[float, float]
+
+    def _rect(self, near: float, far: float) -> Rect:
+        low, high = sorted((near, far))
+        if self.side in ("x0", "x1"):
+            return low, self.span[0], high, self.span[1]
+        return self.span[0], low, self.span[1], high
+
+    @property
+    def _away(self) -> float:
+        """Signed distance the ramp reaches beyond the road edge."""
+        return -DRIVEWAY_RAMP_LENGTH_M if self.side in ("x0", "y0") else DRIVEWAY_RAMP_LENGTH_M
+
+    @property
+    def apron(self) -> Rect:
+        """The level asphalt from the road edge to the lot's edge."""
+        return self._rect(self.road_edge, self.lot_edge)
+
+    @property
+    def ramp(self) -> Rect:
+        """The slope from road level up to the apron, on the road's side of
+        the pavement edge."""
+        return self._rect(self.road_edge + self._away, self.road_edge)
+
+    @property
+    def gap(self) -> Rect:
+        """Everything the driveway covers, for cutting curb and sidewalk."""
+        return self._rect(self.road_edge + self._away, self.lot_edge)
+
+    def widened(self, removed_curbs: Sequence[Rect]) -> "Driveway":
+        """The driveway grown along the road to cover every curb piece that
+        was cut away for it, so no bare gap is left beside the asphalt."""
+        gap = self.gap
+        low, high = self.span
+        along = (1, 3) if self.side in ("x0", "x1") else (0, 2)
+        for rect in removed_curbs:
+            if rect[2] <= gap[0] or gap[2] <= rect[0] or rect[3] <= gap[1] or gap[3] <= rect[1]:
+                continue
+            low = min(low, rect[along[0]])
+            high = max(high, rect[along[1]])
+        return Driveway(self.side, self.road_edge, self.lot_edge, (low, high))
+
+
 @dataclass
-class ParkingLot:
+class ParkingLot:  # pylint: disable=too-many-instance-attributes
     """A surface lot: its axis-aligned bounds, stalls and painted stripes
-    (``(x_min, y_min, x_max, y_max)`` rectangles)."""
+    (``(x_min, y_min, x_max, y_max)`` rectangles), the aisles' center lines,
+    the light-pole spots, an optional driveway and the parking-block style
+    of its wheel stops (``None`` for a lot without them)."""
 
     lot_id: int
-    bounds: Tuple[float, float, float, float]
+    bounds: Rect
     stalls: List[ParkingStall] = field(default_factory=list)
-    stripes: List[Tuple[float, float, float, float]] = field(default_factory=list)
+    stripes: List[Rect] = field(default_factory=list)
+    aisle_along_x: bool = True
+    aisle_centers: List[float] = field(default_factory=list)
+    lamp_positions: List[Tuple[float, float]] = field(default_factory=list)
+    driveway: Optional[Driveway] = None
+    wheel_stop_style: Optional[int] = None
 
     @property
     def aabb(self) -> Tuple[float, float, float, float]:
@@ -185,7 +278,7 @@ def _block_free_rectangle(
     return float(x_min), float(y_min), float(x_max), float(y_max)
 
 
-def layout_lot(  # pylint: disable=too-many-locals
+def layout_lot(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     lot_id: int, bounds: Tuple[float, float, float, float]
 ) -> ParkingLot:
     """Stalls and stripes for a lot filling ``bounds``. The aisles run along
@@ -193,8 +286,8 @@ def layout_lot(  # pylint: disable=too-many-locals
     is too small for at least one aisle with a row of ``MIN_STALLS_PER_ROW``
     stalls."""
     x_min, y_min, x_max, y_max = bounds
-    lot = ParkingLot(lot_id=lot_id, bounds=bounds)
     aisle_along_x = (x_max - x_min) >= (y_max - y_min)
+    lot = ParkingLot(lot_id=lot_id, bounds=bounds, aisle_along_x=aisle_along_x)
     # (u, v): u runs along the aisles, v across them.
     u_min, u_max, v_min, v_max = (
         (x_min, x_max, y_min, y_max) if aisle_along_x else (y_min, y_max, x_min, x_max)
@@ -209,12 +302,17 @@ def layout_lot(  # pylint: disable=too-many-locals
     if modules == 0 and usable_v + FIT_TOLERANCE_M < STALL_LENGTH_M + AISLE_WIDTH_M:
         return lot
 
-    # Each row: (v of its center, +1 if its cars face +v when head-in).
+    # Each row: (v of its center, +1 if its cars face +v when head-in); the
+    # aisles' v centers; and the v of every head line rows meet or end at.
     rows: List[Tuple[float, int]] = []
+    aisles: List[float] = []
+    head_lines: List[float] = []
     if modules == 0:
         used = STALL_LENGTH_M + AISLE_WIDTH_M
         start = v_min + LOT_EDGE_MARGIN_M + (usable_v - used) / 2.0
         rows.append((start + AISLE_WIDTH_M + STALL_LENGTH_M / 2.0, 1))
+        aisles.append(start + AISLE_WIDTH_M / 2.0)
+        head_lines.append(start + AISLE_WIDTH_M + STALL_LENGTH_M)
     else:
         used = modules * module_depth
         start = v_min + LOT_EDGE_MARGIN_M + (usable_v - used) / 2.0
@@ -222,11 +320,28 @@ def layout_lot(  # pylint: disable=too-many-locals
             base = start + k * module_depth
             rows.append((base + STALL_LENGTH_M / 2.0, -1))
             rows.append((base + STALL_LENGTH_M + AISLE_WIDTH_M + STALL_LENGTH_M / 2.0, 1))
+            aisles.append(base + STALL_LENGTH_M + AISLE_WIDTH_M / 2.0)
+            head_lines.append(base)
+        head_lines.append(start + modules * module_depth)
+    lot.aisle_centers = [float(v) for v in aisles]
+
+    # A landscape island (no stall) every ISLAND_PERIOD_STALLS along the rows,
+    # or one mid-row when the row is shorter, holds a pole at each head line.
+    islands = set(range(ISLAND_PERIOD_STALLS - 1, stalls_per_row - 1, ISLAND_PERIOD_STALLS))
+    if not islands:
+        islands = {stalls_per_row // 2}
 
     u_start = u_min + LOT_EDGE_MARGIN_M + (usable_u - stalls_per_row * STALL_WIDTH_M) / 2.0
     half_stripe = STRIPE_WIDTH_M / 2.0
+    for island in sorted(islands):
+        u = u_start + (island + 0.5) * STALL_WIDTH_M
+        for head_v in head_lines:
+            x, y = (u, head_v) if aisle_along_x else (head_v, u)
+            lot.lamp_positions.append((float(x), float(y)))
     for row_v, facing in rows:
         for i in range(stalls_per_row):
+            if i in islands:
+                continue
             u = u_start + (i + 0.5) * STALL_WIDTH_M
             x, y = (u, row_v) if aisle_along_x else (row_v, u)
             if aisle_along_x:
@@ -269,6 +384,10 @@ def plan_parking_lots(  # pylint: disable=too-many-locals
         chosen = rng.random() < config.parking_lot_fraction
         frac_x, frac_y = rng.uniform(*LOT_EXTENT_FRACTION_RANGE, size=2)
         anchor_x, anchor_y = rng.integers(0, 2, size=2)
+        side_draw = int(rng.integers(0, 2))
+        aisle_draw = float(rng.random())
+        stops_draw = bool(rng.random() < WHEEL_STOP_LOT_FRACTION)
+        style_draw = int(rng.integers(len(PARKING_BLOCK_ASSET_PATHS)))
         if not chosen:
             continue
         x_min, y_min, x_max, y_max = _block_free_rectangle(block, inset)
@@ -278,9 +397,38 @@ def plan_parking_lots(  # pylint: disable=too-many-locals
         depth = (y_max - y_min) * float(frac_y)
         lot_x = x_min + (x_max - x_min - width) * int(anchor_x)
         lot_y = y_min + (y_max - y_min - depth) * int(anchor_y)
+        # The driveway leaves by one of the two short sides (the ends of the
+        # aisles); the lot is slid flush against that side of the block's
+        # free area, so the driveway only has to cross the sidewalk.
+        pavement_edge = max(edge.num_lanes for edge in edges.values()) * LANE_WIDTH_METERS
+        block_min, block_max = block.min(axis=0), block.max(axis=0)
+        if width >= depth:
+            side = "x0" if side_draw == 0 else "x1"
+            lot_x = x_min if side == "x0" else x_max - width
+            road_edge = float(
+                block_min[0] + pavement_edge if side == "x0" else block_max[0] - pavement_edge
+            )
+        else:
+            side = "y0" if side_draw == 0 else "y1"
+            lot_y = y_min if side == "y0" else y_max - depth
+            road_edge = float(
+                block_min[1] + pavement_edge if side == "y0" else block_max[1] - pavement_edge
+            )
         lot = layout_lot(len(lots), (lot_x, lot_y, lot_x + width, lot_y + depth))
-        if lot.stalls:
-            lots.append(lot)
+        if not lot.stalls:
+            continue
+        aisle_index = min(int(aisle_draw * len(lot.aisle_centers)), len(lot.aisle_centers) - 1)
+        aisle = lot.aisle_centers[aisle_index]
+        lot_edge = {
+            "x0": lot.bounds[0],
+            "x1": lot.bounds[2],
+            "y0": lot.bounds[1],
+            "y1": lot.bounds[3],
+        }[side]
+        half = DRIVEWAY_WIDTH_M / 2.0
+        lot.driveway = Driveway(side, road_edge, lot_edge, (aisle - half, aisle + half))
+        lot.wheel_stop_style = style_draw if stops_draw else None
+        lots.append(lot)
     return lots
 
 
@@ -386,9 +534,54 @@ def _stripe_mesh(stripes: Sequence[Tuple[float, float, float, float]]) -> Mesh:
     )
 
 
+def _ramp_mesh(driveway: Driveway) -> Mesh:
+    """The slope from road level (outer edge) up to the lot surface (at the
+    road's pavement edge), as one quad."""
+    x_min, y_min, x_max, y_max = driveway.ramp
+    low, high = DRIVEWAY_RAMP_OUTER_Z_M, LOT_SURFACE_Z_M
+    if driveway.side == "x0":
+        corners = [
+            (x_min, y_min, low),
+            (x_max, y_min, high),
+            (x_max, y_max, high),
+            (x_min, y_max, low),
+        ]
+    elif driveway.side == "x1":
+        corners = [
+            (x_max, y_min, low),
+            (x_min, y_min, high),
+            (x_min, y_max, high),
+            (x_max, y_max, low),
+        ]
+    elif driveway.side == "y0":
+        corners = [
+            (x_min, y_min, low),
+            (x_max, y_min, low),
+            (x_max, y_max, high),
+            (x_min, y_max, high),
+        ]
+    else:
+        corners = [
+            (x_min, y_max, low),
+            (x_max, y_max, low),
+            (x_max, y_min, high),
+            (x_min, y_min, high),
+        ]
+    vertices = np.array(corners, dtype=np.float64)
+    # Wind both triangles counter-clockwise seen from above.
+    area = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(corners, corners[1:] + corners[:1]))
+    triangles = [0, 1, 2, 0, 2, 3] if area > 0 else [0, 2, 1, 0, 3, 2]
+    return Mesh(
+        vertices=vertices,
+        triangles=np.array(triangles, dtype=np.int64),
+        uvs=vertices[:, :2] / LOT_UV_TILE_METERS,
+        material="asphalt",
+    )
+
+
 def parking_lot_meshes(lots: Sequence[ParkingLot]) -> List[Mesh]:
-    """Each lot's asphalt surface, and its painted stall stripes as a
-    second mesh."""
+    """Each lot's asphalt surface, its painted stall stripes as a second
+    mesh, and its driveway's level apron and ramp."""
     meshes: List[Mesh] = []
     for lot in lots:
         x_min, y_min, x_max, y_max = lot.bounds
@@ -399,4 +592,40 @@ def parking_lot_meshes(lots: Sequence[ParkingLot]) -> List[Mesh]:
         )
         if lot.stripes:
             meshes.append(_stripe_mesh(lot.stripes))
+        if lot.driveway is not None:
+            a_x0, a_y0, a_x1, a_y1 = lot.driveway.apron
+            meshes.append(
+                flat_quad_mesh(
+                    a_x0, a_y0, a_x1, a_y1, LOT_SURFACE_Z_M, LOT_UV_TILE_METERS, "asphalt"
+                )
+            )
+            meshes.append(_ramp_mesh(lot.driveway))
     return meshes
+
+
+def parking_lot_pieces(lots: Sequence[ParkingLot], lamp_style: int = 0) -> List[FacadePiece]:
+    """The static props of every lot: a light pole at each island (in the
+    scenario's own street-lamp style) and, in lots that have them, a parking
+    block centered in every stall, ``WHEEL_STOP_SETBACK_M`` back from the
+    stall's head line and turned across the stall."""
+    lamp_path, lamp_rotation = LAMP_STYLES[lamp_style % len(LAMP_STYLES)]
+    pieces: List[FacadePiece] = []
+    for lot in lots:
+        for x, y in lot.lamp_positions:
+            pieces.append(
+                FacadePiece(lamp_path, np.array([x, y, LOT_SURFACE_Z_M]), float(lamp_rotation))
+            )
+        if lot.wheel_stop_style is None:
+            continue
+        block_path = PARKING_BLOCK_ASSET_PATHS[lot.wheel_stop_style]
+        for stall in lot.stalls:
+            head = np.array([np.cos(stall.head_heading_rad), np.sin(stall.head_heading_rad)])
+            position = np.array(stall.center) + head * (stall.length / 2.0 - WHEEL_STOP_SETBACK_M)
+            pieces.append(
+                FacadePiece(
+                    block_path,
+                    np.array([position[0], position[1], LOT_SURFACE_Z_M]),
+                    float(stall.head_heading_rad + np.pi / 2.0),
+                )
+            )
+    return pieces

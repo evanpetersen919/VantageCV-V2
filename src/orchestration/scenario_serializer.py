@@ -285,6 +285,15 @@ def serialize_scenario(
     ]
     id_offset += len(result.street_furniture_pieces)
     assets += [
+        _facade_piece_to_asset_json(
+            piece,
+            id_offset + piece_id,
+            None if night else _street_lamp_overrides(piece),
+        )
+        for piece_id, piece in enumerate(result.parking_lot_pieces)
+    ]
+    id_offset += len(result.parking_lot_pieces)
+    assets += [
         _facade_piece_to_asset_json(piece, id_offset + piece_id)
         for piece_id, piece in enumerate(result.crosswalk_pieces)
     ]

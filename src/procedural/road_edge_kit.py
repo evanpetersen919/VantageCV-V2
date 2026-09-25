@@ -40,7 +40,7 @@ lane geometry (14m of pavement per road) is not yet snapped to Epic's real
 
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -89,6 +89,17 @@ DEFAULT_ROAD_EDGE_KIT = RoadEdgeKit(
 
 # Runs shorter than this get no pieces (a stub between two intersections).
 MIN_RUN_LENGTH_METERS = 1.0
+
+# A piece's extent across its run (metres from the curb line, positive
+# outward onto the sidewalk), used to test pieces against driveway gaps: the
+# curb is thin and straddles the line, the sidewalk extends its full width.
+CURB_ACROSS_RANGE_M = (-0.6, 0.6)
+
+Rect = Tuple[float, float, float, float]
+
+
+def _rects_overlap(a: Rect, b: Rect) -> bool:
+    return not (a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1])
 
 
 def _outer_boundaries(lanes: Dict[int, Lane]) -> Dict[int, npt.NDArray[np.float64]]:
@@ -142,6 +153,26 @@ def edge_runs(lanes: Dict[int, Lane], edges: Dict[int, RoadEdge]) -> List[EdgeRu
     return runs
 
 
+def _piece_footprint(  # pylint: disable=too-many-arguments
+    start: npt.NDArray[np.float64],
+    run_direction: npt.NDArray[np.float64],
+    outward: npt.NDArray[np.float64],
+    index: int,
+    step: float,
+    across: Tuple[float, float],
+) -> Rect:
+    """Axis-aligned bounds of run piece ``index``: ``step`` long along the
+    run and spanning ``across`` metres outward from the curb line."""
+    corners = [
+        start + run_direction * ((index + along) * step) + outward * side
+        for along in (0.0, 1.0)
+        for side in across
+    ]
+    xs = [float(c[0]) for c in corners]
+    ys = [float(c[1]) for c in corners]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
 def _run_pieces(  # pylint: disable=too-many-arguments,too-many-locals
     start: npt.NDArray[np.float64],
     run_direction: npt.NDArray[np.float64],
@@ -150,15 +181,27 @@ def _run_pieces(  # pylint: disable=too-many-arguments,too-many-locals
     asset_path: str,
     z: float,
     scale_yz: Tuple[float, float],
+    outward: npt.NDArray[np.float64],
+    across: Tuple[float, float],
+    gap_rects: Sequence[Rect] = (),
+    removed: Optional[List[Rect]] = None,
 ) -> List[FacadePiece]:
     """Tile one straight run with ``round(length / tile_length)`` pieces,
-    each stretched by the same factor so the run is filled exactly."""
+    each stretched by the same factor so the run is filled exactly. A piece
+    whose footprint overlaps a ``gap_rects`` rectangle (a driveway) is left
+    out, and its footprint is appended to ``removed`` when given."""
     count = max(1, round(length / tile_length))
     stretch = length / (count * tile_length)
     rotation = math.atan2(float(run_direction[1]), float(run_direction[0]))
     step = tile_length * stretch
     pieces: List[FacadePiece] = []
     for index in range(count):
+        if gap_rects:
+            footprint = _piece_footprint(start, run_direction, outward, index, step, across)
+            if any(_rects_overlap(footprint, gap) for gap in gap_rects):
+                if removed is not None:
+                    removed.append(footprint)
+                continue
         position = start + run_direction * (index * step)
         pieces.append(
             FacadePiece(
@@ -171,15 +214,19 @@ def _run_pieces(  # pylint: disable=too-many-arguments,too-many-locals
     return pieces
 
 
-def generate_road_edge_pieces(  # pylint: disable=too-many-locals
+def generate_road_edge_pieces(  # pylint: disable=too-many-locals,too-many-arguments
     lanes: Dict[int, Lane],
     edges: Dict[int, RoadEdge],
     kit: RoadEdgeKit = DEFAULT_ROAD_EDGE_KIT,
     curb_variant: int = 0,
     sidewalk_variant: int = 0,
+    gap_rects: Sequence[Rect] = (),
+    removed_curbs: Optional[List[Rect]] = None,
 ) -> List[FacadePiece]:
     """Curb and sidewalk pieces along the outer edge of every directed
     road edge, on straight stretches only (see this module's docstring).
+    Pieces overlapping a ``gap_rects`` rectangle (a driveway crossing) are
+    omitted; the curb pieces omitted are appended to ``removed_curbs``.
 
     Deterministic and RNG-free. One curb style and one sidewalk style are
     used for the WHOLE scenario (``curb_variant``/``sidewalk_variant``
@@ -200,6 +247,10 @@ def generate_road_edge_pieces(  # pylint: disable=too-many-locals
             curb_asset,
             kit.curb_z_m,
             kit.curb_scale_yz,
+            run.outward,
+            CURB_ACROSS_RANGE_M,
+            gap_rects,
+            removed_curbs,
         )
         pieces += _run_pieces(
             run.start,
@@ -209,5 +260,8 @@ def generate_road_edge_pieces(  # pylint: disable=too-many-locals
             sidewalk_asset,
             kit.sidewalk_z_m,
             (1.0, 1.0),
+            run.outward,
+            (0.0, kit.sidewalk_width_m),
+            gap_rects,
         )
     return pieces
