@@ -89,9 +89,10 @@ DRIVEWAY_RAMP_OUTER_Z_M = 0.003
 ISLAND_PERIOD_STALLS = 14
 
 # Wheel stops sit centered in the stall, this far back from its head line
-# (2.5 ft, per parking-lot guides), in this share of lots.
+# (2.5 ft, per parking-lot guides), in every lot (each lot draws one of the five
+# yellow-painted concrete block styles).
 WHEEL_STOP_SETBACK_M = 2.5 * FEET_TO_METERS
-WHEEL_STOP_LOT_FRACTION = 0.5
+WHEEL_STOP_LOT_FRACTION = 1.0
 _PARKING_BLOCK_DIR = "/Game/Megascans/3D_Assets"
 # The five Megascans parking blocks (one style per lot), the mesh path of each.
 PARKING_BLOCK_ASSET_PATHS: Tuple[str, ...] = (

@@ -422,3 +422,15 @@ def test_driveway_crosswalk_is_centered_on_the_apron_depth() -> None:
     stripes = driveway_crosswalk_pieces([north])
     assert all(stripe.position[1] == pytest.approx(61.75) for stripe in stripes)
     assert all(stripe.rotation_rad == pytest.approx(np.arctan2(0.0, 1.0)) for stripe in stripes)
+
+
+def test_every_lot_has_wheel_stops_in_one_of_the_block_styles(urban_config, bounds) -> None:
+    """All lots get parking blocks (one style per lot, from the five), and
+    the payload carries one block per stall."""
+    for seed in (42, 7, 19):
+        result = generate_scenario(seed, _config(urban_config, 0.7), bounds, "x")
+        assert result.parking_lots
+        for lot in result.parking_lots:
+            assert lot.wheel_stop_style in range(len(PARKING_BLOCK_ASSET_PATHS))
+        stops = [p for p in result.parking_lot_pieces if p.asset_path in PARKING_BLOCK_ASSET_PATHS]
+        assert len(stops) == sum(len(lot.stalls) for lot in result.parking_lots)
