@@ -23,6 +23,10 @@
 #include "Engine/SpotLight.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SpotLightComponent.h"
+#include "Engine/StaticMeshActor.h"
+#include "Engine/StaticMesh.h"
+#include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/ExponentialHeightFog.h"
 #include "Engine/PostProcessVolume.h"
 #include "Components/DirectionalLightComponent.h"
@@ -717,6 +721,20 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 			LightsSkipped);
 	}
 
+	const TArray<TSharedPtr<FJsonValue>>* GlowsJson = nullptr;
+	if (Root->TryGetArrayField(TEXT("glows"), GlowsJson))
+	{
+		int32 GlowsSpawned = 0;
+		int32 GlowsSkipped = 0;
+		SpawnGlows(*GlowsJson, GlowsSpawned, GlowsSkipped);
+		UE_LOG(
+			LogProceduralScenarioLoader,
+			Display,
+			TEXT("LoadProceduralScenario: spawned %d glow(s), skipped %d"),
+			GlowsSpawned,
+			GlowsSkipped);
+	}
+
 	if (bHasAnyVertex)
 	{
 		RepositionOverviewCamera(GetWorld(), BoundsMin, BoundsMax);
@@ -795,6 +813,10 @@ void AProceduralScenarioLoader::SpawnLights(
 				USpotLightComponent* SpotComponent = Cast<USpotLightComponent>(Spot->GetLightComponent());
 				if (SpotComponent != nullptr)
 				{
+					// Movable FIRST: Unreal ignores dynamic property changes
+					// (cone angles included) on a non-movable light, which
+					// silently left every beam at the default 44 degree cone.
+					SpotComponent->SetMobility(EComponentMobility::Movable);
 					SpotComponent->SetInnerConeAngle(static_cast<float>(InnerCone));
 					SpotComponent->SetOuterConeAngle(static_cast<float>(OuterCone));
 				}
@@ -835,6 +857,71 @@ void AProceduralScenarioLoader::SpawnLights(
 		}
 		LightComponent->SetIntensity(static_cast<float>(Intensity));
 		SpawnedAssetActors.Add(LightActor);
+		++OutSpawned;
+	}
+}
+
+void AProceduralScenarioLoader::SpawnGlows(
+	const TArray<TSharedPtr<FJsonValue>>& GlowsJson, int32& OutSpawned, int32& OutSkipped)
+{
+	UWorld* World = GetWorld();
+	UStaticMesh* SphereMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	UMaterialInterface* GlowMaterial = LoadObject<UMaterialInterface>(
+		nullptr, TEXT("/Engine/EngineMaterials/EmissiveMeshMaterial.EmissiveMeshMaterial"));
+	if (World == nullptr || SphereMesh == nullptr || GlowMaterial == nullptr)
+	{
+		OutSkipped += GlowsJson.Num();
+		return;
+	}
+
+	for (const TSharedPtr<FJsonValue>& GlowValue : GlowsJson)
+	{
+		const TSharedPtr<FJsonObject>* GlowObject = nullptr;
+		const TArray<TSharedPtr<FJsonValue>>* Position = nullptr;
+		const TArray<TSharedPtr<FJsonValue>>* Color = nullptr;
+		double RadiusMeters = 0.0;
+		double Intensity = 0.0;
+		if (!GlowValue->TryGetObject(GlowObject)
+			|| !(*GlowObject)->TryGetArrayField(TEXT("position"), Position) || Position->Num() != 3
+			|| !(*GlowObject)->TryGetArrayField(TEXT("color"), Color) || Color->Num() != 3
+			|| !(*GlowObject)->TryGetNumberField(TEXT("radius_m"), RadiusMeters)
+			|| !(*GlowObject)->TryGetNumberField(TEXT("intensity"), Intensity))
+		{
+			++OutSkipped;
+			continue;
+		}
+
+		FActorSpawnParameters SpawnParameters;
+		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		AStaticMeshActor* GlowActor = World->SpawnActor<AStaticMeshActor>(
+			ApplyCoordinateConvention(
+				(*Position)[0]->AsNumber(), (*Position)[1]->AsNumber(), (*Position)[2]->AsNumber()),
+			FRotator::ZeroRotator,
+			SpawnParameters);
+		if (GlowActor == nullptr)
+		{
+			++OutSkipped;
+			continue;
+		}
+
+		UStaticMeshComponent* Component = GlowActor->GetStaticMeshComponent();
+		Component->SetMobility(EComponentMobility::Movable);
+		Component->SetStaticMesh(SphereMesh);
+		// The engine sphere is 100 cm across: scale = diameter in cm / 100.
+		GlowActor->SetActorScale3D(FVector(static_cast<float>(RadiusMeters) * 2.0f));
+		Component->SetCastShadow(false);
+		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+		UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(GlowMaterial, GlowActor);
+		MID->SetVectorParameterValue(
+			TEXT("Color"),
+			FLinearColor(
+				static_cast<float>((*Color)[0]->AsNumber() * Intensity),
+				static_cast<float>((*Color)[1]->AsNumber() * Intensity),
+				static_cast<float>((*Color)[2]->AsNumber() * Intensity)));
+		Component->SetMaterial(0, MID);
+
+		SpawnedAssetActors.Add(GlowActor);
 		++OutSpawned;
 	}
 }

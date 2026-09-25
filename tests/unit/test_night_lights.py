@@ -6,11 +6,18 @@ import pytest
 
 from src.procedural.actor_placement import Vehicle
 from src.procedural.night_lights import (
+    BRAKE_LIGHT_GLOW_INTENSITY,
     BRAKE_LIGHT_INTENSITY_CD,
+    GLOW_SURFACE_OUTSET_M,
+    HEADLIGHT_DIP,
+    HEADLIGHT_GLOW_INTENSITY,
     HEADLIGHT_HEIGHT_M,
+    HEADLIGHT_OUTER_CONE_DEG,
     LAMP_OUTSET_BEYOND_BODY_M,
+    RUNNING_TAILLIGHT_GLOW_INTENSITY,
     RUNNING_TAILLIGHT_INTENSITY_CD,
     TAILLIGHT_HEIGHT_M,
+    vehicle_glows,
     vehicle_lights,
 )
 
@@ -77,3 +84,36 @@ def test_to_json_matches_the_plugins_schema() -> None:
             assert {"direction", "inner_cone_deg", "outer_cone_deg"} <= set(entry)
         else:
             assert "direction" not in entry
+
+
+def test_headlight_beams_are_narrow_and_nearly_level() -> None:
+    """A wide cone's lower edge lands on the road a couple of metres ahead
+    and reads as two bright discs at the bumper (found live); a real low
+    beam is a narrow, almost level cone. Guards that regression."""
+    dip_deg = np.degrees(np.arctan(-HEADLIGHT_DIP))
+    lower_edge_deg = HEADLIGHT_OUTER_CONE_DEG + dip_deg
+    metres_ahead_where_beam_reaches_road = HEADLIGHT_HEIGHT_M / np.tan(np.radians(lower_edge_deg))
+    assert metres_ahead_where_beam_reaches_road > 3.0
+
+
+def test_glowing_lenses_sit_on_the_body_surface_with_brake_glow_only_when_braking() -> None:
+    """Four glowing lenses per vehicle, right at the bumper surface; a
+    braking vehicle's tail lenses are brighter than a moving one's."""
+    moving = vehicle_glows(_vehicle(0.0, braking=False))
+    braking = vehicle_glows(_vehicle(0.0, braking=True))
+    assert len(moving) == 4
+    front = [g for g in moving if g.intensity == HEADLIGHT_GLOW_INTENSITY]
+    assert len(front) == 2
+    for glow in front:
+        assert glow.position[0] == pytest.approx(10.0 + 4.6 / 2.0 + GLOW_SURFACE_OUTSET_M)
+    assert sorted(g.intensity for g in braking)[-2:] == [HEADLIGHT_GLOW_INTENSITY] * 2
+    tail_moving = [g for g in moving if g.position[0] < 10.0]
+    tail_braking = [g for g in braking if g.position[0] < 10.0]
+    assert all(g.intensity == RUNNING_TAILLIGHT_GLOW_INTENSITY for g in tail_moving)
+    assert all(g.intensity == BRAKE_LIGHT_GLOW_INTENSITY for g in tail_braking)
+    assert set(vehicle_glows(_vehicle())[0].to_json()) == {
+        "position",
+        "color",
+        "radius_m",
+        "intensity",
+    }

@@ -122,6 +122,17 @@ private:
 	void SpawnLights(const TArray<TSharedPtr<FJsonValue>>& LightsJson, int32& OutSpawned, int32& OutSkipped);
 
 	/**
+	 * Spawns the optional top-level "glows" array: one small unlit,
+	 * additive emissive sphere per entry ({"position": [x, y, z] meters,
+	 * "color": [r, g, b], "radius_m", "intensity"}) -- the visible glowing
+	 * lens of a headlight or tail light (a light actor casts light but is
+	 * itself invisible). Uses the engine's own EmissiveMeshMaterial with
+	 * its "Color" parameter scaled by intensity, so it blooms. Tracked in
+	 * SpawnedAssetActors like every other spawned actor.
+	 */
+	void SpawnGlows(const TArray<TSharedPtr<FJsonValue>>& GlowsJson, int32& OutSpawned, int32& OutSkipped);
+
+	/**
 	 * Hides ``Actor`` if its class looks like template terrain: Landscape
 	 * proxies (the checkerboard/hills), the engine's plain StaticMeshActor,
 	 * or a WorldPartitionHLOD merged distant-terrain proxy -- the last of
