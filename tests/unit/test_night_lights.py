@@ -130,14 +130,20 @@ def test_to_json_matches_the_plugins_schema() -> None:
             assert "direction" not in entry
 
 
-def test_headlight_beams_are_narrow_and_nearly_level() -> None:
-    """A wide cone's lower edge lands on the road a couple of metres ahead
-    and reads as two bright discs at the bumper (found live); a real low
-    beam is a narrow, almost level cone. Guards that regression."""
+def test_headlights_point_straight_out_in_a_real_cone_with_flat_falloff() -> None:
+    """A headlight points straight out (well under 2 degrees of dip), not
+    down at the road, in a wide cone, and uses a flat (non-inverse-square)
+    falloff: an inverse-square light 0.7 m off the road blew the pavement
+    just ahead of the bumper out to two hard white ovals (found live)."""
     dip_deg = np.degrees(np.arctan(-HEADLIGHT_DIP))
-    lower_edge_deg = HEADLIGHT_OUTER_CONE_DEG + dip_deg
-    metres_ahead_where_beam_reaches_road = HEADLIGHT_HEIGHT_M / np.tan(np.radians(lower_edge_deg))
-    assert metres_ahead_where_beam_reaches_road > 3.0
+    assert 0.0 < dip_deg < 2.0
+    assert HEADLIGHT_OUTER_CONE_DEG >= 10.0
+    spot = next(light for light in vehicle_lights(_vehicle()) if light.kind == "spot")
+    assert spot.inverse_squared is False
+    entry = spot.to_json()
+    assert entry["inverse_squared"] is False and "falloff_exponent" in entry
+    point = next(light for light in vehicle_lights(_vehicle()) if light.kind == "point")
+    assert "inverse_squared" not in point.to_json()  # tail lights keep the default
 
 
 def test_glowing_lenses_sit_on_the_real_lens_and_are_sized_like_it() -> None:
