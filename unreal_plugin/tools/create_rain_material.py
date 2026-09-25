@@ -19,9 +19,15 @@ layer (the scene depth buffer), so a nearer object hides farther rain and rain
 shows in front of anything behind it. Streaks are thin, slightly slanted,
 tapered at both ends and fade with distance.
 
-Scalar parameters: ``Intensity`` (overall opacity, 0 turns rain off), ``Slant``
+Ripples: where rain lands on flat wet ground, expanding rings are drawn on a
+35 cm world-space grid. Each pixel's ground position is rebuilt from the depth
+buffer, flat surfaces are found from the depth gradient (so roads, paving and
+roofs get rings, walls do not), and rings fade out with distance.
+
+Scalar parameters: ``Intensity`` (streak opacity, 0 turns streaks off), ``Slant``
 (horizontal shear per unit height), ``Density`` (share of cells holding a
-streak), ``Seed`` (changes the pattern). Nothing shared is edited.
+streak), ``Seed`` (changes the pattern), ``RippleIntensity`` and
+``RippleDensity``. Nothing shared is edited.
 """
 
 import unreal  # type: ignore[import-not-found]  # pylint: disable=import-error
@@ -75,6 +81,37 @@ for (int i = 0; i < 7; i++)
 }
 return acc;
 """
+RIPPLE_HLSL = """
+float2 o = 3.0 / ViewSize;
+float dl = CalcSceneDepth(UV - float2(o.x, 0.0));
+float dr = CalcSceneDepth(UV + float2(o.x, 0.0));
+float du = CalcSceneDepth(UV - float2(0.0, o.y));
+float dd = CalcSceneDepth(UV + float2(0.0, o.y));
+float3 pl = SvPositionToTranslatedWorld(float4((UV - float2(o.x, 0.0)) * ViewSize, ConvertToDeviceZ(dl), 1.0));
+float3 pr = SvPositionToTranslatedWorld(float4((UV + float2(o.x, 0.0)) * ViewSize, ConvertToDeviceZ(dr), 1.0));
+float3 pu = SvPositionToTranslatedWorld(float4((UV - float2(0.0, o.y)) * ViewSize, ConvertToDeviceZ(du), 1.0));
+float3 pd = SvPositionToTranslatedWorld(float4((UV + float2(0.0, o.y)) * ViewSize, ConvertToDeviceZ(dd), 1.0));
+float3 n = normalize(cross(pr - pl, pd - pu));
+float flatSurface = smoothstep(0.85, 0.97, abs(n.z));
+float3 wp = SvPositionToTranslatedWorld(float4(UV * ViewSize, ConvertToDeviceZ(SceneDepthCm), 1.0));
+float2 g = wp.xy / 35.0;
+float2 id = floor(g);
+float2 f = frac(g);
+float h1 = frac(sin(dot(id + Seed, float2(12.9898, 78.233))) * 43758.5453);
+float h2 = frac(sin(dot(id + Seed + 3.1, float2(39.3468, 11.135))) * 24634.6345);
+float h3 = frac(sin(dot(id + Seed + 7.7, float2(73.156, 41.923))) * 12345.6789);
+float h4 = frac(sin(dot(id + Seed + 11.3, float2(26.651, 94.673))) * 31415.9265);
+float present = step(h1, RippleDensity);
+float2 c = float2(0.2 + 0.6 * h2, 0.2 + 0.6 * h3);
+float d = length(f - c);
+float r = 0.05 + h4 * 0.4;
+float life = 1.0 - h4;
+float ring = smoothstep(0.075, 0.0, abs(d - r)) * life;
+float ring2 = smoothstep(0.06, 0.0, abs(d - r * 0.62)) * life * 0.6;
+float fade = saturate(1.0 - SceneDepthCm / 3500.0);
+return saturate(max(ring, ring2) * 1.5) * present * flatSurface * fade;
+"""
+
 HLSL = (
     HLSL.replace("@CELL_W@", str(CELL_WIDTH_M))
     .replace("@CELL_H@", str(CELL_HEIGHT_M))
@@ -126,6 +163,8 @@ def main() -> None:  # pylint: disable=too-many-locals
     depth_r.set_editor_property("r", True)
     library.connect_material_expressions(depth, "Color", depth_r, "")
 
+    ripple_intensity = _scalar(library, material, "RippleIntensity", 0.5, -1100, 1080)
+    ripple_density = _scalar(library, material, "RippleDensity", 0.35, -1100, 1200)
     slant = _scalar(library, material, "Slant", 0.12, -1100, 600)
     seed = _scalar(library, material, "Seed", 1.0, -1100, 720)
     density = _scalar(library, material, "Density", 0.5, -1100, 840)
@@ -156,6 +195,31 @@ def main() -> None:  # pylint: disable=too-many-locals
     library.connect_material_expressions(custom, "", scale, "A")
     library.connect_material_expressions(intensity, "", scale, "B")
 
+    ripples = _node(library, material, unreal.MaterialExpressionCustom, -500, 700)
+    ripples.set_editor_property("code", RIPPLE_HLSL)
+    ripples.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+    ripple_wiring = (
+        ("UV", uv),
+        ("ViewSize", view_size),
+        ("SceneDepthCm", depth_r),
+        ("Seed", seed),
+        ("RippleDensity", ripple_density),
+    )
+    ripple_inputs = []
+    for input_name, _ in ripple_wiring:
+        entry = unreal.CustomInput()
+        entry.set_editor_property("input_name", input_name)
+        ripple_inputs.append(entry)
+    ripples.set_editor_property("inputs", ripple_inputs)
+    for input_name, source in ripple_wiring:
+        library.connect_material_expressions(source, "", ripples, input_name)
+    ripple_scale = _node(library, material, unreal.MaterialExpressionMultiply, -200, 700)
+    library.connect_material_expressions(ripples, "", ripple_scale, "A")
+    library.connect_material_expressions(ripple_intensity, "", ripple_scale, "B")
+    combined = _node(library, material, unreal.MaterialExpressionMax, 0, 500)
+    library.connect_material_expressions(scale, "", combined, "A")
+    library.connect_material_expressions(ripple_scale, "", combined, "B")
+
     scene = _node(library, material, unreal.MaterialExpressionSceneTexture, -500, -200)
     scene.set_editor_property("scene_texture_id", unreal.SceneTextureId.PPI_POST_PROCESS_INPUT0)
     rgb = _node(library, material, unreal.MaterialExpressionComponentMask, -250, -200)
@@ -169,7 +233,7 @@ def main() -> None:  # pylint: disable=too-many-locals
     blend = _node(library, material, unreal.MaterialExpressionLinearInterpolate, 100, -50)
     library.connect_material_expressions(rgb, "", blend, "A")
     library.connect_material_expressions(streak_color, "", blend, "B")
-    library.connect_material_expressions(scale, "", blend, "Alpha")
+    library.connect_material_expressions(combined, "", blend, "Alpha")
     library.connect_material_property(blend, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
 
     library.recompile_material(material)

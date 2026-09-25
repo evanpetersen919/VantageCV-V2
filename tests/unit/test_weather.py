@@ -104,7 +104,14 @@ def test_night_takes_clear_or_rain_and_rejects_the_rest() -> None:
 def test_rain_streaks_are_in_the_payload_only_for_rain() -> None:
     """Only rain adds a "rain" object (intensity, slant, seed)."""
     rain = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN).to_json()
-    assert rain["rain"] == {"intensity": 0.9, "slant": 0.12, "seed": 1.0, "density": 0.5}
+    assert rain["rain"] == {
+        "intensity": 0.9,
+        "slant": 0.12,
+        "seed": 1.0,
+        "density": 0.5,
+        "ripple_intensity": 0.6,
+        "ripple_density": 0.35,
+    }
     assert rain["asset_vector_scales"]["veh_carPaint|BaseColor"] == 0.85
     for weather in Weather:
         if weather != Weather.RAIN:
@@ -138,3 +145,37 @@ def test_shares_sum_to_one_and_the_draw_is_seeded_and_follows_them() -> None:
     draws = [draw_weather(seed) for seed in range(6000)]
     for weather, share in WEATHER_SHARES.items():
         assert draws.count(weather) / len(draws) == pytest.approx(share, abs=0.02)
+
+
+def test_seeded_rain_varies_strength_slant_and_pattern_deterministically() -> None:
+    """A seed gives rain its own strength, wind slant and pattern seed: the
+    same seed repeats, seeds spread over the strengths and slant range, and
+    non-rain weather ignores the seed."""
+    a = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN, seed=5)
+    assert a == scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN, seed=5)
+    envs = [
+        scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN, seed=seed)
+        for seed in range(200)
+    ]
+    assert {env.rain_density for env in envs} == {0.3, 0.5, 0.75}
+    assert all(-0.2 <= env.rain_slant <= 0.2 for env in envs)
+    assert len({env.rain_seed for env in envs}) > 50
+    assert min(env.rain_slant for env in envs) < -0.1 < 0.1 < max(env.rain_slant for env in envs)
+    light = next(env for env in envs if env.rain_density == 0.3)
+    heavy = next(env for env in envs if env.rain_density == 0.75)
+    assert light.rain_intensity < heavy.rain_intensity
+    assert light.ripple_density < heavy.ripple_density
+    clear = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.OVERCAST, seed=5)
+    assert clear == scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.OVERCAST)
+
+
+def test_night_rain_is_seeded_too_and_keeps_its_dimmer_streaks() -> None:
+    """Night rain varies with the seed and stays dimmer than day rain."""
+    night = [
+        scenario_environment(Season.SUMMER, TimeOfDay.NIGHT, Weather.RAIN, seed=seed)
+        for seed in range(50)
+    ]
+    day = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN)
+    assert len({env.rain_density for env in night}) == 3
+    assert max(env.rain_intensity for env in night) < day.rain_intensity
+    assert all(env.exposure_bias == NIGHT_ENVIRONMENT.exposure_bias for env in night)

@@ -57,6 +57,10 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
     asset_vector_scales: Optional[Dict[str, float]] = None
     rain_intensity: Optional[float] = None
     rain_density: float = 0.5
+    # Expanding rings where rain lands on flat wet ground (opacity, 0 is none,
+    # and the share of ground cells that hold one).
+    ripple_intensity: float = 0.6
+    ripple_density: float = 0.35
     rain_slant: float = 0.12
     rain_seed: float = 1.0
     rayleigh_scale: Optional[float] = None
@@ -137,6 +141,8 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
                 "slant": self.rain_slant,
                 "seed": self.rain_seed,
                 "density": self.rain_density,
+                "ripple_intensity": self.ripple_intensity,
+                "ripple_density": self.ripple_density,
             }
         if self.asset_scalars:
             weather["asset_scalars"] = dict(self.asset_scalars)
@@ -341,6 +347,7 @@ _NIGHT_RAIN_OVERRIDES: Dict[str, Any] = {
     "asset_scalars": _WET_ASSET_SCALARS,
     "asset_vector_scales": _WET_ASSET_VECTOR_SCALES,
     "rain_intensity": 0.45,
+    "ripple_intensity": 0.35,
 }
 
 # How often each weather is drawn when a dataset picks one at random. These
@@ -366,15 +373,43 @@ def draw_weather(seed: int) -> Weather:
     return weathers[int(rng.choice(len(weathers), p=shares / shares.sum()))]
 
 
+# Rain strengths a seeded scenario draws from: (share of streak cells, streak
+# and ripple opacity scale). Light rain has fewer, fainter streaks; heavy has
+# the most. The wind slant range is small because a strongly slanted streak
+# would need the sky's other features to lean with it.
+_RAIN_STRENGTHS: Tuple[Tuple[float, float], ...] = ((0.3, 0.75), (0.5, 1.0), (0.75, 1.0))
+_RAIN_SLANT_RANGE = (-0.2, 0.2)
+
+
+def _vary_rain(env: EnvironmentConfig, seed: int) -> EnvironmentConfig:
+    """The rain of ``env`` with a strength, wind slant and streak pattern
+    drawn from ``seed`` (its own RNG stream)."""
+    rng = np.random.Generator(np.random.PCG64([seed, 0x8A17]))
+    density, opacity = _RAIN_STRENGTHS[int(rng.integers(len(_RAIN_STRENGTHS)))]
+    assert env.rain_intensity is not None
+    return dataclasses.replace(
+        env,
+        rain_density=density,
+        rain_intensity=env.rain_intensity * opacity,
+        rain_slant=float(rng.uniform(*_RAIN_SLANT_RANGE)),
+        rain_seed=float(seed % 997),
+        ripple_density=0.25 + 0.2 * density,
+    )
+
+
 def scenario_environment(
-    season: Season, time_of_day: TimeOfDay, weather: Weather = Weather.CLEAR
+    season: Season,
+    time_of_day: TimeOfDay,
+    weather: Weather = Weather.CLEAR,
+    seed: Optional[int] = None,
 ) -> EnvironmentConfig:
     """The environment for a scenario: the night preset at night
     (season-independent), otherwise the season's daytime preset with the
     weather's overrides on top.
 
     Night takes clear or rain (its own moonlit sky is kept; rain adds wet
-    surfaces, a little haze and dimmer streaks).
+    surfaces, a little haze and dimmer streaks). With a ``seed``, rain gets
+    its own strength, wind slant and streak pattern.
 
     Raises
     ------
@@ -383,11 +418,13 @@ def scenario_environment(
     """
     if time_of_day == TimeOfDay.NIGHT:
         if weather == Weather.RAIN:
-            return dataclasses.replace(NIGHT_ENVIRONMENT, **_NIGHT_RAIN_OVERRIDES)
+            night_rain = dataclasses.replace(NIGHT_ENVIRONMENT, **_NIGHT_RAIN_OVERRIDES)
+            return _vary_rain(night_rain, seed) if seed is not None else night_rain
         if weather != Weather.CLEAR:
             raise ValueError(f"weather {weather.value!r} is not defined for night scenarios")
         return NIGHT_ENVIRONMENT
-    return dataclasses.replace(season_environment(season), **_WEATHER_OVERRIDES[weather])
+    env = dataclasses.replace(season_environment(season), **_WEATHER_OVERRIDES[weather])
+    return _vary_rain(env, seed) if weather == Weather.RAIN and seed is not None else env
 
 
 # Epic's tree kits are bare branch skeletons (no leaves, see
