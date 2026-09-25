@@ -291,7 +291,7 @@ def serialize_scenario(
         ]
         payload["glows"] = [
             glow.to_json() for vehicle in result.vehicles for glow in vehicle_glows(vehicle)
-        ]
+        ] + [glow.to_json() for glow in result.window_glows]
     if environment is not None:
         meshes.append(_mesh_to_json(build_ground_mesh(environment)))
         meshes += [

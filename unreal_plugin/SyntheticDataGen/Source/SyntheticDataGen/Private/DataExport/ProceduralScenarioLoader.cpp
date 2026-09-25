@@ -885,9 +885,10 @@ void AProceduralScenarioLoader::SpawnGlows(
 {
 	UWorld* World = GetWorld();
 	UStaticMesh* SphereMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
 	UMaterialInterface* GlowMaterial = LoadObject<UMaterialInterface>(
-		nullptr, TEXT("/Engine/EngineMaterials/EmissiveMeshMaterial.EmissiveMeshMaterial"));
-	if (World == nullptr || SphereMesh == nullptr || GlowMaterial == nullptr)
+		nullptr, TEXT("/Game/VantageCV/M_EmissiveGlow.M_EmissiveGlow"));
+	if (World == nullptr || SphereMesh == nullptr || CubeMesh == nullptr || GlowMaterial == nullptr)
 	{
 		OutSkipped += GlowsJson.Num();
 		return;
@@ -942,19 +943,21 @@ void AProceduralScenarioLoader::SpawnGlows(
 
 		UStaticMeshComponent* Component = GlowActor->GetStaticMeshComponent();
 		Component->SetMobility(EComponentMobility::Movable);
-		Component->SetStaticMesh(SphereMesh);
+		// "shape": "box" is a lit window (a slab); anything else a sphere/ellipsoid lens.
+		FString Shape;
+		(*GlowObject)->TryGetStringField(TEXT("shape"), Shape);
+		Component->SetStaticMesh(Shape == TEXT("box") ? CubeMesh : SphereMesh);
 		// The engine sphere is 100 cm across: scale = diameter in cm / 100.
 		GlowActor->SetActorScale3D(SemiAxesMeters * 2.0);
 		Component->SetCastShadow(false);
 		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 		UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(GlowMaterial, GlowActor);
-		MID->SetVectorParameterValue(
-			TEXT("Color"),
-			FLinearColor(
-				static_cast<float>((*Color)[0]->AsNumber() * Intensity),
-				static_cast<float>((*Color)[1]->AsNumber() * Intensity),
-				static_cast<float>((*Color)[2]->AsNumber() * Intensity)));
+		const FLinearColor GlowColor(
+			static_cast<float>((*Color)[0]->AsNumber() * Intensity),
+			static_cast<float>((*Color)[1]->AsNumber() * Intensity),
+			static_cast<float>((*Color)[2]->AsNumber() * Intensity));
+		MID->SetVectorParameterValue(TEXT("GlowColor"), GlowColor);
 		Component->SetMaterial(0, MID);
 
 		SpawnedAssetActors.Add(GlowActor);
