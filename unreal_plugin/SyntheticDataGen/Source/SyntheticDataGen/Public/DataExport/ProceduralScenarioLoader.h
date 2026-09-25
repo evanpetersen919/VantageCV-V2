@@ -170,4 +170,34 @@ private:
 	 * LoadProceduralScenario calls) -- see that method's own comment.
 	 */
 	bool bRegisteredLevelAddedDelegate = false;
+
+	// The map's own sun, sky, cloud and fog settings, captured the first time an
+	// environment is applied and restored at the start of every scenario load, so
+	// a scenario never inherits the previous one's lighting or weather.
+	struct FMapEnvironmentDefaults
+	{
+		bool bCaptured = false;
+		float SunIntensity = 0.0f;
+		float SunTemperature = 6500.0f;
+		bool bSunUseTemperature = false;
+		FRotator SunRotation = FRotator::ZeroRotator;
+		float SkyLightIntensity = 1.0f;
+		float RayleighScale = 1.0f;
+		float MieScale = 1.0f;
+		float MieAbsorptionScale = 1.0f;
+		float MieAnisotropy = 0.8f;
+		float MultiScattering = 1.0f;
+		float CloudLayerBottom = 0.0f;
+		float CloudLayerHeight = 0.0f;
+		// Every scalar parameter of the cloud material at capture time, restored on each load.
+		TMap<FName, float> CloudScalars;
+		float FogDensity = 0.0f;
+		float FogHeightFalloff = 0.0f;
+		float FogStartDistance = 0.0f;
+		FLinearColor FogColor = FLinearColor::Black;
+	};
+	FMapEnvironmentDefaults MapDefaults;
+
+	void CaptureMapEnvironmentDefaults();
+	void RestoreMapEnvironmentDefaults();
 };
