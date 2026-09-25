@@ -198,6 +198,12 @@ private:
 	};
 	FMapEnvironmentDefaults MapDefaults;
 
+	// Scalar parameter overrides per procedural-mesh material tag (for example
+	// "asphalt"), set from the environment's "surface_scalars" and applied to each
+	// generated mesh section of that tag as it is built (wet roads and pavement).
+	// Cleared at the start of every load.
+	TMap<FString, TMap<FName, float>> SurfaceScalars;
+
 	void CaptureMapEnvironmentDefaults();
 	void RestoreMapEnvironmentDefaults();
 };

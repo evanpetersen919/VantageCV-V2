@@ -46,6 +46,9 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
     sky_light_intensity: Optional[float] = None
     # Sky atmosphere scattering: a large Mie scale with little Rayleigh washes
     # the blue out of the sky to a grey-white overcast.
+    # Scalar overrides per procedural-mesh material tag ("asphalt", "ground",
+    # "pavement"): how wet the roads and paving look.
+    surface_scalars: Optional[Dict[str, Dict[str, float]]] = None
     rayleigh_scale: Optional[float] = None
     mie_scale: Optional[float] = None
     mie_absorption_scale: Optional[float] = None
@@ -85,6 +88,10 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
             "fog": fog,
             "post_process": post_process,
         }
+        if self.surface_scalars:
+            result["surface_scalars"] = {
+                tag: dict(values) for tag, values in self.surface_scalars.items()
+            }
         if self.sky_light_intensity is not None:
             result["sky_light"] = {"intensity": self.sky_light_intensity}
         atmosphere = {
@@ -193,6 +200,7 @@ class Weather(str, Enum):
 
     CLEAR = "clear"
     OVERCAST = "overcast"
+    RAIN = "rain"
     FOG = "fog"
     GOLDEN_HOUR = "golden_hour"
     SUNSET = "sunset"
@@ -208,6 +216,20 @@ class Weather(str, Enum):
 # height fog with a grey colour. The low-sun presets are sun angle, colour
 # temperature and intensity.
 _FOG_GREY = (0.4, 0.42, 0.45)
+# Wet roads and paving: puddle depth up, roughness down, more specular. Found by
+# rendering two strengths; a stronger one made the road a perfect mirror. Only the
+# generated road, ground and paving meshes get it; curbs, walls and props keep
+# their own dry materials.
+_WET_SURFACES: Dict[str, Dict[str, float]] = {
+    "asphalt": {
+        "Roughness MFPD": 0.03,
+        "Puddle Height MFPD": 0.9,
+        "BaseRoughnessMult": 0.25,
+        "Specular MFPD": 0.6,
+    },
+    "ground": {"Roughness MFPD": 0.03, "BaseRoughnessMult": 0.25},
+    "pavement": {"Roughness MFPD": 0.03, "Puddle Height MFPD": 0.9, "Specular MFPD": 0.6},
+}
 _WEATHER_OVERRIDES: Dict[Weather, Dict[str, Any]] = {
     Weather.CLEAR: {},
     Weather.OVERCAST: {
@@ -217,6 +239,15 @@ _WEATHER_OVERRIDES: Dict[Weather, Dict[str, Any]] = {
         "mie_anisotropy": 0.3,
         "fog_density": 0.01,
         "fog_color": _FOG_GREY,
+    },
+    Weather.RAIN: {
+        "sun_intensity_lux": 1.5,
+        "rayleigh_scale": 0.05,
+        "mie_scale": 12.0,
+        "mie_anisotropy": 0.3,
+        "fog_density": 0.012,
+        "fog_color": _FOG_GREY,
+        "surface_scalars": _WET_SURFACES,
     },
     Weather.FOG: {"sun_intensity_lux": 1.5, "fog_density": 0.05, "fog_color": _FOG_GREY},
     Weather.GOLDEN_HOUR: {
@@ -242,12 +273,13 @@ _WEATHER_OVERRIDES: Dict[Weather, Dict[str, Any]] = {
 # shares are this project's own choice (no source was used): mostly clear or
 # overcast, with the rarer conditions kept in.
 WEATHER_SHARES: Dict[Weather, float] = {
-    Weather.CLEAR: 0.40,
-    Weather.OVERCAST: 0.25,
-    Weather.FOG: 0.08,
-    Weather.GOLDEN_HOUR: 0.12,
+    Weather.CLEAR: 0.35,
+    Weather.OVERCAST: 0.20,
+    Weather.RAIN: 0.15,
+    Weather.FOG: 0.07,
+    Weather.GOLDEN_HOUR: 0.10,
     Weather.SUNSET: 0.05,
-    Weather.DAWN_HAZE: 0.10,
+    Weather.DAWN_HAZE: 0.08,
 }
 
 
