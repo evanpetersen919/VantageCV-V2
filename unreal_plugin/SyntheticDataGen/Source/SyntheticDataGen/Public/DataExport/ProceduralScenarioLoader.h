@@ -204,6 +204,18 @@ private:
 	// Cleared at the start of every load.
 	TMap<FString, TMap<FName, float>> SurfaceScalars;
 
+	// Scalar overrides keyed "<slot name or wildcard pattern>|<parameter>", applied to
+	// every static-mesh material slot of every spawned asset (wet walls and cars).
+	// Cleared at the start of every load.
+	TMap<FString, float> AssetScalars;
+
+	// Factors keyed "<slot pattern>|<colour parameter>": each matching slot's current colour
+	// (its own value, a palette override or the material's default) is multiplied by the
+	// factor. This is how wet walls and cars darken. Cleared at the start of every load.
+	TMap<FString, float> AssetVectorScales;
+
+	void ApplyAssetScalars(AActor* Actor) const;
+
 	void CaptureMapEnvironmentDefaults();
 	void RestoreMapEnvironmentDefaults();
 };

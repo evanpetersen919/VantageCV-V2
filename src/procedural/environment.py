@@ -51,7 +51,12 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
     surface_scalars: Optional[Dict[str, Dict[str, float]]] = None
     # Rain streaks drawn over the frame (see create_rain_material.py): opacity
     # (0 is none), the horizontal shear per unit height, and a pattern seed.
+    # Wet walls and cars: roughness caps ("<slot pattern>|<parameter>": value)
+    # and darkening factors applied to a slot's current colour.
+    asset_scalars: Optional[Dict[str, float]] = None
+    asset_vector_scales: Optional[Dict[str, float]] = None
     rain_intensity: Optional[float] = None
+    rain_density: float = 0.5
     rain_slant: float = 0.12
     rain_seed: float = 1.0
     rayleigh_scale: Optional[float] = None
@@ -67,19 +72,15 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
     ground_uv_tile_m: float = 2.0
     ground_z_m: float = -0.02
 
-    def to_json(self) -> Dict[str, Any]:
-        """The ``"environment"`` object the UE5 loader parses."""
+    def _sun_json(self) -> Dict[str, Any]:
         sun: Dict[str, Any] = {"pitch_deg": self.sun_pitch_deg, "yaw_deg": self.sun_yaw_deg}
         if self.sun_temperature_k is not None:
             sun["temperature_k"] = self.sun_temperature_k
         if self.sun_intensity_lux is not None:
             sun["intensity_lux"] = self.sun_intensity_lux
-        post_process: Dict[str, Any] = {
-            "exposure_bias": self.exposure_bias,
-            "saturation": self.saturation,
-        }
-        if self.color_gain is not None:
-            post_process["gain"] = list(self.color_gain)
+        return sun
+
+    def _fog_json(self) -> Dict[str, Any]:
         fog: Dict[str, Any] = {
             "density": self.fog_density,
             "height_falloff": self.fog_height_falloff,
@@ -87,46 +88,76 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
         }
         if self.fog_color is not None:
             fog["color"] = list(self.fog_color)
-        result: Dict[str, Any] = {
-            "hide_template_terrain": self.hide_template_terrain,
-            "sun": sun,
-            "fog": fog,
-            "post_process": post_process,
+        return fog
+
+    def _post_process_json(self) -> Dict[str, Any]:
+        post_process: Dict[str, Any] = {
+            "exposure_bias": self.exposure_bias,
+            "saturation": self.saturation,
         }
+        if self.color_gain is not None:
+            post_process["gain"] = list(self.color_gain)
+        return post_process
+
+    def _sky_json(self) -> Dict[str, Any]:
+        """The sky light, sky atmosphere and cloud objects that are set."""
+        sky: Dict[str, Any] = {}
+        if self.sky_light_intensity is not None:
+            sky["sky_light"] = {"intensity": self.sky_light_intensity}
+        for key, fields in (
+            (
+                "sky_atmosphere",
+                (
+                    ("rayleigh_scale", self.rayleigh_scale),
+                    ("mie_scale", self.mie_scale),
+                    ("mie_absorption_scale", self.mie_absorption_scale),
+                    ("mie_anisotropy", self.mie_anisotropy),
+                ),
+            ),
+            (
+                "clouds",
+                (
+                    ("extinction_scale", self.cloud_extinction_scale),
+                    ("layer_bottom_km", self.cloud_layer_bottom_km),
+                    ("layer_height_km", self.cloud_layer_height_km),
+                ),
+            ),
+        ):
+            values = {name: value for name, value in fields if value is not None}
+            if values:
+                sky[key] = values
+        return sky
+
+    def _weather_json(self) -> Dict[str, Any]:
+        """The rain and wet-surface objects that are set."""
+        weather: Dict[str, Any] = {}
         if self.rain_intensity is not None:
-            result["rain"] = {
+            weather["rain"] = {
                 "intensity": self.rain_intensity,
                 "slant": self.rain_slant,
                 "seed": self.rain_seed,
+                "density": self.rain_density,
             }
+        if self.asset_scalars:
+            weather["asset_scalars"] = dict(self.asset_scalars)
+        if self.asset_vector_scales:
+            weather["asset_vector_scales"] = dict(self.asset_vector_scales)
         if self.surface_scalars:
-            result["surface_scalars"] = {
+            weather["surface_scalars"] = {
                 tag: dict(values) for tag, values in self.surface_scalars.items()
             }
-        if self.sky_light_intensity is not None:
-            result["sky_light"] = {"intensity": self.sky_light_intensity}
-        atmosphere = {
-            key: value
-            for key, value in (
-                ("rayleigh_scale", self.rayleigh_scale),
-                ("mie_scale", self.mie_scale),
-                ("mie_absorption_scale", self.mie_absorption_scale),
-                ("mie_anisotropy", self.mie_anisotropy),
-            )
-            if value is not None
+        return weather
+
+    def to_json(self) -> Dict[str, Any]:
+        """The ``"environment"`` object the UE5 loader parses."""
+        return {
+            "hide_template_terrain": self.hide_template_terrain,
+            "sun": self._sun_json(),
+            "fog": self._fog_json(),
+            "post_process": self._post_process_json(),
+            **self._sky_json(),
+            **self._weather_json(),
         }
-        if atmosphere:
-            result["sky_atmosphere"] = atmosphere
-        clouds: Dict[str, Any] = {}
-        if self.cloud_extinction_scale is not None:
-            clouds["extinction_scale"] = self.cloud_extinction_scale
-        if self.cloud_layer_bottom_km is not None:
-            clouds["layer_bottom_km"] = self.cloud_layer_bottom_km
-        if self.cloud_layer_height_km is not None:
-            clouds["layer_height_km"] = self.cloud_layer_height_km
-        if clouds:
-            result["clouds"] = clouds
-        return result
 
 
 DEFAULT_ENVIRONMENT = EnvironmentConfig()
@@ -227,6 +258,24 @@ class Weather(str, Enum):
 # height fog with a grey colour. The low-sun presets are sun angle, colour
 # temperature and intensity.
 _FOG_GREY = (0.4, 0.42, 0.45)
+# Wet walls and cars. Roughness is capped (stone and brick 0.4, painted stone
+# 0.3, car paint nearly mirror-smooth) and colour is darkened (walls to 75%, car
+# paint to 85%), because a wet surface is darker as well as glossier: capping
+# roughness alone changed the walls by only 3-6 grey levels. Found by rendering
+# 0.6 and 0.75; 0.6 read as dirty.
+_WET_ASSET_SCALARS: Dict[str, float] = {
+    "Bldg_block*|Roughness Max M1": 0.4,
+    "Bldg_brick*|Roughness Max M1": 0.4,
+    "Bldg_painted*|Roughness Max M1": 0.3,
+    "veh_carPaint|Max Roughness": 0.02,
+    "veh_carPaint|Min Roughness": 0.01,
+}
+_WET_ASSET_VECTOR_SCALES: Dict[str, float] = {
+    "Bldg_block*|Color Tint M1": 0.75,
+    "Bldg_brick*|Color Tint M1": 0.75,
+    "Bldg_painted*|Color Tint/Mult(A) M1": 0.75,
+    "veh_carPaint|BaseColor": 0.85,
+}
 # Wet roads and paving: puddle depth up, roughness down, more specular. Found by
 # rendering two strengths; a stronger one made the road a perfect mirror. Only the
 # generated road, ground and paving meshes get it; curbs, walls and props keep
@@ -259,6 +308,8 @@ _WEATHER_OVERRIDES: Dict[Weather, Dict[str, Any]] = {
         "fog_density": 0.012,
         "fog_color": _FOG_GREY,
         "surface_scalars": _WET_SURFACES,
+        "asset_scalars": _WET_ASSET_SCALARS,
+        "asset_vector_scales": _WET_ASSET_VECTOR_SCALES,
         "rain_intensity": 0.9,
     },
     Weather.FOG: {"sun_intensity_lux": 1.5, "fog_density": 0.05, "fog_color": _FOG_GREY},
@@ -287,6 +338,8 @@ _WEATHER_OVERRIDES: Dict[Weather, Dict[str, Any]] = {
 _NIGHT_RAIN_OVERRIDES: Dict[str, Any] = {
     "fog_density": 0.004,
     "surface_scalars": _WET_SURFACES,
+    "asset_scalars": _WET_ASSET_SCALARS,
+    "asset_vector_scales": _WET_ASSET_VECTOR_SCALES,
     "rain_intensity": 0.45,
 }
 
