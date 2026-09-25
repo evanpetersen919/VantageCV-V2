@@ -41,11 +41,33 @@ project's own ``GetStaticMeshBounds`` RPC:
 Placement reuses ``road_edge_kit.edge_runs`` -- the exact same curb-line
 geometry ``street_furniture.py`` places lamps along -- but one pole per
 DIRECTED edge (not per physical road): a real traffic signal faces one
-direction of travel, so each incoming approach gets its own pole, planted
-at the far end of its own run (right at that direction's own stop line,
-already trimmed to the intersection's real `clearance` boundary by the
-lane-trim/curb geometry) offset onto the sidewalk by the same real 0.40m
-lamp offset already measured for this kit's poles.
+direction of travel, so each incoming approach gets its own pole, offset
+onto the sidewalk by the same real 0.40m lamp offset already measured for
+this kit's poles.
+
+**Far-side mounting, not stop-line-overhead mounting**: a real US mast-arm
+signal for a given approach is mounted at the FAR corner of the
+intersection (diagonally across the box from that approach's stop line),
+with the arm reaching back over the near/approaching lanes -- not
+directly above the car already stopped at the line. Found from live
+feedback: a pole planted at the stop line itself sits right over the
+driver's head, which isn't how real signals are placed (a driver at the
+stop line looks up and across the box to see their own light).
+
+Since this project's intersections are modeled as a single symmetric
+`node_clearance` value per node (the widest incident road's half-width,
+already used to trim every lane short of the node and to size the
+intersection-pavement fill -- see ``lane_topology.compute_node_clearance``),
+the box is treated as square/symmetric around the node: the far corner
+sits exactly `2 * node_clearance[end_node]` further along the same
+`run_direction`, past the run's own (already-clearance-trimmed) end --
+i.e. past the node, continuing in a straight line, still on the same
+(right-hand/outward) side of the road. ``TRAFFIC_LIGHT_END_MARGIN_M``
+still keeps the pole clear of the crosswalk bar at that corner, just
+added past the far boundary instead of subtracted before the near one.
+The mast-arm rotation itself is unchanged: it reaches laterally across
+the lanes (``-outward``), which is correct at either the near or far
+mounting point.
 
 **A real orientation bug, found from live feedback and derived, not
 guessed**: the mast arm grows along the mesh's own local Y axis. Under
@@ -69,7 +91,7 @@ from typing import Dict, List
 import numpy as np
 
 from src.procedural.building_facade import FacadePiece
-from src.procedural.lane_topology import Lane
+from src.procedural.lane_topology import Lane, compute_node_clearance
 from src.procedural.road_edge_kit import edge_runs
 from src.procedural.road_network import RoadEdge
 
@@ -105,16 +127,21 @@ _ARM_OVER_ROAD_ROTATION_OFFSET_RAD = np.pi
 def generate_traffic_light_pieces(
     lanes: Dict[int, Lane], edges: Dict[int, RoadEdge]
 ) -> List[FacadePiece]:
-    """One real traffic signal pole, its mast arm reaching over the road,
-    at the stop-line end of every directed road edge long enough to hold
-    one clear of the intersection. Every pole uses the long-arm variant
-    (see module docstring: every road has the same real width today, so
-    only that arm actually reaches across it)."""
+    """One real traffic signal pole per directed road edge long enough to
+    hold one clear of the intersection, mounted at the FAR corner of the
+    intersection box (not directly over that approach's own stop line --
+    see module docstring), its mast arm reaching back over the near
+    lanes. Every pole uses the long-arm variant (see module docstring:
+    every road has the same real width today, so only that arm actually
+    reaches across it)."""
+    node_clearance = compute_node_clearance(edges)
     pieces: List[FacadePiece] = []
     for run in edge_runs(lanes, edges):
         if run.length <= TRAFFIC_LIGHT_END_MARGIN_M:
             continue
-        spot = run.length - TRAFFIC_LIGHT_END_MARGIN_M
+        end_node_id = edges[run.edge_id].end_node_id
+        far_side_shift = 2.0 * node_clearance.get(end_node_id, 0.0)
+        spot = run.length + far_side_shift + TRAFFIC_LIGHT_END_MARGIN_M
         position = run.start + run.run_direction * spot + run.outward * TRAFFIC_LIGHT_OFFSET_M
         pieces.append(
             FacadePiece(
