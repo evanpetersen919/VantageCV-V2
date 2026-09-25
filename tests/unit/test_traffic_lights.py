@@ -5,6 +5,7 @@ import math
 import numpy as np
 
 from src.orchestration.dataset_generator import generate_scenario
+from src.procedural.lane_topology import compute_node_clearance
 from src.procedural.road_edge_kit import edge_runs
 from src.procedural.traffic_lights import (
     TRAFFIC_LIGHT_END_MARGIN_M,
@@ -33,19 +34,24 @@ def test_one_pole_per_directed_edge_at_its_own_stop_line() -> None:
     assert piece.position[2] == 0.0
 
 
-def test_pole_sits_at_the_runs_own_far_end_offset_from_the_curb() -> None:
-    """The pole sits exactly `TRAFFIC_LIGHT_END_MARGIN_M` short of the
-    run's own far end (its stop line), offset outward from the curb line
-    by exactly the real lamp offset -- reconstructed from the same
-    `edge_runs` geometry, not assumed."""
+def test_pole_sits_at_the_intersections_far_corner_offset_from_the_curb() -> None:
+    """The pole sits `TRAFFIC_LIGHT_END_MARGIN_M` past the far corner of
+    the intersection box (`2 * node_clearance` beyond the run's own,
+    already-clearance-trimmed far end), offset outward from the curb
+    line by exactly the real lamp offset -- reconstructed from the same
+    `edge_runs`/`compute_node_clearance` geometry, not assumed. This is
+    the real-world "far-side mast arm" mounting point, not directly over
+    this approach's own stop line -- see module docstring."""
     lanes, edges = _straight_road(100.0)
     pieces = generate_traffic_light_pieces(lanes, edges)
     piece = pieces[0]
 
     run = edge_runs(lanes, edges)[0]
+    end_node_id = edges[run.edge_id].end_node_id
+    far_side_shift = 2.0 * compute_node_clearance(edges)[end_node_id]
     expected = (
         run.start
-        + run.run_direction * (run.length - TRAFFIC_LIGHT_END_MARGIN_M)
+        + run.run_direction * (run.length + far_side_shift + TRAFFIC_LIGHT_END_MARGIN_M)
         + run.outward * TRAFFIC_LIGHT_OFFSET_M
     )
     assert np.allclose(piece.position[:2], expected)
