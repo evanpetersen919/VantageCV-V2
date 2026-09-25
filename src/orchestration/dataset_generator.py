@@ -228,6 +228,7 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         tree_base_style=tree_base_style,
         seed=seed,
         include_trees=season_has_trees(chosen_season),
+        keep_out_rects=[lot.driveway.gap for lot in parking_lots if lot.driveway is not None],
     )
 
     crosswalk_pieces = generate_crosswalk_pieces(nodes, edges)
