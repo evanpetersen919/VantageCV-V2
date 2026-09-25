@@ -115,7 +115,24 @@ class UE5Backend:
             # legitimately exceed 1 MiB. Confirmed necessary via a real
             # test failure (websockets.exceptions.PayloadTooBig) once
             # building facade pieces started populating "assets".
-            async with websockets.connect(self.uri, max_size=None) as connection:
+            #
+            # ping_interval=None: the websockets library's default
+            # keepalive ping/pong (20s interval, 20s timeout) is a client
+            # behavior independent of our own asyncio.wait_for timeout
+            # below. UE5's game thread can't service WebSocket ping
+            # frames while it's synchronously spawning a large scenario's
+            # actors on the game thread -- confirmed via a real failure
+            # where UE5's own log showed "LoadProceduralScenario: spawned
+            # 30395 asset(s)" completing successfully immediately after
+            # the client had already torn down the connection with
+            # "sent 1011 (internal error) keepalive ping timeout". The
+            # explicit recv() timeout below already provides real
+            # dead-connection detection; the keepalive ping only adds a
+            # false-positive failure mode for exactly the slow, blocking
+            # calls (like this one) that need long timeouts most.
+            async with websockets.connect(
+                self.uri, max_size=None, ping_interval=None
+            ) as connection:
                 await asyncio.wait_for(
                     connection.send(json.dumps(request)), timeout=self.timeout_seconds
                 )
