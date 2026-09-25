@@ -47,7 +47,14 @@ UMaterialInterface* FMaterialResolver::Resolve(const FString& Tag)
 	TMap<FString, UMaterialInterface*>& Cache = GetCache();
 	if (UMaterialInterface** CachedMaterial = Cache.Find(Tag))
 	{
-		return *CachedMaterial;
+		// A cached pointer is only trusted while the object is still alive. Materials
+		// are rooted below, so this only fails for a cached miss (nullptr), which
+		// stays a miss.
+		if (*CachedMaterial == nullptr || IsValid(*CachedMaterial))
+		{
+			return *CachedMaterial;
+		}
+		Cache.Remove(Tag);
 	}
 
 	const FString* AssetPath = GetTagToAssetPath().Find(Tag);
@@ -69,6 +76,15 @@ UMaterialInterface* FMaterialResolver::Resolve(const FString& Tag)
 			*Tag);
 	}
 
+	if (Material != nullptr)
+	{
+		// This static cache is invisible to the garbage collector. Without a root
+		// reference, a material used only by a previous scenario's (now destroyed)
+		// components is freed on the next GC pass and a later scenario load would
+		// read the dangling pointer (crash in BuildMeshSection). Reproduced by
+		// loading a scenario, an empty one, waiting out a GC pass, then reloading.
+		Material->AddToRoot();
+	}
 	Cache.Add(Tag, Material);
 	return Material;
 }
