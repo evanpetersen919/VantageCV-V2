@@ -25,6 +25,7 @@ from src.procedural.signal_phasing import (
     approach_direction_from_heading,
     build_signal_plans,
     classify_approach_direction,
+    compute_minor_axis_by_node,
     compute_signal_plan,
     resolve_active_phases,
 )
@@ -74,6 +75,64 @@ def test_classify_approach_direction_exact_for_real_grid_edges(urban_config, bou
     for edge in edges.values():
         dx, dy = edge.centerline[-1] - edge.centerline[0]
         assert dx == 0.0 or dy == 0.0
+
+
+def _node_edge(start_node_id, end_node_id, start, end) -> RoadEdge:
+    return RoadEdge(
+        edge_id=0,
+        start_node_id=start_node_id,
+        end_node_id=end_node_id,
+        road_type=RoadType.MAJOR,
+        centerline=np.array([start, end], dtype=np.float64),
+        length=float(np.linalg.norm(np.array(end) - np.array(start))),
+        num_lanes=2,
+        speed_limit_kmh=50,
+        width_meters=10.0,
+    )
+
+
+def test_compute_minor_axis_by_node_identifies_the_stub_at_a_real_t_junction() -> None:
+    """A real T-shape at node 1: a through east-west road (2 physical
+    connections, 4 directed edges, both on EAST_WEST_AXIS) and a stub
+    north road (1 physical connection, 2 directed edges, NORTH_SOUTH_AXIS)
+    -- the stub axis (fewer directed edges) is the minor one."""
+    edges = {
+        0: _node_edge(2, 1, (-10.0, 0.0), (0.0, 0.0)),  # west-in
+        1: _node_edge(1, 2, (0.0, 0.0), (-10.0, 0.0)),  # west-out
+        2: _node_edge(3, 1, (10.0, 0.0), (0.0, 0.0)),  # east-in
+        3: _node_edge(1, 3, (0.0, 0.0), (10.0, 0.0)),  # east-out
+        4: _node_edge(4, 1, (0.0, 10.0), (0.0, 0.0)),  # north stub-in
+        5: _node_edge(1, 4, (0.0, 0.0), (0.0, 10.0)),  # north stub-out
+    }
+    minor_axis = compute_minor_axis_by_node(edges)
+    assert minor_axis[1] == NORTH_SOUTH_AXIS
+
+
+def test_compute_minor_axis_by_node_skips_a_dead_end() -> None:
+    """A node with edges on only one axis (a dead end) has no minor axis
+    -- there's no through road for it to be minor relative to."""
+    edges = {
+        0: _node_edge(2, 1, (-10.0, 0.0), (0.0, 0.0)),
+        1: _node_edge(1, 2, (0.0, 0.0), (-10.0, 0.0)),
+    }
+    assert 1 not in compute_minor_axis_by_node(edges)
+
+
+def test_compute_minor_axis_by_node_skips_a_genuine_four_way() -> None:
+    """A real 4-way (edges on both axes, equal counts) has no minor axis
+    -- it's signalized, not stop-controlled, and shouldn't get a static
+    stop rule even if it happened to also appear here."""
+    edges = {
+        0: _node_edge(2, 1, (-10.0, 0.0), (0.0, 0.0)),
+        1: _node_edge(1, 2, (0.0, 0.0), (-10.0, 0.0)),
+        2: _node_edge(3, 1, (10.0, 0.0), (0.0, 0.0)),
+        3: _node_edge(1, 3, (0.0, 0.0), (10.0, 0.0)),
+        4: _node_edge(4, 1, (0.0, 10.0), (0.0, 0.0)),
+        5: _node_edge(1, 4, (0.0, 0.0), (0.0, 10.0)),
+        6: _node_edge(5, 1, (0.0, -10.0), (0.0, 0.0)),
+        7: _node_edge(1, 5, (0.0, 0.0), (0.0, -10.0)),
+    }
+    assert 1 not in compute_minor_axis_by_node(edges)
 
 
 def test_approach_direction_from_heading_matches_classify() -> None:
