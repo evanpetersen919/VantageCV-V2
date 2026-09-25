@@ -10,7 +10,7 @@ test at all.
 
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -26,6 +26,7 @@ from src.ground_truth.bbox_3d import (
 )
 from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
 from src.procedural.building_facade import FacadePiece, generate_building_facade_pieces
+from src.procedural.building_lights import building_window_glows
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
 from src.procedural.city_sample_assets import BUILDING_STYLES
 from src.procedural.crosswalks import generate_crosswalk_pieces
@@ -33,6 +34,7 @@ from src.procedural.environment import Season, TimeOfDay, season_has_trees
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
+from src.procedural.night_lights import SceneGlow
 from src.procedural.road_edge_kit import DEFAULT_ROAD_EDGE_KIT, generate_road_edge_pieces
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadNode
 from src.procedural.scenario import ScenarioTypeConfig
@@ -78,6 +80,7 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     season: Season
     validation_report: ValidationReport
     time_of_day: TimeOfDay = TimeOfDay.DAY
+    window_glows: List[SceneGlow] = field(default_factory=list)
 
 
 @dataclass
@@ -166,10 +169,11 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     meshes: List[Mesh] = [MeshFactory.build_road_mesh(lane) for lane in lanes.values()]
 
     building_facade_pieces: List[FacadePiece] = []
+    pieces_by_building: List[List[FacadePiece]] = []
     for building in buildings:
-        building_facade_pieces += generate_building_facade_pieces(
-            building, BUILDING_STYLES[building.style_name]
-        )
+        pieces = generate_building_facade_pieces(building, BUILDING_STYLES[building.style_name])
+        pieces_by_building.append(pieces)
+        building_facade_pieces += pieces
 
     # One curb style and one sidewalk style per scenario, chosen from the
     # seed (an isolated stream, so it never disturbs any other generator's
@@ -225,6 +229,11 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         season=chosen_season,
         validation_report=validation_report,
         time_of_day=time_of_day,
+        window_glows=(
+            building_window_glows(pieces_by_building, seed)
+            if time_of_day == TimeOfDay.NIGHT
+            else []
+        ),
     )
 
 

@@ -292,5 +292,5 @@ def test_night_payload_carries_four_real_lights_per_vehicle_and_day_carries_none
     assert len(lights) == 4 * len(night.vehicles)
     assert sum(1 for light in lights if light["type"] == "spot") == 2 * len(night.vehicles)
     measured = sum(1 for v in night.vehicles if v.asset_path.split("/")[3] in VEHICLE_LAMP_GEOMETRY)
-    assert len(serialize_scenario(night)["glows"]) == 4 * measured
+    assert len(serialize_scenario(night)["glows"]) == 4 * measured + len(night.window_glows)
     assert "glows" not in serialize_scenario(day)

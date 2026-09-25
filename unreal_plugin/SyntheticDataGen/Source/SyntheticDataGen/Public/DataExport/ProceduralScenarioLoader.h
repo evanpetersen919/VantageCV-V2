@@ -127,8 +127,9 @@ private:
 	 * "color": [r, g, b], "intensity", and either "radius_m" or an ellipsoid
 	 * "semi_axes_m" [forward, lateral, vertical] with "rotation_rad"}) -- the visible glowing
 	 * lens of a headlight or tail light (a light actor casts light but is
-	 * itself invisible). Uses the engine's own EmissiveMeshMaterial with
-	 * its "Color" parameter scaled by intensity, so it blooms. Tracked in
+	 * itself invisible). Uses the project-owned /Game/VantageCV/M_EmissiveGlow
+	 * (unreal_plugin/tools/create_glow_material.py) with its "GlowColor"
+	 * parameter scaled by intensity, so it blooms. Tracked in
 	 * SpawnedAssetActors like every other spawned actor.
 	 */
 	void SpawnGlows(const TArray<TSharedPtr<FJsonValue>>& GlowsJson, int32& OutSpawned, int32& OutSkipped);

@@ -118,7 +118,7 @@ _SEASON_ENVIRONMENTS: Dict[Season, EnvironmentConfig] = {
 
 class TimeOfDay(str, Enum):
     """Whether the scenario is lit by day or at night. Independent of
-    season: night is a moonlit preset (see ``_NIGHT_ENVIRONMENT``) that
+    season: night is a moonlit preset (see ``NIGHT_ENVIRONMENT``) that
     replaces the season's daytime sun, and also switches on vehicle
     lights (see ``city_sample_assets.VEHICLE_NIGHT_LIGHT_OVERRIDES``)."""
 
@@ -131,7 +131,7 @@ class TimeOfDay(str, Enum):
 # lighting the scene at all (only emissives showed, a black void), so
 # night keeps a low light source ABOVE the horizon as a cool "moon",
 # with exposure pulled far down, a cool tint, and almost no fog.
-_NIGHT_ENVIRONMENT = EnvironmentConfig(
+NIGHT_ENVIRONMENT = EnvironmentConfig(
     sun_pitch_deg=-22.0,
     sun_temperature_k=10000.0,
     exposure_bias=-3.0,
@@ -145,7 +145,7 @@ def scenario_environment(season: Season, time_of_day: TimeOfDay) -> EnvironmentC
     """The environment for a scenario: the night preset at night
     (season-independent), otherwise the season's daytime preset."""
     if time_of_day == TimeOfDay.NIGHT:
-        return _NIGHT_ENVIRONMENT
+        return NIGHT_ENVIRONMENT
     return season_environment(season)
 
 
