@@ -72,8 +72,17 @@ def test_night_payload_swaps_building_glass_and_day_payload_does_not(urban_confi
     assert not day.building_pieces_lit
     assert len(night.building_pieces_lit) == len(night.building_facade_pieces)
     assert len(night.building_piece_room_ids) == len(night.building_facade_pieces)
-    assert not any("material_replacements" in a for a in serialize_scenario(day)["assets"])
-    swapped = [a for a in serialize_scenario(night)["assets"] if "material_replacements" in a]
+    day_buildings = [
+        a
+        for a in serialize_scenario(day)["assets"]
+        if a["asset_path"].startswith("/Game/Building/")
+    ]
+    assert not any("material_replacements" in a for a in day_buildings)
+    swapped = [
+        a
+        for a in serialize_scenario(night)["assets"]
+        if a["asset_path"].startswith("/Game/Building/") and "material_replacements" in a
+    ]
     assert swapped
     for asset in swapped:
         assert "/Kit_Bldg_" in asset["asset_path"]

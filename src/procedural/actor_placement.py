@@ -184,6 +184,8 @@ class Vehicle:  # pylint: disable=too-many-instance-attributes
     # it stands on (0 on the road, a little above it in a lot).
     parked: bool = False
     surface_z: float = 0.0
+    # Body colour name (see vehicle_colors.py); None keeps the model's own look.
+    paint: Optional[str] = None
 
     @property
     def aabb(self) -> Tuple[float, float, float, float]:

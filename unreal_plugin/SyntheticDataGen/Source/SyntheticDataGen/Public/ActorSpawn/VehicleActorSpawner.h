@@ -106,6 +106,14 @@ struct FScenarioAssetData
 	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
 	TMap<FString, FString> MaterialReplacements;
 
+	// Vector material parameter overrides scoped to one material slot, keyed
+	// "SlotName|ParamName" (e.g. "veh_carPaint|BaseColor"), applied to the body
+	// mesh and every part component through a dynamic material instance of
+	// each slot with that name. Slot scoping keeps a body-paint colour off the
+	// glass, tyres and trim that share a mesh.
+	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
+	TMap<FString, FLinearColor> MaterialSlotVectors;
+
 	// Opt-in, per-asset flag (default false -- absent in every payload
 	// the real dataset-generation pipeline emits) enabling REAL
 	// continuous per-instance walk-cycle animation for interactive Play

@@ -211,6 +211,32 @@ namespace
 			}
 		}
 
+		OutAssetData.MaterialSlotVectors.Reset();
+		const TSharedPtr<FJsonObject>* SlotVectorsJson = nullptr;
+		if (AssetObject.TryGetObjectField(TEXT("material_slot_vectors"), SlotVectorsJson))
+		{
+			for (const auto& SlotPair : (*SlotVectorsJson)->Values)
+			{
+				const TSharedPtr<FJsonObject>* ParamsJson = nullptr;
+				if (!SlotPair.Value.IsValid() || !SlotPair.Value->TryGetObject(ParamsJson))
+				{
+					continue;
+				}
+				for (const auto& ParamPair : (*ParamsJson)->Values)
+				{
+					const TArray<TSharedPtr<FJsonValue>>* Components = nullptr;
+					if (ParamPair.Value.IsValid() && ParamPair.Value->TryGetArray(Components) && Components->Num() >= 3)
+					{
+						const float R = static_cast<float>((*Components)[0]->AsNumber());
+						const float G = static_cast<float>((*Components)[1]->AsNumber());
+						const float BValue = static_cast<float>((*Components)[2]->AsNumber());
+						const float A = Components->Num() >= 4 ? static_cast<float>((*Components)[3]->AsNumber()) : 1.0f;
+						OutAssetData.MaterialSlotVectors.Add(SlotPair.Key + TEXT("|") + ParamPair.Key, FLinearColor(R, G, BValue, A));
+					}
+				}
+			}
+		}
+
 		OutAssetData.MaterialReplacements.Reset();
 		const TSharedPtr<FJsonObject>* MaterialReplacementsJson = nullptr;
 		if (AssetObject.TryGetObjectField(TEXT("material_replacements"), MaterialReplacementsJson))
