@@ -317,11 +317,11 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
         self, edges: Dict[int, RoadEdge], lanes: Dict[int, Lane], node_clearance: Dict[int, float]
     ) -> List[SpawnZone]:
         """One or more DRIVING spawn zones per lane, tiled at the real
-        ``VEHICLE_SPAWN_GAP_METERS`` interval along the lane's own plain
-        ``compute_node_clearance`` trim at each end (the same trim
-        ``LaneTopologyGenerator._generate_lanes_for_edge`` already applies
-        to ``Lane.centerline``, clamped by ``MAX_TRIM_FRACTION_OF_EDGE_
-        LENGTH``) -- deliberately NOT the wider, crosswalk-aware
+        ``VEHICLE_SPAWN_GAP_METERS`` interval along the lane's ENTIRE real
+        ``edge_length`` -- deliberately NOT stopping short at
+        ``compute_node_clearance`` (the trim ``LaneTopologyGenerator.
+        _generate_lanes_for_edge`` applies to ``Lane.centerline`` for
+        pavement-mesh purposes) or at the wider, crosswalk-aware
         ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M`` boundary.
 
         Fifth real design correction (2026-09-24, explicit user request):
@@ -336,11 +336,28 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
         Zone GENERATION has no access to that phase (it's resolved later,
         randomly, in ``ActorPlacementGenerator`` -- one instant per
         scenario), so it goes back to being purely geometric here; the
-        real phase-vs-crosswalk gating decision now lives in
+        real phase-vs-crosswalk gating decision lives in
         ``actor_placement.py``'s ``_try_place_vehicle``, which DOES know
         the resolved phase and decides, per candidate position and per
         nearby node independently, whether to keep the natural tiled
         position (flowing) or redirect/exclude it (not flowing).
+
+        Sixth real design correction (2026-09-25, explicit user request):
+        the fifth fix above still clamped tiling to the plain
+        ``compute_node_clearance`` trim at each end, so no candidate
+        position ever existed INSIDE the intersection box at all --
+        regardless of phase, there was simply nothing there for
+        ``_try_place_vehicle`` to allow. On a real green light this
+        produced a visible gap the width of the whole box at every
+        intersection along a straight through-corridor, instead of one
+        continuous lane of traffic. Since ``_try_place_vehicle`` already
+        independently decides, per candidate and per nearby node, whether
+        a position is allowed (exactly the mechanism the fifth fix
+        introduced), the fix is to simply stop clamping at generation
+        time and tile the lane's full, real, untrimmed length -- letting
+        placement time keep excluding/redirecting these candidates when
+        the axis does NOT have the right of way, and allow them at their
+        natural position (reaching all the way to the node) when it does.
 
         The last tile per lane still carries a real ``stop_line_position``
         (unchanged: the true crosswalk-clearing setback from the
@@ -388,14 +405,13 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
             perp = compute_perpendicular(edge_direction)
             offset_distance = (lane.lane_index + 0.5) * LANE_WIDTH_METERS
 
-            max_trim_each_side = edge_length * MAX_TRIM_FRACTION_OF_EDGE_LENGTH
-            start_boundary_along = min(
-                node_clearance.get(edge.start_node_id, 0.0), max_trim_each_side
-            )
-            end_boundary_along = edge_length - min(
-                node_clearance.get(edge.end_node_id, 0.0), max_trim_each_side
-            )
-            usable_length = max(end_boundary_along - start_boundary_along, 0.0)
+            # Tile the FULL real edge length -- see this method's own
+            # docstring (sixth design correction): no clamping at either
+            # end, so candidate positions exist all the way to each node,
+            # closing what would otherwise be an unconditional gap the
+            # width of the intersection box.
+            start_boundary_along = 0.0
+            usable_length = edge_length
 
             # The real stop line for this lane's destination node -- pure
             # geometry, independent of the plain tiling bound above (see

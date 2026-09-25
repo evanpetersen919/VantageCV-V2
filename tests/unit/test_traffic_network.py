@@ -169,16 +169,16 @@ def test_driving_spawn_zones_tiled_along_each_lane(  # pylint: disable=too-many-
     interval -- not just a single slot at the lane's intersection-facing
     end (a real bug, reported live: vehicles clustered only at
     intersections, leaving entire mid-block lane lengths empty). The
-    expected count is derived from the plain, ``MAX_TRIM_FRACTION_OF_EDGE_
-    LENGTH``-clamped ``compute_node_clearance`` trim at BOTH ends (the
-    same trim ``Lane.centerline`` itself uses) -- NOT the wider,
-    crosswalk-aware ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M`` boundary:
-    zone generation has no signal-phase information, so it tiles the
-    full geometric lane; the phase-aware crosswalk gating happens later,
-    at placement time, in ``actor_placement.py`` (see
-    ``_generate_driving_zones``'s own docstring, 2026-09-24)."""
+    expected count is derived from the lane's own FULL, untrimmed real
+    ``edge_length`` -- not the plain ``compute_node_clearance`` trim, and
+    not the wider, crosswalk-aware ``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M``
+    boundary either: zone generation has no signal-phase information, so
+    it tiles the entire geometric lane, right up to each node, so a
+    green-axis vehicle has a real candidate position anywhere in the
+    intersection box; the phase-aware crosswalk gating happens later, at
+    placement time, in ``actor_placement.py`` (see
+    ``_generate_driving_zones``'s own docstring, 2026-09-25)."""
     _, edges, lanes, traffic = _generate_full_network(42, urban_config, bounds)
-    node_clearance = compute_node_clearance(edges)
     driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
 
     saw_multi_tiled_lane = False
@@ -186,14 +186,8 @@ def test_driving_spawn_zones_tiled_along_each_lane(  # pylint: disable=too-many-
         edge = edges[lane.edge_id]
         edge_direction = edge.centerline[-1] - edge.centerline[0]
         edge_length = float(np.linalg.norm(edge_direction))
-        max_trim_each_side = edge_length * MAX_TRIM_FRACTION_OF_EDGE_LENGTH
-        start_boundary_along = min(node_clearance.get(edge.start_node_id, 0.0), max_trim_each_side)
-        end_boundary_along = edge_length - min(
-            node_clearance.get(edge.end_node_id, 0.0), max_trim_each_side
-        )
-        usable_length = max(end_boundary_along - start_boundary_along, 0.0)
 
-        expected_count = max(1, int(usable_length // VEHICLE_SPAWN_GAP_METERS) + 1)
+        expected_count = max(1, int(edge_length // VEHICLE_SPAWN_GAP_METERS) + 1)
         matching = _zones_for_lane(driving_zones, lane)
         assert len(matching) == expected_count
         if expected_count > 1:
