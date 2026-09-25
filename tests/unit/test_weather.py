@@ -51,6 +51,23 @@ def test_low_sun_presets_are_lower_and_warmer_than_the_season() -> None:
     assert dawn.fog_density > summer.fog_density
 
 
+def test_rain_is_overcast_light_with_wet_surfaces_and_only_rain_is_wet() -> None:
+    """Rain has the overcast sky and lower roughness and deeper puddles on the
+    road, ground and paving meshes; no other weather sets surface scalars."""
+    rain = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN)
+    overcast = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.OVERCAST)
+    assert rain.mie_scale == overcast.mie_scale and rain.rayleigh_scale == overcast.rayleigh_scale
+    assert set(rain.surface_scalars) == {"asphalt", "ground", "pavement"}
+    assert rain.surface_scalars["asphalt"]["Roughness MFPD"] < 0.05
+    assert rain.surface_scalars["asphalt"]["Puddle Height MFPD"] > 0.5
+    for weather in Weather:
+        env = scenario_environment(Season.SUMMER, TimeOfDay.DAY, weather)
+        assert (env.surface_scalars is not None) == (weather == Weather.RAIN)
+    payload = rain.to_json()["surface_scalars"]
+    assert payload["asphalt"]["BaseRoughnessMult"] == 0.25
+    assert "surface_scalars" not in overcast.to_json()
+
+
 def test_fog_is_denser_than_overcast_haze() -> None:
     """The fog preset has the densest fog of all weathers."""
     densities = {

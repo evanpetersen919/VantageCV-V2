@@ -583,6 +583,29 @@ void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& 
 		}
 	}
 
+	SurfaceScalars.Reset();
+	const TSharedPtr<FJsonObject>* SurfaceJson = nullptr;
+	if (Env->TryGetObjectField(TEXT("surface_scalars"), SurfaceJson))
+	{
+		for (const auto& TagPair : (*SurfaceJson)->Values)
+		{
+			const TSharedPtr<FJsonObject>* ParamsJson = nullptr;
+			if (!TagPair.Value.IsValid() || !TagPair.Value->TryGetObject(ParamsJson))
+			{
+				continue;
+			}
+			TMap<FName, float>& Params = SurfaceScalars.FindOrAdd(TagPair.Key);
+			for (const auto& ParamPair : (*ParamsJson)->Values)
+			{
+				double Number = 0.0;
+				if (ParamPair.Value.IsValid() && ParamPair.Value->TryGetNumber(Number))
+				{
+					Params.Add(FName(*ParamPair.Key), static_cast<float>(Number));
+				}
+			}
+		}
+	}
+
 	const TSharedPtr<FJsonObject>* AtmosphereJson = nullptr;
 	if (Env->TryGetObjectField(TEXT("sky_atmosphere"), AtmosphereJson))
 	{
@@ -785,6 +808,16 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 		UScenarioMeshBuilder* Builder = NewObject<UScenarioMeshBuilder>(this);
 		if (Builder->BuildMeshSection(Component, MeshData))
 		{
+			if (const TMap<FName, float>* Overrides = SurfaceScalars.Find(MeshData.Material))
+			{
+				if (UMaterialInstanceDynamic* SurfaceMaterial = Component->CreateDynamicMaterialInstance(0))
+				{
+					for (const TPair<FName, float>& Scalar : *Overrides)
+					{
+						SurfaceMaterial->SetScalarParameterValue(Scalar.Key, Scalar.Value);
+					}
+				}
+			}
 			++BuiltCount;
 		}
 		else
