@@ -187,6 +187,23 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 	SpawnedActor->SetRootComponent(MeshComponent);
 	MeshComponent->SetSimulatePhysics(false);
 
+	for (int32 SlotIndex = 0; SlotIndex < MeshComponent->GetNumMaterials(); ++SlotIndex)
+	{
+		UMaterialInterface* Current = MeshComponent->GetMaterial(SlotIndex);
+		const FString* Replacement = Current ? AssetData.MaterialReplacements.Find(Current->GetPathName()) : nullptr;
+		if (Replacement == nullptr)
+		{
+			Replacement = AssetData.MaterialReplacements.Find(MeshComponent->GetMaterialSlotNames()[SlotIndex].ToString());
+		}
+		if (Replacement != nullptr)
+		{
+			if (UMaterialInterface* Loaded = LoadObject<UMaterialInterface>(nullptr, **Replacement))
+			{
+				MeshComponent->SetMaterial(SlotIndex, Loaded);
+			}
+		}
+	}
+
 	// Collected across the body AND every part below so the opt-in
 	// live-preview component (if this asset requests one) can tick every
 	// MID for this pedestrian's whole outfit, not just the body.

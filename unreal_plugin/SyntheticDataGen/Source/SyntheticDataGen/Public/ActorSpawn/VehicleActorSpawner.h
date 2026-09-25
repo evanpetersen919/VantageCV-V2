@@ -98,6 +98,14 @@ struct FScenarioAssetData
 	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
 	TMap<FString, float> MaterialScalarOverrides;
 
+	// Original material object path OR material slot name (e.g. "Bldg_glass") ->
+	// replacement material object path, applied to every matching slot of the body mesh. Needed because
+	// static switches (e.g. a window's lights-on branch) are baked per material
+	// instance and cannot be flipped by a runtime MID override, so a
+	// project-owned instance with the switch set is swapped in instead.
+	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
+	TMap<FString, FString> MaterialReplacements;
+
 	// Opt-in, per-asset flag (default false -- absent in every payload
 	// the real dataset-generation pipeline emits) enabling REAL
 	// continuous per-instance walk-cycle animation for interactive Play

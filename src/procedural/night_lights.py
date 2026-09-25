@@ -111,16 +111,14 @@ class SceneLight:  # pylint: disable=too-many-instance-attributes
 
 @dataclass(frozen=True)
 class SceneGlow:
-    """One visible glow: an emissive ellipsoid the size of a real lens (or,
-    with ``shape="box"``, a slab the size of a lit window), in the
-    scenario's own right-handed meters frame."""
+    """One visible glowing lens: an emissive ellipsoid the size of the
+    real lens mesh, in the scenario's own right-handed meters frame."""
 
     position: Tuple[float, float, float]
     color: Tuple[float, float, float]
     semi_axes_m: Tuple[float, float, float]  # (forward, lateral, vertical)
-    rotation_rad: float  # the vehicle's heading (or a facade piece's)
+    rotation_rad: float  # the vehicle's heading
     intensity: float
-    shape: str = "sphere"  # "sphere" (lenses) or "box" (windows)
 
     def to_json(self) -> Dict[str, Any]:
         """The ``"glows"`` entry the UE5 loader parses."""
@@ -130,7 +128,6 @@ class SceneGlow:
             "semi_axes_m": list(self.semi_axes_m),
             "rotation_rad": self.rotation_rad,
             "intensity": self.intensity,
-            **({"shape": self.shape} if self.shape != "sphere" else {}),
         }
 
 
