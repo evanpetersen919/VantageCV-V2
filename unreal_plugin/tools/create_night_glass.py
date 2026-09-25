@@ -21,7 +21,9 @@ import unreal  # type: ignore[import-not-found]  # pylint: disable=import-error
 OUTPUT_FOLDER = "/Game/VantageCV/NightGlass"
 SOURCE_ROOT = "/Game/Building"
 SOURCE_NAME = "M_Bldg_glass"
-STALE_FOLDERS = tuple(f"/Game/VantageCV/NightGlass_V{n}" for n in (1, 2, 3))
+STALE_FOLDERS = tuple(f"/Game/VantageCV/NightGlass_V{n}" for n in (1, 2, 3)) + tuple(
+    f"/Game/VantageCV/NightGlassTest_V{n}" for n in (2, 3)
+)
 
 
 def main() -> None:
