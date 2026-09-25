@@ -30,6 +30,9 @@
 #include "Engine/ExponentialHeightFog.h"
 #include "Engine/PostProcessVolume.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/SkyLightComponent.h"
+#include "Components/SkyAtmosphereComponent.h"
+#include "Components/VolumetricCloudComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
@@ -510,6 +513,14 @@ void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& 
 				It->SetActorRotation(FRotator(
 					bHasPitch ? Pitch : Current.Pitch, bHasYaw ? Yaw : Current.Yaw, 0.0));
 			}
+			double SunIntensity = 0.0;
+			if ((*SunJson)->TryGetNumberField(TEXT("intensity_lux"), SunIntensity))
+			{
+				if (UDirectionalLightComponent* SunLight = Cast<UDirectionalLightComponent>(It->GetLightComponent()))
+				{
+					SunLight->SetIntensity(static_cast<float>(SunIntensity));
+				}
+			}
 			double Temperature = 0.0;
 			if ((*SunJson)->TryGetNumberField(TEXT("temperature_k"), Temperature))
 			{
@@ -543,8 +554,117 @@ void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& 
 				{
 					Fog->SetStartDistance(static_cast<float>(Value * MetersToUnrealUnits));
 				}
+				const TArray<TSharedPtr<FJsonValue>>* FogColor = nullptr;
+				if ((*FogJson)->TryGetArrayField(TEXT("color"), FogColor) && FogColor->Num() == 3)
+				{
+					Fog->SetFogInscatteringColor(FLinearColor(
+						static_cast<float>((*FogColor)[0]->AsNumber()),
+						static_cast<float>((*FogColor)[1]->AsNumber()),
+						static_cast<float>((*FogColor)[2]->AsNumber())));
+				}
 			}
 			break;
+		}
+	}
+
+	const TSharedPtr<FJsonObject>* SkyLightJson = nullptr;
+	if (Env->TryGetObjectField(TEXT("sky_light"), SkyLightJson))
+	{
+		double Value = 0.0;
+		if ((*SkyLightJson)->TryGetNumberField(TEXT("intensity"), Value))
+		{
+			for (TObjectIterator<USkyLightComponent> It; It; ++It)
+			{
+				if (It->GetWorld() == World)
+				{
+					It->SetIntensity(static_cast<float>(Value));
+				}
+			}
+		}
+	}
+
+	const TSharedPtr<FJsonObject>* AtmosphereJson = nullptr;
+	if (Env->TryGetObjectField(TEXT("sky_atmosphere"), AtmosphereJson))
+	{
+		for (TObjectIterator<USkyAtmosphereComponent> It; It; ++It)
+		{
+			if (It->GetWorld() != World)
+			{
+				continue;
+			}
+			double Value = 0.0;
+			if ((*AtmosphereJson)->TryGetNumberField(TEXT("rayleigh_scale"), Value))
+			{
+				It->SetRayleighScatteringScale(static_cast<float>(Value));
+			}
+			if ((*AtmosphereJson)->TryGetNumberField(TEXT("mie_scale"), Value))
+			{
+				It->SetMieScatteringScale(static_cast<float>(Value));
+			}
+			if ((*AtmosphereJson)->TryGetNumberField(TEXT("mie_absorption_scale"), Value))
+			{
+				It->SetMieAbsorptionScale(static_cast<float>(Value));
+			}
+			if ((*AtmosphereJson)->TryGetNumberField(TEXT("mie_anisotropy"), Value))
+			{
+				It->SetMieAnisotropy(static_cast<float>(Value));
+			}
+			if ((*AtmosphereJson)->TryGetNumberField(TEXT("multi_scattering"), Value))
+			{
+				It->SetMultiScatteringFactor(static_cast<float>(Value));
+			}
+		}
+	}
+
+	const TSharedPtr<FJsonObject>* CloudsJson = nullptr;
+	if (Env->TryGetObjectField(TEXT("clouds"), CloudsJson))
+	{
+		double Extinction = 0.0;
+		const bool bHasExtinction = (*CloudsJson)->TryGetNumberField(TEXT("extinction_scale"), Extinction);
+		const TSharedPtr<FJsonObject>* ScalarsJson = nullptr;
+		const bool bHasScalars = (*CloudsJson)->TryGetObjectField(TEXT("scalars"), ScalarsJson);
+		double BottomKm = 0.0;
+		const bool bHasBottom = (*CloudsJson)->TryGetNumberField(TEXT("layer_bottom_km"), BottomKm);
+		double HeightKm = 0.0;
+		const bool bHasHeight = (*CloudsJson)->TryGetNumberField(TEXT("layer_height_km"), HeightKm);
+		for (TObjectIterator<UVolumetricCloudComponent> It; It; ++It)
+		{
+			if (It->GetWorld() != World)
+			{
+				continue;
+			}
+			if (bHasBottom)
+			{
+				It->SetLayerBottomAltitude(static_cast<float>(BottomKm));
+			}
+			if (bHasHeight)
+			{
+				It->SetLayerHeight(static_cast<float>(HeightKm));
+			}
+			if ((bHasExtinction || bHasScalars) && It->GetMaterial() != nullptr)
+			{
+				UMaterialInstanceDynamic* CloudMaterial = Cast<UMaterialInstanceDynamic>(It->GetMaterial());
+				if (CloudMaterial == nullptr)
+				{
+					CloudMaterial = UMaterialInstanceDynamic::Create(It->GetMaterial(), this);
+					It->SetMaterial(CloudMaterial);
+				}
+				if (bHasExtinction)
+				{
+					CloudMaterial->SetScalarParameterValue(TEXT("ExtinctionScale"), static_cast<float>(Extinction));
+				}
+				if (bHasScalars)
+				{
+					for (const auto& Scalar : (*ScalarsJson)->Values)
+					{
+						double Number = 0.0;
+						if (Scalar.Value.IsValid() && Scalar.Value->TryGetNumber(Number))
+						{
+							CloudMaterial->SetScalarParameterValue(FName(*Scalar.Key), static_cast<float>(Number));
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -600,6 +720,10 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 	// through several procedurally generated city layouts live), not
 	// just once per editor session.
 	ClearPreviousScenario();
+
+	// Every load starts from the map's own lighting, so no scenario inherits the
+	// previous one's sun, sky, cloud or fog settings.
+	RestoreMapEnvironmentDefaults();
 
 	// Environment first: it applies even to a scenario with no meshes.
 	const TSharedPtr<FJsonObject>* EnvironmentJson = nullptr;
@@ -998,5 +1122,147 @@ void AProceduralScenarioLoader::SpawnGlows(
 
 		SpawnedAssetActors.Add(GlowActor);
 		++OutSpawned;
+	}
+}
+
+void AProceduralScenarioLoader::CaptureMapEnvironmentDefaults()
+{
+	UWorld* World = GetWorld();
+	if (World == nullptr || MapDefaults.bCaptured)
+	{
+		return;
+	}
+	for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+	{
+		if (UDirectionalLightComponent* Light = Cast<UDirectionalLightComponent>(It->GetLightComponent()))
+		{
+			MapDefaults.SunIntensity = Light->Intensity;
+			MapDefaults.SunTemperature = Light->Temperature;
+			MapDefaults.bSunUseTemperature = Light->bUseTemperature;
+		}
+		MapDefaults.SunRotation = It->GetActorRotation();
+		break;
+	}
+	for (TObjectIterator<USkyLightComponent> It; It; ++It)
+	{
+		if (It->GetWorld() == World)
+		{
+			MapDefaults.SkyLightIntensity = It->Intensity;
+			break;
+		}
+	}
+	for (TObjectIterator<USkyAtmosphereComponent> It; It; ++It)
+	{
+		if (It->GetWorld() == World)
+		{
+			MapDefaults.RayleighScale = It->RayleighScatteringScale;
+			MapDefaults.MieScale = It->MieScatteringScale;
+			MapDefaults.MieAbsorptionScale = It->MieAbsorptionScale;
+			MapDefaults.MieAnisotropy = It->MieAnisotropy;
+			MapDefaults.MultiScattering = It->MultiScatteringFactor;
+			break;
+		}
+	}
+	for (TObjectIterator<UVolumetricCloudComponent> It; It; ++It)
+	{
+		if (It->GetWorld() != World)
+		{
+			continue;
+		}
+		MapDefaults.CloudLayerBottom = It->LayerBottomAltitude;
+		MapDefaults.CloudLayerHeight = It->LayerHeight;
+		if (UMaterialInterface* CloudBase = It->GetMaterial())
+		{
+			TArray<FMaterialParameterInfo> Infos;
+			TArray<FGuid> Ids;
+			CloudBase->GetAllScalarParameterInfo(Infos, Ids);
+			for (const FMaterialParameterInfo& Info : Infos)
+			{
+				float Value = 0.0f;
+				if (CloudBase->GetScalarParameterValue(FHashedMaterialParameterInfo(Info.Name), Value))
+				{
+					MapDefaults.CloudScalars.Add(Info.Name, Value);
+				}
+			}
+		}
+		break;
+	}
+	for (TActorIterator<AExponentialHeightFog> It(World); It; ++It)
+	{
+		if (UExponentialHeightFogComponent* Fog = It->GetComponent())
+		{
+			MapDefaults.FogDensity = Fog->FogDensity;
+			MapDefaults.FogHeightFalloff = Fog->FogHeightFalloff;
+			MapDefaults.FogStartDistance = Fog->StartDistance;
+			MapDefaults.FogColor = Fog->FogInscatteringLuminance;
+		}
+		break;
+	}
+	MapDefaults.bCaptured = true;
+}
+
+void AProceduralScenarioLoader::RestoreMapEnvironmentDefaults()
+{
+	UWorld* World = GetWorld();
+	if (World == nullptr)
+	{
+		return;
+	}
+	CaptureMapEnvironmentDefaults();
+	for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+	{
+		if (UDirectionalLightComponent* Light = Cast<UDirectionalLightComponent>(It->GetLightComponent()))
+		{
+			Light->SetIntensity(MapDefaults.SunIntensity);
+			Light->SetTemperature(MapDefaults.SunTemperature);
+			Light->SetUseTemperature(MapDefaults.bSunUseTemperature);
+		}
+		It->SetActorRotation(MapDefaults.SunRotation);
+		break;
+	}
+	for (TObjectIterator<USkyLightComponent> It; It; ++It)
+	{
+		if (It->GetWorld() == World)
+		{
+			It->SetIntensity(MapDefaults.SkyLightIntensity);
+		}
+	}
+	for (TObjectIterator<USkyAtmosphereComponent> It; It; ++It)
+	{
+		if (It->GetWorld() == World)
+		{
+			It->SetRayleighScatteringScale(MapDefaults.RayleighScale);
+			It->SetMieScatteringScale(MapDefaults.MieScale);
+			It->SetMieAbsorptionScale(MapDefaults.MieAbsorptionScale);
+			It->SetMieAnisotropy(MapDefaults.MieAnisotropy);
+			It->SetMultiScatteringFactor(MapDefaults.MultiScattering);
+		}
+	}
+	for (TObjectIterator<UVolumetricCloudComponent> It; It; ++It)
+	{
+		if (It->GetWorld() != World)
+		{
+			continue;
+		}
+		It->SetLayerBottomAltitude(MapDefaults.CloudLayerBottom);
+		It->SetLayerHeight(MapDefaults.CloudLayerHeight);
+		if (UMaterialInstanceDynamic* CloudMaterial = Cast<UMaterialInstanceDynamic>(It->GetMaterial()))
+		{
+			for (const TPair<FName, float>& Scalar : MapDefaults.CloudScalars)
+			{
+				CloudMaterial->SetScalarParameterValue(Scalar.Key, Scalar.Value);
+			}
+		}
+	}
+	for (TActorIterator<AExponentialHeightFog> It(World); It; ++It)
+	{
+		if (UExponentialHeightFogComponent* Fog = It->GetComponent())
+		{
+			Fog->SetFogDensity(MapDefaults.FogDensity);
+			Fog->SetFogHeightFalloff(MapDefaults.FogHeightFalloff);
+			Fog->SetStartDistance(MapDefaults.FogStartDistance);
+			Fog->SetFogInscatteringColor(MapDefaults.FogColor);
+		}
+		break;
 	}
 }

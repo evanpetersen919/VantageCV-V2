@@ -18,9 +18,12 @@ already migrated), sitting just below the road strips (z=0) so nothing
 z-fights. UVs run in metres divided by ``ground_uv_tile_m``.
 """
 
+import dataclasses
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Optional, Tuple
+
+import numpy as np
 
 from src.procedural.mesh_factory import Mesh, flat_quad_mesh
 
@@ -38,6 +41,19 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
     exposure_bias: float = 0.0
     saturation: float = 0.95
     sun_temperature_k: Optional[float] = None
+    # Optional lighting and sky controls; None leaves the map's own value.
+    sun_intensity_lux: Optional[float] = None
+    sky_light_intensity: Optional[float] = None
+    # Sky atmosphere scattering: a large Mie scale with little Rayleigh washes
+    # the blue out of the sky to a grey-white overcast.
+    rayleigh_scale: Optional[float] = None
+    mie_scale: Optional[float] = None
+    mie_absorption_scale: Optional[float] = None
+    mie_anisotropy: Optional[float] = None
+    cloud_extinction_scale: Optional[float] = None
+    cloud_layer_bottom_km: Optional[float] = None
+    cloud_layer_height_km: Optional[float] = None
+    fog_color: Optional[Tuple[float, float, float]] = None
     color_gain: Optional[Tuple[float, float, float]] = None
     ground_half_extent_m: float = 3000.0
     ground_uv_tile_m: float = 2.0
@@ -48,22 +64,51 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
         sun: Dict[str, Any] = {"pitch_deg": self.sun_pitch_deg, "yaw_deg": self.sun_yaw_deg}
         if self.sun_temperature_k is not None:
             sun["temperature_k"] = self.sun_temperature_k
+        if self.sun_intensity_lux is not None:
+            sun["intensity_lux"] = self.sun_intensity_lux
         post_process: Dict[str, Any] = {
             "exposure_bias": self.exposure_bias,
             "saturation": self.saturation,
         }
         if self.color_gain is not None:
             post_process["gain"] = list(self.color_gain)
-        return {
+        fog: Dict[str, Any] = {
+            "density": self.fog_density,
+            "height_falloff": self.fog_height_falloff,
+            "start_distance_m": self.fog_start_distance_m,
+        }
+        if self.fog_color is not None:
+            fog["color"] = list(self.fog_color)
+        result: Dict[str, Any] = {
             "hide_template_terrain": self.hide_template_terrain,
             "sun": sun,
-            "fog": {
-                "density": self.fog_density,
-                "height_falloff": self.fog_height_falloff,
-                "start_distance_m": self.fog_start_distance_m,
-            },
+            "fog": fog,
             "post_process": post_process,
         }
+        if self.sky_light_intensity is not None:
+            result["sky_light"] = {"intensity": self.sky_light_intensity}
+        atmosphere = {
+            key: value
+            for key, value in (
+                ("rayleigh_scale", self.rayleigh_scale),
+                ("mie_scale", self.mie_scale),
+                ("mie_absorption_scale", self.mie_absorption_scale),
+                ("mie_anisotropy", self.mie_anisotropy),
+            )
+            if value is not None
+        }
+        if atmosphere:
+            result["sky_atmosphere"] = atmosphere
+        clouds: Dict[str, Any] = {}
+        if self.cloud_extinction_scale is not None:
+            clouds["extinction_scale"] = self.cloud_extinction_scale
+        if self.cloud_layer_bottom_km is not None:
+            clouds["layer_bottom_km"] = self.cloud_layer_bottom_km
+        if self.cloud_layer_height_km is not None:
+            clouds["layer_height_km"] = self.cloud_layer_height_km
+        if clouds:
+            result["clouds"] = clouds
+        return result
 
 
 DEFAULT_ENVIRONMENT = EnvironmentConfig()
@@ -141,12 +186,97 @@ NIGHT_ENVIRONMENT = EnvironmentConfig(
 )
 
 
-def scenario_environment(season: Season, time_of_day: TimeOfDay) -> EnvironmentConfig:
+class Weather(str, Enum):
+    """The scenario's daytime weather or light: a preset of overrides applied
+    on top of the season's environment. Only daytime scenarios take a
+    non-clear weather (night has its own lighting)."""
+
+    CLEAR = "clear"
+    OVERCAST = "overcast"
+    FOG = "fog"
+    GOLDEN_HOUR = "golden_hour"
+    SUNSET = "sunset"
+    DAWN_HAZE = "dawn_haze"
+
+
+# Weather presets: the values were found by rendering each on this project's own
+# scene (seed 456, one street view and one skyline view) and keeping the ones
+# that read as the named condition, not measured. Overcast comes from the sky
+# atmosphere (almost no Rayleigh scattering, a lot of Mie), because the volumetric
+# cloud layer's coverage cannot be raised through its material parameters, and
+# because lowering the sun alone is cancelled by auto-exposure. Fog is denser
+# height fog with a grey colour. The low-sun presets are sun angle, colour
+# temperature and intensity.
+_FOG_GREY = (0.4, 0.42, 0.45)
+_WEATHER_OVERRIDES: Dict[Weather, Dict[str, Any]] = {
+    Weather.CLEAR: {},
+    Weather.OVERCAST: {
+        "sun_intensity_lux": 2.0,
+        "rayleigh_scale": 0.05,
+        "mie_scale": 12.0,
+        "mie_anisotropy": 0.3,
+        "fog_density": 0.01,
+        "fog_color": _FOG_GREY,
+    },
+    Weather.FOG: {"sun_intensity_lux": 1.5, "fog_density": 0.05, "fog_color": _FOG_GREY},
+    Weather.GOLDEN_HOUR: {
+        "sun_pitch_deg": -9.0,
+        "sun_temperature_k": 4300.0,
+        "sun_intensity_lux": 6.0,
+    },
+    Weather.SUNSET: {
+        "sun_pitch_deg": -4.0,
+        "sun_temperature_k": 3400.0,
+        "sun_intensity_lux": 5.0,
+    },
+    Weather.DAWN_HAZE: {
+        "sun_pitch_deg": -6.0,
+        "sun_temperature_k": 4800.0,
+        "sun_intensity_lux": 3.0,
+        "fog_density": 0.012,
+        "fog_color": (0.55, 0.5, 0.45),
+    },
+}
+
+# How often each weather is drawn when a dataset picks one at random. These
+# shares are this project's own choice (no source was used): mostly clear or
+# overcast, with the rarer conditions kept in.
+WEATHER_SHARES: Dict[Weather, float] = {
+    Weather.CLEAR: 0.40,
+    Weather.OVERCAST: 0.25,
+    Weather.FOG: 0.08,
+    Weather.GOLDEN_HOUR: 0.12,
+    Weather.SUNSET: 0.05,
+    Weather.DAWN_HAZE: 0.10,
+}
+
+
+def draw_weather(seed: int) -> Weather:
+    """A weather for ``seed`` by ``WEATHER_SHARES``, from its own RNG stream
+    (so no other draw in a scenario changes)."""
+    rng = np.random.Generator(np.random.PCG64([seed, 0x9E47]))
+    weathers = list(WEATHER_SHARES)
+    shares = np.array([WEATHER_SHARES[weather] for weather in weathers])
+    return weathers[int(rng.choice(len(weathers), p=shares / shares.sum()))]
+
+
+def scenario_environment(
+    season: Season, time_of_day: TimeOfDay, weather: Weather = Weather.CLEAR
+) -> EnvironmentConfig:
     """The environment for a scenario: the night preset at night
-    (season-independent), otherwise the season's daytime preset."""
+    (season-independent), otherwise the season's daytime preset with the
+    weather's overrides on top.
+
+    Raises
+    ------
+    ValueError
+        If a non-clear ``weather`` is combined with night.
+    """
     if time_of_day == TimeOfDay.NIGHT:
+        if weather != Weather.CLEAR:
+            raise ValueError(f"weather {weather.value!r} is only defined for daytime scenarios")
         return NIGHT_ENVIRONMENT
-    return season_environment(season)
+    return dataclasses.replace(season_environment(season), **_WEATHER_OVERRIDES[weather])
 
 
 # Epic's tree kits are bare branch skeletons (no leaves, see
