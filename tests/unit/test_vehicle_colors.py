@@ -117,5 +117,7 @@ def test_generated_scenarios_paint_ordinary_cars_in_several_colours(urban_config
     assert all(is_recolorable(v.asset_path) for v in painted)
     assert all(v.paint is None for v in result.vehicles if not is_recolorable(v.asset_path))
     payload = serialize_scenario(result)
-    recolored = [a for a in payload["assets"] if "material_slot_vectors" in a]
+    recolored = [
+        a for a in payload["assets"] if a["category"] == "vehicle" and "material_slot_vectors" in a
+    ]
     assert len(recolored) == len(painted)
