@@ -21,8 +21,11 @@ import unreal  # type: ignore[import-not-found]  # pylint: disable=import-error
 OUTPUT_FOLDER = "/Game/VantageCV/NightGlass"
 SOURCE_ROOT = "/Game/Building"
 SOURCE_NAME = "M_Bldg_glass"
-EMISSION_TINT = 3.0
+EMISSION_TINT = 1.5
+LIGHT_SWITCHES = ("UseLightOverride", "ManualRoom", "UseManualID")
 STALE_FOLDERS = tuple(f"/Game/VantageCV/NightGlass_V{n}" for n in (1, 2, 3)) + tuple(
+    f"/Game/VantageCV/NightGlassTest_{name}" for name in ("MR1", "MR2")
+) + tuple(
     f"/Game/VantageCV/NightGlassTest_V{n}" for n in (2, 3)
 )
 
@@ -45,9 +48,8 @@ def main() -> None:
         if assets.does_asset_exist(destination):
             assets.delete_asset(destination)
         instance = assets.duplicate_asset(package, destination)
-        library.set_material_instance_static_switch_parameter_value(
-            instance, "UseLightOverride", True
-        )
+        for switch in LIGHT_SWITCHES:
+            library.set_material_instance_static_switch_parameter_value(instance, switch, True)
         library.set_material_instance_vector_parameter_value(
             instance, "Tint", unreal.LinearColor(EMISSION_TINT, EMISSION_TINT, EMISSION_TINT, 1.0)
         )

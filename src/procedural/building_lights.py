@@ -16,11 +16,15 @@ by setting that instance's ``LightsOff`` to 0 (lit) or 1 (dark). The choice
 is random from the scenario seed (a dedicated RNG stream, so nothing else
 in a scenario changes), lighting ``LIT_FRACTION`` of the modules.
 
-The night glass copies also raise the ``Tint`` emission multiplier so lit rooms
-glow more (peak window brightness about +15% at 3.0, compressed by tone
-mapping). Per-module room variety via ``InteriorOffset`` was tried and
-rejected: it shifts the view into the room capture, so floor and wall lines
-land mid-window.
+Every piece would otherwise show the same room (the material seeds its room
+choice with ``PerInstanceRandom``, constant for separately spawned actors), so
+the night glass copies also switch on the material's manual room selection
+(``ManualRoom`` + ``UseManualID``) and each module gets a random
+``ManualRoomID``: real, distinct office/bedroom/lobby interiors. (A random
+``InteriorOffset`` was tried and rejected: it shifts the view into the room
+capture, so floor and wall lines land mid-window. The ``UseCustomTemp`` light
+temperature switch washed rooms out white.) The copies also raise the ``Tint``
+emission multiplier a little so lit rooms glow more.
 """
 
 from typing import Dict, List, Optional
@@ -35,6 +39,9 @@ GLASS_SLOT_NAME = "Bldg_glass"
 KIT_FOLDER_PREFIX = "Kit_Bldg_"
 # /Game/Building/<style>/<variant>/<kit folder>/Mesh/<mesh>
 KIT_FOLDER_INDEX = 5
+# Room IDs are drawn from [0, ROOM_ID_COUNT): the smallest of Epic's four room
+# arrays (by window size) holds 5 rooms, so every ID is valid for every window.
+ROOM_ID_COUNT = 5
 
 
 def building_pieces_lit(piece_count: int, seed: int) -> List[bool]:
@@ -42,6 +49,13 @@ def building_pieces_lit(piece_count: int, seed: int) -> List[bool]:
     independently with probability ``LIT_FRACTION``."""
     rng = np.random.Generator(np.random.PCG64([seed, 0x11D0]))
     return [bool(draw < LIT_FRACTION) for draw in rng.random(piece_count)]
+
+
+def building_piece_room_ids(piece_count: int, seed: int) -> List[int]:
+    """A random ``ManualRoomID`` for each of ``piece_count`` pieces, from its
+    own RNG stream."""
+    rng = np.random.Generator(np.random.PCG64([seed, 0x2007]))
+    return [int(room) for room in rng.integers(0, ROOM_ID_COUNT, size=piece_count)]
 
 
 def night_glass_replacements(asset_path: str) -> Optional[Dict[str, str]]:
@@ -55,6 +69,7 @@ def night_glass_replacements(asset_path: str) -> Optional[Dict[str, str]]:
     return {GLASS_SLOT_NAME: f"{NIGHT_GLASS_FOLDER}/{name}.{name}"}
 
 
-def glass_scalar_overrides(lit: bool) -> Dict[str, float]:
-    """Material scalars for a lit (``LightsOff`` 0) or dark (1) module."""
-    return {"LightsOff": 0.0 if lit else 1.0}
+def glass_scalar_overrides(lit: bool, room_id: int) -> Dict[str, float]:
+    """Material scalars for a module: lit (``LightsOff`` 0) or dark (1), and
+    which room it shows (``ManualRoomID``)."""
+    return {"LightsOff": 0.0 if lit else 1.0, "ManualRoomID": float(room_id)}
