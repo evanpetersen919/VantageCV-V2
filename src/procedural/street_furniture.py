@@ -45,14 +45,14 @@ by the caller from the seed); item positions are deterministic.
 
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
 
 from src.procedural.building_facade import FacadePiece
 from src.procedural.lane_topology import Lane
-from src.procedural.road_edge_kit import edge_runs
+from src.procedural.road_edge_kit import EdgeRun, Rect, edge_runs
 from src.procedural.road_network import RoadEdge
 
 # Keep furniture this far from either end of a run (crosswalks and the
@@ -150,15 +150,43 @@ def furniture_rules(lamp_style: int = 0) -> List[_Rule]:
 _TREE_NUDGES_METERS: Tuple[float, ...] = (0.0, 2.0, -2.0, 3.5, -3.5)
 
 
-def _free_spot(
-    rule: _Rule, s: float, placed_along: List[float], run_length: float
+# A prop's footprint radius for keep-out tests: half the clearance it keeps
+# from its neighbours along the curb, plus this buffer.
+KEEP_OUT_BUFFER_M = 0.25
+
+
+def keep_out_margin_m(rule: _Rule) -> float:
+    """Distance (metres) a ``rule``'s props must keep from a keep-out
+    rectangle such as a driveway: half the rule's own clearance plus
+    ``KEEP_OUT_BUFFER_M``."""
+    return rule.clearance_m / 2.0 + KEEP_OUT_BUFFER_M
+
+
+def distance_to_rect(point: npt.NDArray[np.float64], rect: Rect) -> float:
+    """Distance from ``point`` to the axis-aligned rectangle ``(x_min, y_min,
+    x_max, y_max)``: zero on or inside it, else the length of the shortest
+    segment to it."""
+    dx = max(rect[0] - float(point[0]), 0.0, float(point[0]) - rect[2])
+    dy = max(rect[1] - float(point[1]), 0.0, float(point[1]) - rect[3])
+    return math.hypot(dx, dy)
+
+
+def _free_spot(  # pylint: disable=too-many-arguments
+    rule: _Rule,
+    s: float,
+    placed_along: List[float],
+    run_length: float,
+    blocked: Callable[[float], bool] = lambda spot: False,
 ) -> Optional[float]:
-    """``s`` if it is clear of every placed item, else (trees only) the
-    nearest nudged spot that is; ``None`` if there is none."""
+    """``s`` if it is clear of every placed item and not ``blocked``, else
+    (trees only) the nearest nudged spot that is; ``None`` if there is
+    none."""
     nudges = _TREE_NUDGES_METERS if isinstance(rule, TreeRule) else (0.0,)
     for nudge in nudges:
         spot = s + nudge
         if not END_MARGIN_METERS <= spot <= run_length - END_MARGIN_METERS:
+            continue
+        if blocked(spot):
             continue
         if all(abs(spot - other) >= rule.clearance_m for other in placed_along):
             return spot
@@ -190,9 +218,11 @@ def generate_street_furniture_pieces(  # pylint: disable=too-many-locals,too-man
     tree_base_style: int = 0,
     seed: int = 0,
     include_trees: bool = True,
+    keep_out_rects: Sequence[Rect] = (),
 ) -> List[FacadePiece]:
     """Street furniture and street trees along the curb line of every
-    directed road edge.
+    directed road edge. No prop is placed within ``keep_out_margin_m`` of a
+    ``keep_out_rects`` rectangle (a parking-lot driveway).
 
     Item positions are deterministic (``lamp_style`` and ``tree_base_style``
     select the scenario's lamp model and tree-base model); only each tree's
@@ -216,8 +246,16 @@ def generate_street_furniture_pieces(  # pylint: disable=too-many-locals,too-man
         placed_along: List[float] = []
         for rule in rules:
             s = END_MARGIN_METERS + rule.phase_fraction * rule.spacing_m
+            margin = keep_out_margin_m(rule)
+
+            def blocked(
+                spot: float, run: EdgeRun = run, rule: _Rule = rule, margin: float = margin
+            ) -> bool:
+                at = run.start + run.run_direction * spot + run.outward * rule.offset_m
+                return any(distance_to_rect(at, rect) < margin for rect in keep_out_rects)
+
             while s <= run.length - END_MARGIN_METERS:
-                spot = _free_spot(rule, s, placed_along, run.length)
+                spot = _free_spot(rule, s, placed_along, run.length, blocked)
                 if spot is not None:
                     placed_along.append(spot)
                     position = run.start + run.run_direction * spot + run.outward * rule.offset_m
