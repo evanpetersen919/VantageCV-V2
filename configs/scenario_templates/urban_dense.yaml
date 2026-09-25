@@ -15,10 +15,16 @@ buildings:
 
 traffic:
   traffic_density: [0.6, 1.0]
+  # Real 2024 US light-vehicle registration shares (SUV 59.10%, car
+  # 18.66%, pickup 18.03%, van/minivan 4.21% folded into suv -- see
+  # city_sample_assets.py's REAL_US_VEHICLE_CLASS_MIX for the full
+  # citation), rescaled to leave a small disclosed bus fraction for
+  # scene diversity (city buses aren't part of consumer registration
+  # data at all).
   vehicle_mix:
-    sedan: 0.6
-    suv: 0.25
-    truck: 0.10
-    bus: 0.05
+    sedan: 0.181
+    suv: 0.614
+    truck: 0.175
+    bus: 0.03
 
 complexity_score: 80
