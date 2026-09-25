@@ -25,6 +25,7 @@ from src.ground_truth.bbox_3d import (
     extract_bboxes_3d_vehicles,
 )
 from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
+from src.procedural.building_colors import draw_building_palettes
 from src.procedural.building_facade import FacadePiece, generate_building_facade_pieces
 from src.procedural.building_lights import building_piece_room_ids, building_pieces_lit
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
@@ -88,6 +89,9 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     season: Season
     validation_report: ValidationReport
     time_of_day: TimeOfDay = TimeOfDay.DAY
+    # The wall palette index (see building_colors.py) of each entry of
+    # building_facade_pieces, drawn once per building.
+    building_piece_palettes: List[int] = field(default_factory=list)
     # Night only: whether each entry of building_facade_pieces is lit.
     building_pieces_lit: List[bool] = field(default_factory=list)
     parking_lots: List[ParkingLot] = field(default_factory=list)
@@ -189,10 +193,12 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     meshes: List[Mesh] = [MeshFactory.build_road_mesh(lane) for lane in lanes.values()]
 
     building_facade_pieces: List[FacadePiece] = []
-    for building in buildings:
-        building_facade_pieces += generate_building_facade_pieces(
-            building, BUILDING_STYLES[building.style_name]
-        )
+    building_palettes = draw_building_palettes(len(buildings), seed)
+    building_piece_palettes: List[int] = []
+    for building, palette in zip(buildings, building_palettes):
+        pieces = generate_building_facade_pieces(building, BUILDING_STYLES[building.style_name])
+        building_facade_pieces += pieces
+        building_piece_palettes += [palette] * len(pieces)
 
     # One curb style and one sidewalk style per scenario, chosen from the
     # seed (an isolated stream, so it never disturbs any other generator's
@@ -256,6 +262,7 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         pedestrians=pedestrians,
         meshes=meshes,
         building_facade_pieces=building_facade_pieces,
+        building_piece_palettes=building_piece_palettes,
         road_edge_pieces=road_edge_pieces,
         street_furniture_pieces=street_furniture_pieces,
         crosswalk_pieces=crosswalk_pieces,

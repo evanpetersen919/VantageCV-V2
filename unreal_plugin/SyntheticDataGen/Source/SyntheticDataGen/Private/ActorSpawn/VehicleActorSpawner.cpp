@@ -161,14 +161,18 @@ namespace
 		const TArray<FName> SlotNames = Component->GetMaterialSlotNames();
 		for (int32 SlotIndex = 0; SlotIndex < SlotNames.Num(); ++SlotIndex)
 		{
-			const FString Prefix = SlotNames[SlotIndex].ToString() + TEXT("|");
+			const FString SlotName = SlotNames[SlotIndex].ToString();
 			UMaterialInstanceDynamic* MID = nullptr;
 			for (const TPair<FString, FLinearColor>& Override : Overrides)
 			{
-				if (!Override.Key.StartsWith(Prefix))
+				// Key is "<slot name or wildcard pattern>|<parameter>"; a pattern may use
+				// * and ? (e.g. "Bldg_block*"), matched case-insensitively.
+				int32 Separator = INDEX_NONE;
+				if (!Override.Key.FindLastChar(TEXT('|'), Separator) || !SlotName.MatchesWildcard(Override.Key.Left(Separator)))
 				{
 					continue;
 				}
+				const FString ParameterName = Override.Key.RightChop(Separator + 1);
 				if (MID == nullptr)
 				{
 					MID = Component->CreateDynamicMaterialInstance(SlotIndex);
@@ -177,7 +181,7 @@ namespace
 						break;
 					}
 				}
-				MID->SetVectorParameterValue(FName(*Override.Key.RightChop(Prefix.Len())), Override.Value);
+				MID->SetVectorParameterValue(FName(*ParameterName), Override.Value);
 			}
 		}
 	}
