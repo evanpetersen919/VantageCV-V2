@@ -591,6 +591,14 @@ void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& 
 			{
 				RainMaterial->SetScalarParameterValue(TEXT("Density"), static_cast<float>(Value));
 			}
+			if ((*RainJson)->TryGetNumberField(TEXT("ripple_intensity"), Value))
+			{
+				RainMaterial->SetScalarParameterValue(TEXT("RippleIntensity"), static_cast<float>(Value));
+			}
+			if ((*RainJson)->TryGetNumberField(TEXT("ripple_density"), Value))
+			{
+				RainMaterial->SetScalarParameterValue(TEXT("RippleDensity"), static_cast<float>(Value));
+			}
 			if ((*RainJson)->TryGetNumberField(TEXT("seed"), Value))
 			{
 				RainMaterial->SetScalarParameterValue(TEXT("Seed"), static_cast<float>(Value));
