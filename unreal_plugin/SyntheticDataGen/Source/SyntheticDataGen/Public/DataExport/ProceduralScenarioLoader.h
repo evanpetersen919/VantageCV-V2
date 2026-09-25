@@ -124,7 +124,8 @@ private:
 	/**
 	 * Spawns the optional top-level "glows" array: one small unlit,
 	 * additive emissive sphere per entry ({"position": [x, y, z] meters,
-	 * "color": [r, g, b], "radius_m", "intensity"}) -- the visible glowing
+	 * "color": [r, g, b], "intensity", and either "radius_m" or an ellipsoid
+	 * "semi_axes_m" [forward, lateral, vertical] with "rotation_rad"}) -- the visible glowing
 	 * lens of a headlight or tail light (a light actor casts light but is
 	 * itself invisible). Uses the engine's own EmissiveMeshMaterial with
 	 * its "Color" parameter scaled by intensity, so it blooms. Tracked in

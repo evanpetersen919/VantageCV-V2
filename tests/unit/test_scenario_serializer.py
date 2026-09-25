@@ -18,6 +18,7 @@ from src.procedural.building_facade import FacadePiece
 from src.procedural.city_sample_assets import PEDESTRIAN_MESH_FORWARD_OFFSET_RAD, VEHICLE_PART_PATHS
 from src.procedural.environment import TimeOfDay
 from src.procedural.street_furniture import LAMP_ASSET_PATHS, STREET_LAMP_OFF_OVERRIDES
+from src.procedural.vehicle_lamp_geometry import VEHICLE_LAMP_GEOMETRY
 
 # urban_config, bounds fixtures: see tests/conftest.py
 
@@ -290,5 +291,6 @@ def test_night_payload_carries_four_real_lights_per_vehicle_and_day_carries_none
     lights = serialize_scenario(night)["lights"]
     assert len(lights) == 4 * len(night.vehicles)
     assert sum(1 for light in lights if light["type"] == "spot") == 2 * len(night.vehicles)
-    assert len(serialize_scenario(night)["glows"]) == 4 * len(night.vehicles)
+    measured = sum(1 for v in night.vehicles if v.asset_path.split("/")[3] in VEHICLE_LAMP_GEOMETRY)
+    assert len(serialize_scenario(night)["glows"]) == 4 * measured
     assert "glows" not in serialize_scenario(day)
