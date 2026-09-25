@@ -130,3 +130,38 @@ def sample_gap(rng: np.random.Generator, regime: SpacingRegime) -> float:
     regime's own real minimum gap, by construction."""
     free_mean = max(regime.mean_gap_m - regime.minimum_gap_m, 1e-6)
     return regime.minimum_gap_m + float(rng.exponential(free_mean))
+
+
+# HCM base saturation flow rate: 1900 passenger cars per hour per lane
+# (Highway Capacity Manual, ideal conditions, metropolitan areas) -- the
+# real maximum rate a lane can discharge/carry, used here as the flow a
+# fully-saturated (occupancy 1.0) lane would arrive at.
+SATURATION_FLOW_VEHICLES_PER_SECOND = 1900.0 / 3600.0
+
+
+def sample_signal_queue_length(
+    rng: np.random.Generator, occupancy: float, red_time_s: float
+) -> int:
+    """How many vehicles are queued at a signalized approach at one
+    randomly-arriving instant within its red interval: real signal
+    analysis (HCM uniform-delay model) treats the queue as the vehicles
+    that arrived since the red began, and treats arrivals as a Poisson
+    process. The instant is uniform within the red (a snapshot lands
+    anywhere in it, same reasoning as ``resolve_active_phases``), and the
+    arrival rate is this scenario's own ``occupancy`` as a fraction of
+    the real saturation flow (a volume-to-capacity ratio)."""
+    elapsed_red_s = float(rng.uniform(0.0, max(red_time_s, 0.0)))
+    mean_arrivals = occupancy * SATURATION_FLOW_VEHICLES_PER_SECOND * elapsed_red_s
+    return int(rng.poisson(mean_arrivals))
+
+
+def sample_stop_sign_queue_length(
+    rng: np.random.Generator, occupancy: float, zone_length_m: float
+) -> int:
+    """How many vehicles wait at a stop-controlled approach: no timed
+    red interval exists to accumulate arrivals over, so the mean is the
+    real number of jam-spaced vehicles the approach's own crosswalk-
+    clearing zone physically holds, scaled by occupancy (disclosed
+    simplification, not a modeled arrival process)."""
+    mean_vehicles = occupancy * zone_length_m / QUEUED_MEAN_GAP_M
+    return int(rng.poisson(mean_vehicles))

@@ -349,3 +349,20 @@ def resolve_active_phases(
         node_id: plan.phase_at(float(rng.uniform(0.0, plan.cycle_length_s)))
         for node_id, plan in plans.items()
     }
+
+
+def red_time_seconds(plan: IntersectionSignalPlan, axis: ApproachDirection) -> float:
+    """The real time per cycle a lane on cardinal ``axis`` is stopped:
+    the whole cycle minus its own axis pair's GREEN and YELLOW_CHANGE
+    phases (its own all-red clearance, and everything the perpendicular
+    axis owns, is time this axis waits). Uses the same fixed 6-phase
+    layout ``compute_signal_plan`` builds -- ``phase_index //
+    len(PhaseKind)`` recovers which ``AXIS_PAIRS`` entry owns a phase."""
+    axis_pair = next(pair for pair in AXIS_PAIRS if axis in pair)
+    moving_time_s = sum(
+        phase.duration_s
+        for phase in plan.phases
+        if AXIS_PAIRS[phase.phase_index // len(PhaseKind)] == axis_pair
+        and phase.kind in (PhaseKind.GREEN, PhaseKind.YELLOW_CHANGE)
+    )
+    return plan.cycle_length_s - moving_time_s

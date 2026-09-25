@@ -147,11 +147,16 @@ def _make_zone(edge, node_clearance, edge_id=0) -> SpawnZone:
     )
 
 
-def test_front_vehicle_front_bumper_at_stop_line_when_not_flowing(urban_config) -> None:
+def test_front_vehicle_front_bumper_at_stop_line_when_not_flowing(
+    urban_config, monkeypatch
+) -> None:
     """The first (closest-to-node) vehicle on a lane whose destination
     axis does NOT have the green is placed with its FRONT BUMPER (not
     center) exactly on the real stop line -- true regardless of any
     sampled gap, since no gap is involved until the SECOND vehicle."""
+    monkeypatch.setattr(
+        "src.procedural.actor_placement.sample_stop_sign_queue_length", lambda rng, occ, length: 3
+    )
     edge = _make_edge()  # (0,0) -> (100,0), end_node_id=20
     node_clearance = {10: 5.0, 20: 5.0}
     zone = _make_zone(edge, node_clearance)
@@ -159,7 +164,7 @@ def test_front_vehicle_front_bumper_at_stop_line_when_not_flowing(urban_config) 
 
     generator = ActorPlacementGenerator(0, urban_config)
     vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
-        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}
+        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}, {}
     )
     assert vehicles
     front = max(vehicles, key=lambda v: v.center[0])
@@ -179,7 +184,7 @@ def test_front_vehicle_at_natural_node_position_when_flowing(urban_config) -> No
 
     generator = ActorPlacementGenerator(0, urban_config)
     vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
-        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}
+        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}, {}
     )
     assert vehicles
     front = max(vehicles, key=lambda v: v.center[0])
@@ -200,7 +205,7 @@ def test_second_vehicle_sits_one_sampled_gap_behind_the_first(urban_config, monk
 
     generator = ActorPlacementGenerator(0, urban_config)
     vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
-        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}
+        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}, {}
     )
     ordered = sorted(vehicles, key=lambda v: v.center[0], reverse=True)
     assert len(ordered) >= 2
@@ -219,6 +224,9 @@ def test_walk_uses_queued_regime_near_node_and_moving_regime_farther_back(
     which regime it was called with (its real, distinct mean), then
     reading off which mean was actually used at each step from the
     resulting real gap sizes."""
+    monkeypatch.setattr(
+        "src.procedural.actor_placement.sample_stop_sign_queue_length", lambda rng, occ, length: 2
+    )
     edge = _make_edge()
     node_clearance = {10: 5.0, 20: 5.0}
     zone = _make_zone(edge, node_clearance)
@@ -229,7 +237,7 @@ def test_walk_uses_queued_regime_near_node_and_moving_regime_farther_back(
 
     generator = ActorPlacementGenerator(0, urban_config)
     vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
-        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}
+        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}, {}
     )
     ordered = sorted(vehicles, key=lambda v: v.center[0], reverse=True)
     # The front vehicle's own CENTER is offset back from the real walk
@@ -270,7 +278,7 @@ def test_walk_stops_once_inside_a_not_flowing_start_nodes_zone(urban_config, mon
 
     generator = ActorPlacementGenerator(0, urban_config)
     vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
-        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}
+        zone, {0: edge}, 1.0, [], active_phases, node_clearance, {}, {}, {}
     )
     # Only the first (flowing, at the node) vehicle -- the second
     # candidate would land at along=5.0, inside node 10's own
@@ -279,11 +287,16 @@ def test_walk_stops_once_inside_a_not_flowing_start_nodes_zone(urban_config, mon
     assert vehicles[0].center[0] == pytest.approx(100.0)
 
 
-def test_vehicle_queued_at_stop_line_on_minor_axis_of_a_stop_sign_node(urban_config) -> None:
+def test_vehicle_queued_at_stop_line_on_minor_axis_of_a_stop_sign_node(
+    urban_config, monkeypatch
+) -> None:
     """A front-of-queue vehicle approaching a real T-junction on the
     minor/stub axis is placed with its front bumper at the real stop
     line -- unconditionally (a real 2-way stop always requires a full
     stop there, no resolved instant needed)."""
+    monkeypatch.setattr(
+        "src.procedural.actor_placement.sample_stop_sign_queue_length", lambda rng, occ, length: 3
+    )
     edge = _make_edge()  # (0,0) -> (100,0): an EAST-WEST-axis edge
     node_clearance = {10: 5.0, 20: 5.0}
     zone = _make_zone(edge, node_clearance)
@@ -292,7 +305,7 @@ def test_vehicle_queued_at_stop_line_on_minor_axis_of_a_stop_sign_node(urban_con
 
     generator = ActorPlacementGenerator(0, urban_config)
     vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
-        zone, {0: edge}, 1.0, [], {}, node_clearance, traffic_controls, minor_axis_by_node
+        zone, {0: edge}, 1.0, [], {}, node_clearance, traffic_controls, minor_axis_by_node, {}
     )
     assert vehicles
     front = max(vehicles, key=lambda v: v.center[0])
@@ -315,7 +328,7 @@ def test_vehicle_flows_on_major_axis_of_a_stop_sign_node(urban_config) -> None:
 
     generator = ActorPlacementGenerator(0, urban_config)
     vehicles = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
-        zone, {0: edge}, 1.0, [], {}, node_clearance, traffic_controls, minor_axis_by_node
+        zone, {0: edge}, 1.0, [], {}, node_clearance, traffic_controls, minor_axis_by_node, {}
     )
     assert vehicles
     front = max(vehicles, key=lambda v: v.center[0])

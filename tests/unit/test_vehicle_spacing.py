@@ -8,12 +8,15 @@ from src.procedural.traffic_network import VEHICLE_SPAWN_GAP_METERS
 from src.procedural.vehicle_spacing import (
     MINIMUM_VEHICLE_GAP_M,
     QUEUED_MEAN_GAP_M,
+    SATURATION_FLOW_VEHICLES_PER_SECOND,
     SpacingRegime,
     following_time_seconds,
     moving_mean_gap_m,
     moving_regime,
     queued_regime,
     sample_gap,
+    sample_signal_queue_length,
+    sample_stop_sign_queue_length,
 )
 
 
@@ -122,3 +125,37 @@ def test_spacing_regime_is_a_frozen_dataclass() -> None:
     regime = SpacingRegime(mean_gap_m=10.0, minimum_gap_m=5.0)
     assert regime.mean_gap_m == 10.0
     assert regime.minimum_gap_m == 5.0
+
+
+def test_signal_queue_zero_when_red_time_zero() -> None:
+    """No red interval means no time for arrivals to accumulate."""
+    rng = np.random.Generator(np.random.PCG64(1))
+    assert sample_signal_queue_length(rng, 1.0, 0.0) == 0
+
+
+def test_signal_queue_mean_matches_poisson_arrivals_over_half_the_red() -> None:
+    """Mean queue = occupancy * saturation flow * E[elapsed red], with
+    elapsed uniform in [0, red] (mean red/2) -- the real Poisson-arrival
+    queue model, proven against its own closed-form expectation."""
+    rng = np.random.Generator(np.random.PCG64(11))
+    red_time_s = 30.0
+    occupancy = 0.8
+    samples = [sample_signal_queue_length(rng, occupancy, red_time_s) for _ in range(20_000)]
+    expected = occupancy * SATURATION_FLOW_VEHICLES_PER_SECOND * red_time_s / 2.0
+    assert np.mean(samples) == pytest.approx(expected, rel=0.04)
+
+
+def test_signal_queue_grows_with_occupancy() -> None:
+    """A busier scenario (higher occupancy) queues more vehicles."""
+    rng_low = np.random.Generator(np.random.PCG64(3))
+    rng_high = np.random.Generator(np.random.PCG64(3))
+    low = np.mean([sample_signal_queue_length(rng_low, 0.2, 30.0) for _ in range(5_000)])
+    high = np.mean([sample_signal_queue_length(rng_high, 1.0, 30.0) for _ in range(5_000)])
+    assert high > low
+
+
+def test_stop_sign_queue_mean_matches_zone_capacity_times_occupancy() -> None:
+    """Stop-controlled queue mean = occupancy * (zone length / jam gap)."""
+    rng = np.random.Generator(np.random.PCG64(5))
+    samples = [sample_stop_sign_queue_length(rng, 0.9, 20.5) for _ in range(20_000)]
+    assert np.mean(samples) == pytest.approx(0.9 * 20.5 / QUEUED_MEAN_GAP_M, rel=0.04)

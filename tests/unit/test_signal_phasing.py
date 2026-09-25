@@ -27,6 +27,7 @@ from src.procedural.signal_phasing import (
     classify_approach_direction,
     compute_minor_axis_by_node,
     compute_signal_plan,
+    red_time_seconds,
     resolve_active_phases,
 )
 from src.procedural.traffic_network import TrafficNetworkGenerator
@@ -348,3 +349,17 @@ def test_resolve_active_phases_always_within_bounds() -> None:
     for _ in range(200):
         resolved = resolve_active_phases(plans, rng)
         assert resolved[0] in plan.phases
+
+
+def test_red_time_is_cycle_minus_own_green_and_yellow() -> None:
+    """A lane's real stopped time per cycle is the whole cycle minus its
+    own axis pair's GREEN and YELLOW_CHANGE phases -- hand-summed here
+    from the plan's own real phase durations."""
+    plan = compute_signal_plan(
+        0, [_edge((0.0, 0.0), (10.0, 0.0)), _edge((0.0, 0.0), (0.0, 10.0))], 7.0
+    )
+    for axis, owner_index in ((ApproachDirection.NORTH, 0), (ApproachDirection.EAST, 1)):
+        own = [p for p in plan.phases if p.phase_index // 3 == owner_index]
+        moving = sum(p.duration_s for p in own if p.kind != PhaseKind.ALL_RED)
+        assert red_time_seconds(plan, axis) == pytest.approx(plan.cycle_length_s - moving)
+    assert 0.0 < red_time_seconds(plan, ApproachDirection.NORTH) < plan.cycle_length_s

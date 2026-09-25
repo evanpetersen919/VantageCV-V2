@@ -52,12 +52,14 @@ from src.procedural.road_network import RoadEdge
 from src.procedural.scenario import ScenarioTypeConfig
 from src.procedural.signal_phasing import (
     ApproachDirection,
+    IntersectionSignalPlan,
     PhaseKind,
     SignalPhase,
     approach_direction_from_heading,
     build_signal_plans,
     classify_approach_direction,
     compute_minor_axis_by_node,
+    red_time_seconds,
     resolve_active_phases,
 )
 from src.procedural.traffic_network import (
@@ -67,7 +69,13 @@ from src.procedural.traffic_network import (
     TrafficControlType,
     TrafficNetwork,
 )
-from src.procedural.vehicle_spacing import moving_regime, queued_regime, sample_gap
+from src.procedural.vehicle_spacing import (
+    moving_regime,
+    queued_regime,
+    sample_gap,
+    sample_signal_queue_length,
+    sample_stop_sign_queue_length,
+)
 
 # The real road surface height -- matching the convention
 # ``_vehicle_to_asset_json`` already uses (vehicles sit at z=0.0, "the
@@ -334,6 +342,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
                         node_clearance,
                         traffic.traffic_controls,
                         minor_axis_by_node,
+                        signal_plans,
                     )
                 )
             elif zone.zone_type == SpawnZoneType.PEDESTRIAN:
@@ -394,6 +403,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         node_clearance: Dict[int, float],
         traffic_controls: Dict[int, TrafficControlType],
         minor_axis_by_node: Dict[int, FrozenSet[ApproachDirection]],
+        signal_plans: Dict[int, IntersectionSignalPlan],
     ) -> List[Vehicle]:
         """Every vehicle on one real lane, placed by walking backward
         from its destination node (or, if that axis doesn't have the
@@ -430,24 +440,10 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             # at the zone's own single point, no chain to walk.
             if self.rng.random() > occupancy:
                 return []
-            vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
-            asset_path = _sample_asset_path(self.rng, vehicle_type)
-            length, width, height = VEHICLE_DIMENSIONS[vehicle_type]
-            candidate = Vehicle(
-                vehicle_id=self._vehicle_counter,
-                vehicle_type=vehicle_type,
-                asset_path=asset_path,
-                center=zone.position.copy(),
-                heading_rad=_edge_heading(edge),
-                length=length,
-                width=width,
-                height=height,
+            vehicle = self._make_vehicle_if_clear(
+                zone.position, _edge_heading(edge), False, placed_vehicle_aabbs
             )
-            if any(_aabb_overlap(candidate.aabb, other) for other in placed_vehicle_aabbs):
-                return []
-            self._vehicle_counter += 1
-            placed_vehicle_aabbs.append(candidate.aabb)
-            return [candidate]
+            return [vehicle] if vehicle is not None else []
 
         unit_direction = edge_direction / edge_length
         axis = classify_approach_direction(edge)
@@ -472,51 +468,100 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             assert zone.stop_line_position is not None  # every DRIVING zone carries one
             walk_along = float(np.dot(zone.stop_line_position - edge.centerline[0], unit_direction))
 
+        # Real queue: how many vehicles are stopped waiting at this
+        # lane's destination (see vehicle_spacing.py). They are packed
+        # tightly from the stop line back -- a real queue has no holes,
+        # so queued vehicles skip the occupancy coin flip (the queue
+        # LENGTH already encodes demand); stragglers behind it are
+        # sparse random arrivals and keep the coin flip.
+        queued_remaining = 0
+        if not end_flowing:
+            queued_remaining = self._sample_lane_queue_length(
+                signal_plans.get(edge.end_node_id), axis, occupancy, end_required
+            )
+            if queued_remaining == 0:
+                # No queue formed: the nearest vehicle is still an
+                # approaching straggler, not sitting on the stop line.
+                walk_along -= sample_gap(self.rng, moving_regime(edge.speed_limit_kmh))
+
         vehicles: List[Vehicle] = []
         is_front = True
         while walk_along >= 0.0:
             if walk_along < start_required and not start_flowing:
                 break  # no sensible position this deep in the start node's own zone
 
-            if self.rng.random() <= occupancy:
+            is_queued = queued_remaining > 0
+            if is_queued or self.rng.random() <= occupancy:
                 position = (
                     edge.centerline[0]
                     + unit_direction * walk_along
                     + compute_perpendicular(edge_direction) * (zone.lateral_offset_m or 0.0)
                 )
-                vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
-                asset_path = _sample_asset_path(self.rng, vehicle_type)
-                length, width, height = VEHICLE_DIMENSIONS[vehicle_type]
-
-                if is_front and not end_flowing:
-                    # The stop line marks where the front-of-queue
-                    # vehicle's FRONT bumper sits, not its center --
-                    # offset backward by half its own real length so the
-                    # front, not the middle, lands exactly there.
-                    heading_vector = np.array([np.cos(heading), np.sin(heading)])
-                    position = position - heading_vector * (length / 2.0)
-
-                candidate = Vehicle(
-                    vehicle_id=self._vehicle_counter,
-                    vehicle_type=vehicle_type,
-                    asset_path=asset_path,
-                    center=position.copy(),
-                    heading_rad=heading,
-                    length=length,
-                    width=width,
-                    height=height,
+                vehicle = self._make_vehicle_if_clear(
+                    position, heading, is_front and is_queued, placed_vehicle_aabbs
                 )
-                if not any(_aabb_overlap(candidate.aabb, other) for other in placed_vehicle_aabbs):
-                    self._vehicle_counter += 1
-                    placed_vehicle_aabbs.append(candidate.aabb)
-                    vehicles.append(candidate)
+                if vehicle is not None:
+                    vehicles.append(vehicle)
 
-            in_end_zone = (edge_length - walk_along) <= end_required and not end_flowing
-            regime = queued_regime() if in_end_zone else moving_regime(edge.speed_limit_kmh)
+            if is_queued:
+                queued_remaining -= 1
+            regime = (
+                queued_regime() if queued_remaining > 0 else moving_regime(edge.speed_limit_kmh)
+            )
             walk_along -= sample_gap(self.rng, regime)
             is_front = False
 
         return vehicles
+
+    def _sample_lane_queue_length(
+        self,
+        plan: Optional[IntersectionSignalPlan],
+        axis: ApproachDirection,
+        occupancy: float,
+        zone_length_m: float,
+    ) -> int:
+        """How many vehicles are stopped waiting at a not-flowing lane's
+        destination: real Poisson arrivals over the real red interval at
+        a signalized node, or the crosswalk zone's own jam-spaced
+        capacity at a stop-controlled one (see ``vehicle_spacing.py``)."""
+        if plan is not None:
+            return sample_signal_queue_length(self.rng, occupancy, red_time_seconds(plan, axis))
+        return sample_stop_sign_queue_length(self.rng, occupancy, zone_length_m)
+
+    def _make_vehicle_if_clear(
+        self,
+        position: npt.NDArray[np.float64],
+        heading: float,
+        front_bumper_at_position: bool,
+        placed_vehicle_aabbs: List[Tuple[float, float, float, float]],
+    ) -> Optional[Vehicle]:
+        """One sampled vehicle at ``position``, or ``None`` if it would
+        overlap an already-placed one. ``front_bumper_at_position`` marks
+        the front-of-queue vehicle: the stop line is where its FRONT
+        bumper sits, not its center, so it is offset backward by half its
+        own real length."""
+        vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
+        asset_path = _sample_asset_path(self.rng, vehicle_type)
+        length, width, height = VEHICLE_DIMENSIONS[vehicle_type]
+        if front_bumper_at_position:
+            heading_vector = np.array([np.cos(heading), np.sin(heading)])
+            position = position - heading_vector * (length / 2.0)
+
+        candidate = Vehicle(
+            vehicle_id=self._vehicle_counter,
+            vehicle_type=vehicle_type,
+            asset_path=asset_path,
+            center=position.copy(),
+            heading_rad=heading,
+            length=length,
+            width=width,
+            height=height,
+        )
+        if any(_aabb_overlap(candidate.aabb, other) for other in placed_vehicle_aabbs):
+            return None
+        self._vehicle_counter += 1
+        placed_vehicle_aabbs.append(candidate.aabb)
+        return candidate
 
     def _try_place_sidewalk_pedestrian(  # pylint: disable=too-many-locals
         self, zone: SpawnZone, edges: Dict[int, RoadEdge], occupancy: float
