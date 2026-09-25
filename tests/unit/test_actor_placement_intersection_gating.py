@@ -357,3 +357,32 @@ def test_projection_formula_exact_numbers() -> None:
     boundary_x = edge_length - end_required
     along_from_end_at_boundary = edge_length - boundary_x
     assert along_from_end_at_boundary == pytest.approx(end_required, abs=1e-6)
+
+
+def test_only_queued_vehicles_are_braking(urban_config, monkeypatch) -> None:
+    """Every vehicle in a red-light queue is marked braking; the
+    straggler behind the queue and every vehicle on a flowing lane are
+    not."""
+    edge = _make_edge()
+    node_clearance = {10: 5.0, 20: 5.0}
+    zone = _make_zone(edge, node_clearance)
+    monkeypatch.setattr(
+        "src.procedural.actor_placement.sample_stop_sign_queue_length", lambda rng, occ, length: 2
+    )
+    monkeypatch.setattr("src.procedural.actor_placement.sample_gap", lambda rng, regime: 10.0)
+
+    red = {20: _green_phase({ApproachDirection.NORTH, ApproachDirection.SOUTH})}
+    generator = ActorPlacementGenerator(0, urban_config)
+    stopped = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
+        zone, {0: edge}, 1.0, [], red, node_clearance, {}, {}, {}
+    )
+    ordered = sorted(stopped, key=lambda v: v.center[0], reverse=True)
+    assert [v.braking for v in ordered[:2]] == [True, True]
+    assert all(not v.braking for v in ordered[2:])
+    assert len(ordered) > 2  # sanity: there are stragglers behind the queue
+
+    green = {20: _green_phase({ApproachDirection.EAST, ApproachDirection.WEST})}
+    flowing = generator._place_vehicles_for_lane(  # pylint: disable=protected-access
+        zone, {0: edge}, 1.0, [], green, node_clearance, {}, {}, {}
+    )
+    assert flowing and all(not v.braking for v in flowing)

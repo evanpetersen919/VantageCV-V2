@@ -179,6 +179,7 @@ class Vehicle:  # pylint: disable=too-many-instance-attributes
     length: float
     width: float
     height: float
+    braking: bool = False
 
     @property
     def aabb(self) -> Tuple[float, float, float, float]:
@@ -498,7 +499,11 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
                     + compute_perpendicular(edge_direction) * (zone.lateral_offset_m or 0.0)
                 )
                 vehicle = self._make_vehicle_if_clear(
-                    position, heading, is_front and is_queued, placed_vehicle_aabbs
+                    position,
+                    heading,
+                    is_front and is_queued,
+                    placed_vehicle_aabbs,
+                    braking=is_queued,
                 )
                 if vehicle is not None:
                     vehicles.append(vehicle)
@@ -528,18 +533,20 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             return sample_signal_queue_length(self.rng, occupancy, red_time_seconds(plan, axis))
         return sample_stop_sign_queue_length(self.rng, occupancy, zone_length_m)
 
-    def _make_vehicle_if_clear(
+    def _make_vehicle_if_clear(  # pylint: disable=too-many-arguments
         self,
         position: npt.NDArray[np.float64],
         heading: float,
         front_bumper_at_position: bool,
         placed_vehicle_aabbs: List[Tuple[float, float, float, float]],
+        braking: bool = False,
     ) -> Optional[Vehicle]:
         """One sampled vehicle at ``position``, or ``None`` if it would
         overlap an already-placed one. ``front_bumper_at_position`` marks
         the front-of-queue vehicle: the stop line is where its FRONT
         bumper sits, not its center, so it is offset backward by half its
-        own real length."""
+        own real length. ``braking`` marks a vehicle stopped in a queue
+        (its brake lights are on when the scenario is lit for night)."""
         vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
         asset_path = _sample_asset_path(self.rng, vehicle_type)
         length, width, height = VEHICLE_DIMENSIONS[vehicle_type]
@@ -556,6 +563,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             length=length,
             width=width,
             height=height,
+            braking=braking,
         )
         if any(_aabb_overlap(candidate.aabb, other) for other in placed_vehicle_aabbs):
             return None

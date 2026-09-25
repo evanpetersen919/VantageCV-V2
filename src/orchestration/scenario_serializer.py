@@ -26,9 +26,10 @@ from src.procedural.actor_placement import Pedestrian, Vehicle
 from src.procedural.block_pavement import build_block_pavement_meshes
 from src.procedural.building_facade import FacadePiece
 from src.procedural.city_sample_assets import PEDESTRIAN_MESH_FORWARD_OFFSET_RAD, VEHICLE_PART_PATHS
-from src.procedural.environment import EnvironmentConfig, build_ground_mesh
+from src.procedural.environment import EnvironmentConfig, TimeOfDay, build_ground_mesh
 from src.procedural.intersection_pavement import build_intersection_pavement_meshes
 from src.procedural.mesh_factory import Mesh
+from src.procedural.night_lights import vehicle_lights
 from src.procedural.roofs import build_roof_meshes, generate_roof_prop_pieces
 
 
@@ -264,6 +265,12 @@ def serialize_scenario(
         for piece_id, pedestrian in enumerate(result.pedestrians)
     ]
     payload: Dict[str, Any] = {"meshes": meshes, "assets": assets}
+    if result.time_of_day == TimeOfDay.NIGHT:
+        # Real light actors (see night_lights.py): a daytime payload
+        # carries no "lights" key at all.
+        payload["lights"] = [
+            light.to_json() for vehicle in result.vehicles for light in vehicle_lights(vehicle)
+        ]
     if environment is not None:
         meshes.append(_mesh_to_json(build_ground_mesh(environment)))
         meshes += [
