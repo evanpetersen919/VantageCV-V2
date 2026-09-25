@@ -89,8 +89,9 @@ DRIVEWAY_RAMP_OUTER_Z_M = 0.003
 ISLAND_PERIOD_STALLS = 14
 
 # Wheel stops sit centered in the stall, this far back from its head line
-# (2.5 ft, per parking-lot guides), in every lot (each lot draws one of the five
-# yellow-painted concrete block styles).
+# (2.5 ft, per parking-lot guides), in every lot. Each stall's block is a
+# random one of the five yellow-painted concrete styles (they differ in how much
+# paint is left and how worn the concrete is), so a row cycles through them.
 WHEEL_STOP_SETBACK_M = 2.5 * FEET_TO_METERS
 WHEEL_STOP_LOT_FRACTION = 1.0
 _PARKING_BLOCK_DIR = "/Game/Megascans/3D_Assets"
@@ -258,7 +259,7 @@ class ParkingLot:  # pylint: disable=too-many-instance-attributes
     """A surface lot: its axis-aligned bounds, stalls and painted stripes
     (``(x_min, y_min, x_max, y_max)`` rectangles), the aisles' center lines,
     the light-pole spots, an optional driveway and the parking-block style
-    of its wheel stops (``None`` for a lot without them)."""
+    of each stall's wheel stop (one per stall, empty for a lot without them)."""
 
     lot_id: int
     bounds: Rect
@@ -268,7 +269,7 @@ class ParkingLot:  # pylint: disable=too-many-instance-attributes
     aisle_centers: List[float] = field(default_factory=list)
     lamp_positions: List[Tuple[float, float]] = field(default_factory=list)
     driveway: Optional[Driveway] = None
-    wheel_stop_style: Optional[int] = None
+    wheel_stop_styles: List[int] = field(default_factory=list)
 
     @property
     def aabb(self) -> Tuple[float, float, float, float]:
@@ -395,7 +396,6 @@ def plan_parking_lots(  # pylint: disable=too-many-locals
         side_draw = int(rng.integers(0, 2))
         aisle_draw = float(rng.random())
         stops_draw = bool(rng.random() < WHEEL_STOP_LOT_FRACTION)
-        style_draw = int(rng.integers(len(PARKING_BLOCK_ASSET_PATHS)))
         if not chosen:
             continue
         x_min, y_min, x_max, y_max = _block_free_rectangle(block, inset)
@@ -435,7 +435,12 @@ def plan_parking_lots(  # pylint: disable=too-many-locals
         }[side]
         half = DRIVEWAY_WIDTH_M / 2.0
         lot.driveway = Driveway(side, road_edge, lot_edge, (aisle - half, aisle + half))
-        lot.wheel_stop_style = style_draw if stops_draw else None
+        if stops_draw:
+            styles = np.random.Generator(np.random.PCG64([seed, 0x9A83, lot.lot_id]))
+            lot.wheel_stop_styles = [
+                int(style)
+                for style in styles.integers(len(PARKING_BLOCK_ASSET_PATHS), size=len(lot.stalls))
+            ]
         lots.append(lot)
     return lots
 
@@ -623,10 +628,8 @@ def parking_lot_pieces(lots: Sequence[ParkingLot], lamp_style: int = 0) -> List[
             pieces.append(
                 FacadePiece(lamp_path, np.array([x, y, LOT_SURFACE_Z_M]), float(lamp_rotation))
             )
-        if lot.wheel_stop_style is None:
-            continue
-        block_path = PARKING_BLOCK_ASSET_PATHS[lot.wheel_stop_style]
-        for stall in lot.stalls:
+        for stall, style in zip(lot.stalls, lot.wheel_stop_styles):
+            block_path = PARKING_BLOCK_ASSET_PATHS[style]
             head = np.array([np.cos(stall.head_heading_rad), np.sin(stall.head_heading_rad)])
             position = np.array(stall.center) + head * (stall.length / 2.0 - WHEEL_STOP_SETBACK_M)
             pieces.append(
