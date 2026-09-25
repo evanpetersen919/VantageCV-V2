@@ -29,7 +29,7 @@ from src.procedural.city_sample_assets import PEDESTRIAN_MESH_FORWARD_OFFSET_RAD
 from src.procedural.environment import EnvironmentConfig, TimeOfDay, build_ground_mesh
 from src.procedural.intersection_pavement import build_intersection_pavement_meshes
 from src.procedural.mesh_factory import Mesh
-from src.procedural.night_lights import vehicle_lights
+from src.procedural.night_lights import vehicle_glows, vehicle_lights
 from src.procedural.roofs import build_roof_meshes, generate_roof_prop_pieces
 from src.procedural.street_furniture import LAMP_ASSET_PATHS, STREET_LAMP_OFF_OVERRIDES
 
@@ -288,6 +288,9 @@ def serialize_scenario(
         # carries no "lights" key at all.
         payload["lights"] = [
             light.to_json() for vehicle in result.vehicles for light in vehicle_lights(vehicle)
+        ]
+        payload["glows"] = [
+            glow.to_json() for vehicle in result.vehicles for glow in vehicle_glows(vehicle)
         ]
     if environment is not None:
         meshes.append(_mesh_to_json(build_ground_mesh(environment)))
