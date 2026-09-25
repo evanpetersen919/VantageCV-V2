@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional
 from src.orchestration.dataset_generator import ScenarioResult
 from src.procedural.actor_placement import Pedestrian, Vehicle
 from src.procedural.block_pavement import build_block_pavement_meshes
+from src.procedural.building_colors import wall_slot_vectors
 from src.procedural.building_facade import FacadePiece
 from src.procedural.building_lights import glass_scalar_overrides, night_glass_replacements
 from src.procedural.city_sample_assets import PEDESTRIAN_MESH_FORWARD_OFFSET_RAD, VEHICLE_PART_PATHS
@@ -190,6 +191,7 @@ def _facade_piece_to_asset_json(
     piece_id: int,
     material_scalar_overrides: Optional[Dict[str, float]] = None,
     material_replacements: Optional[Dict[str, str]] = None,
+    material_slot_vectors: Optional[Dict[str, Dict[str, List[float]]]] = None,
 ) -> Dict[str, Any]:
     """One ``FacadePiece`` (a real City Sample wall/corner/entrance static
     mesh) as an ``"assets"`` entry: ``category: "static_asset"``, no
@@ -218,6 +220,8 @@ def _facade_piece_to_asset_json(
         entry["material_scalar_overrides"] = dict(material_scalar_overrides)
     if material_replacements:
         entry["material_replacements"] = dict(material_replacements)
+    if material_slot_vectors:
+        entry["material_slot_vectors"] = material_slot_vectors
     return entry
 
 
@@ -284,6 +288,9 @@ def serialize_scenario(
                 if replacements
                 else None,
                 replacements,
+                wall_slot_vectors(result.building_piece_palettes[piece_id])
+                if result.building_piece_palettes
+                else None,
             )
         )
     # Curbs and sidewalks: same "static_asset" entries, ids continuing
