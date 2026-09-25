@@ -29,7 +29,7 @@ def test_load_urban_dense_matches_file_contents() -> None:
     assert config.building_density == 0.8
     assert config.building_heights == (20.0, 40.0)
     assert config.traffic_density == (0.6, 1.0)
-    assert config.vehicle_mix == {"sedan": 0.6, "suv": 0.25, "truck": 0.10, "bus": 0.05}
+    assert config.vehicle_mix == {"sedan": 0.181, "suv": 0.614, "truck": 0.175, "bus": 0.03}
     assert config.complexity_score == 80
     assert config.road_setback_meters == 2.0
 

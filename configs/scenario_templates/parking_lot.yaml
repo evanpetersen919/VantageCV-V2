@@ -15,10 +15,13 @@ buildings:
 
 traffic:
   traffic_density: [0.1, 0.4]
+  # Real 2024 US light-vehicle registration shares -- see
+  # city_sample_assets.py's REAL_US_VEHICLE_CLASS_MIX for the full
+  # citation and derivation.
   vehicle_mix:
-    sedan: 0.55
-    suv: 0.35
-    truck: 0.05
-    bus: 0.05
+    sedan: 0.181
+    suv: 0.614
+    truck: 0.175
+    bus: 0.03
 
 complexity_score: 20

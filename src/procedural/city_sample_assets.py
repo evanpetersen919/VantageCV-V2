@@ -78,6 +78,30 @@ from typing import Dict, List, Optional, Tuple
 # scenario_templates/*.yaml's vehicle_mix block. City Sample has no
 # distinct "van" category; the two van models are folded into "suv"
 # (closer in size/role to a passenger SUV than to a cargo truck).
+#
+# Real, cited 2024 US light-vehicle registration shares (via
+# GoodCarBadCar-sourced registration data, reported in TheShopMag's
+# "SUVs & Trucks Set New Sales Record in 2024" and corroborated by
+# SUVpedia's 2024/2025 market-share coverage, retrieved 2026-09-24):
+# SUV 59.10%, car 18.66%, pickup truck 18.03%, van/minivan 4.21% (these
+# four sum to 100.00% of new registrations). Mapped onto this project's
+# own 4 categories using the SAME van-into-suv convention as
+# VEHICLE_ASSET_PATHS above: suv = 59.10 + 4.21 = 63.31%, sedan =
+# 18.66%, truck = 18.03%. Real consumer light-vehicle registration data
+# has no "bus" category at all (city/transit buses are commercial
+# fleet, not consumer registrations) -- BUS_VISUAL_DIVERSITY_FRACTION
+# below is kept as a small, disclosed, non-cited constant purely for
+# scene diversity (matching the existing 0.02-0.05 range every
+# scenario_templates/*.yaml already used before this change), with the
+# three real-data shares rescaled to fill the remainder.
+BUS_VISUAL_DIVERSITY_FRACTION = 0.03
+_REAL_VEHICLE_CLASS_SHARE_2024 = {"sedan": 0.1866, "suv": 0.6331, "truck": 0.1803}
+REAL_US_VEHICLE_CLASS_MIX: Dict[str, float] = {
+    vehicle_type: round(share * (1.0 - BUS_VISUAL_DIVERSITY_FRACTION), 3)
+    for vehicle_type, share in _REAL_VEHICLE_CLASS_SHARE_2024.items()
+}
+REAL_US_VEHICLE_CLASS_MIX["bus"] = BUS_VISUAL_DIVERSITY_FRACTION
+
 VEHICLE_ASSET_PATHS: Dict[str, List[str]] = {
     "sedan": [
         "/Game/Vehicle/vehCar_vehicle02/Mesh/SM_Frame_vehCar_vehicle02",

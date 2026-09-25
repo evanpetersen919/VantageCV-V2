@@ -15,10 +15,17 @@ buildings:
 
 traffic:
   traffic_density: [0.3, 0.9]
+  # Real 2024 US light-vehicle registration shares -- see
+  # city_sample_assets.py's REAL_US_VEHICLE_CLASS_MIX for the full
+  # citation and derivation. Real commercial-truck VMT share is known to
+  # be higher specifically on highways than the national registration
+  # average used here, but no single quick citation for a highway-
+  # specific split was found -- using the same national mix rather than
+  # inventing a highway-specific adjustment.
   vehicle_mix:
-    sedan: 0.55
-    suv: 0.25
-    truck: 0.18
-    bus: 0.02
+    sedan: 0.181
+    suv: 0.614
+    truck: 0.175
+    bus: 0.03
 
 complexity_score: 30
