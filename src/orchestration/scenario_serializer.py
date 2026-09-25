@@ -252,15 +252,16 @@ def serialize_scenario(
     night = result.time_of_day == TimeOfDay.NIGHT
     assets: List[Dict[str, Any]] = [_vehicle_to_asset_json(v) for v in result.vehicles]
     for piece_id, piece in enumerate(result.building_facade_pieces):
-        replacements = night_glass_replacements(piece.asset_path) if night else None
+        replacements = (
+            night_glass_replacements(piece.asset_path, result.building_piece_room_ids[piece_id])
+            if night
+            else None
+        )
         assets.append(
             _facade_piece_to_asset_json(
                 piece,
                 piece_id,
-                glass_scalar_overrides(
-                    result.building_pieces_lit[piece_id],
-                    result.building_piece_room_ids[piece_id],
-                )
+                glass_scalar_overrides(result.building_pieces_lit[piece_id])
                 if replacements
                 else None,
                 replacements,

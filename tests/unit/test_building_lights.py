@@ -7,7 +7,7 @@ from src.procedural.building_lights import (
     GLASS_SLOT_NAME,
     LIT_FRACTION,
     NIGHT_GLASS_FOLDER,
-    ROOM_ID_COUNT,
+    ROOM_KEYS,
     building_piece_room_ids,
     building_pieces_lit,
     glass_scalar_overrides,
@@ -18,19 +18,20 @@ from src.procedural.environment import TimeOfDay
 WALL = "/Game/Building/CH/A/Kit_Bldg_CHA_L1_A/Mesh/SM_BLDG_CHA_L01_A_Wall_01_N1"
 
 
-def test_a_wall_swaps_its_glass_slot_for_its_own_kits_lit_copy() -> None:
+def test_a_wall_swaps_its_glass_slot_for_its_kits_copy_of_the_chosen_room() -> None:
     """The replacement is keyed by the glass slot's name and points at the
-    project-owned copy named after the wall's kit folder."""
-    assert night_glass_replacements(WALL) == {
-        GLASS_SLOT_NAME: f"{NIGHT_GLASS_FOLDER}/Kit_Bldg_CHA_L1_A_M_Bldg_glass"
+    project-owned copy of the chosen room, named after the wall's kit."""
+    assert night_glass_replacements(WALL, 0) == {
+        GLASS_SLOT_NAME: f"{NIGHT_GLASS_FOLDER}/{ROOM_KEYS[0]}/Kit_Bldg_CHA_L1_A_M_Bldg_glass"
         ".Kit_Bldg_CHA_L1_A_M_Bldg_glass"
     }
+    assert night_glass_replacements(WALL, 5) != night_glass_replacements(WALL, 0)
 
 
 def test_non_building_assets_get_no_glass_replacement() -> None:
     """Curbs, lamps and the like are not building-kit meshes."""
-    assert night_glass_replacements("/Game/Prop/Kit_StreetLamp_A/Mesh/SM_Lamp") is None
-    assert night_glass_replacements("/Game/Vehicle/vehCar_vehicle02/Mesh/SM_Frame") is None
+    assert night_glass_replacements("/Game/Prop/Kit_StreetLamp_A/Mesh/SM_Lamp", 0) is None
+    assert night_glass_replacements("/Game/Vehicle/vehCar_vehicle02/Mesh/SM_Frame", 0) is None
 
 
 def test_about_the_configured_share_of_pieces_are_lit() -> None:
@@ -48,20 +49,19 @@ def test_lit_flags_are_deterministic_and_differ_by_seed() -> None:
 
 
 def test_room_ids_are_valid_varied_and_deterministic() -> None:
-    """One ID per piece inside the room count, every room used, the same for
-    a seed and different for another."""
+    """One index per piece inside ROOM_KEYS, every room used, the same for a
+    seed and different for another."""
     ids = building_piece_room_ids(500, seed=3)
     assert len(ids) == 500
-    assert set(ids) == set(range(ROOM_ID_COUNT))
+    assert set(ids) == set(range(len(ROOM_KEYS)))
     assert ids == building_piece_room_ids(500, seed=3)
     assert ids != building_piece_room_ids(500, seed=4)
 
 
-def test_a_module_carries_its_lit_state_and_room() -> None:
-    """LightsOff is 0 for a lit module and 1 for a dark one; the room ID
-    passes through as ManualRoomID."""
-    assert glass_scalar_overrides(True, 3) == {"LightsOff": 0.0, "ManualRoomID": 3.0}
-    assert glass_scalar_overrides(False, 0)["LightsOff"] == 1.0
+def test_a_lit_module_has_lights_on_and_a_dark_one_fully_off() -> None:
+    """LightsOff is 0 for a lit module and 1 for a dark one."""
+    assert glass_scalar_overrides(True) == {"LightsOff": 0.0}
+    assert glass_scalar_overrides(False) == {"LightsOff": 1.0}
 
 
 def test_night_payload_swaps_building_glass_and_day_payload_does_not(urban_config, bounds) -> None:
@@ -78,4 +78,4 @@ def test_night_payload_swaps_building_glass_and_day_payload_does_not(urban_confi
     for asset in swapped:
         assert "/Kit_Bldg_" in asset["asset_path"]
         assert asset["material_scalar_overrides"]["LightsOff"] in (0.0, 1.0)
-        assert 0.0 <= asset["material_scalar_overrides"]["ManualRoomID"] < ROOM_ID_COUNT
+        assert any(f"/{key}/" in asset["material_replacements"]["Bldg_glass"] for key in ROOM_KEYS)
