@@ -342,14 +342,14 @@ def test_lot_props_are_lamps_and_optional_wheel_stops(urban_config, bounds) -> N
     lamps = sum(len(lot.lamp_positions) for lot in result.parking_lots)
     pieces = parking_lot_pieces(result.parking_lots, lamp_style=1)
     stops = [p for p in pieces if p.asset_path in PARKING_BLOCK_ASSET_PATHS]
-    with_stops = [lot for lot in result.parking_lots if lot.wheel_stop_style is not None]
+    with_stops = [lot for lot in result.parking_lots if lot.wheel_stop_styles]
     assert len(pieces) == lamps + len(stops)
     assert len(stops) == sum(len(lot.stalls) for lot in with_stops)
     for lot in with_stops:
         stall = lot.stalls[0]
         head = np.array([np.cos(stall.head_heading_rad), np.sin(stall.head_heading_rad)])
         expected = np.array(stall.center) + head * (stall.length / 2.0 - WHEEL_STOP_SETBACK_M)
-        block = PARKING_BLOCK_ASSET_PATHS[lot.wheel_stop_style]
+        block = PARKING_BLOCK_ASSET_PATHS[lot.wheel_stop_styles[0]]
         matches = [
             p
             for p in pieces
@@ -425,12 +425,36 @@ def test_driveway_crosswalk_is_centered_on_the_apron_depth() -> None:
 
 
 def test_every_lot_has_wheel_stops_in_one_of_the_block_styles(urban_config, bounds) -> None:
-    """All lots get parking blocks (one style per lot, from the five), and
+    """All lots get parking blocks (a style per stall, from the five), and
     the payload carries one block per stall."""
     for seed in (42, 7, 19):
         result = generate_scenario(seed, _config(urban_config, 0.7), bounds, "x")
         assert result.parking_lots
         for lot in result.parking_lots:
-            assert lot.wheel_stop_style in range(len(PARKING_BLOCK_ASSET_PATHS))
+            assert len(lot.wheel_stop_styles) == len(lot.stalls)
+            assert set(lot.wheel_stop_styles) <= set(range(len(PARKING_BLOCK_ASSET_PATHS)))
         stops = [p for p in result.parking_lot_pieces if p.asset_path in PARKING_BLOCK_ASSET_PATHS]
         assert len(stops) == sum(len(lot.stalls) for lot in result.parking_lots)
+
+
+def test_block_styles_are_random_per_stall_deterministic_and_all_used(urban_config, bounds) -> None:
+    """Within a lot the styles mix (every style shows up in a big lot, in
+    about equal shares); the same seed gives the same styles and another seed
+    a different sequence."""
+    config = _config(urban_config, 0.7)
+    first = generate_scenario(42, config, bounds, "a")
+    again = generate_scenario(42, config, bounds, "b")
+    other = generate_scenario(43, config, bounds, "c")
+    styles = max((lot.wheel_stop_styles for lot in first.parking_lots), key=len)
+    assert len(styles) > 100
+    assert set(styles) == set(range(len(PARKING_BLOCK_ASSET_PATHS)))
+    for style in range(len(PARKING_BLOCK_ASSET_PATHS)):
+        assert styles.count(style) / len(styles) == pytest.approx(
+            1.0 / len(PARKING_BLOCK_ASSET_PATHS), abs=0.1
+        )
+    assert [lot.wheel_stop_styles for lot in first.parking_lots] == [
+        lot.wheel_stop_styles for lot in again.parking_lots
+    ]
+    assert [lot.wheel_stop_styles for lot in first.parking_lots] != [
+        lot.wheel_stop_styles for lot in other.parking_lots
+    ]
