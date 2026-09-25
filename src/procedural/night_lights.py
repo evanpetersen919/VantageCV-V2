@@ -170,6 +170,8 @@ def vehicle_glows(vehicle: Vehicle) -> List[SceneGlow]:
     no measured lamps (see ``vehicle_lamp_geometry.py``) gets none: a glow
     at a guessed spot floats off the body (found live), while an
     unmeasured model's lights still work without one."""
+    if vehicle.parked:
+        return []
     geometry = VEHICLE_LAMP_GEOMETRY.get(_vehicle_folder(vehicle))
     if geometry is None:
         return []
@@ -208,6 +210,8 @@ def vehicle_lights(vehicle: Vehicle) -> List[SceneLight]:
     and bright while ``vehicle.braking`` (stopped in a queue). Placed just
     in front of / behind the model's own measured lens when known, else at
     the generic type-based spot."""
+    if vehicle.parked:
+        return []
     geometry = VEHICLE_LAMP_GEOMETRY.get(_vehicle_folder(vehicle))
     if geometry is None:
         heads, tails = _generic_lamp_positions(vehicle)

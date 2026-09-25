@@ -30,6 +30,7 @@ _FIXED_MESH_FACTORY_TAGS = {
     "roof_1",
     "roof_2",
     "roof_3",
+    "paint_white",
 }
 
 

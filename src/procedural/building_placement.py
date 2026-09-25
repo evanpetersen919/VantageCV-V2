@@ -464,6 +464,7 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
         seed: int,
         config: ScenarioTypeConfig,
         styles: Sequence[BuildingStyle] = (DEFAULT_BUILDING_STYLE,),
+        keep_out_aabbs: Sequence[Tuple[float, float, float, float]] = (),
     ) -> None:
         """
         Parameters
@@ -478,12 +479,16 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
             footprint and height are quantized to THAT style's real grid
             and floor heights. With a single style no extra random draw is
             made, so single-style output is unchanged.
+        keep_out_aabbs : Sequence[Tuple[float, float, float, float]]
+            Rectangles (x_min, y_min, x_max, y_max), such as parking lots,
+            that no building may overlap.
         """
         if not styles:
             raise ValueError("BuildingPlacementGenerator needs at least one style")
         self.seed = seed
         self.config = config
         self.styles = tuple(styles)
+        self.keep_out_aabbs = tuple(keep_out_aabbs)
         self.rng = np.random.Generator(np.random.PCG64(seed))
         self._building_counter = 0
 
@@ -649,6 +654,8 @@ class BuildingPlacementGenerator:  # pylint: disable=too-few-public-methods
                 if self._too_close_to_road(candidate, padded_segments):
                     continue
                 if any(_aabb_overlap(candidate.aabb, other.aabb) for other in placed):
+                    continue
+                if any(_aabb_overlap(candidate.aabb, zone) for zone in self.keep_out_aabbs):
                     continue
 
                 placed.append(candidate)

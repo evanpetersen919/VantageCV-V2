@@ -180,6 +180,10 @@ class Vehicle:  # pylint: disable=too-many-instance-attributes
     width: float
     height: float
     braking: bool = False
+    # Parked in a lot (lights off at night) and the height of the surface
+    # it stands on (0 on the road, a little above it in a lot).
+    parked: bool = False
+    surface_z: float = 0.0
 
     @property
     def aabb(self) -> Tuple[float, float, float, float]:

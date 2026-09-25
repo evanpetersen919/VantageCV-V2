@@ -12,6 +12,7 @@ buildings:
   building_density: 0.35              # within documented 0.2-0.5 range
   building_heights: [15.0, 30.0]
   road_setback_meters: 4.0            # wider sidewalks/front yards than urban_dense
+  parking_lot_fraction: 0.3           # share of blocks holding a surface lot (design choice)
 
 traffic:
   traffic_density: [0.2, 0.5]

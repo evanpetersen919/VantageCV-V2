@@ -49,6 +49,9 @@ class ScenarioTypeConfig(BaseModel):
         Vehicle type name -> fraction of population. Must sum to ~1.0.
     complexity_score : int
         Informational relative complexity metric in [0, 100].
+    parking_lot_fraction : float
+        Share of city blocks (in expectation) that hold a surface parking
+        lot instead of buildings, in [0, 1]. Defaults to 0 (no lots).
     road_setback_meters : float
         Minimum clearance (meters) a building must keep from every road,
         beyond the road's own half-width -- read by
@@ -68,6 +71,7 @@ class ScenarioTypeConfig(BaseModel):
     vehicle_mix: Dict[str, float]
     complexity_score: int
     road_setback_meters: float = 2.0
+    parking_lot_fraction: float = 0.0
 
     @field_validator("avg_block_size", "building_heights", "traffic_density")
     @classmethod
@@ -98,6 +102,13 @@ class ScenarioTypeConfig(BaseModel):
         total = sum(value.values())
         if not 0.99 <= total <= 1.01:
             raise ValueError(f"vehicle_mix fractions must sum to ~1.0, got {total}")
+        return value
+
+    @field_validator("parking_lot_fraction")
+    @classmethod
+    def _validate_parking_lot_fraction(cls, value: float) -> float:
+        if not 0.0 <= value <= 1.0:
+            raise ValueError(f"parking_lot_fraction must be in [0, 1], got {value}")
         return value
 
     @field_validator("road_setback_meters")

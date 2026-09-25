@@ -34,6 +34,12 @@ from src.procedural.environment import Season, TimeOfDay, season_has_trees
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
+from src.procedural.parking_lots import (
+    ParkingLot,
+    parked_vehicles,
+    parking_lot_meshes,
+    plan_parking_lots,
+)
 from src.procedural.road_edge_kit import DEFAULT_ROAD_EDGE_KIT, generate_road_edge_pieces
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadNode
 from src.procedural.scenario import ScenarioTypeConfig
@@ -81,6 +87,7 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     time_of_day: TimeOfDay = TimeOfDay.DAY
     # Night only: whether each entry of building_facade_pieces is lit.
     building_pieces_lit: List[bool] = field(default_factory=list)
+    parking_lots: List[ParkingLot] = field(default_factory=list)
     building_piece_room_ids: List[int] = field(default_factory=list)
 
 
@@ -132,12 +139,19 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     nodes, edges = road_gen.generate(bounds)
 
     lanes = LaneTopologyGenerator().generate(nodes, edges)
-    buildings = BuildingPlacementGenerator(seed, config, tuple(BUILDING_STYLES.values())).generate(
-        nodes, edges
-    )
+    parking_lots = plan_parking_lots(nodes, edges, config, seed)
+    buildings = BuildingPlacementGenerator(
+        seed,
+        config,
+        tuple(BUILDING_STYLES.values()),
+        keep_out_aabbs=[lot.aabb for lot in parking_lots],
+    ).generate(nodes, edges)
     traffic = TrafficNetworkGenerator().generate(nodes, edges, lanes)
     lane_connectivity = LaneConnectivityGenerator().generate(nodes, edges, lanes)
     vehicles, pedestrians = ActorPlacementGenerator(seed, config).generate(edges, traffic)
+    vehicles += parked_vehicles(
+        parking_lots, config, seed, max((v.vehicle_id for v in vehicles), default=-1) + 1
+    )
 
     # Vehicles are deliberately NOT built into box meshes here as of the
     # City Sample asset integration's Phase 1 (see KNOWN_GAPS_AND_ISSUES.md):
@@ -168,6 +182,7 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     # pedestrians derives boxes from Pedestrian's own fields, not from
     # meshes.
     meshes: List[Mesh] = [MeshFactory.build_road_mesh(lane) for lane in lanes.values()]
+    meshes += parking_lot_meshes(parking_lots)
 
     building_facade_pieces: List[FacadePiece] = []
     for building in buildings:
@@ -229,6 +244,7 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         season=chosen_season,
         validation_report=validation_report,
         time_of_day=time_of_day,
+        parking_lots=parking_lots,
         building_pieces_lit=(
             building_pieces_lit(len(building_facade_pieces), seed)
             if time_of_day == TimeOfDay.NIGHT

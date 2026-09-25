@@ -75,6 +75,11 @@
       "asset_path": "/Game/Building/Material/MI/Paint/MI_Bldg_PaintedMetal_Grey",
       "source": "CitySample Content/Building/Material/MI/Paint/MI_Bldg_PaintedMetal_Grey.uasset",
       "used_by": "mesh_factory.py MeshFactory.build_pedestrian_mesh -- pedestrians are still plain boxes (see KNOWN_GAPS_AND_ISSUES.md's Phase 6 gating), so this is a distinct placeholder color, not a real clothing/skin material"
+    },
+    "paint_white": {
+      "asset_path": "/Game/VantageCV/M_PaintWhite",
+      "source": "Project-owned, created by unreal_plugin/tools/create_paint_material.py (not from CitySample): a plain matte white road-paint material",
+      "used_by": "parking_lots.py parking_lot_meshes -- the painted stall stripes of every surface parking lot"
     }
   }
 }

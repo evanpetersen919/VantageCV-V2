@@ -18,6 +18,7 @@ namespace
 			{TEXT("asphalt"), TEXT("/Game/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots")},
 			{TEXT("ground"), TEXT("/Game/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots")},
 			{TEXT("pavement"), TEXT("/Game/Road/Material/MI/M_Sidewalk_Master_Inst")},
+			{TEXT("paint_white"), TEXT("/Game/VantageCV/M_PaintWhite")},
 			{TEXT("roof_0"), TEXT("/Game/Environment/RoofTop/Material/MI/MI_Rooftop_BitumenRoofing")},
 			{TEXT("roof_1"), TEXT("/Game/Environment/RoofTop/Material/MI/MI_Rooftop_DirtyConcreteTiles")},
 			{TEXT("roof_2"), TEXT("/Game/Environment/RoofTop/Material/MI/MI_Rooftop_PebbleDash")},
