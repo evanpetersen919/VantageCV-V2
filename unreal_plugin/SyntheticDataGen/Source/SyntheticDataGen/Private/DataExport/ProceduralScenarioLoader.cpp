@@ -19,6 +19,10 @@
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
 #include "Engine/DirectionalLight.h"
+#include "Engine/PointLight.h"
+#include "Engine/SpotLight.h"
+#include "Components/PointLightComponent.h"
+#include "Components/SpotLightComponent.h"
 #include "Engine/ExponentialHeightFog.h"
 #include "Engine/PostProcessVolume.h"
 #include "Components/DirectionalLightComponent.h"
@@ -698,10 +702,139 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 		SpawnedCount,
 		SpawnSkippedCount);
 
+	// "lights" is optional (absent = a daytime scenario, nothing to spawn).
+	const TArray<TSharedPtr<FJsonValue>>* LightsJson = nullptr;
+	if (Root->TryGetArrayField(TEXT("lights"), LightsJson))
+	{
+		int32 LightsSpawned = 0;
+		int32 LightsSkipped = 0;
+		SpawnLights(*LightsJson, LightsSpawned, LightsSkipped);
+		UE_LOG(
+			LogProceduralScenarioLoader,
+			Display,
+			TEXT("LoadProceduralScenario: spawned %d light(s), skipped %d"),
+			LightsSpawned,
+			LightsSkipped);
+	}
+
 	if (bHasAnyVertex)
 	{
 		RepositionOverviewCamera(GetWorld(), BoundsMin, BoundsMax);
 	}
 
 	return true;
+}
+
+void AProceduralScenarioLoader::SpawnLights(
+	const TArray<TSharedPtr<FJsonValue>>& LightsJson, int32& OutSpawned, int32& OutSkipped)
+{
+	UWorld* World = GetWorld();
+	if (World == nullptr)
+	{
+		OutSkipped += LightsJson.Num();
+		return;
+	}
+
+	auto ReadTriple = [](const FJsonObject& Object, const TCHAR* Field, double& X, double& Y, double& Z) -> bool
+	{
+		const TArray<TSharedPtr<FJsonValue>>* Triple = nullptr;
+		if (!Object.TryGetArrayField(Field, Triple) || Triple->Num() != 3)
+		{
+			return false;
+		}
+		X = (*Triple)[0]->AsNumber();
+		Y = (*Triple)[1]->AsNumber();
+		Z = (*Triple)[2]->AsNumber();
+		return true;
+	};
+
+	for (const TSharedPtr<FJsonValue>& LightValue : LightsJson)
+	{
+		const TSharedPtr<FJsonObject>* LightObject = nullptr;
+		FString Type;
+		double PX = 0.0, PY = 0.0, PZ = 0.0;
+		double R = 1.0, G = 1.0, B = 1.0;
+		double Intensity = 0.0;
+		double AttenuationMeters = 0.0;
+		if (!LightValue->TryGetObject(LightObject)
+			|| !(*LightObject)->TryGetStringField(TEXT("type"), Type)
+			|| !ReadTriple(**LightObject, TEXT("position"), PX, PY, PZ)
+			|| !ReadTriple(**LightObject, TEXT("color"), R, G, B)
+			|| !(*LightObject)->TryGetNumberField(TEXT("intensity"), Intensity)
+			|| !(*LightObject)->TryGetNumberField(TEXT("attenuation_m"), AttenuationMeters))
+		{
+			++OutSkipped;
+			continue;
+		}
+
+		const FVector Location = ApplyCoordinateConvention(PX, PY, PZ);
+		const FLinearColor Color(static_cast<float>(R), static_cast<float>(G), static_cast<float>(B));
+		FActorSpawnParameters SpawnParameters;
+		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		ULightComponent* LightComponent = nullptr;
+		AActor* LightActor = nullptr;
+		if (Type == TEXT("spot"))
+		{
+			double DX = 0.0, DY = 0.0, DZ = 0.0;
+			double InnerCone = 0.0, OuterCone = 0.0;
+			if (!ReadTriple(**LightObject, TEXT("direction"), DX, DY, DZ)
+				|| !(*LightObject)->TryGetNumberField(TEXT("inner_cone_deg"), InnerCone)
+				|| !(*LightObject)->TryGetNumberField(TEXT("outer_cone_deg"), OuterCone))
+			{
+				++OutSkipped;
+				continue;
+			}
+			// Direction is a unit vector, not a position: mirror Y for the
+			// handedness change but do not scale meters to centimeters.
+			const FVector Direction = FVector(DX, -DY, DZ).GetSafeNormal();
+			ASpotLight* Spot = World->SpawnActor<ASpotLight>(
+				Location, FRotationMatrix::MakeFromX(Direction).Rotator(), SpawnParameters);
+			if (Spot != nullptr)
+			{
+				USpotLightComponent* SpotComponent = Cast<USpotLightComponent>(Spot->GetLightComponent());
+				if (SpotComponent != nullptr)
+				{
+					SpotComponent->SetInnerConeAngle(static_cast<float>(InnerCone));
+					SpotComponent->SetOuterConeAngle(static_cast<float>(OuterCone));
+				}
+				LightComponent = SpotComponent;
+				LightActor = Spot;
+			}
+		}
+		else if (Type == TEXT("point"))
+		{
+			APointLight* Point = World->SpawnActor<APointLight>(Location, FRotator::ZeroRotator, SpawnParameters);
+			if (Point != nullptr)
+			{
+				LightComponent = Point->GetLightComponent();
+				LightActor = Point;
+			}
+		}
+
+		if (LightActor == nullptr || LightComponent == nullptr)
+		{
+			if (LightActor != nullptr)
+			{
+				LightActor->Destroy();
+			}
+			++OutSkipped;
+			continue;
+		}
+
+		// Runtime-spawned lights default to Stationary, which needs a
+		// lighting build that -game never has: Movable is what actually
+		// renders. Unshadowed keeps hundreds of small lights cheap.
+		LightComponent->SetMobility(EComponentMobility::Movable);
+		LightComponent->SetLightColor(Color);
+		LightComponent->SetCastShadows(false);
+		if (ULocalLightComponent* LocalLight = Cast<ULocalLightComponent>(LightComponent))
+		{
+			LocalLight->SetIntensityUnits(ELightUnits::Candelas);
+			LocalLight->SetAttenuationRadius(static_cast<float>(AttenuationMeters) * MetersToUnrealUnits);
+		}
+		LightComponent->SetIntensity(static_cast<float>(Intensity));
+		SpawnedAssetActors.Add(LightActor);
+		++OutSpawned;
+	}
 }

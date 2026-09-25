@@ -106,6 +106,22 @@ private:
 	void ApplyEnvironment(const TSharedPtr<FJsonObject>& Environment);
 
 	/**
+	 * Spawns the optional top-level "lights" array of a scenario payload:
+	 * one real point or spot light actor per entry (vehicle headlights and
+	 * tail/brake lights, street lamps -- chosen by the Python side per
+	 * time of day, so a daytime scenario simply carries none). Each entry
+	 * is {"type": "point"|"spot", "position": [x, y, z] meters,
+	 * "direction": [dx, dy, dz] (spot only), "color": [r, g, b] 0-1,
+	 * "intensity": candela, "attenuation_m": radius, "inner_cone_deg",
+	 * "outer_cone_deg" (spot only)}. Position and direction go through the
+	 * same right-handed -> left-handed Y mirror as every other spawned
+	 * asset. Spawned lights are tracked in SpawnedAssetActors, so each
+	 * LoadProceduralScenario call replaces them. An entry missing a
+	 * required field is skipped and counted, never fatal.
+	 */
+	void SpawnLights(const TArray<TSharedPtr<FJsonValue>>& LightsJson, int32& OutSpawned, int32& OutSkipped);
+
+	/**
 	 * Hides ``Actor`` if its class looks like template terrain: Landscape
 	 * proxies (the checkerboard/hills), the engine's plain StaticMeshActor,
 	 * or a WorldPartitionHLOD merged distant-terrain proxy -- the last of

@@ -16,6 +16,7 @@ from src.orchestration.dataset_generator import generate_scenario
 from src.orchestration.scenario_serializer import _facade_piece_to_asset_json, serialize_scenario
 from src.procedural.building_facade import FacadePiece
 from src.procedural.city_sample_assets import PEDESTRIAN_MESH_FORWARD_OFFSET_RAD, VEHICLE_PART_PATHS
+from src.procedural.environment import TimeOfDay
 
 # urban_config, bounds fixtures: see tests/conftest.py
 
@@ -240,6 +241,7 @@ def test_serialize_scenario_handles_empty_meshes() -> None:
         crosswalk_pieces: list = []
         traffic_light_pieces: list = []
         pedestrians: list = []
+        time_of_day = TimeOfDay.DAY
 
     payload = serialize_scenario(_FakeResult())  # type: ignore[arg-type]
 
@@ -257,3 +259,17 @@ def test_facade_piece_scale_is_serialized_only_when_set() -> None:
     entry = _facade_piece_to_asset_json(scaled, 1)
     assert entry["scale"] == [1.0, -0.75, 0.75]
     json.dumps(entry)
+
+
+def test_night_payload_carries_four_real_lights_per_vehicle_and_day_carries_none(
+    urban_config, bounds
+) -> None:
+    """A night scenario adds a top-level "lights" array (two headlight
+    spots and two tail points per vehicle); a day scenario has no
+    "lights" key at all, so every existing daytime payload is unchanged."""
+    day = generate_scenario(42, urban_config, bounds, "day")
+    night = generate_scenario(42, urban_config, bounds, "night", time_of_day=TimeOfDay.NIGHT)
+    assert "lights" not in serialize_scenario(day)
+    lights = serialize_scenario(night)["lights"]
+    assert len(lights) == 4 * len(night.vehicles)
+    assert sum(1 for light in lights if light["type"] == "spot") == 2 * len(night.vehicles)
