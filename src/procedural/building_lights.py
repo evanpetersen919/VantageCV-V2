@@ -17,14 +17,14 @@ is random from the scenario seed (a dedicated RNG stream, so nothing else
 in a scenario changes), lighting ``LIT_FRACTION`` of the modules.
 
 Every piece would otherwise show the same room (the material seeds its room
-choice with ``PerInstanceRandom``, constant for separately spawned actors), so
-the night glass copies also switch on the material's manual room selection
-(``ManualRoom`` + ``UseManualID``) and each module gets a random
-``ManualRoomID``: real, distinct office/bedroom/lobby interiors. (A random
-``InteriorOffset`` was tried and rejected: it shifts the view into the room
-capture, so floor and wall lines land mid-window. The ``UseCustomTemp`` light
-temperature switch washed rooms out white.) The copies also raise the ``Tint``
-emission multiplier a little so lit rooms glow more.
+choice with ``PerInstanceRandom``, constant for separately spawned actors). The
+material's manual-room mode (``ManualRoom`` + ``UseManualID``) shows the single
+room named by its ``CubeMap``/``InteriorColor``/``InteriorDepth`` textures --
+measured live, ``ManualRoomID`` does not choose a room, and a random
+``InteriorOffset`` only slides the view so floor and wall lines land
+mid-window. So the project owns one glass copy per kit per room (see
+``create_night_glass.py``) and each module is sent the copy for a randomly
+chosen room. The copies also raise the ``Tint`` emission multiplier a little.
 """
 
 from typing import Dict, List, Optional
@@ -39,9 +39,24 @@ GLASS_SLOT_NAME = "Bldg_glass"
 KIT_FOLDER_PREFIX = "Kit_Bldg_"
 # /Game/Building/<style>/<variant>/<kit folder>/Mesh/<mesh>
 KIT_FOLDER_INDEX = 5
-# Room IDs are drawn from [0, ROOM_ID_COUNT): the smallest of Epic's four room
-# arrays (by window size) holds 5 rooms, so every ID is valid for every window.
-ROOM_ID_COUNT = 5
+# The rooms a window can show, matching ROOMS in create_night_glass.py: Epic's
+# 1x1x1 interior captures minus the supermarkets.
+ROOM_KEYS = (
+    "bedroom_a",
+    "bedroom_b",
+    "bedroom_c",
+    "living_a",
+    "living_b",
+    "office_b",
+    "office_c",
+    "office_d",
+    "office_e",
+    "restaurant_a",
+    "restaurant_b",
+    "restaurant_c",
+    "lobby_a",
+    "lobby_b",
+)
 
 
 def building_pieces_lit(piece_count: int, seed: int) -> List[bool]:
@@ -52,24 +67,23 @@ def building_pieces_lit(piece_count: int, seed: int) -> List[bool]:
 
 
 def building_piece_room_ids(piece_count: int, seed: int) -> List[int]:
-    """A random ``ManualRoomID`` for each of ``piece_count`` pieces, from its
-    own RNG stream."""
+    """A random index into ``ROOM_KEYS`` for each of ``piece_count`` pieces,
+    from its own RNG stream."""
     rng = np.random.Generator(np.random.PCG64([seed, 0x2007]))
-    return [int(room) for room in rng.integers(0, ROOM_ID_COUNT, size=piece_count)]
+    return [int(room) for room in rng.integers(0, len(ROOM_KEYS), size=piece_count)]
 
 
-def night_glass_replacements(asset_path: str) -> Optional[Dict[str, str]]:
+def night_glass_replacements(asset_path: str, room_id: int) -> Optional[Dict[str, str]]:
     """The ``material_replacements`` entry swapping a wall mesh's glass slot
-    for its kit's project-owned lit copy, or ``None`` for an asset that is
-    not a building-kit mesh."""
+    for its kit's project-owned lit copy showing room ``ROOM_KEYS[room_id]``,
+    or ``None`` for an asset that is not a building-kit mesh."""
     parts = asset_path.split("/")
     if len(parts) <= KIT_FOLDER_INDEX or not parts[KIT_FOLDER_INDEX].startswith(KIT_FOLDER_PREFIX):
         return None
     name = f"{parts[KIT_FOLDER_INDEX]}_M_Bldg_glass"
-    return {GLASS_SLOT_NAME: f"{NIGHT_GLASS_FOLDER}/{name}.{name}"}
+    return {GLASS_SLOT_NAME: f"{NIGHT_GLASS_FOLDER}/{ROOM_KEYS[room_id]}/{name}.{name}"}
 
 
-def glass_scalar_overrides(lit: bool, room_id: int) -> Dict[str, float]:
-    """Material scalars for a module: lit (``LightsOff`` 0) or dark (1), and
-    which room it shows (``ManualRoomID``)."""
-    return {"LightsOff": 0.0 if lit else 1.0, "ManualRoomID": float(room_id)}
+def glass_scalar_overrides(lit: bool) -> Dict[str, float]:
+    """Material scalars for a lit (``LightsOff`` 0) or dark (1) module."""
+    return {"LightsOff": 0.0 if lit else 1.0}
