@@ -25,6 +25,7 @@ from src.orchestration.dataset_generator import ScenarioResult
 from src.procedural.actor_placement import Pedestrian, Vehicle
 from src.procedural.block_pavement import build_block_pavement_meshes
 from src.procedural.building_facade import FacadePiece
+from src.procedural.building_lights import glass_scalar_overrides, night_glass_replacements
 from src.procedural.city_sample_assets import PEDESTRIAN_MESH_FORWARD_OFFSET_RAD, VEHICLE_PART_PATHS
 from src.procedural.environment import EnvironmentConfig, TimeOfDay, build_ground_mesh
 from src.procedural.intersection_pavement import build_intersection_pavement_meshes
@@ -169,6 +170,7 @@ def _facade_piece_to_asset_json(
     piece: FacadePiece,
     piece_id: int,
     material_scalar_overrides: Optional[Dict[str, float]] = None,
+    material_replacements: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """One ``FacadePiece`` (a real City Sample wall/corner/entrance static
     mesh) as an ``"assets"`` entry: ``category: "static_asset"``, no
@@ -195,6 +197,8 @@ def _facade_piece_to_asset_json(
         entry["scale"] = [float(component) for component in piece.scale]
     if material_scalar_overrides:
         entry["material_scalar_overrides"] = dict(material_scalar_overrides)
+    if material_replacements:
+        entry["material_replacements"] = dict(material_replacements)
     return entry
 
 
@@ -247,10 +251,18 @@ def serialize_scenario(
     meshes: List[Dict[str, Any]] = [_mesh_to_json(mesh) for mesh in result.meshes]
     night = result.time_of_day == TimeOfDay.NIGHT
     assets: List[Dict[str, Any]] = [_vehicle_to_asset_json(v) for v in result.vehicles]
-    assets += [
-        _facade_piece_to_asset_json(piece, piece_id)
-        for piece_id, piece in enumerate(result.building_facade_pieces)
-    ]
+    for piece_id, piece in enumerate(result.building_facade_pieces):
+        replacements = night_glass_replacements(piece.asset_path) if night else None
+        assets.append(
+            _facade_piece_to_asset_json(
+                piece,
+                piece_id,
+                glass_scalar_overrides(result.building_lit_fractions[piece_id])
+                if replacements
+                else None,
+                replacements,
+            )
+        )
     # Curbs and sidewalks: same "static_asset" entries, ids continuing
     # after the facade pieces so every asset id stays unique.
     id_offset = len(result.building_facade_pieces)
@@ -291,7 +303,7 @@ def serialize_scenario(
         ]
         payload["glows"] = [
             glow.to_json() for vehicle in result.vehicles for glow in vehicle_glows(vehicle)
-        ] + [glow.to_json() for glow in result.window_glows]
+        ]
     if environment is not None:
         meshes.append(_mesh_to_json(build_ground_mesh(environment)))
         meshes += [

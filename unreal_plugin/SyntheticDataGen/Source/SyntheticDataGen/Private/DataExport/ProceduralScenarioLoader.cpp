@@ -211,6 +211,20 @@ namespace
 			}
 		}
 
+		OutAssetData.MaterialReplacements.Reset();
+		const TSharedPtr<FJsonObject>* MaterialReplacementsJson = nullptr;
+		if (AssetObject.TryGetObjectField(TEXT("material_replacements"), MaterialReplacementsJson))
+		{
+			for (const auto& Pair : (*MaterialReplacementsJson)->Values)
+			{
+				FString Replacement;
+				if (Pair.Value.IsValid() && Pair.Value->TryGetString(Replacement))
+				{
+					OutAssetData.MaterialReplacements.Add(Pair.Key, Replacement);
+				}
+			}
+		}
+
 		// "enable_live_pose_preview" is optional (missing/absent means
 		// false -- the real dataset-generation pipeline never emits it,
 		// see FScenarioAssetData::bEnableLivePosePreview's own comment).
@@ -885,10 +899,9 @@ void AProceduralScenarioLoader::SpawnGlows(
 {
 	UWorld* World = GetWorld();
 	UStaticMesh* SphereMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-	UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
 	UMaterialInterface* GlowMaterial = LoadObject<UMaterialInterface>(
 		nullptr, TEXT("/Game/VantageCV/M_EmissiveGlow.M_EmissiveGlow"));
-	if (World == nullptr || SphereMesh == nullptr || CubeMesh == nullptr || GlowMaterial == nullptr)
+	if (World == nullptr || SphereMesh == nullptr || GlowMaterial == nullptr)
 	{
 		OutSkipped += GlowsJson.Num();
 		return;
@@ -943,10 +956,7 @@ void AProceduralScenarioLoader::SpawnGlows(
 
 		UStaticMeshComponent* Component = GlowActor->GetStaticMeshComponent();
 		Component->SetMobility(EComponentMobility::Movable);
-		// "shape": "box" is a lit window (a slab); anything else a sphere/ellipsoid lens.
-		FString Shape;
-		(*GlowObject)->TryGetStringField(TEXT("shape"), Shape);
-		Component->SetStaticMesh(Shape == TEXT("box") ? CubeMesh : SphereMesh);
+		Component->SetStaticMesh(SphereMesh);
 		// The engine sphere is 100 cm across: scale = diameter in cm / 100.
 		GlowActor->SetActorScale3D(SemiAxesMeters * 2.0);
 		Component->SetCastShadow(false);
