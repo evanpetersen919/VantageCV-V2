@@ -22,9 +22,10 @@ import numpy as np
 
 from src.procedural.building_facade import FacadePiece
 
-# Each building's lit fraction is drawn uniformly from this range: some
-# buildings are nearly dark, some mostly lit.
-LIT_FRACTION_RANGE = (0.05, 0.9)
+# Each building's lit fraction is drawn uniformly from this range (mean 0.3, so
+# about 30% of windows city-wide are lit): some buildings are nearly dark,
+# some half lit.
+LIT_FRACTION_RANGE = (0.1, 0.5)
 
 NIGHT_GLASS_FOLDER = "/Game/VantageCV/NightGlass"
 GLASS_SLOT_NAME = "Bldg_glass"
