@@ -102,6 +102,16 @@ LAMP_STYLES: Tuple[Tuple[str, float], ...] = (
     ("/Game/Prop/Kit_StreetLamp_E/Mesh/streetLamp_E", 0.0),
 )
 
+LAMP_ASSET_PATHS = frozenset(path for path, _ in LAMP_STYLES)
+
+# Street lamps' globes glow from the mesh's own emissive material, so by
+# day they still looked lit. Overriding this per-instance scalar to 0 (the
+# plugin applies it to a dynamic material, no shared asset is edited)
+# turns the glow off: verified live on lamp style E -- globes go from
+# glowing yellow to dark grey by day. At night the default glow is left
+# alone.
+STREET_LAMP_OFF_OVERRIDES: Dict[str, float] = {"Emissive Amount": 0.0}
+
 
 # Tree base styles, one per scenario (SM_TreeBase_A: round or square, with or
 # without a grill).

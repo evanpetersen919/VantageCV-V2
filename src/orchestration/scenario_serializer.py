@@ -31,6 +31,7 @@ from src.procedural.intersection_pavement import build_intersection_pavement_mes
 from src.procedural.mesh_factory import Mesh
 from src.procedural.night_lights import vehicle_lights
 from src.procedural.roofs import build_roof_meshes, generate_roof_prop_pieces
+from src.procedural.street_furniture import LAMP_ASSET_PATHS, STREET_LAMP_OFF_OVERRIDES
 
 
 def _mesh_to_json(mesh: Mesh) -> Dict[str, Any]:
@@ -164,7 +165,11 @@ def _pedestrian_to_asset_json(
     return asset
 
 
-def _facade_piece_to_asset_json(piece: FacadePiece, piece_id: int) -> Dict[str, Any]:
+def _facade_piece_to_asset_json(
+    piece: FacadePiece,
+    piece_id: int,
+    material_scalar_overrides: Optional[Dict[str, float]] = None,
+) -> Dict[str, Any]:
     """One ``FacadePiece`` (a real City Sample wall/corner/entrance static
     mesh) as an ``"assets"`` entry: ``category: "static_asset"``, no
     ``part_paths`` -- unlike a vehicle, each facade piece is its own
@@ -188,7 +193,15 @@ def _facade_piece_to_asset_json(piece: FacadePiece, piece_id: int) -> Dict[str, 
         # component mirrors it); omitted when unscaled so existing
         # payloads stay byte-identical.
         entry["scale"] = [float(component) for component in piece.scale]
+    if material_scalar_overrides:
+        entry["material_scalar_overrides"] = dict(material_scalar_overrides)
     return entry
+
+
+def _street_lamp_overrides(piece: FacadePiece) -> Optional[Dict[str, float]]:
+    """The daytime "lamp off" override for a regular street lamp, else
+    ``None`` (trees, hydrants, signs etc. are untouched)."""
+    return STREET_LAMP_OFF_OVERRIDES if piece.asset_path in LAMP_ASSET_PATHS else None
 
 
 def serialize_scenario(
@@ -232,6 +245,7 @@ def serialize_scenario(
         ``UE5Backend.load_scenario``.
     """
     meshes: List[Dict[str, Any]] = [_mesh_to_json(mesh) for mesh in result.meshes]
+    night = result.time_of_day == TimeOfDay.NIGHT
     assets: List[Dict[str, Any]] = [_vehicle_to_asset_json(v) for v in result.vehicles]
     assets += [
         _facade_piece_to_asset_json(piece, piece_id)
@@ -246,7 +260,11 @@ def serialize_scenario(
     ]
     id_offset += len(result.road_edge_pieces)
     assets += [
-        _facade_piece_to_asset_json(piece, id_offset + piece_id)
+        _facade_piece_to_asset_json(
+            piece,
+            id_offset + piece_id,
+            None if night else _street_lamp_overrides(piece),
+        )
         for piece_id, piece in enumerate(result.street_furniture_pieces)
     ]
     id_offset += len(result.street_furniture_pieces)
@@ -265,7 +283,7 @@ def serialize_scenario(
         for piece_id, pedestrian in enumerate(result.pedestrians)
     ]
     payload: Dict[str, Any] = {"meshes": meshes, "assets": assets}
-    if result.time_of_day == TimeOfDay.NIGHT:
+    if night:
         # Real light actors (see night_lights.py): a daytime payload
         # carries no "lights" key at all.
         payload["lights"] = [
