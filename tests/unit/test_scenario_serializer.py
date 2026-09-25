@@ -17,6 +17,7 @@ from src.orchestration.scenario_serializer import _facade_piece_to_asset_json, s
 from src.procedural.building_facade import FacadePiece
 from src.procedural.city_sample_assets import PEDESTRIAN_MESH_FORWARD_OFFSET_RAD, VEHICLE_PART_PATHS
 from src.procedural.environment import TimeOfDay
+from src.procedural.street_furniture import LAMP_ASSET_PATHS, STREET_LAMP_OFF_OVERRIDES
 
 # urban_config, bounds fixtures: see tests/conftest.py
 
@@ -173,11 +174,12 @@ def test_serialize_scenario_live_pose_preview_is_opt_in(urban_config, bounds) ->
 def test_serialize_scenario_vehicle_and_facade_assets_have_no_material_overrides(
     urban_config, bounds
 ) -> None:
-    """Only pedestrians carry "material_scalar_overrides" -- vehicles and
-    building facade pieces have no per-instance pose to select, and
-    ApplyMaterialScalarOverrides (VehicleActorSpawner.cpp) is a no-op for
-    an entry with no such key, so this is a real, checkable invariant,
-    not just an implementation detail."""
+    """Only pedestrians and (by day) regular street lamps carry
+    "material_scalar_overrides" -- vehicles and building facade pieces
+    have nothing to override, and ApplyMaterialScalarOverrides
+    (VehicleActorSpawner.cpp) is a no-op for an entry with no such key, so
+    this is a real, checkable invariant, not just an implementation
+    detail."""
     scenario = generate_scenario(42, urban_config, bounds, "serializer_test")
     assert scenario.vehicles
     assert scenario.buildings
@@ -187,8 +189,23 @@ def test_serialize_scenario_vehicle_and_facade_assets_have_no_material_overrides
     non_pedestrian_assets = payload["assets"][: -len(scenario.pedestrians)]
 
     assert non_pedestrian_assets  # sanity: vehicles/facade pieces exist
+    saw_lamp = False
     for asset in non_pedestrian_assets:
-        assert "material_scalar_overrides" not in asset
+        if asset["asset_path"] in LAMP_ASSET_PATHS:
+            assert asset["material_scalar_overrides"] == STREET_LAMP_OFF_OVERRIDES
+            saw_lamp = True
+        else:
+            assert "material_scalar_overrides" not in asset
+    assert saw_lamp  # sanity: this seed places street lamps
+
+
+def test_street_lamps_keep_their_default_glow_at_night(urban_config, bounds) -> None:
+    """The lamp-off override is a DAYTIME thing: a night payload leaves
+    every street lamp's own default glow alone."""
+    night = generate_scenario(42, urban_config, bounds, "night", time_of_day=TimeOfDay.NIGHT)
+    lamps = [a for a in serialize_scenario(night)["assets"] if a["asset_path"] in LAMP_ASSET_PATHS]
+    assert lamps
+    assert all("material_scalar_overrides" not in lamp for lamp in lamps)
 
 
 def test_serialize_scenario_preserves_mesh_data_exactly(urban_config, bounds) -> None:
