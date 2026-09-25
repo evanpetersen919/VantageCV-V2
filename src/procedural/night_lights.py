@@ -40,16 +40,22 @@ TAILLIGHT_LATERAL_FRACTION_OF_WIDTH = 0.38
 HEADLIGHT_COLOR = (1.0, 0.95, 0.82)
 TAILLIGHT_COLOR = (1.0, 0.04, 0.02)
 
-HEADLIGHT_INTENSITY_CD = 7000.0
+HEADLIGHT_INTENSITY = 6.0
 HEADLIGHT_ATTENUATION_M = 40.0
-HEADLIGHT_INNER_CONE_DEG = 1.0
-HEADLIGHT_OUTER_CONE_DEG = 8.0
+# Headlights use a flat (non-inverse-square) falloff: an inverse-square
+# light 0.7 m off the road is orders of magnitude brighter close in than
+# far out, so it blew the pavement just ahead of the bumper out to two
+# hard white ovals (found live); a flat falloff washes the road evenly
+# out to the attenuation radius instead. Intensity is then unitless.
+HEADLIGHT_FALLOFF_EXPONENT = 2.0
+HEADLIGHT_INNER_CONE_DEG = 4.0
+HEADLIGHT_OUTER_CONE_DEG = 16.0
 # Real US low-beam cutoff is about 1 degree below level (FMVSS 108); a
 # little more than that so the beam reads on the road at this scale. The
 # cone is deliberately narrow: a wide cone's lower edge lands on the road
 # a couple of metres ahead and reads as two bright discs at the bumper
 # (found live), not a beam streaking down the road.
-HEADLIGHT_DIP = -0.018
+HEADLIGHT_DIP = -0.01
 
 RUNNING_TAILLIGHT_INTENSITY_CD = 12.0
 RUNNING_TAILLIGHT_ATTENUATION_M = 3.0
@@ -81,6 +87,8 @@ class SceneLight:  # pylint: disable=too-many-instance-attributes
     direction: Optional[Tuple[float, float, float]] = None
     inner_cone_deg: float = 0.0
     outer_cone_deg: float = 0.0
+    inverse_squared: bool = True
+    falloff_exponent: float = 2.0
 
     def to_json(self) -> Dict[str, Any]:
         """The ``"lights"`` entry the UE5 loader parses."""
@@ -95,6 +103,9 @@ class SceneLight:  # pylint: disable=too-many-instance-attributes
             entry["direction"] = list(self.direction or (1.0, 0.0, 0.0))
             entry["inner_cone_deg"] = self.inner_cone_deg
             entry["outer_cone_deg"] = self.outer_cone_deg
+        if not self.inverse_squared:
+            entry["inverse_squared"] = False
+            entry["falloff_exponent"] = self.falloff_exponent
         return entry
 
 
@@ -223,11 +234,13 @@ def vehicle_lights(vehicle: Vehicle) -> List[SceneLight]:
             kind="spot",
             position=head_position,
             color=HEADLIGHT_COLOR,
-            intensity_candela=HEADLIGHT_INTENSITY_CD,
+            intensity_candela=HEADLIGHT_INTENSITY,
             attenuation_m=HEADLIGHT_ATTENUATION_M,
             direction=beam,
             inner_cone_deg=HEADLIGHT_INNER_CONE_DEG,
             outer_cone_deg=HEADLIGHT_OUTER_CONE_DEG,
+            inverse_squared=False,
+            falloff_exponent=HEADLIGHT_FALLOFF_EXPONENT,
         )
         for head_position in heads
     ]

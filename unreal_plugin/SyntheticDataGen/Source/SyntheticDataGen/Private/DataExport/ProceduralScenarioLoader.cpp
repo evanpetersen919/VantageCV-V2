@@ -856,6 +856,25 @@ void AProceduralScenarioLoader::SpawnLights(
 			LocalLight->SetAttenuationRadius(static_cast<float>(AttenuationMeters) * MetersToUnrealUnits);
 		}
 		LightComponent->SetIntensity(static_cast<float>(Intensity));
+		// Optional: an inverse-square light is far brighter close in than far
+		// away, so a headlight 0.7 m off the road blows out the pavement just
+		// ahead of the bumper. "inverse_squared": false gives an even wash out
+		// to the attenuation radius instead (intensity is then unitless).
+		bool bInverseSquared = true;
+		if ((*LightObject)->TryGetBoolField(TEXT("inverse_squared"), bInverseSquared) && !bInverseSquared)
+		{
+			if (UPointLightComponent* LocalFalloff = Cast<UPointLightComponent>(LightComponent))
+			{
+				LocalFalloff->bUseInverseSquaredFalloff = false;
+				double FalloffExponent = 0.0;
+				if ((*LightObject)->TryGetNumberField(TEXT("falloff_exponent"), FalloffExponent))
+				{
+					LocalFalloff->SetLightFalloffExponent(static_cast<float>(FalloffExponent));
+				}
+				LocalFalloff->SetIntensity(static_cast<float>(Intensity));
+				LocalFalloff->MarkRenderStateDirty();
+			}
+		}
 		SpawnedAssetActors.Add(LightActor);
 		++OutSpawned;
 	}
