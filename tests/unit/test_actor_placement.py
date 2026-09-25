@@ -41,11 +41,7 @@ from src.procedural.city_sample_assets import (
     VEHICLE_ASSET_PATHS,
     pedestrian_face_and_hair,
 )
-from src.procedural.lane_topology import (
-    MAX_TRIM_FRACTION_OF_EDGE_LENGTH,
-    LaneTopologyGenerator,
-    compute_node_clearance,
-)
+from src.procedural.lane_topology import LaneTopologyGenerator, compute_node_clearance
 from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadType
 from src.procedural.scenario import ScenarioType, ScenarioTypeConfig
@@ -152,13 +148,14 @@ def test_driving_zone_stop_line_generally_differs_from_its_own_position(  # pyli
     vehicles got placed): a front-of-queue DRIVING zone's real
     ``stop_line_position`` (the crosswalk-clearing setback) generally
     sits FARTHER from the node than that same zone's own ``position``
-    (the plain node-clearance tiling bound) -- proving zone generation
-    (Step 1, 2026-09-24) produces two genuinely different candidate
-    points, which is what lets ``_try_place_vehicle`` choose between
-    "flowing" (natural position, possibly inside the crosswalk) and
-    "queued" (the real stop line) based on signal phase. Hand-recomputes
-    both formulas independently to prove the exact expected gap, rather
-    than just asserting inequality."""
+    (now the node itself, since generation tiles the lane's full,
+    untrimmed length -- see ``_generate_driving_zones``'s own docstring,
+    2026-09-25) -- proving zone generation still produces two genuinely
+    different candidate points, which is what lets ``_try_place_vehicle``
+    choose between "flowing" (natural position, possibly inside the
+    crosswalk) and "queued" (the real stop line) based on signal phase.
+    Hand-recomputes the expected gap independently rather than just
+    asserting inequality."""
     edges, traffic = _generate_full_network(42, urban_config, bounds)
     node_clearance = compute_node_clearance(edges)
     driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
@@ -170,13 +167,11 @@ def test_driving_zone_stop_line_generally_differs_from_its_own_position(  # pyli
         edge = edges[zone.edge_id]
         edge_direction = edge.centerline[-1] - edge.centerline[0]
         edge_length = float(np.linalg.norm(edge_direction))
-        max_trim_each_side = edge_length * MAX_TRIM_FRACTION_OF_EDGE_LENGTH
-        plain_clearance = min(node_clearance.get(edge.end_node_id, 0.0), max_trim_each_side)
         setback_clearance = min(
             node_clearance.get(edge.end_node_id, 0.0) + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M,
             edge_length,
         )
-        expected_gap = setback_clearance - plain_clearance
+        expected_gap = setback_clearance
         if expected_gap <= 1e-9:
             continue  # this particular node/edge happens to have no real gap -- skip
         checked_any = True
