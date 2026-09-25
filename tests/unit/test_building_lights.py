@@ -7,6 +7,8 @@ from src.procedural.building_lights import (
     GLASS_SLOT_NAME,
     LIT_FRACTION,
     NIGHT_GLASS_FOLDER,
+    ROOM_ID_COUNT,
+    building_piece_room_ids,
     building_pieces_lit,
     glass_scalar_overrides,
     night_glass_replacements,
@@ -45,10 +47,21 @@ def test_lit_flags_are_deterministic_and_differ_by_seed() -> None:
     assert building_pieces_lit(500, seed=7) != building_pieces_lit(500, seed=8)
 
 
-def test_a_lit_module_has_lights_on_and_a_dark_one_fully_off() -> None:
-    """LightsOff is 0 for a lit module and 1 for a dark one."""
-    assert glass_scalar_overrides(True) == {"LightsOff": 0.0}
-    assert glass_scalar_overrides(False) == {"LightsOff": 1.0}
+def test_room_ids_are_valid_varied_and_deterministic() -> None:
+    """One ID per piece inside the room count, every room used, the same for
+    a seed and different for another."""
+    ids = building_piece_room_ids(500, seed=3)
+    assert len(ids) == 500
+    assert set(ids) == set(range(ROOM_ID_COUNT))
+    assert ids == building_piece_room_ids(500, seed=3)
+    assert ids != building_piece_room_ids(500, seed=4)
+
+
+def test_a_module_carries_its_lit_state_and_room() -> None:
+    """LightsOff is 0 for a lit module and 1 for a dark one; the room ID
+    passes through as ManualRoomID."""
+    assert glass_scalar_overrides(True, 3) == {"LightsOff": 0.0, "ManualRoomID": 3.0}
+    assert glass_scalar_overrides(False, 0)["LightsOff"] == 1.0
 
 
 def test_night_payload_swaps_building_glass_and_day_payload_does_not(urban_config, bounds) -> None:
@@ -58,9 +71,11 @@ def test_night_payload_swaps_building_glass_and_day_payload_does_not(urban_confi
     night = generate_scenario(42, urban_config, bounds, "night", time_of_day=TimeOfDay.NIGHT)
     assert not day.building_pieces_lit
     assert len(night.building_pieces_lit) == len(night.building_facade_pieces)
+    assert len(night.building_piece_room_ids) == len(night.building_facade_pieces)
     assert not any("material_replacements" in a for a in serialize_scenario(day)["assets"])
     swapped = [a for a in serialize_scenario(night)["assets"] if "material_replacements" in a]
     assert swapped
     for asset in swapped:
         assert "/Kit_Bldg_" in asset["asset_path"]
         assert asset["material_scalar_overrides"]["LightsOff"] in (0.0, 1.0)
+        assert 0.0 <= asset["material_scalar_overrides"]["ManualRoomID"] < ROOM_ID_COUNT
