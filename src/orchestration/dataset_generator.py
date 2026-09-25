@@ -26,7 +26,7 @@ from src.ground_truth.bbox_3d import (
 )
 from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
 from src.procedural.building_facade import FacadePiece, generate_building_facade_pieces
-from src.procedural.building_lights import building_piece_room_offsets, building_pieces_lit
+from src.procedural.building_lights import building_pieces_lit
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
 from src.procedural.city_sample_assets import BUILDING_STYLES
 from src.procedural.crosswalks import generate_crosswalk_pieces
@@ -81,7 +81,6 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     time_of_day: TimeOfDay = TimeOfDay.DAY
     # Night only: whether each entry of building_facade_pieces is lit.
     building_pieces_lit: List[bool] = field(default_factory=list)
-    building_piece_room_offsets: List[Tuple[float, float]] = field(default_factory=list)
 
 
 @dataclass
@@ -231,11 +230,6 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         time_of_day=time_of_day,
         building_pieces_lit=(
             building_pieces_lit(len(building_facade_pieces), seed)
-            if time_of_day == TimeOfDay.NIGHT
-            else []
-        ),
-        building_piece_room_offsets=(
-            building_piece_room_offsets(len(building_facade_pieces), seed)
             if time_of_day == TimeOfDay.NIGHT
             else []
         ),
