@@ -8,7 +8,7 @@ Run once in a headless editor session (the game/editor must not be running):
 City Sample's building glass (``M_Window``) already renders real
 interior-mapped rooms and per-window lights, but that branch is behind the
 ``UseLightOverride`` static switch, which is off in every shipped kit glass
-instance (and per-module room variety is behind ``UseInteriorOffset``). A static switch is baked per material instance, so a runtime
+instance. A static switch is baked per material instance, so a runtime
 material override cannot flip it (the same limit as the pedestrian
 ``Animate`` switch). This duplicates each kit's ``M_Bldg_glass`` instance
 into ``/Game/VantageCV/NightGlass/<Kit>_M_Bldg_glass`` with the switch on;
@@ -21,11 +21,10 @@ import unreal  # type: ignore[import-not-found]  # pylint: disable=import-error
 OUTPUT_FOLDER = "/Game/VantageCV/NightGlass"
 SOURCE_ROOT = "/Game/Building"
 SOURCE_NAME = "M_Bldg_glass"
-STALE_FOLDERS = tuple(f"/Game/VantageCV/NightGlass_V{n}" for n in (1, 2, 3)) + tuple(
-    f"/Game/VantageCV/NightGlassTest_{name}"
-    for name in ("V2", "V3", "R", "RA", "RB", "RC", "RD", "RE", "RF", "RG", "RH", "RI")
-)
 EMISSION_TINT = 3.0
+STALE_FOLDERS = tuple(f"/Game/VantageCV/NightGlass_V{n}" for n in (1, 2, 3)) + tuple(
+    f"/Game/VantageCV/NightGlassTest_V{n}" for n in (2, 3)
+)
 
 
 def main() -> None:
@@ -46,8 +45,9 @@ def main() -> None:
         if assets.does_asset_exist(destination):
             assets.delete_asset(destination)
         instance = assets.duplicate_asset(package, destination)
-        for switch in ("UseLightOverride", "UseInteriorOffset"):
-            library.set_material_instance_static_switch_parameter_value(instance, switch, True)
+        library.set_material_instance_static_switch_parameter_value(
+            instance, "UseLightOverride", True
+        )
         library.set_material_instance_vector_parameter_value(
             instance, "Tint", unreal.LinearColor(EMISSION_TINT, EMISSION_TINT, EMISSION_TINT, 1.0)
         )
