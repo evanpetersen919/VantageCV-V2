@@ -63,6 +63,12 @@ def test_rain_is_overcast_light_with_wet_surfaces_and_only_rain_is_wet() -> None
     for weather in Weather:
         env = scenario_environment(Season.SUMMER, TimeOfDay.DAY, weather)
         assert (env.surface_scalars is not None) == (weather == Weather.RAIN)
+    assert rain.asset_vector_scales["Bldg_block*|Color Tint M1"] == 0.75
+    assert rain.asset_scalars["veh_carPaint|Max Roughness"] < 0.05
+    for weather in Weather:
+        env = scenario_environment(Season.SUMMER, TimeOfDay.DAY, weather)
+        assert (env.asset_scalars is not None) == (weather == Weather.RAIN)
+        assert (env.asset_vector_scales is not None) == (weather == Weather.RAIN)
     payload = rain.to_json()["surface_scalars"]
     assert payload["asphalt"]["BaseRoughnessMult"] == 0.25
     assert "surface_scalars" not in overcast.to_json()
@@ -98,7 +104,8 @@ def test_night_takes_clear_or_rain_and_rejects_the_rest() -> None:
 def test_rain_streaks_are_in_the_payload_only_for_rain() -> None:
     """Only rain adds a "rain" object (intensity, slant, seed)."""
     rain = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN).to_json()
-    assert rain["rain"] == {"intensity": 0.9, "slant": 0.12, "seed": 1.0}
+    assert rain["rain"] == {"intensity": 0.9, "slant": 0.12, "seed": 1.0, "density": 0.5}
+    assert rain["asset_vector_scales"]["veh_carPaint|BaseColor"] == 0.85
     for weather in Weather:
         if weather != Weather.RAIN:
             assert (

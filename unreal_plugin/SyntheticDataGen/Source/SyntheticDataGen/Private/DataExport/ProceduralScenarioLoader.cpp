@@ -587,6 +587,10 @@ void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& 
 			{
 				RainMaterial->SetScalarParameterValue(TEXT("Slant"), static_cast<float>(Value));
 			}
+			if ((*RainJson)->TryGetNumberField(TEXT("density"), Value))
+			{
+				RainMaterial->SetScalarParameterValue(TEXT("Density"), static_cast<float>(Value));
+			}
 			if ((*RainJson)->TryGetNumberField(TEXT("seed"), Value))
 			{
 				RainMaterial->SetScalarParameterValue(TEXT("Seed"), static_cast<float>(Value));
@@ -616,6 +620,33 @@ void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& 
 				{
 					It->SetIntensity(static_cast<float>(Value));
 				}
+			}
+		}
+	}
+
+	AssetScalars.Reset();
+	AssetVectorScales.Reset();
+	const TSharedPtr<FJsonObject>* AssetVectorScalesJson = nullptr;
+	if (Env->TryGetObjectField(TEXT("asset_vector_scales"), AssetVectorScalesJson))
+	{
+		for (const auto& Pair : (*AssetVectorScalesJson)->Values)
+		{
+			double Number = 0.0;
+			if (Pair.Value.IsValid() && Pair.Value->TryGetNumber(Number))
+			{
+				AssetVectorScales.Add(Pair.Key, static_cast<float>(Number));
+			}
+		}
+	}
+	const TSharedPtr<FJsonObject>* AssetScalarsJson = nullptr;
+	if (Env->TryGetObjectField(TEXT("asset_scalars"), AssetScalarsJson))
+	{
+		for (const auto& Pair : (*AssetScalarsJson)->Values)
+		{
+			double Number = 0.0;
+			if (Pair.Value.IsValid() && Pair.Value->TryGetNumber(Number))
+			{
+				AssetScalars.Add(Pair.Key, static_cast<float>(Number));
 			}
 		}
 	}
@@ -921,6 +952,7 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 
 			UVehicleActorSpawner* Spawner = NewObject<UVehicleActorSpawner>(this);
 			AActor* SpawnedVehicle = Spawner->SpawnVehicle(GetWorld(), AssetData);
+			ApplyAssetScalars(SpawnedVehicle);
 			if (SpawnedVehicle != nullptr)
 			{
 				SpawnedAssetActors.Add(SpawnedVehicle);
@@ -1195,6 +1227,64 @@ void AProceduralScenarioLoader::SpawnGlows(
 	}
 }
 
+void AProceduralScenarioLoader::ApplyAssetScalars(AActor* Actor) const
+{
+	if (Actor == nullptr || (AssetScalars.Num() == 0 && AssetVectorScales.Num() == 0))
+	{
+		return;
+	}
+	TArray<UStaticMeshComponent*> Components;
+	Actor->GetComponents<UStaticMeshComponent>(Components);
+	for (UStaticMeshComponent* Component : Components)
+	{
+		const TArray<FName> SlotNames = Component->GetMaterialSlotNames();
+		for (int32 SlotIndex = 0; SlotIndex < SlotNames.Num(); ++SlotIndex)
+		{
+			const FString SlotName = SlotNames[SlotIndex].ToString();
+			UMaterialInstanceDynamic* MID = nullptr;
+			for (const TPair<FString, float>& Scalar : AssetScalars)
+			{
+				int32 Separator = INDEX_NONE;
+				if (!Scalar.Key.FindLastChar(TEXT('|'), Separator) || !SlotName.MatchesWildcard(Scalar.Key.Left(Separator)))
+				{
+					continue;
+				}
+				if (MID == nullptr)
+				{
+					MID = Component->CreateDynamicMaterialInstance(SlotIndex);
+					if (MID == nullptr)
+					{
+						break;
+					}
+				}
+				MID->SetScalarParameterValue(FName(*Scalar.Key.RightChop(Separator + 1)), Scalar.Value);
+			}
+			for (const TPair<FString, float>& Scale : AssetVectorScales)
+			{
+				int32 Separator = INDEX_NONE;
+				if (!Scale.Key.FindLastChar(TEXT('|'), Separator) || !SlotName.MatchesWildcard(Scale.Key.Left(Separator)))
+				{
+					continue;
+				}
+				if (MID == nullptr)
+				{
+					MID = Component->CreateDynamicMaterialInstance(SlotIndex);
+					if (MID == nullptr)
+					{
+						break;
+					}
+				}
+				const FName Parameter(*Scale.Key.RightChop(Separator + 1));
+				FLinearColor Current = FLinearColor::White;
+				if (MID->GetVectorParameterValue(FHashedMaterialParameterInfo(Parameter), Current))
+				{
+					MID->SetVectorParameterValue(Parameter, FLinearColor(Current.R * Scale.Value, Current.G * Scale.Value, Current.B * Scale.Value, Current.A));
+				}
+			}
+		}
+	}
+}
+
 void AProceduralScenarioLoader::CaptureMapEnvironmentDefaults()
 {
 	UWorld* World = GetWorld();
@@ -1279,6 +1369,9 @@ void AProceduralScenarioLoader::RestoreMapEnvironmentDefaults()
 		return;
 	}
 	CaptureMapEnvironmentDefaults();
+	SurfaceScalars.Reset();
+	AssetScalars.Reset();
+	AssetVectorScales.Reset();
 	for (TActorIterator<ADirectionalLight> It(World); It; ++It)
 	{
 		if (UDirectionalLightComponent* Light = Cast<UDirectionalLightComponent>(It->GetLightComponent()))
