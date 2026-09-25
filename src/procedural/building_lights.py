@@ -15,20 +15,31 @@ the on/off choice is made per wall module -- one bay of 1 to 3 windows --
 by setting that instance's ``LightsOff`` to 0 (lit) or 1 (dark). The choice
 is random from the scenario seed (a dedicated RNG stream, so nothing else
 in a scenario changes), lighting ``LIT_FRACTION`` of the modules.
+
+Every piece would otherwise show the same room (the material seeds its room
+choice with ``PerInstanceRandom``, constant for separately spawned actors), so
+each module also gets a random ``InteriorOffset`` (behind the
+``UseInteriorOffset`` switch of the night glass copies), which picks a
+different room from Epic's library of 37. The copies also raise the ``Tint``
+emission multiplier so lit rooms glow more (peak window brightness about
++15% at 3.0, compressed by tone mapping).
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
 # The share of wall modules lit at night; the rest are dark.
-LIT_FRACTION = 0.3
+LIT_FRACTION = 0.2
 
 NIGHT_GLASS_FOLDER = "/Game/VantageCV/NightGlass"
 GLASS_SLOT_NAME = "Bldg_glass"
 KIT_FOLDER_PREFIX = "Kit_Bldg_"
 # /Game/Building/<style>/<variant>/<kit folder>/Mesh/<mesh>
 KIT_FOLDER_INDEX = 5
+# Room offsets are drawn from [0, ROOM_OFFSET_RANGE) on each of two axes. They
+# must be fractional: whole numbers all gave the same room (found live).
+ROOM_OFFSET_RANGE = 16.0
 
 
 def building_pieces_lit(piece_count: int, seed: int) -> List[bool]:
@@ -36,6 +47,14 @@ def building_pieces_lit(piece_count: int, seed: int) -> List[bool]:
     independently with probability ``LIT_FRACTION``."""
     rng = np.random.Generator(np.random.PCG64([seed, 0x11D0]))
     return [bool(draw < LIT_FRACTION) for draw in rng.random(piece_count)]
+
+
+def building_piece_room_offsets(piece_count: int, seed: int) -> List[Tuple[float, float]]:
+    """A random ``InteriorOffset`` (x, y) for each of ``piece_count`` pieces,
+    from its own RNG stream."""
+    rng = np.random.Generator(np.random.PCG64([seed, 0x2007]))
+    offsets = rng.random(size=(piece_count, 2)) * ROOM_OFFSET_RANGE
+    return [(float(x), float(y)) for x, y in offsets]
 
 
 def night_glass_replacements(asset_path: str) -> Optional[Dict[str, str]]:
@@ -49,6 +68,11 @@ def night_glass_replacements(asset_path: str) -> Optional[Dict[str, str]]:
     return {GLASS_SLOT_NAME: f"{NIGHT_GLASS_FOLDER}/{name}.{name}"}
 
 
-def glass_scalar_overrides(lit: bool) -> Dict[str, float]:
-    """Material scalars for a lit (``LightsOff`` 0) or dark (1) module."""
-    return {"LightsOff": 0.0 if lit else 1.0}
+def glass_scalar_overrides(lit: bool, room_offset: Tuple[float, float]) -> Dict[str, float]:
+    """Material scalars for a module: lit (``LightsOff`` 0) or dark (1), and
+    which room it shows (``InteriorOffset``)."""
+    return {
+        "LightsOff": 0.0 if lit else 1.0,
+        "InteriorOffset.x": room_offset[0],
+        "InteriorOffset.y": room_offset[1],
+    }

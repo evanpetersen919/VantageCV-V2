@@ -257,7 +257,10 @@ def serialize_scenario(
             _facade_piece_to_asset_json(
                 piece,
                 piece_id,
-                glass_scalar_overrides(result.building_pieces_lit[piece_id])
+                glass_scalar_overrides(
+                    result.building_pieces_lit[piece_id],
+                    result.building_piece_room_offsets[piece_id],
+                )
                 if replacements
                 else None,
                 replacements,
