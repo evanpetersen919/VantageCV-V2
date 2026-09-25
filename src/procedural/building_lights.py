@@ -2,32 +2,27 @@
 
 Every building wall's glass slot is an interior-mapped window material
 (``M_Window``): real room interiors with curtains, furniture and ceiling
-lights, chosen per window, with a per-instance ``LightsOff`` scalar that
-switches windows off progressively (measured live, the lit share of
-windows falls as about ``(1 - LightsOff) ** 2``: 0.3 -> 52%, 0.5 -> 25%,
-0.7 -> 6%). Its lights-on branch sits behind the
-``UseLightOverride`` static switch, off in every shipped kit instance and
-unreachable by a runtime override, so the project owns copies with it on
+lights. Its lights-on branch sits behind the ``UseLightOverride`` static
+switch, off in every shipped kit instance and unreachable by a runtime
+override, so the project owns copies with it on
 (``unreal_plugin/tools/create_night_glass.py``) and a night payload swaps
 them into each wall's ``Bldg_glass`` slot.
 
-Randomization is deterministic from the scenario seed (a dedicated RNG
-stream, so nothing else in a scenario changes): each BUILDING draws its own
-lit fraction, and the material then picks which of its windows are lit.
-The fraction range is tuned by eye -- real city occupancy varies far too
-much to cite one number.
+The material has no per-window on/off control a payload can reach: its
+``LightsOff`` scalar dims every window of a mesh together, and ``AmountOff``
+and the ``Luma*`` variation scalars have no effect (all measured live). So
+the on/off choice is made per wall module -- one bay of 1 to 3 windows --
+by setting that instance's ``LightsOff`` to 0 (lit) or 1 (dark). The choice
+is random from the scenario seed (a dedicated RNG stream, so nothing else
+in a scenario changes), lighting ``LIT_FRACTION`` of the modules.
 """
 
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional
 
 import numpy as np
 
-from src.procedural.building_facade import FacadePiece
-
-# Each building's lit fraction is drawn uniformly from this range (mean 0.3, so
-# about 30% of windows city-wide are lit): some buildings are nearly dark,
-# some half lit.
-LIT_FRACTION_RANGE = (0.1, 0.5)
+# The share of wall modules lit at night; the rest are dark.
+LIT_FRACTION = 0.3
 
 NIGHT_GLASS_FOLDER = "/Game/VantageCV/NightGlass"
 GLASS_SLOT_NAME = "Bldg_glass"
@@ -36,17 +31,11 @@ KIT_FOLDER_PREFIX = "Kit_Bldg_"
 KIT_FOLDER_INDEX = 5
 
 
-def building_piece_lit_fractions(
-    pieces_by_building: Sequence[Sequence[FacadePiece]], seed: int
-) -> List[float]:
-    """One lit fraction per facade piece (flattened in building order): the
-    same value for every piece of a building, drawn once per building."""
+def building_pieces_lit(piece_count: int, seed: int) -> List[bool]:
+    """Whether each of ``piece_count`` building facade pieces is lit, drawn
+    independently with probability ``LIT_FRACTION``."""
     rng = np.random.Generator(np.random.PCG64([seed, 0x11D0]))
-    fractions: List[float] = []
-    for pieces in pieces_by_building:
-        fraction = float(rng.uniform(*LIT_FRACTION_RANGE))
-        fractions += [fraction] * len(pieces)
-    return fractions
+    return [bool(draw < LIT_FRACTION) for draw in rng.random(piece_count)]
 
 
 def night_glass_replacements(asset_path: str) -> Optional[Dict[str, str]]:
@@ -60,8 +49,6 @@ def night_glass_replacements(asset_path: str) -> Optional[Dict[str, str]]:
     return {GLASS_SLOT_NAME: f"{NIGHT_GLASS_FOLDER}/{name}.{name}"}
 
 
-def glass_scalar_overrides(lit_fraction: float) -> Dict[str, float]:
-    """Material scalars for a building's glass: ``LightsOff`` inverting the
-    measured ``lit = (1 - LightsOff) ** 2`` law so about ``lit_fraction`` of
-    the windows are lit. (``AmountOff`` was tried and has no effect.)"""
-    return {"LightsOff": 1.0 - float(np.sqrt(lit_fraction))}
+def glass_scalar_overrides(lit: bool) -> Dict[str, float]:
+    """Material scalars for a lit (``LightsOff`` 0) or dark (1) module."""
+    return {"LightsOff": 0.0 if lit else 1.0}

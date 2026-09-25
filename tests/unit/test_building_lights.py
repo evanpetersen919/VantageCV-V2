@@ -1,26 +1,19 @@
 """Unit tests for building_lights.py: night glass swapped into each wall
-mesh's glass slot, with a per-building randomized lit fraction."""
-
-import numpy as np
+mesh's glass slot, with a random lit/dark choice per wall module."""
 
 from src.orchestration.dataset_generator import generate_scenario
 from src.orchestration.scenario_serializer import serialize_scenario
-from src.procedural.building_facade import FacadePiece
 from src.procedural.building_lights import (
     GLASS_SLOT_NAME,
-    LIT_FRACTION_RANGE,
+    LIT_FRACTION,
     NIGHT_GLASS_FOLDER,
-    building_piece_lit_fractions,
+    building_pieces_lit,
     glass_scalar_overrides,
     night_glass_replacements,
 )
 from src.procedural.environment import TimeOfDay
 
 WALL = "/Game/Building/CH/A/Kit_Bldg_CHA_L1_A/Mesh/SM_BLDG_CHA_L01_A_Wall_01_N1"
-
-
-def _piece(asset_path: str = WALL) -> FacadePiece:
-    return FacadePiece(asset_path, np.array([0.0, 0.0, 0.0]), 0.0)
 
 
 def test_a_wall_swaps_its_glass_slot_for_its_own_kits_lit_copy() -> None:
@@ -38,45 +31,36 @@ def test_non_building_assets_get_no_glass_replacement() -> None:
     assert night_glass_replacements("/Game/Vehicle/vehCar_vehicle02/Mesh/SM_Frame") is None
 
 
-def test_lit_fraction_is_one_value_per_building_within_range() -> None:
-    """Every piece of a building shares its building's fraction, one entry
-    per piece, all inside the configured range."""
-    buildings = [[_piece() for _ in range(n)] for n in (3, 5, 1)]
-    fractions = building_piece_lit_fractions(buildings, seed=4)
-    assert len(fractions) == 9
-    assert len(set(fractions[:3])) == 1
-    assert len(set(fractions[3:8])) == 1
-    low, high = LIT_FRACTION_RANGE
-    assert all(low <= fraction <= high for fraction in fractions)
+def test_about_the_configured_share_of_pieces_are_lit() -> None:
+    """One flag per piece, with the lit share close to LIT_FRACTION (a
+    large sample, so the binomial spread is well under a percent)."""
+    lit = building_pieces_lit(20000, seed=4)
+    assert len(lit) == 20000
+    assert abs(sum(lit) / len(lit) - LIT_FRACTION) < 0.02
 
 
-def test_lit_fractions_are_deterministic_and_differ_by_seed_and_building() -> None:
-    """Same seed, same fractions; another seed or another building differs."""
-    buildings = [[_piece()] for _ in range(6)]
-    first = building_piece_lit_fractions(buildings, seed=7)
-    assert first == building_piece_lit_fractions(buildings, seed=7)
-    assert first != building_piece_lit_fractions(buildings, seed=8)
-    assert len(set(first)) > 1
+def test_lit_flags_are_deterministic_and_differ_by_seed() -> None:
+    """Same seed, same flags; another seed lights a different set."""
+    assert building_pieces_lit(500, seed=7) == building_pieces_lit(500, seed=7)
+    assert building_pieces_lit(500, seed=7) != building_pieces_lit(500, seed=8)
 
 
-def test_glass_scalar_inverts_the_measured_lit_share_law() -> None:
-    """LightsOff is chosen so (1 - LightsOff) ** 2, the measured lit share,
-    equals the requested fraction; all lit needs 0 and none lit needs 1."""
-    assert glass_scalar_overrides(0.25) == {"LightsOff": 0.5}
-    assert glass_scalar_overrides(1.0) == {"LightsOff": 0.0}
-    assert glass_scalar_overrides(0.0) == {"LightsOff": 1.0}
+def test_a_lit_module_has_lights_on_and_a_dark_one_fully_off() -> None:
+    """LightsOff is 0 for a lit module and 1 for a dark one."""
+    assert glass_scalar_overrides(True) == {"LightsOff": 0.0}
+    assert glass_scalar_overrides(False) == {"LightsOff": 1.0}
 
 
 def test_night_payload_swaps_building_glass_and_day_payload_does_not(urban_config, bounds) -> None:
     """Only a night scenario carries glass replacements (on building-kit
-    meshes), each with its building's LightsOff value; a day payload has none."""
+    meshes), each lit or dark; a day payload has none."""
     day = generate_scenario(42, urban_config, bounds, "day")
     night = generate_scenario(42, urban_config, bounds, "night", time_of_day=TimeOfDay.NIGHT)
-    assert not day.building_lit_fractions
-    assert len(night.building_lit_fractions) == len(night.building_facade_pieces)
+    assert not day.building_pieces_lit
+    assert len(night.building_pieces_lit) == len(night.building_facade_pieces)
     assert not any("material_replacements" in a for a in serialize_scenario(day)["assets"])
     swapped = [a for a in serialize_scenario(night)["assets"] if "material_replacements" in a]
     assert swapped
     for asset in swapped:
         assert "/Kit_Bldg_" in asset["asset_path"]
-        assert 0.0 <= asset["material_scalar_overrides"]["LightsOff"] <= 1.0
+        assert asset["material_scalar_overrides"]["LightsOff"] in (0.0, 1.0)
