@@ -2,8 +2,10 @@
 
 Every building wall's glass slot is an interior-mapped window material
 (``M_Window``): real room interiors with curtains, furniture and ceiling
-lights, chosen per window, with a per-instance ``AmountOff`` scalar for the
-fraction of rooms left dark. Its lights-on branch sits behind the
+lights, chosen per window, with a per-instance ``LightsOff`` scalar that
+switches windows off progressively (measured live, the lit share of
+windows falls as about ``(1 - LightsOff) ** 2``: 0.3 -> 52%, 0.5 -> 25%,
+0.7 -> 6%). Its lights-on branch sits behind the
 ``UseLightOverride`` static switch, off in every shipped kit instance and
 unreachable by a runtime override, so the project owns copies with it on
 (``unreal_plugin/tools/create_night_glass.py``) and a night payload swaps
@@ -59,6 +61,7 @@ def night_glass_replacements(asset_path: str) -> Optional[Dict[str, str]]:
 
 
 def glass_scalar_overrides(lit_fraction: float) -> Dict[str, float]:
-    """Material scalars for a building's glass: every room's light allowed
-    on (``LightsOff`` 0) and ``AmountOff`` the fraction left dark."""
-    return {"LightsOff": 0.0, "AmountOff": 1.0 - lit_fraction}
+    """Material scalars for a building's glass: ``LightsOff`` inverting the
+    measured ``lit = (1 - LightsOff) ** 2`` law so about ``lit_fraction`` of
+    the windows are lit. (``AmountOff`` was tried and has no effect.)"""
+    return {"LightsOff": 1.0 - float(np.sqrt(lit_fraction))}
