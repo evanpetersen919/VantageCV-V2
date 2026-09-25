@@ -52,6 +52,7 @@ from src.procedural.street_furniture import (
 from src.procedural.traffic_lights import generate_traffic_light_pieces
 from src.procedural.traffic_network import TrafficNetwork, TrafficNetworkGenerator
 from src.procedural.validator import ScenarioValidator, ValidationReport
+from src.procedural.vehicle_colors import assign_vehicle_paint
 from src.sensors.camera_model import Camera, CameraExtrinsics, CameraIntrinsics
 from src.validation.sanity_checker import SanityReport, check_annotation_count_consistency
 
@@ -154,6 +155,7 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     vehicles += parked_vehicles(
         parking_lots, config, seed, max((v.vehicle_id for v in vehicles), default=-1) + 1
     )
+    assign_vehicle_paint(vehicles, seed)
 
     # Vehicles are deliberately NOT built into box meshes here as of the
     # City Sample asset integration's Phase 1 (see KNOWN_GAPS_AND_ISSUES.md):

@@ -118,6 +118,71 @@ namespace
 	}
 }
 
+namespace
+{
+	// Swaps any slot whose current material path or slot name is a key of
+	// Replacements for the material object path it maps to.
+	void ApplyMaterialReplacements(UStaticMeshComponent* Component, const TMap<FString, FString>& Replacements)
+	{
+		if (Component == nullptr || Replacements.Num() == 0)
+		{
+			return;
+		}
+		const TArray<FName> SlotNames = Component->GetMaterialSlotNames();
+		for (int32 SlotIndex = 0; SlotIndex < Component->GetNumMaterials(); ++SlotIndex)
+		{
+			UMaterialInterface* Current = Component->GetMaterial(SlotIndex);
+			const FString* Replacement = Current ? Replacements.Find(Current->GetPathName()) : nullptr;
+			if (Replacement == nullptr && SlotNames.IsValidIndex(SlotIndex))
+			{
+				Replacement = Replacements.Find(SlotNames[SlotIndex].ToString());
+			}
+			if (Replacement != nullptr)
+			{
+				if (UMaterialInterface* Loaded = LoadObject<UMaterialInterface>(nullptr, **Replacement))
+				{
+					Component->SetMaterial(SlotIndex, Loaded);
+				}
+			}
+		}
+	}
+}
+
+namespace
+{
+	// Sets each override whose key is "<slot name>|<parameter>" on a dynamic
+	// material instance of every slot of Component with that slot name.
+	void ApplyMaterialSlotVectors(UStaticMeshComponent* Component, const TMap<FString, FLinearColor>& Overrides)
+	{
+		if (Component == nullptr || Overrides.Num() == 0)
+		{
+			return;
+		}
+		const TArray<FName> SlotNames = Component->GetMaterialSlotNames();
+		for (int32 SlotIndex = 0; SlotIndex < SlotNames.Num(); ++SlotIndex)
+		{
+			const FString Prefix = SlotNames[SlotIndex].ToString() + TEXT("|");
+			UMaterialInstanceDynamic* MID = nullptr;
+			for (const TPair<FString, FLinearColor>& Override : Overrides)
+			{
+				if (!Override.Key.StartsWith(Prefix))
+				{
+					continue;
+				}
+				if (MID == nullptr)
+				{
+					MID = Component->CreateDynamicMaterialInstance(SlotIndex);
+					if (MID == nullptr)
+					{
+						break;
+					}
+				}
+				MID->SetVectorParameterValue(FName(*Override.Key.RightChop(Prefix.Len())), Override.Value);
+			}
+		}
+	}
+}
+
 UVehicleActorSpawner::UVehicleActorSpawner()
 {
 	PrimaryComponentTick.bCanEverTick = false;
@@ -187,28 +252,14 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 	SpawnedActor->SetRootComponent(MeshComponent);
 	MeshComponent->SetSimulatePhysics(false);
 
-	for (int32 SlotIndex = 0; SlotIndex < MeshComponent->GetNumMaterials(); ++SlotIndex)
-	{
-		UMaterialInterface* Current = MeshComponent->GetMaterial(SlotIndex);
-		const FString* Replacement = Current ? AssetData.MaterialReplacements.Find(Current->GetPathName()) : nullptr;
-		if (Replacement == nullptr)
-		{
-			Replacement = AssetData.MaterialReplacements.Find(MeshComponent->GetMaterialSlotNames()[SlotIndex].ToString());
-		}
-		if (Replacement != nullptr)
-		{
-			if (UMaterialInterface* Loaded = LoadObject<UMaterialInterface>(nullptr, **Replacement))
-			{
-				MeshComponent->SetMaterial(SlotIndex, Loaded);
-			}
-		}
-	}
+	ApplyMaterialReplacements(MeshComponent, AssetData.MaterialReplacements);
 
 	// Collected across the body AND every part below so the opt-in
 	// live-preview component (if this asset requests one) can tick every
 	// MID for this pedestrian's whole outfit, not just the body.
 	TArray<UMaterialInstanceDynamic*> AllMIDs =
 		ApplyMaterialScalarOverrides(MeshComponent, AssetData.MaterialScalarOverrides);
+	ApplyMaterialSlotVectors(MeshComponent, AssetData.MaterialSlotVectors);
 
 	// SpawnActor's own SpawnTransform argument only takes effect by
 	// being applied to a RootComponent, and a bare AActor::StaticClass()
@@ -254,7 +305,9 @@ AActor* UVehicleActorSpawner::SpawnVehicle(UWorld* World, const FScenarioAssetDa
 		PartComponent->RegisterComponent();
 		PartComponent->AttachToComponent(MeshComponent, FAttachmentTransformRules::KeepRelativeTransform);
 		PartComponent->SetSimulatePhysics(false);
+		ApplyMaterialReplacements(PartComponent, AssetData.MaterialReplacements);
 		AllMIDs.Append(ApplyMaterialScalarOverrides(PartComponent, AssetData.MaterialScalarOverrides));
+		ApplyMaterialSlotVectors(PartComponent, AssetData.MaterialSlotVectors);
 	}
 
 	// Opt-in ONLY -- see FScenarioAssetData::bEnableLivePosePreview's own

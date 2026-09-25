@@ -33,6 +33,12 @@ from src.procedural.mesh_factory import Mesh
 from src.procedural.night_lights import vehicle_glows, vehicle_lights
 from src.procedural.roofs import build_roof_meshes, generate_roof_prop_pieces
 from src.procedural.street_furniture import LAMP_ASSET_PATHS, STREET_LAMP_OFF_OVERRIDES
+from src.procedural.vehicle_colors import (
+    PAINT_COLORS_BY_NAME,
+    PAINT_SLOT_NAME,
+    paint_material_replacement,
+    paint_parameter,
+)
 
 
 def _mesh_to_json(mesh: Mesh) -> Dict[str, Any]:
@@ -81,7 +87,7 @@ def _vehicle_to_asset_json(vehicle: Vehicle) -> Dict[str, Any]:
     """
     x, y = vehicle.center
     folder = _vehicle_folder_name(vehicle.asset_path)
-    return {
+    entry: Dict[str, Any] = {
         "category": "vehicle",
         "asset_path": vehicle.asset_path,
         "part_paths": VEHICLE_PART_PATHS.get(folder, []),
@@ -89,6 +95,19 @@ def _vehicle_to_asset_json(vehicle: Vehicle) -> Dict[str, Any]:
         "rotation_rad": float(vehicle.heading_rad),
         "id": vehicle.vehicle_id,
     }
+    replacement = paint_material_replacement(vehicle.asset_path)
+    if vehicle.paint is not None and replacement is not None:
+        # The project-owned paint copy, set to the vehicle's colour on the
+        # body and every part that carries the paint slot.
+        linear = [
+            float(channel) for channel in paint_parameter(PAINT_COLORS_BY_NAME[vehicle.paint])
+        ]
+        color = linear + [1.0]
+        entry["material_replacements"] = replacement
+        entry["material_slot_vectors"] = {
+            PAINT_SLOT_NAME: {"BaseColor": color, "FlakeTintA": color, "FlakeTintB": color}
+        }
+    return entry
 
 
 def _pedestrian_to_asset_json(
