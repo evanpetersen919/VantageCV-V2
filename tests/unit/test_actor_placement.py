@@ -121,7 +121,7 @@ def test_vehicles_only_at_real_lane_positions(urban_config, bounds) -> None:
 
 
 def test_front_of_queue_vehicle_front_bumper_matches_real_stop_line(  # pylint: disable=too-many-locals
-    urban_config, bounds
+    urban_config, bounds, monkeypatch
 ) -> None:
     """On any lane whose destination axis does NOT have the right of way
     at the currently-resolved signal phase, the real vehicle closest to
@@ -130,6 +130,12 @@ def test_front_of_queue_vehicle_front_bumper_matches_real_stop_line(  # pylint: 
     front-of-queue candidate is never skipped by the occupancy roll --
     the only thing that could still exclude it (an AABB overlap) can't
     happen to the very first candidate placed on a lane."""
+    # Force a real queue (>= 1 vehicle) so the front-of-queue vehicle always
+    # exists; the queue-count models themselves are tested in test_vehicle_spacing.py.
+    monkeypatch.setattr("src.procedural.actor_placement.sample_signal_queue_length", lambda *_: 3)
+    monkeypatch.setattr(
+        "src.procedural.actor_placement.sample_stop_sign_queue_length", lambda *_: 3
+    )
     full_density_config = urban_config.model_copy(update={"traffic_density": (1.0, 1.0)})
     edges, traffic = _generate_full_network(42, full_density_config, bounds)
     driving_zones = [z for z in traffic.spawn_zones if z.zone_type == SpawnZoneType.DRIVING]
