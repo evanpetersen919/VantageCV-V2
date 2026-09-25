@@ -59,15 +59,17 @@ def test_lit_fractions_are_deterministic_and_differ_by_seed_and_building() -> No
     assert len(set(first)) > 1
 
 
-def test_glass_scalars_leave_the_lit_fraction_of_rooms_on() -> None:
-    """AmountOff is the dark fraction, so it is one minus the lit fraction,
-    and no room is forced off."""
-    assert glass_scalar_overrides(0.25) == {"LightsOff": 0.0, "AmountOff": 0.75}
+def test_glass_scalar_inverts_the_measured_lit_share_law() -> None:
+    """LightsOff is chosen so (1 - LightsOff) ** 2, the measured lit share,
+    equals the requested fraction; all lit needs 0 and none lit needs 1."""
+    assert glass_scalar_overrides(0.25) == {"LightsOff": 0.5}
+    assert glass_scalar_overrides(1.0) == {"LightsOff": 0.0}
+    assert glass_scalar_overrides(0.0) == {"LightsOff": 1.0}
 
 
 def test_night_payload_swaps_building_glass_and_day_payload_does_not(urban_config, bounds) -> None:
     """Only a night scenario carries glass replacements (on building-kit
-    meshes), each with its building's dark fraction; a day payload has none."""
+    meshes), each with its building's LightsOff value; a day payload has none."""
     day = generate_scenario(42, urban_config, bounds, "day")
     night = generate_scenario(42, urban_config, bounds, "night", time_of_day=TimeOfDay.NIGHT)
     assert not day.building_lit_fractions
@@ -77,5 +79,4 @@ def test_night_payload_swaps_building_glass_and_day_payload_does_not(urban_confi
     assert swapped
     for asset in swapped:
         assert "/Kit_Bldg_" in asset["asset_path"]
-        assert asset["material_scalar_overrides"]["LightsOff"] == 0.0
-        assert 0.0 <= asset["material_scalar_overrides"]["AmountOff"] <= 1.0
+        assert 0.0 <= asset["material_scalar_overrides"]["LightsOff"] <= 1.0
