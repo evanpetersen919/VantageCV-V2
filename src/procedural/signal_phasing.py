@@ -177,10 +177,25 @@ def compute_minor_axis_by_node(
     T-shape is exactly 3 physical two-way connections: 2 collinear
     (through, contributing 4 directed edges) and 1 perpendicular (stub,
     contributing 2) -- so the axis with the smaller of two unequal counts
-    is the stub. A node with edges on only one axis (dead end) or equal
-    counts on both (a genuine 4-way) has no minor axis at all and is
-    absent from the result -- callers must treat a missing node_id like
-    ``active_phases`` treats one: no rule applies there."""
+    is the stub, and only that axis has to stop.
+
+    Equal counts on both axes means there's no through road at all --
+    either a real STREET CORNER (two separate roads meeting at a right
+    angle, each contributing one real connection: 2/2) or a genuine
+    4-way (each direction contributing one: 4/4, moot in practice, since
+    a real 4-way is always ``TRAFFIC_LIGHT``-controlled and never
+    reaches this fallback -- see ``_axis_is_flowing``). With no through
+    road to prioritize, BOTH axes are the "minor" one -- a real corner
+    or comparable-volume crossing needs a full stop on every approach,
+    the same real MUTCD-consistent standard this module's docstring
+    already describes for a 2-way stop, just applied symmetrically. The
+    result carries the union of both axes for such a node.
+
+    A node with edges on only one axis at all (a true dead end, or a
+    straight pass-through where both connections are collinear) has no
+    minor axis and is absent from the result -- callers must treat a
+    missing node_id like ``active_phases`` treats one: no rule applies
+    there."""
     axis_counts: Dict[int, Dict[FrozenSet[ApproachDirection], int]] = {}
     for edge in edges.values():
         dx, dy = edge.centerline[-1] - edge.centerline[0]
@@ -195,6 +210,7 @@ def compute_minor_axis_by_node(
             continue
         (axis_a, count_a), (axis_b, count_b) = counts.items()
         if count_a == count_b:
+            minor_axis[node_id] = axis_a | axis_b
             continue
         minor_axis[node_id] = axis_a if count_a < count_b else axis_b
     return minor_axis

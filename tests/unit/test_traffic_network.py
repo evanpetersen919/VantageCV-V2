@@ -50,8 +50,19 @@ def _generate_full_network(seed: int, config, bounds):
 
 def test_traffic_control_matches_node_type(urban_config, bounds) -> None:
     """Traffic rule validity: FOUR_WAY nodes get a traffic light,
-    T_JUNCTION nodes get a stop sign, everything else gets no control."""
-    nodes, _, _, traffic = _generate_full_network(42, urban_config, bounds)
+    T_JUNCTION nodes get a stop sign, and an ``ISOLATED``-classified node
+    (see ``road_network.py``'s own docstring: this covers BOTH true dead
+    ends/pass-throughs AND real street corners) gets a stop sign too when
+    it has edges on both real cardinal axes -- a corner, not a true dead
+    end -- and no control only when it truly has just one axis."""
+    nodes, edges, _, traffic = _generate_full_network(42, urban_config, bounds)
+
+    axis_count_by_node: Dict[int, set] = {}
+    for edge in edges.values():
+        dx, dy = edge.centerline[-1] - edge.centerline[0]
+        is_east_west = abs(dx) >= abs(dy)
+        for node_id in (edge.start_node_id, edge.end_node_id):
+            axis_count_by_node.setdefault(node_id, set()).add(is_east_west)
 
     for node_id, node in nodes.items():
         control = traffic.traffic_controls[node_id]
@@ -59,7 +70,10 @@ def test_traffic_control_matches_node_type(urban_config, bounds) -> None:
             assert control == TrafficControlType.TRAFFIC_LIGHT
             assert node.traffic_light is True
             assert node.stop_sign is False
-        elif node.node_type == IntersectionType.T_JUNCTION:
+        elif (
+            node.node_type == IntersectionType.T_JUNCTION
+            or len(axis_count_by_node.get(node_id, set())) == 2
+        ):
             assert control == TrafficControlType.STOP_SIGN
             assert node.stop_sign is True
             assert node.traffic_light is False
