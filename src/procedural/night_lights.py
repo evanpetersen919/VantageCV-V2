@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from src.procedural.actor_placement import Vehicle
+from src.procedural.vehicle_lamp_geometry import VEHICLE_LAMP_GEOMETRY, LampGeometry
 
 HEADLIGHT_HEIGHT_M = 0.7  # inside FMVSS 108's 0.56-1.37 m range
 TAILLIGHT_HEIGHT_M = 0.9  # inside FMVSS 108's 0.38-1.83 m range
@@ -39,16 +40,16 @@ TAILLIGHT_LATERAL_FRACTION_OF_WIDTH = 0.38
 HEADLIGHT_COLOR = (1.0, 0.95, 0.82)
 TAILLIGHT_COLOR = (1.0, 0.04, 0.02)
 
-HEADLIGHT_INTENSITY_CD = 12000.0
+HEADLIGHT_INTENSITY_CD = 7000.0
 HEADLIGHT_ATTENUATION_M = 40.0
 HEADLIGHT_INNER_CONE_DEG = 1.0
-HEADLIGHT_OUTER_CONE_DEG = 9.0
+HEADLIGHT_OUTER_CONE_DEG = 8.0
 # Real US low-beam cutoff is about 1 degree below level (FMVSS 108); a
 # little more than that so the beam reads on the road at this scale. The
 # cone is deliberately narrow: a wide cone's lower edge lands on the road
 # a couple of metres ahead and reads as two bright discs at the bumper
 # (found live), not a beam streaking down the road.
-HEADLIGHT_DIP = -0.025
+HEADLIGHT_DIP = -0.018
 
 RUNNING_TAILLIGHT_INTENSITY_CD = 12.0
 RUNNING_TAILLIGHT_ATTENUATION_M = 3.0
@@ -56,15 +57,14 @@ BRAKE_LIGHT_INTENSITY_CD = 50.0
 BRAKE_LIGHT_ATTENUATION_M = 4.0
 
 # Visible glowing lenses (see ``SceneGlow``): a light actor casts light but
-# is itself invisible, so each lamp also gets a small unlit, additive
-# emissive sphere right on the body surface that blooms. Sizes and
+# is itself invisible, so each measured lamp also gets an unlit, additive
+# emissive ellipsoid the size of the real lens mesh that blooms. Sizes and
 # intensities tuned by eye.
-GLOW_SURFACE_OUTSET_M = 0.03
-HEADLIGHT_GLOW_RADIUS_M = 0.10
-TAILLIGHT_GLOW_RADIUS_M = 0.07
-HEADLIGHT_GLOW_INTENSITY = 40.0
-RUNNING_TAILLIGHT_GLOW_INTENSITY = 6.0
-BRAKE_LIGHT_GLOW_INTENSITY = 30.0
+HEADLIGHT_GLOW_INTENSITY = 14.0
+RUNNING_TAILLIGHT_GLOW_INTENSITY = 3.0
+BRAKE_LIGHT_GLOW_INTENSITY = 12.0
+# A measured lens's own front/rear face is where its light sits, plus a hair.
+LIGHT_OUTSET_BEYOND_LENS_M = 0.10
 
 
 @dataclass(frozen=True)
@@ -100,12 +100,13 @@ class SceneLight:  # pylint: disable=too-many-instance-attributes
 
 @dataclass(frozen=True)
 class SceneGlow:
-    """One visible glowing lens: a small emissive sphere, in the
-    scenario's own right-handed meters frame."""
+    """One visible glowing lens: an emissive ellipsoid the size of the
+    real lens mesh, in the scenario's own right-handed meters frame."""
 
     position: Tuple[float, float, float]
     color: Tuple[float, float, float]
-    radius_m: float
+    semi_axes_m: Tuple[float, float, float]  # (forward, lateral, vertical)
+    rotation_rad: float  # the vehicle's heading
     intensity: float
 
     def to_json(self) -> Dict[str, Any]:
@@ -113,84 +114,133 @@ class SceneGlow:
         return {
             "position": list(self.position),
             "color": list(self.color),
-            "radius_m": self.radius_m,
+            "semi_axes_m": list(self.semi_axes_m),
+            "rotation_rad": self.rotation_rad,
             "intensity": self.intensity,
         }
 
 
-def vehicle_glows(vehicle: Vehicle) -> List[SceneGlow]:
-    """Two glowing headlight lenses and two glowing tail/brake lenses for
-    one vehicle, on the body surface at the same spots as its lights."""
+def _vehicle_folder(vehicle: Vehicle) -> str:
+    """The City Sample vehicle folder (e.g. ``vehCar_vehicle02``) that
+    ``VEHICLE_LAMP_GEOMETRY`` is keyed by."""
+    return vehicle.asset_path.split("/")[3]
+
+
+def _lamp_world_positions(
+    vehicle: Vehicle, forward_m: float, lateral_m: float, height_m: float
+) -> List[Tuple[float, float, float]]:
+    """A symmetric lamp pair's two world positions: ``forward_m`` along
+    the heading and ``+-lateral_m`` off the centreline, from the mesh
+    origin (which is exactly ``Vehicle.center``)."""
     forward = np.array([np.cos(vehicle.heading_rad), np.sin(vehicle.heading_rad)])
     left = np.array([-forward[1], forward[0]])
     center = np.asarray(vehicle.center, dtype=np.float64)
-    front = center + forward * (vehicle.length / 2.0 + GLOW_SURFACE_OUTSET_M)
-    rear = center - forward * (vehicle.length / 2.0 + GLOW_SURFACE_OUTSET_M)
+    positions = []
+    for side in (-1.0, 1.0):
+        point = center + forward * forward_m + left * side * lateral_m
+        positions.append((float(point[0]), float(point[1]), height_m))
+    return positions
+
+
+def _glows_for(
+    vehicle: Vehicle, lamp: LampGeometry, color: Tuple[float, float, float], intensity: float
+) -> List[SceneGlow]:
+    return [
+        SceneGlow(position, color, lamp.half_extents_m, float(vehicle.heading_rad), intensity)
+        for position in _lamp_world_positions(
+            vehicle, lamp.forward_m, lamp.lateral_m, lamp.height_m
+        )
+    ]
+
+
+def vehicle_glows(vehicle: Vehicle) -> List[SceneGlow]:
+    """Glowing headlight and tail/brake lenses at the vehicle model's own
+    measured lamp positions, sized like the real lens meshes. A model with
+    no measured lamps (see ``vehicle_lamp_geometry.py``) gets none: a glow
+    at a guessed spot floats off the body (found live), while an
+    unmeasured model's lights still work without one."""
+    geometry = VEHICLE_LAMP_GEOMETRY.get(_vehicle_folder(vehicle))
+    if geometry is None:
+        return []
     tail_intensity = (
         BRAKE_LIGHT_GLOW_INTENSITY if vehicle.braking else RUNNING_TAILLIGHT_GLOW_INTENSITY
     )
-    glows: List[SceneGlow] = []
-    for side in (-1.0, 1.0):
-        head = front + left * (side * vehicle.width * HEADLIGHT_LATERAL_FRACTION_OF_WIDTH)
-        glows.append(
-            SceneGlow(
-                (float(head[0]), float(head[1]), HEADLIGHT_HEIGHT_M),
-                HEADLIGHT_COLOR,
-                HEADLIGHT_GLOW_RADIUS_M,
-                HEADLIGHT_GLOW_INTENSITY,
-            )
-        )
-        tail = rear + left * (side * vehicle.width * TAILLIGHT_LATERAL_FRACTION_OF_WIDTH)
-        glows.append(
-            SceneGlow(
-                (float(tail[0]), float(tail[1]), TAILLIGHT_HEIGHT_M),
-                TAILLIGHT_COLOR,
-                TAILLIGHT_GLOW_RADIUS_M,
-                tail_intensity,
-            )
-        )
-    return glows
+    return _glows_for(vehicle, geometry.headlight, HEADLIGHT_COLOR, HEADLIGHT_GLOW_INTENSITY) + (
+        _glows_for(vehicle, geometry.taillight, TAILLIGHT_COLOR, tail_intensity)
+    )
+
+
+def _generic_lamp_positions(
+    vehicle: Vehicle,
+) -> Tuple[List[Tuple[float, float, float]], List[Tuple[float, float, float]]]:
+    """Headlight and tail-light positions for a model with no measured
+    lamps: the generic vehicle-type length/width, just outside the body."""
+    half = vehicle.length / 2.0
+    heads = _lamp_world_positions(
+        vehicle,
+        half + LAMP_OUTSET_BEYOND_BODY_M,
+        vehicle.width * HEADLIGHT_LATERAL_FRACTION_OF_WIDTH,
+        HEADLIGHT_HEIGHT_M,
+    )
+    tails = _lamp_world_positions(
+        vehicle,
+        -(half + LAMP_OUTSET_BEYOND_BODY_M),
+        vehicle.width * TAILLIGHT_LATERAL_FRACTION_OF_WIDTH,
+        TAILLIGHT_HEIGHT_M,
+    )
+    return heads, tails
 
 
 def vehicle_lights(vehicle: Vehicle) -> List[SceneLight]:
     """Two headlight spots and two tail/brake point lights for one
-    vehicle: headlights on always at night, tail lights dim while
-    driving and bright while ``vehicle.braking`` (stopped in a queue)."""
-    forward = np.array([np.cos(vehicle.heading_rad), np.sin(vehicle.heading_rad)])
-    left = np.array([-forward[1], forward[0]])
-    center = np.asarray(vehicle.center, dtype=np.float64)
-    front = center + forward * (vehicle.length / 2.0 + LAMP_OUTSET_BEYOND_BODY_M)
-    rear = center - forward * (vehicle.length / 2.0 + LAMP_OUTSET_BEYOND_BODY_M)
+    vehicle: headlights on always at night, tail lights dim while driving
+    and bright while ``vehicle.braking`` (stopped in a queue). Placed just
+    in front of / behind the model's own measured lens when known, else at
+    the generic type-based spot."""
+    geometry = VEHICLE_LAMP_GEOMETRY.get(_vehicle_folder(vehicle))
+    if geometry is None:
+        heads, tails = _generic_lamp_positions(vehicle)
+    else:
+        head = geometry.headlight
+        tail = geometry.taillight
+        heads = _lamp_world_positions(
+            vehicle,
+            head.forward_m + head.half_extents_m[0] + LIGHT_OUTSET_BEYOND_LENS_M,
+            head.lateral_m,
+            head.height_m,
+        )
+        tails = _lamp_world_positions(
+            vehicle,
+            tail.forward_m - tail.half_extents_m[0] - LIGHT_OUTSET_BEYOND_LENS_M,
+            tail.lateral_m,
+            tail.height_m,
+        )
 
-    beam = (float(forward[0]), float(forward[1]), HEADLIGHT_DIP)
-    brake = vehicle.braking
-    lights: List[SceneLight] = []
-    for side in (-1.0, 1.0):
-        head = front + left * (side * vehicle.width * HEADLIGHT_LATERAL_FRACTION_OF_WIDTH)
-        lights.append(
-            SceneLight(
-                kind="spot",
-                position=(float(head[0]), float(head[1]), HEADLIGHT_HEIGHT_M),
-                color=HEADLIGHT_COLOR,
-                intensity_candela=HEADLIGHT_INTENSITY_CD,
-                attenuation_m=HEADLIGHT_ATTENUATION_M,
-                direction=beam,
-                inner_cone_deg=HEADLIGHT_INNER_CONE_DEG,
-                outer_cone_deg=HEADLIGHT_OUTER_CONE_DEG,
-            )
+    beam = (float(np.cos(vehicle.heading_rad)), float(np.sin(vehicle.heading_rad)), HEADLIGHT_DIP)
+    braking = vehicle.braking
+    lights: List[SceneLight] = [
+        SceneLight(
+            kind="spot",
+            position=head_position,
+            color=HEADLIGHT_COLOR,
+            intensity_candela=HEADLIGHT_INTENSITY_CD,
+            attenuation_m=HEADLIGHT_ATTENUATION_M,
+            direction=beam,
+            inner_cone_deg=HEADLIGHT_INNER_CONE_DEG,
+            outer_cone_deg=HEADLIGHT_OUTER_CONE_DEG,
         )
-        tail = rear + left * (side * vehicle.width * TAILLIGHT_LATERAL_FRACTION_OF_WIDTH)
-        lights.append(
-            SceneLight(
-                kind="point",
-                position=(float(tail[0]), float(tail[1]), TAILLIGHT_HEIGHT_M),
-                color=TAILLIGHT_COLOR,
-                intensity_candela=BRAKE_LIGHT_INTENSITY_CD
-                if brake
-                else RUNNING_TAILLIGHT_INTENSITY_CD,
-                attenuation_m=BRAKE_LIGHT_ATTENUATION_M
-                if brake
-                else RUNNING_TAILLIGHT_ATTENUATION_M,
-            )
+        for head_position in heads
+    ]
+    lights += [
+        SceneLight(
+            kind="point",
+            position=tail_position,
+            color=TAILLIGHT_COLOR,
+            intensity_candela=BRAKE_LIGHT_INTENSITY_CD
+            if braking
+            else RUNNING_TAILLIGHT_INTENSITY_CD,
+            attenuation_m=BRAKE_LIGHT_ATTENUATION_M if braking else RUNNING_TAILLIGHT_ATTENUATION_M,
         )
+        for tail_position in tails
+    ]
     return lights

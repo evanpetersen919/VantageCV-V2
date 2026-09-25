@@ -879,24 +879,41 @@ void AProceduralScenarioLoader::SpawnGlows(
 		const TSharedPtr<FJsonObject>* GlowObject = nullptr;
 		const TArray<TSharedPtr<FJsonValue>>* Position = nullptr;
 		const TArray<TSharedPtr<FJsonValue>>* Color = nullptr;
-		double RadiusMeters = 0.0;
 		double Intensity = 0.0;
 		if (!GlowValue->TryGetObject(GlowObject)
 			|| !(*GlowObject)->TryGetArrayField(TEXT("position"), Position) || Position->Num() != 3
 			|| !(*GlowObject)->TryGetArrayField(TEXT("color"), Color) || Color->Num() != 3
-			|| !(*GlowObject)->TryGetNumberField(TEXT("radius_m"), RadiusMeters)
 			|| !(*GlowObject)->TryGetNumberField(TEXT("intensity"), Intensity))
 		{
 			++OutSkipped;
 			continue;
 		}
 
+		// Optional shape: "semi_axes_m" [forward, lateral, vertical] of an
+		// ellipsoid in the mesh's own local axes (a real lens's half-extents),
+		// else a sphere of "radius_m" (default 5 cm); "rotation_rad" is a
+		// heading, with its sign negated for the Y mirror exactly like an
+		// asset's.
+		FVector SemiAxesMeters(0.05);
+		double RadiusMeters = 0.0;
+		const TArray<TSharedPtr<FJsonValue>>* SemiAxes = nullptr;
+		if ((*GlowObject)->TryGetArrayField(TEXT("semi_axes_m"), SemiAxes) && SemiAxes->Num() == 3)
+		{
+			SemiAxesMeters = FVector((*SemiAxes)[0]->AsNumber(), (*SemiAxes)[1]->AsNumber(), (*SemiAxes)[2]->AsNumber());
+		}
+		else if ((*GlowObject)->TryGetNumberField(TEXT("radius_m"), RadiusMeters))
+		{
+			SemiAxesMeters = FVector(RadiusMeters);
+		}
+		double RotationRad = 0.0;
+		(*GlowObject)->TryGetNumberField(TEXT("rotation_rad"), RotationRad);
+
 		FActorSpawnParameters SpawnParameters;
 		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		AStaticMeshActor* GlowActor = World->SpawnActor<AStaticMeshActor>(
 			ApplyCoordinateConvention(
 				(*Position)[0]->AsNumber(), (*Position)[1]->AsNumber(), (*Position)[2]->AsNumber()),
-			FRotator::ZeroRotator,
+			FRotator(0.0, -FMath::RadiansToDegrees(RotationRad), 0.0),
 			SpawnParameters);
 		if (GlowActor == nullptr)
 		{
@@ -908,7 +925,7 @@ void AProceduralScenarioLoader::SpawnGlows(
 		Component->SetMobility(EComponentMobility::Movable);
 		Component->SetStaticMesh(SphereMesh);
 		// The engine sphere is 100 cm across: scale = diameter in cm / 100.
-		GlowActor->SetActorScale3D(FVector(static_cast<float>(RadiusMeters) * 2.0f));
+		GlowActor->SetActorScale3D(SemiAxesMeters * 2.0);
 		Component->SetCastShadow(false);
 		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
