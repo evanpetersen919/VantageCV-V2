@@ -115,6 +115,40 @@ _SEASON_ENVIRONMENTS: Dict[Season, EnvironmentConfig] = {
     ),
 }
 
+
+class TimeOfDay(str, Enum):
+    """Whether the scenario is lit by day or at night. Independent of
+    season: night is a moonlit preset (see ``_NIGHT_ENVIRONMENT``) that
+    replaces the season's daytime sun, and also switches on vehicle
+    lights (see ``city_sample_assets.VEHICLE_NIGHT_LIGHT_OVERRIDES``)."""
+
+    DAY = "day"
+    NIGHT = "night"
+
+
+# Night preset, tuned by eye against this project's own scene like the
+# season presets above (not measured). Sun BELOW the horizon left nothing
+# lighting the scene at all (only emissives showed, a black void), so
+# night keeps a low light source ABOVE the horizon as a cool "moon",
+# with exposure pulled far down, a cool tint, and almost no fog.
+_NIGHT_ENVIRONMENT = EnvironmentConfig(
+    sun_pitch_deg=-22.0,
+    sun_temperature_k=10000.0,
+    exposure_bias=-3.0,
+    saturation=0.7,
+    color_gain=(0.6, 0.8, 1.3),
+    fog_density=0.001,
+)
+
+
+def scenario_environment(season: Season, time_of_day: TimeOfDay) -> EnvironmentConfig:
+    """The environment for a scenario: the night preset at night
+    (season-independent), otherwise the season's daytime preset."""
+    if time_of_day == TimeOfDay.NIGHT:
+        return _NIGHT_ENVIRONMENT
+    return season_environment(season)
+
+
 # Epic's tree kits are bare branch skeletons (no leaves, see
 # KNOWN_GAPS_AND_ISSUES.md), so trees only suit the leafless seasons; spring
 # and summer streets have none rather than dead-looking ones.

@@ -10,7 +10,9 @@ from src.procedural.environment import (
     DEFAULT_ENVIRONMENT,
     EnvironmentConfig,
     Season,
+    TimeOfDay,
     build_ground_mesh,
+    scenario_environment,
     season_environment,
     season_has_trees,
 )
@@ -119,3 +121,19 @@ def test_scenario_season_drives_trees_and_is_seeded(urban_config, bounds) -> Non
     assert {generate_scenario(s, urban_config, bounds, "x").season for s in range(12)} == set(
         Season
     )
+
+
+def test_day_uses_the_seasons_own_environment() -> None:
+    """By day the scenario environment is exactly the season preset."""
+    for season in Season:
+        assert scenario_environment(season, TimeOfDay.DAY) == season_environment(season)
+
+
+def test_night_environment_is_season_independent_and_moonlit() -> None:
+    """Night is one preset regardless of season, keeps a light source
+    ABOVE the horizon (a sun below it left the scene unlit, all black --
+    found live), and is much darker than any daytime preset."""
+    night = scenario_environment(Season.SUMMER, TimeOfDay.NIGHT)
+    assert all(scenario_environment(season, TimeOfDay.NIGHT) == night for season in Season)
+    assert night.sun_pitch_deg < 0.0  # light stays above the horizon
+    assert all(night.exposure_bias < season_environment(season).exposure_bias for season in Season)

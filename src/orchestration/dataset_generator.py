@@ -29,7 +29,7 @@ from src.procedural.building_facade import FacadePiece, generate_building_facade
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
 from src.procedural.city_sample_assets import BUILDING_STYLES
 from src.procedural.crosswalks import generate_crosswalk_pieces
-from src.procedural.environment import Season, season_has_trees
+from src.procedural.environment import Season, TimeOfDay, season_has_trees
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
@@ -77,6 +77,7 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     traffic_light_pieces: List[FacadePiece]
     season: Season
     validation_report: ValidationReport
+    time_of_day: TimeOfDay = TimeOfDay.DAY
 
 
 @dataclass
@@ -97,18 +98,24 @@ def _draw_season(style_rng: np.random.Generator) -> Season:
     return seasons[int(style_rng.integers(len(seasons)))]
 
 
-def generate_scenario(  # pylint: disable=too-many-locals
+def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     seed: int,
     config: ScenarioTypeConfig,
     bounds: Bounds,
     scenario_id: str,
     season: Optional[Season] = None,
+    time_of_day: TimeOfDay = TimeOfDay.DAY,
 ) -> ScenarioResult:
     """Run the full Phase 1-4 procedural pipeline for one scenario:
     road network -> lanes -> buildings -> traffic -> meshes -> validation.
 
     ``season`` fixes the scenario's season (environment preset and whether
     street trees appear); ``None`` picks one from the seed.
+
+    ``time_of_day`` is an explicit choice, never drawn from the seed (so
+    every existing seed's daytime scenario is unchanged): at night the
+    serializer switches on vehicle lights and the caller uses
+    ``scenario_environment`` for the moonlit lighting.
 
     Raises
     ------
@@ -217,6 +224,7 @@ def generate_scenario(  # pylint: disable=too-many-locals
         traffic_light_pieces=traffic_light_pieces,
         season=chosen_season,
         validation_report=validation_report,
+        time_of_day=time_of_day,
     )
 
 
