@@ -76,8 +76,8 @@ def _vehicle_to_asset_json(vehicle: Vehicle) -> Dict[str, Any]:
     not an error -- see that module's own docstring.
 
     ``vehicle.center`` is a 2D (x, y) ground-plane point (see
-    ``ActorPlacementGenerator``); z is always 0.0 here since every
-    vehicle is placed on the flat road surface.
+    ``ActorPlacementGenerator``); z is ``vehicle.surface_z``: 0.0 on the
+    flat road surface, a little above it for a car parked in a lot.
     """
     x, y = vehicle.center
     folder = _vehicle_folder_name(vehicle.asset_path)
@@ -85,7 +85,7 @@ def _vehicle_to_asset_json(vehicle: Vehicle) -> Dict[str, Any]:
         "category": "vehicle",
         "asset_path": vehicle.asset_path,
         "part_paths": VEHICLE_PART_PATHS.get(folder, []),
-        "position": [float(x), float(y), 0.0],
+        "position": [float(x), float(y), float(vehicle.surface_z)],
         "rotation_rad": float(vehicle.heading_rad),
         "id": vehicle.vehicle_id,
     }
