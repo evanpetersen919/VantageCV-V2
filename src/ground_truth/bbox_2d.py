@@ -33,6 +33,11 @@ class BoundingBox2D:
         for occlusion by other objects (no z-buffer/renderer exists in
         this codebase; see KNOWN_GAPS_AND_ISSUES.md) -- only for the box
         being partly or wholly outside the camera's view.
+    visible_fraction : float
+        Fraction (0.0-1.0) of the object that has a clear line of sight to
+        the camera, accounting for occlusion by other objects (see
+        ``src.ground_truth.occlusion``). 1.0 until that module has measured
+        it.
     """
 
     object_id: int
@@ -41,6 +46,7 @@ class BoundingBox2D:
     x_max: float
     y_max: float
     visibility: float
+    visible_fraction: float = 1.0
 
     def __post_init__(self) -> None:
         if self.x_min >= self.x_max:
@@ -49,6 +55,8 @@ class BoundingBox2D:
             raise ValueError(f"y_min ({self.y_min}) must be < y_max ({self.y_max})")
         if not 0.0 <= self.visibility <= 1.0:
             raise ValueError(f"visibility must be in [0, 1], got {self.visibility}")
+        if not 0.0 <= self.visible_fraction <= 1.0:
+            raise ValueError(f"visible_fraction must be in [0, 1], got {self.visible_fraction}")
 
     @property
     def area(self) -> float:

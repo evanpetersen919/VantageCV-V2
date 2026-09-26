@@ -35,6 +35,7 @@ from src.ground_truth.bbox_3d import (
     extract_bboxes_3d_vehicles,
 )
 from src.ground_truth.categories import BUS, PEDESTRIAN, SEDAN, SUV, TRUCK
+from src.ground_truth.occlusion import MIN_VISIBLE_FRACTION, visible_fraction
 from src.orchestration.dataset_generator import ScenarioResult, generate_scenario
 from src.orchestration.scenario_serializer import serialize_scenario
 from src.procedural.actor_placement import Vehicle
@@ -52,9 +53,6 @@ CAMERA_DISTANCE_M = 15.0
 CAMERA_HEIGHT_M = 4.5
 VIEW_ANGLE_RAD = np.radians(55.0)
 NEIGHBOUR_RADIUS_M = 25.0
-SAMPLE_INSET = 0.9
-OCCLUDER_SHRINK = 0.95
-HIDDEN_BELOW = 0.1
 PARTLY_BELOW = 0.5
 COLOURS: Dict[int, Tuple[int, int, int]] = {
     SEDAN: (255, 40, 40),
@@ -168,49 +166,6 @@ def _all_boxes(scenario: ScenarioResult) -> Tuple[List[BoundingBox3D], List[Boun
     return labelled, labelled + extract_bboxes_3d(scenario.buildings)
 
 
-def _sample_points(box: BoundingBox3D) -> NDArray[np.float64]:
-    """27 points on a 3x3x3 grid just inside the box."""
-    steps = np.array([-SAMPLE_INSET, 0.0, SAMPLE_INSET])
-    grid = np.array(np.meshgrid(steps, steps, steps)).reshape(3, -1).T * (box.dimensions / 2.0)
-    cos_h, sin_h = np.cos(box.heading_rad), np.sin(box.heading_rad)
-    rotation = np.array([[cos_h, -sin_h], [sin_h, cos_h]])
-    world = np.column_stack([grid[:, :2] @ rotation.T, grid[:, 2]])
-    return np.asarray(world + box.center)
-
-
-def _blocked_by(
-    origin: NDArray[np.float64], points: NDArray[np.float64], box: BoundingBox3D
-) -> NDArray[np.bool_]:
-    """Which origin-to-point segments pass through ``box`` (slab test in its frame)."""
-    cos_h, sin_h = np.cos(box.heading_rad), np.sin(box.heading_rad)
-    rotation = np.array([[cos_h, -sin_h], [sin_h, cos_h]])
-
-    def local(world: NDArray[np.float64]) -> NDArray[np.float64]:
-        offset = world - box.center
-        return np.column_stack([offset[..., :2] @ rotation, offset[..., 2]])
-
-    start = local(origin[None, :])[0]
-    delta = local(points) - start
-    half = box.dimensions / 2.0 * OCCLUDER_SHRINK
-    delta = np.where(np.abs(delta) < 1e-9, 1e-9, delta)
-    first, second = (-half - start) / delta, (half - start) / delta
-    enter = np.minimum(first, second).max(axis=1)
-    leave = np.maximum(first, second).min(axis=1)
-    return np.asarray((enter <= leave) & (leave > 0.0) & (enter < 1.0))
-
-
-def _visible_fraction(
-    origin: NDArray[np.float64], box: BoundingBox3D, occluders: List[BoundingBox3D]
-) -> float:
-    """Share of the box's sample points with a clear line to the camera."""
-    points = _sample_points(box)
-    blocked = np.zeros(len(points), dtype=bool)
-    for other in occluders:
-        if other.object_id != box.object_id:
-            blocked |= _blocked_by(origin, points, other)
-    return float(1.0 - blocked.mean())
-
-
 def _in_frame(camera: Camera, box: BoundingBox3D) -> bool:
     """Whether any corner projects into the image."""
     for corner in box.corners():
@@ -253,13 +208,12 @@ async def _run(args: argparse.Namespace) -> None:
         path = args.out / f"{name}.png"
         await _photograph(backend, position, np.array([*target.box_center, 0.8]), path)
         target_box_id = target.vehicle_id + len(scenario.buildings)
-        _annotate(path, camera, position, (labelled, occluders), target_box_id)
+        _annotate(path, camera, (labelled, occluders), target_box_id)
 
 
 def _annotate(
     path: Path,
     camera: Camera,
-    position: NDArray[np.float64],
     boxes: Tuple[List[BoundingBox3D], List[BoundingBox3D]],
     target_box_id: int,
 ) -> None:
@@ -271,8 +225,8 @@ def _annotate(
     for box in labelled:
         if not _in_frame(camera, box):
             continue
-        fraction = _visible_fraction(position, box, occluders)
-        if fraction < HIDDEN_BELOW:
+        fraction = visible_fraction(camera, box, occluders)
+        if fraction < MIN_VISIBLE_FRACTION:
             counts["hidden (skipped)"] += 1
             continue
         partly = fraction < PARTLY_BELOW

@@ -24,6 +24,7 @@ from src.ground_truth.bbox_3d import (
     extract_bboxes_3d_pedestrians,
     extract_bboxes_3d_vehicles,
 )
+from src.ground_truth.occlusion import filter_occluded
 from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
 from src.procedural.building_colors import draw_building_palettes
 from src.procedural.building_facade import FacadePiece, generate_building_facade_pieces
@@ -329,8 +330,8 @@ def render_frame(
         + extract_bboxes_3d_vehicles(scenario.vehicles, id_offset=vehicle_id_offset)
         + extract_bboxes_3d_pedestrians(scenario.pedestrians, id_offset=pedestrian_id_offset)
     )
-    bboxes_2d = project_bboxes_3d_to_2d(camera, bboxes_3d)
     bboxes_3d_by_id = {bbox.object_id: bbox for bbox in bboxes_3d}
+    bboxes_2d = filter_occluded(camera, project_bboxes_3d_to_2d(camera, bboxes_3d), bboxes_3d_by_id)
 
     return CocoFrame(
         image_id=image_id,

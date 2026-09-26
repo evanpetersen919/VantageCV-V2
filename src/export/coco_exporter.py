@@ -63,6 +63,7 @@ def _bbox_2d_to_coco_annotation(
         "area": bbox_2d.area,
         "iscrowd": 0,
         "segmentation": segmentation,
+        "visibility_fraction": round(bbox_2d.visible_fraction, 3),
     }
 
 
