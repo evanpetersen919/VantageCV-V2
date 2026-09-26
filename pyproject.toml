@@ -70,6 +70,11 @@ ignore_missing_imports = true
 module = "yaml.*"
 ignore_missing_imports = true
 
+# pycocotools ships no py.typed marker / stubs (the evaluation harness scores with it).
+[[tool.mypy.overrides]]
+module = "pycocotools.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"
