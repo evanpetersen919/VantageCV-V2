@@ -128,7 +128,17 @@ def extract_bbox_3d_vehicle(vehicle: Vehicle, id_offset: int = 0) -> BoundingBox
     into a single scenario's object_id space -- see
     ``dataset_generator.render_frame``, the only real caller.
     """
-    center = np.array([vehicle.center[0], vehicle.center[1], vehicle.height / 2.0])
+    # The box is the vehicle's real extent: centered on its box center (not the
+    # mesh's placement point) and standing on the surface it is parked or driving
+    # on, from its underside (``box_z_min``) up by its height.
+    box_center = vehicle.box_center
+    center = np.array(
+        [
+            box_center[0],
+            box_center[1],
+            vehicle.surface_z + vehicle.box_z_min + vehicle.height / 2.0,
+        ]
+    )
     dimensions = np.array([vehicle.length, vehicle.width, vehicle.height])
     category_id = VEHICLE_TYPE_TO_CATEGORY[vehicle.vehicle_type]
 

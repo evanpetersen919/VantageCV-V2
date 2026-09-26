@@ -69,6 +69,7 @@ from src.procedural.traffic_network import (
     TrafficControlType,
     TrafficNetwork,
 )
+from src.procedural.vehicle_bounds import VEHICLE_MODEL_BOUNDS
 from src.procedural.vehicle_spacing import (
     moving_regime,
     queued_regime,
@@ -88,6 +89,8 @@ PEDESTRIAN_ROAD_SURFACE_Z_METERS = 0.0
 # (length, width, height) in meters, approximate real-world dimensions.
 # Keys must match ScenarioTypeConfig.vehicle_mix's own keys exactly (see
 # scenario.py and every scenario_templates/*.yaml's vehicle_mix block).
+# Fallback sizes per type, used only for a model with no measured box in
+# ``vehicle_bounds.VEHICLE_MODEL_BOUNDS`` (never the case for the 14 real models).
 VEHICLE_DIMENSIONS: Dict[str, Tuple[float, float, float]] = {
     "sedan": (4.6, 1.8, 1.5),
     "suv": (4.8, 1.9, 1.7),
@@ -186,6 +189,24 @@ class Vehicle:  # pylint: disable=too-many-instance-attributes
     surface_z: float = 0.0
     # Body colour name (see vehicle_colors.py); None keeps the model's own look.
     paint: Optional[str] = None
+    # Where the box's center sits relative to ``center`` (the mesh's placement
+    # point), in the vehicle's own frame (+x forward, +y left), and the height of
+    # the box's underside above the surface. Zero for a generic box.
+    box_offset: Tuple[float, float] = (0.0, 0.0)
+    box_z_min: float = 0.0
+
+    @property
+    def box_center(self) -> npt.NDArray[np.float64]:
+        """The ground-plane center of the vehicle's box: its placement point
+        plus ``box_offset`` turned to the heading."""
+        cos_h, sin_h = np.cos(self.heading_rad), np.sin(self.heading_rad)
+        offset_x, offset_y = self.box_offset
+        return np.array(
+            [
+                self.center[0] + offset_x * cos_h - offset_y * sin_h,
+                self.center[1] + offset_x * sin_h + offset_y * cos_h,
+            ]
+        )
 
     @property
     def aabb(self) -> Tuple[float, float, float, float]:
@@ -195,7 +216,7 @@ class Vehicle:  # pylint: disable=too-many-instance-attributes
         cos_h, sin_h = abs(np.cos(self.heading_rad)), abs(np.sin(self.heading_rad))
         half_extent_x = (self.length * cos_h + self.width * sin_h) / 2.0
         half_extent_y = (self.length * sin_h + self.width * cos_h) / 2.0
-        x, y = self.center
+        x, y = self.box_center
         return (x - half_extent_x, y - half_extent_y, x + half_extent_x, y + half_extent_y)
 
 
@@ -255,6 +276,20 @@ def _edge_heading(edge: RoadEdge) -> float:
     direction of travel."""
     direction = edge.centerline[-1] - edge.centerline[0]
     return float(np.arctan2(direction[1], direction[0]))
+
+
+def vehicle_box(
+    asset_path: str, vehicle_type: str
+) -> Tuple[float, float, float, float, float, float]:
+    """(length, width, height, center_x, center_y, z_min) of a vehicle's real
+    box: measured for the model when known, else the type's generic size."""
+    measured = VEHICLE_MODEL_BOUNDS.get(
+        asset_path.split("/")[3] if asset_path.count("/") > 3 else ""
+    )
+    if measured is not None:
+        return measured
+    length, width, height = VEHICLE_DIMENSIONS[vehicle_type]
+    return length, width, height, 0.0, 0.0, 0.0
 
 
 def _sample_vehicle_type(rng: np.random.Generator, vehicle_mix: Dict[str, float]) -> str:
@@ -539,7 +574,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             return sample_signal_queue_length(self.rng, occupancy, red_time_seconds(plan, axis))
         return sample_stop_sign_queue_length(self.rng, occupancy, zone_length_m)
 
-    def _make_vehicle_if_clear(  # pylint: disable=too-many-arguments
+    def _make_vehicle_if_clear(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         position: npt.NDArray[np.float64],
         heading: float,
@@ -555,10 +590,13 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         (its brake lights are on when the scenario is lit for night)."""
         vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
         asset_path = _sample_asset_path(self.rng, vehicle_type)
-        length, width, height = VEHICLE_DIMENSIONS[vehicle_type]
+        length, width, height, offset_x, offset_y, z_min = vehicle_box(asset_path, vehicle_type)
         if front_bumper_at_position:
+            # The stop line is where the FRONT bumper sits: half the box's length
+            # ahead of its center, which is itself ``offset_x`` ahead of the
+            # placement point.
             heading_vector = np.array([np.cos(heading), np.sin(heading)])
-            position = position - heading_vector * (length / 2.0)
+            position = position - heading_vector * (offset_x + length / 2.0)
 
         candidate = Vehicle(
             vehicle_id=self._vehicle_counter,
@@ -570,6 +608,8 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             width=width,
             height=height,
             braking=braking,
+            box_offset=(offset_x, offset_y),
+            box_z_min=z_min,
         )
         if any(_aabb_overlap(candidate.aabb, other) for other in placed_vehicle_aabbs):
             return None

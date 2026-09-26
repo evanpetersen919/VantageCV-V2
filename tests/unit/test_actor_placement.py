@@ -19,13 +19,13 @@ from src.procedural.actor_placement import (
     PEDESTRIAN_KEEP_RIGHT_BIAS_METERS,
     PEDESTRIAN_LATERAL_JITTER_METERS,
     PEDESTRIAN_ROAD_SURFACE_Z_METERS,
-    VEHICLE_DIMENSIONS,
     ActorPlacementGenerator,
     Pedestrian,
     Vehicle,
     _aabb_overlap,
     _edge_heading,
     _sample_vehicle_type,
+    vehicle_box,
 )
 from src.procedural.city_sample_assets import (
     PEDESTRIAN_BODY_ASSET_PATHS,
@@ -60,6 +60,7 @@ from src.procedural.traffic_network import (
     TrafficNetwork,
     TrafficNetworkGenerator,
 )
+from src.procedural.vehicle_bounds import VEHICLE_MODEL_BOUNDS
 
 # urban_config, bounds fixtures: see tests/conftest.py
 
@@ -166,8 +167,12 @@ def test_front_of_queue_vehicle_front_bumper_matches_real_stop_line(  # pylint: 
         heading_vector = np.array(
             [np.cos(front_vehicle.heading_rad), np.sin(front_vehicle.heading_rad)]
         )
-        front_bumper = front_vehicle.center + heading_vector * (front_vehicle.length / 2.0)
-        assert np.allclose(front_bumper, zone.stop_line_position, atol=1e-6)
+        front_bumper = front_vehicle.box_center + heading_vector * (front_vehicle.length / 2.0)
+        # Longitudinal alignment is the rule; a mesh whose box is a few millimetres
+        # off-centre sideways (the trailer's is 3 mm) sits that far off the lane axis.
+        along = (front_bumper - zone.stop_line_position) @ heading_vector
+        assert abs(along) < 1e-6
+        assert np.linalg.norm(front_bumper - zone.stop_line_position) < 0.01
     assert checked_any  # sanity: this config/seed has at least one real not-flowing queue
 
 
@@ -503,7 +508,8 @@ def test_pedestrian_pose_frame_avoids_immediate_repeat(urban_config, bounds) -> 
 
 
 def test_vehicle_types_are_from_vehicle_mix(urban_config, bounds) -> None:
-    """Every placed vehicle's type is one of config.vehicle_mix's keys."""
+    """Every placed vehicle's type is one of config.vehicle_mix's keys, and
+    its box is the real measured box of its own model."""
     edges, traffic = _generate_full_network(42, urban_config, bounds)
 
     vehicles, _ = ActorPlacementGenerator(42, urban_config).generate(edges, traffic)
@@ -511,9 +517,12 @@ def test_vehicle_types_are_from_vehicle_mix(urban_config, bounds) -> None:
     assert vehicles  # sanity: this config/seed actually places some
     for vehicle in vehicles:
         assert vehicle.vehicle_type in urban_config.vehicle_mix
-        assert (vehicle.length, vehicle.width, vehicle.height) == VEHICLE_DIMENSIONS[
-            vehicle.vehicle_type
-        ]
+        length, width, height, offset_x, offset_y, z_min = vehicle_box(
+            vehicle.asset_path, vehicle.vehicle_type
+        )
+        assert (vehicle.length, vehicle.width, vehicle.height) == (length, width, height)
+        assert vehicle.box_offset == (offset_x, offset_y) and vehicle.box_z_min == z_min
+        assert vehicle.length == VEHICLE_MODEL_BOUNDS[vehicle.asset_path.split("/")[3]][0]
 
 
 def test_vehicle_asset_path_matches_its_own_vehicle_type(urban_config, bounds) -> None:

@@ -7,7 +7,7 @@ import pytest
 
 from src.orchestration.dataset_generator import generate_scenario
 from src.orchestration.scenario_serializer import serialize_scenario
-from src.procedural.actor_placement import VEHICLE_DIMENSIONS, Vehicle
+from src.procedural.actor_placement import VEHICLE_DIMENSIONS, Vehicle, vehicle_box
 from src.procedural.crosswalks import (
     BAR_PITCH_M,
     STOP_LINE_ASSET_PATH,
@@ -52,7 +52,7 @@ def _config(urban_config, fraction: float):
 
 def _nearest_stall(stalls, car):
     """The stall whose center is closest to ``car``."""
-    return min(stalls, key=lambda s: np.hypot(*(np.array(s.center) - car.center)))
+    return min(stalls, key=lambda s: np.hypot(*(np.array(s.center) - car.box_center)))
 
 
 def test_stall_and_aisle_are_the_cited_us_dimensions() -> None:
@@ -153,7 +153,7 @@ def test_parked_cars_sit_inside_their_stalls_without_overlapping(  # pylint: dis
         nearest = _nearest_stall(stalls, car)
         along = np.array([np.cos(nearest.head_heading_rad), np.sin(nearest.head_heading_rad)])
         lateral = np.array([-along[1], along[0]])
-        offset = car.center - np.array(nearest.center)
+        offset = car.box_center - np.array(nearest.center)
         yaw = abs(((car.heading_rad - nearest.head_heading_rad + np.pi / 2) % np.pi) - np.pi / 2)
         half_along = (car.length * np.cos(yaw) + car.width * np.sin(yaw)) / 2
         half_lateral = (car.length * np.sin(yaw) + car.width * np.cos(yaw)) / 2
@@ -232,8 +232,9 @@ def test_parked_models_are_only_ordinary_cars_that_fit_a_stall() -> None:
     van, other trucks and bus are excluded."""
     assert {m.vehicle_type for m in PARKED_MODELS} == set(PARKED_VEHICLE_TYPES)
     for model in PARKED_MODELS:
-        assert model.length <= STALL_LENGTH_M + PICKUP_OVERHANG_M
-        assert model.width <= STALL_WIDTH_M - 0.5
+        length, width = vehicle_box(model.asset_path, model.vehicle_type)[:2]
+        assert length <= STALL_LENGTH_M + PICKUP_OVERHANG_M
+        assert width <= STALL_WIDTH_M - 0.5
     excluded = (
         "vehicle12",
         "vehicle13",
