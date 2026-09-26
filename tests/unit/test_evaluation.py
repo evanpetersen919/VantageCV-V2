@@ -81,6 +81,56 @@ def test_boxes_are_clipped_to_the_image_and_empty_ones_dropped(tmp_path: Path) -
     assert only["bbox"] == [1200, 600, 80, 120]
 
 
+def test_bdd100k_per_image_json_directory_layout(tmp_path: Path) -> None:
+    """The "Labels" download: one JSON per image (``frames[].objects``); image is ``<name>.jpg``."""
+    folder = tmp_path / "labels" / "val"
+    folder.mkdir(parents=True)
+    entry = {
+        "name": "abc-123",
+        "attributes": {"weather": "rainy", "scene": "highway", "timeofday": "night"},
+        "frames": [
+            {
+                "timestamp": 10000,
+                "objects": [
+                    {
+                        "category": "car",
+                        "id": 0,
+                        "box2d": {"x1": 10, "y1": 20, "x2": 110, "y2": 90},
+                    },
+                    {
+                        "category": "rider",
+                        "id": 1,
+                        "box2d": {"x1": 300, "y1": 20, "x2": 340, "y2": 110},
+                    },
+                    {"category": "drivable area", "id": 2, "poly2d": []},
+                ],
+            }
+        ],
+    }
+    (folder / "abc-123.json").write_text(json.dumps(entry), encoding="utf-8")
+    (folder / "def-456.json").write_text(
+        json.dumps({"name": "def-456", "frames": [{"objects": []}]}), encoding="utf-8"
+    )
+    images = tmp_path / "images"
+    images.mkdir()
+    (images / "abc-123.jpg").write_bytes(b"x")
+    eval_set = load_bdd100k(folder, images)
+    assert [i["file_name"] for i in eval_set.coco["images"]] == ["abc-123.jpg", "def-456.jpg"]
+    assert eval_set.coco["images"][0]["attributes"]["weather"] == "rainy"
+    assert [(a["category_id"], a["iscrowd"]) for a in eval_set.coco["annotations"]] == [
+        (CAR, 0),
+        (PERSON, 1),
+    ]
+    assert eval_set.missing_images() == ["def-456.jpg"]
+    assert eval_set.missing_images(limit=1) == []
+
+
+def test_empty_bdd100k_directory_raises(tmp_path: Path) -> None:
+    """A folder with no per-image JSON files is an error, not an empty benchmark."""
+    with pytest.raises(FileNotFoundError):
+        load_bdd100k(tmp_path, tmp_path)
+
+
 def _write_cityscapes(root: Path) -> None:
     """One Cityscapes-format image with a car, a person group, a rider and a road."""
     folder = root / "gtFine" / "val" / "berlin"

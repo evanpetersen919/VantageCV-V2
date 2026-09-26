@@ -14,7 +14,7 @@ file that does not match raises rather than being silently skipped.
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from src.evaluation import class_maps
 
@@ -34,6 +34,14 @@ class EvalSet:
     def image_path(self, image: Dict[str, Any]) -> Path:
         """The file of one ``coco["images"]`` entry."""
         return Path(self.image_root / image["file_name"])
+
+    def missing_images(self, limit: Optional[int] = None) -> List[str]:
+        """File names of images that do not exist under ``image_root`` (first ``limit`` checked)."""
+        return [
+            image["file_name"]
+            for image in self.coco["images"][:limit]
+            if not self.image_path(image).exists()
+        ]
 
     def counts(self) -> Dict[str, int]:
         """Scored (non-ignore) ground-truth boxes per class name, and the ignore-region count."""
@@ -89,32 +97,53 @@ def _add_object(  # pylint: disable=too-many-arguments,too-many-locals
         )
 
 
+def _bdd_entries(labels_path: Path) -> Iterator[Tuple[str, Dict[str, Any], List[Dict[str, Any]]]]:
+    """(image file name, attributes, objects) of every BDD100K image, from either layout.
+
+    A **directory** of per-image JSON files (the "Labels" download, ``100k/val/<name>.json``,
+    each ``{"name", "attributes", "frames": [{"objects": [...]}]}``; image ``<name>.jpg``), or a
+    **single JSON list** of ``{"name", "attributes", "labels": [...]}`` entries (the
+    ``bdd100k_labels_images_*.json`` / ``det_*.json`` style; ``name`` already has its extension).
+    """
+    if labels_path.is_dir():
+        files = sorted(labels_path.glob("*.json"))
+        if not files:
+            raise FileNotFoundError(f"no per-image JSON files in {labels_path}")
+        for path in files:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            objects = [obj for frame in data.get("frames", []) for obj in frame.get("objects", [])]
+            yield f"{data['name']}.jpg", dict(data.get("attributes", {})), objects
+        return
+    frames = json.loads(labels_path.read_text(encoding="utf-8"))
+    if not isinstance(frames, list):
+        raise ValueError(f"{labels_path} is neither a directory nor a BDD100K label list")
+    for frame in frames:
+        yield frame["name"], dict(frame.get("attributes", {})), list(frame.get("labels", []))
+
+
 def load_bdd100k(
     labels_path: Path,
     image_dir: Path,
     image_size: Tuple[int, int] = BDD100K_IMAGE_SIZE,
     minimum: Tuple[float, float] = (class_maps.MIN_BOX_HEIGHT_PX, class_maps.MIN_BOX_WIDTH_PX),
 ) -> EvalSet:
-    """BDD100K detection labels (a JSON list of frames) as an ``EvalSet``.
+    """BDD100K detection labels as an ``EvalSet`` (layouts: see ``_bdd_entries``).
 
-    Each frame's ``attributes`` (weather, scene, timeofday) are kept on its image so results
-    can be broken down by condition.
+    Each image's ``attributes`` (weather, scene, timeofday) are kept so results can be broken
+    down by condition.
     """
-    frames = json.loads(labels_path.read_text(encoding="utf-8"))
-    if not isinstance(frames, list):
-        raise ValueError(f"{labels_path} is not a BDD100K label list")
     images: List[Dict[str, Any]] = []
     annotations: List[Dict[str, Any]] = []
-    for frame in frames:
+    for file_name, attributes, objects in _bdd_entries(labels_path):
         image = {
             "id": len(images) + 1,
-            "file_name": frame["name"],
+            "file_name": file_name,
             "width": image_size[0],
             "height": image_size[1],
-            "attributes": dict(frame.get("attributes", {})),
+            "attributes": attributes,
         }
         images.append(image)
-        for label in frame.get("labels", []):
+        for label in objects:
             box = label.get("box2d")
             if box is None:
                 continue
