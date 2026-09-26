@@ -24,7 +24,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import numpy.typing as npt
 
-from src.procedural.actor_placement import Vehicle
+from src.procedural.actor_placement import Vehicle, vehicle_box
 from src.procedural.building_facade import FacadePiece
 from src.procedural.building_placement import identify_city_blocks
 from src.procedural.crosswalks import (
@@ -114,17 +114,13 @@ PARKED_MIX_EXPONENT = 0.5
 
 @dataclass(frozen=True)
 class ParkedModel:
-    """A City Sample body shell that suits a stall, with its real size."""
+    """A City Sample body shell that suits a stall (its real size comes from
+    ``vehicle_bounds`` through ``actor_placement.vehicle_box``)."""
 
     asset_path: str
     vehicle_type: str
-    length: float
-    width: float
-    height: float
 
 
-# Real bounds of each body-shell mesh, read live from the engine with
-# GetStaticMeshBounds (full extents in metres; height is the top of the box).
 # Only models that read as an ordinary private vehicle and (nearly) fit a
 # stall. Left out, identified by rendering each model: vehicle12 (yellow taxi
 # with a roof sign), vehicle13 (police cruiser), vehVan_vehicle09 (box van),
@@ -135,51 +131,30 @@ PARKED_MODELS: Tuple[ParkedModel, ...] = (
     ParkedModel(
         f"{_VEHICLE_DIR}/vehCar_vehicle02/Mesh/SM_Frame_vehCar_vehicle02",
         "sedan",
-        4.789,
-        1.880,
-        1.755,
     ),
     ParkedModel(
         f"{_VEHICLE_DIR}/vehCar_vehicle03/Mesh/SM_Frame_vehCar_vehicle03",
         "sedan",
-        5.400,
-        1.985,
-        1.523,
     ),
     ParkedModel(
         f"{_VEHICLE_DIR}/vehCar_vehicle05/Mesh/SM_Frame_vehCar_vehicle05",
         "sedan",
-        4.525,
-        1.773,
-        1.704,
     ),
     ParkedModel(
         f"{_VEHICLE_DIR}/vehCar_vehicle06/Mesh/SM_Frame_vehCar_vehicle06",
         "sedan",
-        4.367,
-        1.782,
-        1.376,
     ),
     ParkedModel(
         f"{_VEHICLE_DIR}/vehCar_vehicle07/Mesh/SM_Frame_vehCar_vehicle07",
         "sedan",
-        4.410,
-        1.715,
-        1.431,
     ),
     ParkedModel(
         f"{_VEHICLE_DIR}/vehVan_vehicle01/Mesh/SM_Frame_vehVan_vehicle01",
         "suv",
-        4.791,
-        1.883,
-        1.859,
     ),
     ParkedModel(
         f"{_VEHICLE_DIR}/vehTruck_vehicle04/Mesh/SM_Frame_vehTruck_vehicle04",
         "truck",
-        5.555,
-        1.993,
-        1.838,
     ),
 )
 
@@ -483,7 +458,9 @@ def parked_vehicles(  # pylint: disable=too-many-locals
             model = _parked_model(rng, config.vehicle_mix)
             if not filled:
                 continue
-            length, width, height = model.length, model.width, model.height
+            length, width, height, offset_x, offset_y, z_min = vehicle_box(
+                model.asset_path, model.vehicle_type
+            )
             lateral_slack = max(
                 0.0,
                 (stall.width - width) / 2.0
@@ -503,11 +480,19 @@ def parked_vehicles(  # pylint: disable=too-many-locals
             )
             along = np.array([np.cos(stall.head_heading_rad), np.sin(stall.head_heading_rad)])
             lateral = np.array([-along[1], along[0]])
-            center = (
+            box_center = (
                 np.array(stall.center)
                 + along * along_offset
                 + lateral * lateral_unit * lateral_slack
             )
+            turned = heading + yaw
+            offset_world = np.array(
+                [
+                    offset_x * np.cos(turned) - offset_y * np.sin(turned),
+                    offset_x * np.sin(turned) + offset_y * np.cos(turned),
+                ]
+            )
+            center = box_center - offset_world
             vehicles.append(
                 Vehicle(
                     vehicle_id=first_vehicle_id + len(vehicles),
@@ -520,6 +505,8 @@ def parked_vehicles(  # pylint: disable=too-many-locals
                     height=height,
                     parked=True,
                     surface_z=LOT_SURFACE_Z_M,
+                    box_offset=(offset_x, offset_y),
+                    box_z_min=z_min,
                 )
             )
     return vehicles

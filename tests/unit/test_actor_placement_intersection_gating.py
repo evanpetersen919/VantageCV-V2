@@ -169,7 +169,7 @@ def test_front_vehicle_front_bumper_at_stop_line_when_not_flowing(
     assert vehicles
     front = max(vehicles, key=lambda v: v.center[0])
     heading_vector = np.array([np.cos(front.heading_rad), np.sin(front.heading_rad)])
-    front_bumper = front.center + heading_vector * (front.length / 2.0)
+    front_bumper = front.box_center + heading_vector * (front.length / 2.0)
     assert np.allclose(front_bumper, zone.stop_line_position, atol=1e-6)
 
 
@@ -310,7 +310,7 @@ def test_vehicle_queued_at_stop_line_on_minor_axis_of_a_stop_sign_node(
     assert vehicles
     front = max(vehicles, key=lambda v: v.center[0])
     heading_vector = np.array([np.cos(front.heading_rad), np.sin(front.heading_rad)])
-    front_bumper = front.center + heading_vector * (front.length / 2.0)
+    front_bumper = front.box_center + heading_vector * (front.length / 2.0)
     assert np.allclose(front_bumper, zone.stop_line_position, atol=1e-6)
 
 
