@@ -12,6 +12,7 @@ from src.orchestration.camera_sampling import (
     LOOK_AHEAD_M,
     overview_pose,
     sample_ego_pose,
+    sample_lot_pose,
 )
 from src.orchestration.dataset_generator import ScenarioResult, generate_scenario
 from src.utils.config_loader import load_scenario_config
@@ -83,3 +84,36 @@ def test_ego_views_keep_a_clear_corridor_to_the_city_edge() -> None:
         direction = pose.look_at[:2] - pose.position[:2]
         ahead = pose.position[:2] + direction / np.linalg.norm(direction) * CLEAR_TO_EDGE_M
         assert BOUNDS[0] <= ahead[0] <= BOUNDS[2] and BOUNDS[1] <= ahead[1] <= BOUNDS[3]
+
+
+def test_lot_pose_is_inside_a_lot_on_its_aisle_looking_inward() -> None:
+    """The lot camera sits just inside a driveway entrance, aimed away from the road."""
+    config = load_scenario_config(CONFIG).model_copy(update={"parking_lot_fraction": 0.7})
+    scenario = generate_scenario(100, config, BOUNDS, "lot")
+    lots = [lot for lot in scenario.parking_lots if lot.driveway is not None]
+    assert lots
+    rng = np.random.Generator(np.random.PCG64([5, 5]))
+    for _ in range(20):
+        pose = sample_lot_pose(scenario, rng)
+        assert pose is not None and pose.kind == "lot"
+        ground = pose.position[:2]
+        inside = [
+            lot
+            for lot in lots
+            if lot.bounds[0] <= ground[0] <= lot.bounds[2]
+            and lot.bounds[1] <= ground[1] <= lot.bounds[3]
+        ]
+        assert inside
+        lot = inside[0]
+        driveway = lot.driveway
+        assert driveway is not None
+        inward = {"x0": (1, 0), "x1": (-1, 0), "y0": (0, 1), "y1": (0, -1)}[driveway.side]
+        direction = (pose.look_at[:2] - ground) / np.linalg.norm(pose.look_at[:2] - ground)
+        assert float(np.dot(direction, inward)) > 0.9
+
+
+def test_no_lot_pose_without_lots() -> None:
+    """A scenario with no lots has no lot view."""
+    scenario = _scenario()
+    scenario.parking_lots = []
+    assert sample_lot_pose(scenario, np.random.Generator(np.random.PCG64([1]))) is None

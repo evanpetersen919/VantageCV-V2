@@ -54,7 +54,9 @@ def main() -> None:
     parser.add_argument("--bounds", type=float, nargs=4, default=[-150.0, -150.0, 150.0, 150.0])
     parser.add_argument("--num-scenarios", type=int, default=3)
     parser.add_argument("--seed", type=int, default=100)
-    parser.add_argument("--views", nargs="+", choices=["ego", "overview"], default=DEFAULT_VIEWS)
+    parser.add_argument(
+        "--views", nargs="+", choices=["ego", "lot", "overview"], default=DEFAULT_VIEWS
+    )
     parser.add_argument(
         "--classes",
         choices=sorted(PROFILES),

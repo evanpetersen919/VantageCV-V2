@@ -25,7 +25,12 @@ from PIL import Image, ImageDraw
 from src.export.annotation_policy import AnnotationPolicy, apply_policy
 from src.export.coco_exporter import CocoFrame, export_coco
 from src.ground_truth.overlay import draw_box_3d
-from src.orchestration.camera_sampling import CameraPose, overview_pose, sample_ego_pose
+from src.orchestration.camera_sampling import (
+    CameraPose,
+    overview_pose,
+    sample_ego_pose,
+    sample_lot_pose,
+)
 from src.orchestration.dataset_generator import Bounds, generate_scenario, render_frame
 from src.orchestration.dataset_store import DatasetStore
 from src.orchestration.live_render import (
@@ -76,13 +81,16 @@ class LiveDatasetResult:
 def _views_for(
     scenario: Any, views: Tuple[str, ...], bounds: Bounds, seed: int
 ) -> List[CameraPose]:
-    """The camera poses for one scenario; ego views that find no valid pose are dropped."""
+    """The camera poses for one scenario; ego and lot views that find no valid pose are dropped."""
     rng = np.random.Generator(np.random.PCG64([seed, 0x51C3]))
     poses: List[CameraPose] = []
     for kind in views:
-        pose = (
-            overview_pose(bounds) if kind == "overview" else sample_ego_pose(scenario, rng, bounds)
-        )
+        if kind == "overview":
+            pose: Optional[CameraPose] = overview_pose(bounds)
+        elif kind == "lot":
+            pose = sample_lot_pose(scenario, rng)
+        else:
+            pose = sample_ego_pose(scenario, rng, bounds)
         if pose is not None:
             poses.append(pose)
     return poses
