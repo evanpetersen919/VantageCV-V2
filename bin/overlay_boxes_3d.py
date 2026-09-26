@@ -9,9 +9,9 @@ crossed so the heading can be checked as well as the size and position.
 
 Python and UE5 world coordinates agree in this projection with no extra flip
 (the scene loader's Y mirror and UE's left-handed camera cancel). The camera's
-vertical FOV (73.4 degrees) was fitted to four squares of known position, at two
-window sizes (under 1 px mean error each); the horizontal FOV follows the
-screenshot's aspect ratio.
+vertical FOV (73.74 degrees, UE's default 90 degrees defined at 4:3) matches four
+squares of known position rendered at two window sizes (under 1 px mean error
+each); the horizontal FOV follows the screenshot's aspect ratio.
 
     PYTHONPATH=. python bin/overlay_boxes_3d.py --seed 42 --out boxes_out
 
@@ -22,7 +22,7 @@ import argparse
 import asyncio
 import shutil
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -34,8 +34,8 @@ from src.ground_truth.bbox_3d import (
     extract_bboxes_3d_pedestrians,
     extract_bboxes_3d_vehicles,
 )
-from src.ground_truth.categories import BUS, PEDESTRIAN, SEDAN, SUV, TRUCK
 from src.ground_truth.occlusion import MIN_VISIBLE_FRACTION, visible_fraction
+from src.ground_truth.overlay import draw_box_3d
 from src.orchestration.dataset_generator import ScenarioResult, generate_scenario
 from src.orchestration.scenario_serializer import serialize_scenario
 from src.procedural.actor_placement import Vehicle
@@ -47,74 +47,12 @@ from src.utils.config_loader import load_scenario_config
 
 SCREENSHOT = Path(r"F:\UE5Projects\VantageCV_UE5\Saved\rpc_debug_screenshot.png")
 CAMERA_KEYS = ["cam_x", "cam_y", "cam_z", "target_x", "target_y", "target_z"]
-VERTICAL_FOV_DEG = 73.4
-NEAR_PLANE_M = 0.2
+VERTICAL_FOV_DEG = 73.74
 CAMERA_DISTANCE_M = 15.0
 CAMERA_HEIGHT_M = 4.5
 VIEW_ANGLE_RAD = np.radians(55.0)
 NEIGHBOUR_RADIUS_M = 25.0
 PARTLY_BELOW = 0.5
-COLOURS: Dict[int, Tuple[int, int, int]] = {
-    SEDAN: (255, 40, 40),
-    SUV: (255, 150, 0),
-    TRUCK: (255, 0, 220),
-    BUS: (0, 200, 255),
-    PEDESTRIAN: (60, 255, 60),
-}
-EDGES = [(0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4)] + [
-    (i, i + 4) for i in range(4)
-]
-FRONT_FACE = (1, 2, 6, 5)
-
-
-def _clip_to_near(
-    start: NDArray[np.float64], end: NDArray[np.float64]
-) -> Optional[Tuple[NDArray[np.float64], NDArray[np.float64]]]:
-    """Clip a camera-space segment to z >= the near plane, or drop it."""
-    if start[2] < NEAR_PLANE_M and end[2] < NEAR_PLANE_M:
-        return None
-    if start[2] < NEAR_PLANE_M or end[2] < NEAR_PLANE_M:
-        fraction = (NEAR_PLANE_M - start[2]) / (end[2] - start[2])
-        cut = start + fraction * (end - start)
-        return (cut, end) if start[2] < NEAR_PLANE_M else (start, cut)
-    return start, end
-
-
-def _pixel(camera: Camera, point_camera: NDArray[np.float64]) -> Tuple[float, float]:
-    """Pinhole projection of a camera-space point."""
-    matrix = camera.intrinsics.get_intrinsic_matrix()
-    homogeneous = matrix @ (point_camera / point_camera[2])
-    return float(homogeneous[0]), float(homogeneous[1])
-
-
-def _draw_segment(
-    draw: ImageDraw.ImageDraw,
-    camera: Camera,
-    ends: Tuple[NDArray[np.float64], NDArray[np.float64]],
-    colour: Tuple[int, int, int],
-    width: int,
-) -> None:
-    """Draw one world-space segment, clipped at the near plane."""
-    to_camera = camera.extrinsics.world_to_camera
-    clipped = _clip_to_near(to_camera(ends[0]), to_camera(ends[1]))
-    if clipped is not None:
-        draw.line(
-            [_pixel(camera, clipped[0]), _pixel(camera, clipped[1])], fill=colour, width=width
-        )
-
-
-def _draw_box(
-    draw: ImageDraw.ImageDraw, camera: Camera, box: BoundingBox3D, width: int, dim: bool
-) -> None:
-    """The 12 edges of the box, plus a cross on its front (+x) face."""
-    corners = box.corners()
-    colour = COLOURS.get(box.category_id, (255, 255, 255))
-    if dim:
-        colour = (colour[0] // 3, colour[1] // 3, colour[2] // 3)
-    for first, second in EDGES:
-        _draw_segment(draw, camera, (corners[first], corners[second]), colour, width)
-    _draw_segment(draw, camera, (corners[FRONT_FACE[0]], corners[FRONT_FACE[2]]), colour, width)
-    _draw_segment(draw, camera, (corners[FRONT_FACE[1]], corners[FRONT_FACE[3]]), colour, width)
 
 
 def _camera_pose(
@@ -138,7 +76,8 @@ def _camera_from(
     """The pinhole camera that produced ``screenshot``.
 
     UE keeps the vertical FOV fixed, so the horizontal FOV follows the image aspect
-    (fitted: 121.6 deg at 3440x1440 and 106.2 deg at 1920x1080, both 73.4 deg vertical).
+    (UE's default 90 deg FOV is defined at 4:3, i.e. 73.74 deg vertical; checked against
+    fitted values at 3440x1440 and 1920x1080).
     """
     with Image.open(screenshot) as picture:
         width, height = picture.size
@@ -255,7 +194,7 @@ def _annotate(
             continue
         partly = fraction < PARTLY_BELOW
         counts["partly hidden" if partly else "clear"] += 1
-        _draw_box(draw, camera, box, 6 if box.object_id == target_box_id else 3, partly)
+        draw_box_3d(draw, camera, box, 6 if box.object_id == target_box_id else 3, partly)
     picture.save(path)
     print(f"{path.name}: {counts}")
 

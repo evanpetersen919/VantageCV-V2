@@ -37,6 +37,9 @@ class CocoFrame:
     camera: Camera
     bboxes_2d: List[BoundingBox2D]
     bboxes_3d_by_id: Dict[int, BoundingBox3D] = field(default_factory=dict)
+    # Extra per-image fields written next to id/file_name/width/height (scenario
+    # conditions, camera pose, ...).
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 def _bbox_2d_to_coco_annotation(
@@ -91,6 +94,7 @@ def export_coco(frames: List[CocoFrame]) -> Dict[str, Any]:
     for frame in frames:
         images.append(
             {
+                **frame.metadata,
                 "id": frame.image_id,
                 "file_name": frame.file_name,
                 "width": frame.camera.intrinsics.width,
