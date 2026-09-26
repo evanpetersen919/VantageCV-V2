@@ -47,6 +47,7 @@ from src.procedural.city_sample_assets import (
 )
 from src.procedural.lane_topology import compute_node_clearance
 from src.procedural.math_utils import compute_perpendicular
+from src.procedural.pedestrian_boxes import pedestrian_box
 from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 from src.procedural.road_network import RoadEdge
 from src.procedural.scenario import ScenarioTypeConfig
@@ -260,6 +261,9 @@ class Pedestrian:  # pylint: disable=too-many-instance-attributes
     width: float = PEDESTRIAN_WIDTH_METERS
     depth: float = PEDESTRIAN_DEPTH_METERS
     height: float = PEDESTRIAN_HEIGHT_METERS
+    # Box centre relative to the pivot at the feet: (forward along the heading, lateral to
+    # the pedestrian's left), from the measured animation extents.
+    box_offset: Tuple[float, float] = (0.0, 0.0)
 
 
 def _aabb_overlap(
@@ -797,9 +801,14 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         ]
         if hair_path is not None:
             part_paths.append(hair_path)
-        width, depth, height = PEDESTRIAN_DIMENSIONS_METERS[gender]
-
         pose_frame = self._sample_pose_frame(allow_standing)
+        measured = pedestrian_box(gender, weight, face_path, pose_frame)
+        if measured is not None:
+            width, depth, height = measured.width, measured.length, measured.height
+            box_offset = (measured.offset_forward, measured.offset_lateral)
+        else:
+            width, depth, height = PEDESTRIAN_DIMENSIONS_METERS[gender]
+            box_offset = (0.0, 0.0)
 
         pedestrian = Pedestrian(
             pedestrian_id=self._pedestrian_counter,
@@ -812,6 +821,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             width=width,
             depth=depth,
             height=height,
+            box_offset=box_offset,
         )
         self._pedestrian_counter += 1
         return pedestrian

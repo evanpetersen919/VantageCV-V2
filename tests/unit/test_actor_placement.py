@@ -30,7 +30,6 @@ from src.procedural.actor_placement import (
 from src.procedural.city_sample_assets import (
     PEDESTRIAN_BODY_ASSET_PATHS,
     PEDESTRIAN_BOTTOM_ASSET_PATHS,
-    PEDESTRIAN_DIMENSIONS_METERS,
     PEDESTRIAN_FACE_ASSET_PATHS,
     PEDESTRIAN_SHOE_ASSET_PATHS,
     PEDESTRIAN_STANDING_CLIP,
@@ -43,6 +42,7 @@ from src.procedural.city_sample_assets import (
 )
 from src.procedural.lane_topology import LaneTopologyGenerator, compute_node_clearance
 from src.procedural.math_utils import compute_perpendicular
+from src.procedural.pedestrian_boxes import pedestrian_box
 from src.procedural.road_edge_kit import SIDEWALK_TOP_HEIGHT_METERS
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadType
 from src.procedural.scenario import ScenarioType, ScenarioTypeConfig
@@ -350,11 +350,14 @@ def test_pedestrian_body_and_parts_are_consistent(  # pylint: disable=too-many-l
             assert pedestrian.part_paths[4] == expected_hair
             saw_hair = True
 
-        assert (
-            pedestrian.width,
-            pedestrian.depth,
-            pedestrian.height,
-        ) == PEDESTRIAN_DIMENSIONS_METERS[gender]
+        measured = pedestrian_box(gender, weight, face, pedestrian.pose_frame)
+        assert measured is not None
+        assert (pedestrian.width, pedestrian.depth, pedestrian.height) == (
+            measured.width,
+            measured.length,
+            measured.height,
+        )
+        assert pedestrian.box_offset == (measured.offset_forward, measured.offset_lateral)
     assert len(seen_combos) > 1  # sanity: this config/seed covers more than one combo
     assert saw_hair  # sanity: this config/seed places at least one real hairstyle
 
