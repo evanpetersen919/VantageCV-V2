@@ -154,3 +154,35 @@ def sample_ego_pose(
         if pose is not None:
             return pose
     return None
+
+
+_INWARD = {"x0": (1.0, 0.0), "x1": (-1.0, 0.0), "y0": (0.0, 1.0), "y1": (0.0, -1.0)}
+LOT_ENTRANCE_INSET_M = 2.0
+
+
+def sample_lot_pose(scenario: ScenarioResult, rng: np.random.Generator) -> Optional[CameraPose]:
+    """A camera just inside a random lot's entrance, on its driveway aisle, looking down it.
+
+    ``None`` if the scenario has no lot with a driveway.
+    """
+    lots = [lot for lot in scenario.parking_lots if lot.driveway is not None]
+    if not lots:
+        return None
+    lot = lots[int(rng.integers(len(lots)))]
+    driveway = lot.driveway
+    assert driveway is not None
+    inward = np.array(_INWARD[driveway.side])
+    along_road = (driveway.span[0] + driveway.span[1]) / 2.0
+    if driveway.side in ("x0", "x1"):
+        entrance = np.array([driveway.lot_edge, along_road])
+    else:
+        entrance = np.array([along_road, driveway.lot_edge])
+    ground = entrance + inward * LOT_ENTRANCE_INSET_M
+    heading = _heading_with_jitter(inward, rng)
+    target = ground + heading * LOOK_AHEAD_M
+    height = float(rng.uniform(*EGO_HEIGHT_RANGE_M))
+    return CameraPose(
+        "lot",
+        np.array([ground[0], ground[1], height]),
+        np.array([target[0], target[1], LOOK_TARGET_HEIGHT_M]),
+    )
