@@ -75,14 +75,27 @@ def test_objects_without_a_mesh_keep_their_box() -> None:
     assert not silhouettes
 
 
-def test_mesh_behind_the_camera_keeps_the_box_label() -> None:
-    """A mesh with a vertex behind the camera cannot be projected, so it keeps its label."""
+def test_mesh_entirely_behind_the_camera_keeps_the_box_label() -> None:
+    """A mesh wholly behind the camera cannot be projected, so it keeps its label."""
     camera = ue_camera(np.array([0.0, 0.0, 1.5]), np.array([10.0, 0.0, 1.5]), WIDTH, HEIGHT)
-    triangles = np.array([[[-5.0, 0.0, 1.0], [5.0, 1.0, 1.0], [5.0, -1.0, 2.0]]])
+    triangles = np.array([[[-5.0, 0.0, 1.0], [-6.0, 1.0, 1.0], [-5.0, -1.0, 2.0]]])
     assert project_vertices(camera, triangles) is None
     box = BoundingBox2D(3, 100.0, 100.0, 200.0, 200.0, 1.0)
     boxes, _ = refine_with_meshes(camera, [box], {3: triangles})
     assert boxes == [box]
+
+
+def test_mesh_crossing_the_near_plane_is_cut_there() -> None:
+    """A triangle from behind the camera to in front of it projects to its visible part."""
+    camera = ue_camera(np.array([0.0, 0.0, 1.5]), np.array([10.0, 0.0, 1.5]), WIDTH, HEIGHT)
+    triangles = np.array([[[-2.0, 0.0, 0.5], [10.0, 1.0, 2.5], [10.0, -1.0, 2.5]]])
+    pixels = project_vertices(camera, triangles)
+    assert pixels is not None
+    assert np.isfinite(pixels).all()
+    assert len(pixels) == 4  # two vertices in front plus two edge crossings of the near plane
+    box = BoundingBox2D(3, 0.0, 0.0, 10.0, 10.0, 1.0)
+    boxes, _ = refine_with_meshes(camera, [box], {3: triangles})
+    assert len(boxes) == 1 and boxes[0].x_max > boxes[0].x_min
 
 
 def test_mesh_entirely_outside_the_image_is_dropped() -> None:
