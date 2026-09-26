@@ -8,6 +8,7 @@ import pytest
 from src.orchestration.camera_sampling import (
     BUILDING_MARGIN_M,
     CLEAR_TO_EDGE_M,
+    EGO_EDGE_INSET_M,
     EGO_HEIGHT_RANGE_M,
     LOOK_AHEAD_M,
     overview_pose,
@@ -117,3 +118,16 @@ def test_no_lot_pose_without_lots() -> None:
     scenario = _scenario()
     scenario.parking_lots = []
     assert sample_lot_pose(scenario, np.random.Generator(np.random.PCG64([1]))) is None
+
+
+def test_ego_poses_stay_inset_from_the_city_edge() -> None:
+    """The camera itself (not just the point ahead) must be EGO_EDGE_INSET_M inside the bounds:
+    a wide FOV can see the void to the side even when the road ahead is clear."""
+    scenario = _scenario()
+    rng = np.random.Generator(np.random.PCG64([9, 9]))
+    for _ in range(30):
+        pose = sample_ego_pose(scenario, rng, BOUNDS)
+        assert pose is not None
+        ground = pose.position[:2]
+        assert BOUNDS[0] + EGO_EDGE_INSET_M <= ground[0] <= BOUNDS[2] - EGO_EDGE_INSET_M
+        assert BOUNDS[1] + EGO_EDGE_INSET_M <= ground[1] <= BOUNDS[3] - EGO_EDGE_INSET_M

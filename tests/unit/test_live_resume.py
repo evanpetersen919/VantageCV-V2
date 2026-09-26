@@ -22,7 +22,7 @@ from src.orchestration.live_render import GameUnavailableError
 from src.utils.config_loader import load_scenario_config
 
 CONFIG = load_scenario_config(Path("configs/scenario_templates/urban_dense.yaml"))
-BOUNDS = (-80.0, -80.0, 80.0, 80.0)
+BOUNDS = (-150.0, -150.0, 150.0, 150.0)
 VIEWS = ("ego",)
 
 

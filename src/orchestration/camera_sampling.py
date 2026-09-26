@@ -15,6 +15,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from src.orchestration.dataset_generator import Bounds, ScenarioResult
+from src.procedural.parking_lots import ParkingLot
 
 EGO_HEIGHT_RANGE_M = (1.4, 1.9)
 LOOK_AHEAD_M = 30.0
@@ -23,6 +24,11 @@ YAW_JITTER_RAD = np.radians(10.0)
 LANE_POSITION_RANGE = (0.1, 0.9)
 MIN_CLEAR_AHEAD_M = 15.0
 CLEAR_TO_EDGE_M = 60.0
+# Half a city block (avg_block_size starts at 80 m): a camera closer than this to the
+# generated area's edge can see the void beyond it to the side, not just ahead, because the
+# horizontal FOV is about 120 degrees -- the ahead-only check missed this (a camera on a
+# road running along the boundary had clear tarmac ahead but open sky/ocean to the side).
+EGO_EDGE_INSET_M = 40.0
 EDGE_MARGIN_M = 5.0
 BUILDING_MARGIN_M = 1.0
 VEHICLE_MARGIN_M = 0.5
@@ -124,8 +130,9 @@ def _candidate(
         return None
     direction = (end - start) / max(float(np.linalg.norm(end - start)), 1e-9)
     heading = _heading_with_jitter(direction, rng)
-    if bounds is not None and not _within(
-        ground + heading * CLEAR_TO_EDGE_M, bounds, EDGE_MARGIN_M
+    if bounds is not None and (
+        not _within(ground, bounds, EGO_EDGE_INSET_M)
+        or not _within(ground + heading * CLEAR_TO_EDGE_M, bounds, EDGE_MARGIN_M)
     ):
         return None
     clear_end = ground + heading * MIN_CLEAR_AHEAD_M
@@ -160,15 +167,27 @@ _INWARD = {"x0": (1.0, 0.0), "x1": (-1.0, 0.0), "y0": (0.0, 1.0), "y1": (0.0, -1
 LOT_ENTRANCE_INSET_M = 2.0
 
 
-def sample_lot_pose(scenario: ScenarioResult, rng: np.random.Generator) -> Optional[CameraPose]:
+def sample_lot_pose(
+    scenario: ScenarioResult, rng: np.random.Generator, bounds: Optional[Bounds] = None
+) -> Optional[CameraPose]:
     """A camera just inside a random lot's entrance, on its driveway aisle, looking down it.
 
-    ``None`` if the scenario has no lot with a driveway.
+    ``None`` if the scenario has no lot with a driveway usable within ``bounds`` (see
+    ``EGO_EDGE_INSET_M``).
     """
     lots = [lot for lot in scenario.parking_lots if lot.driveway is not None]
-    if not lots:
-        return None
-    lot = lots[int(rng.integers(len(lots)))]
+    rng.shuffle(lots)  # type: ignore[arg-type]
+    for lot in lots:
+        pose = _lot_pose(lot, rng, bounds)
+        if pose is not None:
+            return pose
+    return None
+
+
+def _lot_pose(
+    lot: ParkingLot, rng: np.random.Generator, bounds: Optional[Bounds]
+) -> Optional[CameraPose]:
+    """One lot's entrance pose, or ``None`` if it is too close to the city edge."""
     driveway = lot.driveway
     assert driveway is not None
     inward = np.array(_INWARD[driveway.side])
@@ -178,6 +197,8 @@ def sample_lot_pose(scenario: ScenarioResult, rng: np.random.Generator) -> Optio
     else:
         entrance = np.array([along_road, driveway.lot_edge])
     ground = entrance + inward * LOT_ENTRANCE_INSET_M
+    if bounds is not None and not _within(ground, bounds, EGO_EDGE_INSET_M):
+        return None
     heading = _heading_with_jitter(inward, rng)
     target = ground + heading * LOOK_AHEAD_M
     height = float(rng.uniform(*EGO_HEIGHT_RANGE_M))

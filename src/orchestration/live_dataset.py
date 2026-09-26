@@ -88,7 +88,7 @@ def _views_for(
         if kind == "overview":
             pose: Optional[CameraPose] = overview_pose(bounds)
         elif kind == "lot":
-            pose = sample_lot_pose(scenario, rng)
+            pose = sample_lot_pose(scenario, rng, bounds)
         else:
             pose = sample_ego_pose(scenario, rng, bounds)
         if pose is not None:
