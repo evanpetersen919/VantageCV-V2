@@ -8,10 +8,10 @@ exactly what a dataset consumer would get. The front face of every box is
 crossed so the heading can be checked as well as the size and position.
 
 Python and UE5 world coordinates agree in this projection with no extra flip
-(the scene loader's Y mirror and UE's left-handed camera cancel). The default
-horizontal FOV is the one fitted to four squares of known position rendered in
-the 3440x1440 game window: 121.6 degrees, under 1 px mean error. If the window
-size changes, refit it (a different aspect ratio changes the horizontal FOV).
+(the scene loader's Y mirror and UE's left-handed camera cancel). The camera's
+vertical FOV (73.4 degrees) was fitted to four squares of known position, at two
+window sizes (under 1 px mean error each); the horizontal FOV follows the
+screenshot's aspect ratio.
 
     PYTHONPATH=. python bin/overlay_boxes_3d.py --seed 42 --out boxes_out
 
@@ -40,14 +40,14 @@ from src.orchestration.dataset_generator import ScenarioResult, generate_scenari
 from src.orchestration.scenario_serializer import serialize_scenario
 from src.procedural.actor_placement import Vehicle
 from src.procedural.environment import season_environment
+from src.procedural.vehicle_meshes import world_triangles
 from src.sensors.camera_model import Camera, CameraExtrinsics, CameraIntrinsics
 from src.ue5.backend import UE5Backend
 from src.utils.config_loader import load_scenario_config
 
 SCREENSHOT = Path(r"F:\UE5Projects\VantageCV_UE5\Saved\rpc_debug_screenshot.png")
 CAMERA_KEYS = ["cam_x", "cam_y", "cam_z", "target_x", "target_y", "target_z"]
-WIDTH_PX, HEIGHT_PX = 3440, 1440
-FITTED_HFOV_DEG = 121.6
+VERTICAL_FOV_DEG = 73.4
 NEAR_PLANE_M = 0.2
 CAMERA_DISTANCE_M = 15.0
 CAMERA_HEIGHT_M = 4.5
@@ -117,10 +117,10 @@ def _draw_box(
     _draw_segment(draw, camera, (corners[FRONT_FACE[1]], corners[FRONT_FACE[3]]), colour, width)
 
 
-def _camera_for(
+def _camera_pose(
     target: NDArray[np.float64], heading_rad: float
-) -> Tuple[Camera, NDArray[np.float64]]:
-    """An oblique camera looking at ``target`` from ahead-and-to-the-side."""
+) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Camera position and look-at point: ahead-and-to-the-side of ``target``."""
     angle = heading_rad + VIEW_ANGLE_RAD
     position = np.array(
         [
@@ -129,9 +129,24 @@ def _camera_for(
             CAMERA_HEIGHT_M,
         ]
     )
-    look_at = np.array([target[0], target[1], 0.8])
-    intrinsics = CameraIntrinsics.from_fov(FITTED_HFOV_DEG, WIDTH_PX, HEIGHT_PX)
-    return Camera(intrinsics, CameraExtrinsics.looking_at(position, look_at)), position
+    return position, np.array([target[0], target[1], 0.8])
+
+
+def _camera_from(
+    position: NDArray[np.float64], look_at: NDArray[np.float64], screenshot: Path
+) -> Camera:
+    """The pinhole camera that produced ``screenshot``.
+
+    UE keeps the vertical FOV fixed, so the horizontal FOV follows the image aspect
+    (fitted: 121.6 deg at 3440x1440 and 106.2 deg at 1920x1080, both 73.4 deg vertical).
+    """
+    with Image.open(screenshot) as picture:
+        width, height = picture.size
+    horizontal = 2.0 * np.degrees(
+        np.arctan(np.tan(np.radians(VERTICAL_FOV_DEG) / 2.0) * width / height)
+    )
+    intrinsics = CameraIntrinsics.from_fov(float(horizontal), width, height)
+    return Camera(intrinsics, CameraExtrinsics.looking_at(position, look_at))
 
 
 def _neighbour_count(vehicle: Vehicle, others: List[Vehicle]) -> int:
@@ -156,14 +171,22 @@ def _pick_views(scenario: ScenarioResult) -> Dict[str, Vehicle]:
     return views
 
 
-def _all_boxes(scenario: ScenarioResult) -> Tuple[List[BoundingBox3D], List[BoundingBox3D]]:
-    """(labelled vehicle and pedestrian boxes, every box that can block a view)."""
+Scene = Tuple[List[BoundingBox3D], List[BoundingBox3D], Dict[int, NDArray[np.float64]]]
+
+
+def _all_boxes(scenario: ScenarioResult) -> Scene:
+    """(labelled boxes, every box that can block a view, vehicle meshes by box id)."""
     labelled = extract_bboxes_3d_vehicles(
         scenario.vehicles, id_offset=len(scenario.buildings)
     ) + extract_bboxes_3d_pedestrians(
         scenario.pedestrians, id_offset=len(scenario.buildings) + len(scenario.vehicles)
     )
-    return labelled, labelled + extract_bboxes_3d(scenario.buildings)
+    meshes = {
+        vehicle.vehicle_id + len(scenario.buildings): soup
+        for vehicle in scenario.vehicles
+        if (soup := world_triangles(vehicle)) is not None
+    }
+    return labelled, labelled + extract_bboxes_3d(scenario.buildings), meshes
 
 
 def _in_frame(camera: Camera, box: BoundingBox3D) -> bool:
@@ -200,32 +223,33 @@ async def _run(args: argparse.Namespace) -> None:
     await backend.load_scenario(serialize_scenario(scenario, season_environment(scenario.season)))
     await asyncio.sleep(10.0)
     args.out.mkdir(parents=True, exist_ok=True)
-    labelled, occluders = _all_boxes(scenario)
+    scene = _all_boxes(scenario)
     for name, target in _pick_views(scenario).items():
-        camera, position = _camera_for(
+        position, look_at = _camera_pose(
             np.array([target.box_center[0], target.box_center[1]]), target.heading_rad
         )
         path = args.out / f"{name}.png"
-        await _photograph(backend, position, np.array([*target.box_center, 0.8]), path)
+        await _photograph(backend, position, look_at, path)
+        camera = _camera_from(position, look_at, path)
         target_box_id = target.vehicle_id + len(scenario.buildings)
-        _annotate(path, camera, (labelled, occluders), target_box_id)
+        _annotate(path, camera, scene, target_box_id)
 
 
 def _annotate(
     path: Path,
     camera: Camera,
-    boxes: Tuple[List[BoundingBox3D], List[BoundingBox3D]],
+    boxes: Scene,
     target_box_id: int,
 ) -> None:
     """Draw every in-frame labelled box on the screenshot, dimming occluded ones."""
-    labelled, occluders = boxes
+    labelled, occluders, meshes = boxes
     picture = Image.open(path).convert("RGB")
     draw = ImageDraw.Draw(picture)
     counts = {"clear": 0, "partly hidden": 0, "hidden (skipped)": 0}
     for box in labelled:
         if not _in_frame(camera, box):
             continue
-        fraction = visible_fraction(camera, box, occluders)
+        fraction = visible_fraction(camera, box, occluders, meshes)
         if fraction < MIN_VISIBLE_FRACTION:
             counts["hidden (skipped)"] += 1
             continue
