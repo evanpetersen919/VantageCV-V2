@@ -10,7 +10,7 @@ test at all.
 
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -30,6 +30,7 @@ from src.ground_truth.occlusion import filter_occluded
 from src.ground_truth.proxy_shapes import elliptic_cylinder_triangles
 from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
 from src.procedural.building_colors import draw_building_palettes
+from src.procedural.building_extent import building_extent
 from src.procedural.building_facade import FacadePiece, generate_building_facade_pieces
 from src.procedural.building_lights import building_piece_room_ids, building_pieces_lit
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
@@ -200,10 +201,13 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     building_facade_pieces: List[FacadePiece] = []
     building_palettes = draw_building_palettes(len(buildings), seed)
     building_piece_palettes: List[int] = []
+    labelled_buildings: List[Building] = []
     for building, palette in zip(buildings, building_palettes):
         pieces = generate_building_facade_pieces(building, BUILDING_STYLES[building.style_name])
         building_facade_pieces += pieces
         building_piece_palettes += [palette] * len(pieces)
+        labelled_buildings.append(replace(building, label_extent=building_extent(pieces)))
+    buildings = labelled_buildings
 
     # One curb style and one sidewalk style per scenario, chosen from the
     # seed (an isolated stream, so it never disturbs any other generator's
