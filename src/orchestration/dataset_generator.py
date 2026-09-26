@@ -24,8 +24,10 @@ from src.ground_truth.bbox_3d import (
     extract_bboxes_3d_pedestrians,
     extract_bboxes_3d_vehicles,
 )
+from src.ground_truth.categories import PEDESTRIAN
 from src.ground_truth.mesh_labels import refine_with_meshes
 from src.ground_truth.occlusion import filter_occluded
+from src.ground_truth.proxy_shapes import elliptic_cylinder_triangles
 from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
 from src.procedural.building_colors import draw_building_palettes
 from src.procedural.building_facade import FacadePiece, generate_building_facade_pieces
@@ -344,7 +346,14 @@ def render_frame(
         bboxes_3d_by_id,
         meshes=vehicle_meshes,
     )
-    bboxes_2d, silhouettes = refine_with_meshes(camera, bboxes_2d, vehicle_meshes)
+    pedestrian_shapes = {
+        bbox.object_id: elliptic_cylinder_triangles(bbox)
+        for bbox in bboxes_3d
+        if bbox.category_id == PEDESTRIAN
+    }
+    bboxes_2d, silhouettes = refine_with_meshes(
+        camera, bboxes_2d, {**vehicle_meshes, **pedestrian_shapes}
+    )
 
     return CocoFrame(
         image_id=image_id,

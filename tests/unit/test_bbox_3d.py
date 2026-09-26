@@ -1,5 +1,7 @@
 """Unit tests for 3D bounding box extraction."""
 
+import dataclasses
+
 import numpy as np
 import pytest
 
@@ -229,7 +231,7 @@ def test_extract_bbox_3d_pedestrian_geometry_matches_pedestrian() -> None:
     assert bbox.object_id == pedestrian.pedestrian_id
     assert np.allclose(bbox.dimensions, [pedestrian.depth, pedestrian.width, pedestrian.height])
     assert np.allclose(bbox.center[:2], pedestrian.center)
-    assert np.isclose(bbox.center[2], pedestrian.height / 2.0)
+    assert np.isclose(bbox.center[2], pedestrian.surface_z + pedestrian.height / 2.0)
     assert bbox.heading_rad == pedestrian.heading_rad
 
 
@@ -260,3 +262,22 @@ def test_extract_bboxes_3d_pedestrians_preserves_count_and_offset() -> None:
 def test_extract_bboxes_3d_pedestrians_empty_input() -> None:
     """An empty pedestrian list produces an empty box list."""
     assert extract_bboxes_3d_pedestrians([]) == []
+
+
+def test_pedestrian_box_offset_rotates_with_the_heading() -> None:
+    """The box centre's forward/lateral offset is applied in the pedestrian's own frame."""
+    pedestrian = _sample_pedestrian()
+    pedestrian = dataclasses.replace(
+        pedestrian, center=np.array([10.0, 5.0]), heading_rad=np.pi / 2, box_offset=(0.2, 0.1)
+    )
+    bbox = extract_bbox_3d_pedestrian(pedestrian)
+    # facing +y: forward is +y, the pedestrian's left is -x
+    assert np.allclose(bbox.center[:2], [10.0 - 0.1, 5.0 + 0.2])
+
+
+def test_pedestrian_box_stands_on_its_surface() -> None:
+    """A pedestrian on a raised sidewalk gets a box from the sidewalk up, not from z = 0."""
+    pedestrian = dataclasses.replace(_sample_pedestrian(), surface_z=0.108, height=1.7)
+    bbox = extract_bbox_3d_pedestrian(pedestrian)
+    assert np.isclose(bbox.center[2] - bbox.dimensions[2] / 2.0, 0.108)
+    assert np.isclose(bbox.center[2] + bbox.dimensions[2] / 2.0, 0.108 + 1.7)

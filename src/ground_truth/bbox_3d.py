@@ -164,7 +164,15 @@ def extract_bbox_3d_pedestrian(pedestrian: Pedestrian, id_offset: int = 0) -> Bo
     axis, mirroring ``BoundingBox3D``'s own local-x-before-rotation
     convention.
     """
-    center = np.array([pedestrian.center[0], pedestrian.center[1], pedestrian.height / 2.0])
+    forward, lateral = pedestrian.box_offset
+    cos_h, sin_h = np.cos(pedestrian.heading_rad), np.sin(pedestrian.heading_rad)
+    center = np.array(
+        [
+            pedestrian.center[0] + cos_h * forward - sin_h * lateral,
+            pedestrian.center[1] + sin_h * forward + cos_h * lateral,
+            pedestrian.surface_z + pedestrian.height / 2.0,
+        ]
+    )
     dimensions = np.array([pedestrian.depth, pedestrian.width, pedestrian.height])
 
     return BoundingBox3D(
