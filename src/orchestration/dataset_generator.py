@@ -56,6 +56,7 @@ from src.procedural.traffic_lights import generate_traffic_light_pieces
 from src.procedural.traffic_network import TrafficNetwork, TrafficNetworkGenerator
 from src.procedural.validator import ScenarioValidator, ValidationReport
 from src.procedural.vehicle_colors import assign_vehicle_paint
+from src.procedural.vehicle_meshes import world_triangles
 from src.sensors.camera_model import Camera, CameraExtrinsics, CameraIntrinsics
 from src.validation.sanity_checker import SanityReport, check_annotation_count_consistency
 
@@ -331,7 +332,17 @@ def render_frame(
         + extract_bboxes_3d_pedestrians(scenario.pedestrians, id_offset=pedestrian_id_offset)
     )
     bboxes_3d_by_id = {bbox.object_id: bbox for bbox in bboxes_3d}
-    bboxes_2d = filter_occluded(camera, project_bboxes_3d_to_2d(camera, bboxes_3d), bboxes_3d_by_id)
+    vehicle_meshes = {
+        vehicle.vehicle_id + vehicle_id_offset: soup
+        for vehicle in scenario.vehicles
+        if (soup := world_triangles(vehicle)) is not None
+    }
+    bboxes_2d = filter_occluded(
+        camera,
+        project_bboxes_3d_to_2d(camera, bboxes_3d),
+        bboxes_3d_by_id,
+        meshes=vehicle_meshes,
+    )
 
     return CocoFrame(
         image_id=image_id,

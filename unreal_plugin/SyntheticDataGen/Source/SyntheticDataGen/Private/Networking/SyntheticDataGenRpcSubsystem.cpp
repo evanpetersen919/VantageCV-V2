@@ -15,6 +15,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/StaticMesh.h"
+#include "StaticMeshResources.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "Engine/StaticMeshSocket.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -479,6 +481,77 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 		ResultObject->SetNumberField(TEXT("extent_x"), Bounds.BoxExtent.X);
 		ResultObject->SetNumberField(TEXT("extent_y"), Bounds.BoxExtent.Y);
 		ResultObject->SetNumberField(TEXT("extent_z"), Bounds.BoxExtent.Z);
+		return BuildResultResponse(RequestId, MakeShared<FJsonValueObject>(ResultObject));
+	}
+
+	if (Method == TEXT("GetStaticMeshGeometry"))
+	{
+		// Render triangles of one static mesh (mesh-local centimetres) plus
+		// its collision setup, for offline visibility tests against the
+		// real shape. Picks the most detailed LOD within max_triangles
+		// (falling back to the coarsest LOD).
+		const TSharedPtr<FJsonObject>* Params = nullptr;
+		FString AssetPath;
+		double MaxTrianglesNumber = 4000.0;
+		if (!Root->TryGetObjectField(TEXT("params"), Params) || !(*Params)->TryGetStringField(TEXT("asset_path"), AssetPath))
+		{
+			return BuildErrorResponse(RequestId, -32602, TEXT("Invalid params: expected a string 'asset_path'"));
+		}
+		(*Params)->TryGetNumberField(TEXT("max_triangles"), MaxTrianglesNumber);
+
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *AssetPath);
+		const FStaticMeshRenderData* RenderData = Mesh != nullptr ? Mesh->GetRenderData() : nullptr;
+		if (RenderData == nullptr || RenderData->LODResources.Num() == 0)
+		{
+			return BuildErrorResponse(RequestId, -32000, FString::Printf(TEXT("No render data for %s"), *AssetPath));
+		}
+		const int32 LodCount = RenderData->LODResources.Num();
+		int32 Lod = LodCount - 1;
+		for (int32 Index = 0; Index < LodCount; ++Index)
+		{
+			if (RenderData->LODResources[Index].GetNumTriangles() <= static_cast<int32>(MaxTrianglesNumber))
+			{
+				Lod = Index;
+				break;
+			}
+		}
+		const FStaticMeshLODResources& LodResources = RenderData->LODResources[Lod];
+		const FPositionVertexBuffer& Positions = LodResources.VertexBuffers.PositionVertexBuffer;
+		const FIndexArrayView Indices = LodResources.IndexBuffer.GetArrayView();
+
+		const TSharedRef<FJsonObject> ResultObject = MakeShared<FJsonObject>();
+		ResultObject->SetNumberField(TEXT("lod"), Lod);
+		ResultObject->SetNumberField(TEXT("lod_count"), LodCount);
+		ResultObject->SetNumberField(TEXT("lod0_triangles"), RenderData->LODResources[0].GetNumTriangles());
+		ResultObject->SetNumberField(TEXT("triangles"), LodResources.GetNumTriangles());
+		ResultObject->SetNumberField(TEXT("index_count_cpu"), Indices.Num());
+		ResultObject->SetNumberField(TEXT("vertex_count_cpu"), Positions.GetNumVertices());
+		if (UBodySetup* Body = Mesh->GetBodySetup())
+		{
+			ResultObject->SetNumberField(TEXT("collision_trace_flag"), static_cast<int32>(Body->CollisionTraceFlag));
+			ResultObject->SetNumberField(TEXT("simple_boxes"), Body->AggGeom.BoxElems.Num());
+			ResultObject->SetNumberField(TEXT("simple_convex"), Body->AggGeom.ConvexElems.Num());
+			ResultObject->SetNumberField(TEXT("simple_spheres"), Body->AggGeom.SphereElems.Num());
+			ResultObject->SetNumberField(TEXT("simple_capsules"), Body->AggGeom.SphylElems.Num());
+		}
+		if (Indices.Num() > 0 && Positions.GetNumVertices() > 0)
+		{
+			TArray<TSharedPtr<FJsonValue>> VertexValues;
+			for (uint32 Vertex = 0; Vertex < Positions.GetNumVertices(); ++Vertex)
+			{
+				const FVector3f Position = Positions.VertexPosition(Vertex);
+				VertexValues.Add(MakeShared<FJsonValueNumber>(Position.X));
+				VertexValues.Add(MakeShared<FJsonValueNumber>(Position.Y));
+				VertexValues.Add(MakeShared<FJsonValueNumber>(Position.Z));
+			}
+			TArray<TSharedPtr<FJsonValue>> IndexValues;
+			for (int32 Index = 0; Index < Indices.Num(); ++Index)
+			{
+				IndexValues.Add(MakeShared<FJsonValueNumber>(static_cast<double>(Indices[Index])));
+			}
+			ResultObject->SetArrayField(TEXT("vertices"), VertexValues);
+			ResultObject->SetArrayField(TEXT("indices"), IndexValues);
+		}
 		return BuildResultResponse(RequestId, MakeShared<FJsonValueObject>(ResultObject));
 	}
 
