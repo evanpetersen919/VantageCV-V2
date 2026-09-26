@@ -24,6 +24,7 @@ from src.ground_truth.bbox_3d import (
     extract_bboxes_3d_pedestrians,
     extract_bboxes_3d_vehicles,
 )
+from src.ground_truth.mesh_labels import refine_with_meshes
 from src.ground_truth.occlusion import filter_occluded
 from src.procedural.actor_placement import ActorPlacementGenerator, Pedestrian, Vehicle
 from src.procedural.building_colors import draw_building_palettes
@@ -343,6 +344,7 @@ def render_frame(
         bboxes_3d_by_id,
         meshes=vehicle_meshes,
     )
+    bboxes_2d, silhouettes = refine_with_meshes(camera, bboxes_2d, vehicle_meshes)
 
     return CocoFrame(
         image_id=image_id,
@@ -350,6 +352,7 @@ def render_frame(
         camera=camera,
         bboxes_2d=bboxes_2d,
         bboxes_3d_by_id=bboxes_3d_by_id,
+        silhouettes_by_id=silhouettes,
     )
 
 
