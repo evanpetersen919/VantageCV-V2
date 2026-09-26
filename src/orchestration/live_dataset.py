@@ -69,16 +69,21 @@ def _views_for(
 
 
 def _save_qa(frame: CocoFrame, image_path: Path, qa_path: Path) -> None:
-    """Draw the exported 3D boxes of ``frame`` on its image."""
+    """Draw the exported labels of ``frame`` on its image: 3D boxes (dimmed when mostly
+    hidden), the exported 2D boxes in white and mesh silhouettes in cyan."""
     qa_path.parent.mkdir(parents=True, exist_ok=True)
     with Image.open(image_path) as source:
         picture = source.convert("RGB")
     draw = ImageDraw.Draw(picture)
-    visible = {box.object_id: box.visible_fraction for box in frame.bboxes_2d}
-    for object_id, fraction in visible.items():
-        draw_box_3d(
-            draw, frame.camera, frame.bboxes_3d_by_id[object_id], 2, fraction < PARTLY_HIDDEN_BELOW
+    for box in frame.bboxes_2d:
+        dimmed = box.visible_fraction < PARTLY_HIDDEN_BELOW
+        draw_box_3d(draw, frame.camera, frame.bboxes_3d_by_id[box.object_id], 2, dimmed)
+        draw.rectangle(
+            [box.x_min, box.y_min, box.x_max, box.y_max], outline=(255, 255, 255), width=1
         )
+        polygon = frame.silhouettes_by_id.get(box.object_id)
+        if polygon is not None:
+            draw.polygon([tuple(point) for point in polygon], outline=(0, 255, 255))
     picture.save(qa_path)
 
 

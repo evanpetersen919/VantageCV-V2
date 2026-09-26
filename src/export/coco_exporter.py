@@ -40,6 +40,9 @@ class CocoFrame:
     # Extra per-image fields written next to id/file_name/width/height (scenario
     # conditions, camera pose, ...).
     metadata: Dict[str, Any] = field(default_factory=dict)
+    # Segmentation polygons (pixels) that replace the box-corner hull for objects with a
+    # real mesh.
+    silhouettes_by_id: Dict[int, Any] = field(default_factory=dict)
 
 
 def _bbox_2d_to_coco_annotation(
@@ -107,7 +110,9 @@ def export_coco(frames: List[CocoFrame]) -> Dict[str, Any]:
             category_id = BUILDING_CATEGORY_ID
             bbox_3d = frame.bboxes_3d_by_id.get(bbox_2d.object_id)
             if bbox_3d is not None:
-                silhouette = compute_silhouette(frame.camera, bbox_3d)
+                silhouette = frame.silhouettes_by_id.get(bbox_2d.object_id)
+                if silhouette is None:
+                    silhouette = compute_silhouette(frame.camera, bbox_3d)
                 category_id = bbox_3d.category_id
 
             annotations.append(
