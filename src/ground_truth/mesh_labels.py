@@ -19,7 +19,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.spatial import ConvexHull, QhullError  # pylint: disable=no-name-in-module
 
-from src.ground_truth.bbox_2d import BoundingBox2D
+from src.ground_truth.bbox_2d import BoundingBox2D, truncation_fraction
 from src.sensors.camera_model import Camera
 
 MIN_DEPTH_M = 0.3
@@ -69,8 +69,14 @@ def tight_box_2d(
     x_max, y_max = np.clip(pixels.max(axis=0), 0.0, [width, height])
     if x_max <= x_min or y_max <= y_min:
         return None
+    full_area = float(np.prod(pixels.max(axis=0) - pixels.min(axis=0)))
     return replace(
-        box, x_min=float(x_min), y_min=float(y_min), x_max=float(x_max), y_max=float(y_max)
+        box,
+        x_min=float(x_min),
+        y_min=float(y_min),
+        x_max=float(x_max),
+        y_max=float(y_max),
+        truncation=truncation_fraction(float((x_max - x_min) * (y_max - y_min)), full_area),
     )
 
 

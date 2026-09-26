@@ -7,6 +7,7 @@ import pytest
 
 from src.orchestration.camera_sampling import (
     BUILDING_MARGIN_M,
+    CLEAR_TO_EDGE_M,
     EGO_HEIGHT_RANGE_M,
     LOOK_AHEAD_M,
     overview_pose,
@@ -70,3 +71,15 @@ def test_ego_pose_needs_lanes() -> None:
     scenario = _scenario()
     scenario.lanes = {}
     assert sample_ego_pose(scenario, np.random.Generator(np.random.PCG64([1]))) is None
+
+
+def test_ego_views_keep_a_clear_corridor_to_the_city_edge() -> None:
+    """With bounds given, the point 60 m ahead of every ego pose is still inside the city."""
+    scenario = _scenario()
+    rng = np.random.Generator(np.random.PCG64([3, 3]))
+    for _ in range(30):
+        pose = sample_ego_pose(scenario, rng, BOUNDS)
+        assert pose is not None
+        direction = pose.look_at[:2] - pose.position[:2]
+        ahead = pose.position[:2] + direction / np.linalg.norm(direction) * CLEAR_TO_EDGE_M
+        assert BOUNDS[0] <= ahead[0] <= BOUNDS[2] and BOUNDS[1] <= ahead[1] <= BOUNDS[3]

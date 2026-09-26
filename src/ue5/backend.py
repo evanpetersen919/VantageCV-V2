@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import websockets
+import websockets.exceptions
 
 
 class UE5RPCError(Exception):
@@ -111,6 +112,17 @@ class UE5Backend:
         if self._connection is not None:
             await self._connection.close()
             self._connection = None
+
+    async def reconnect(self) -> None:
+        """Replace the shared connection (after the game hung or restarted). Does nothing
+        outside ``async with``, where every call already connects afresh."""
+        if self._connection is None:
+            return
+        try:
+            await self._connection.close()
+        except (OSError, websockets.exceptions.WebSocketException):
+            pass
+        self._connection = await websockets.connect(self.uri, max_size=None, ping_interval=None)
 
     async def _exchange(self, request: Dict[str, Any]) -> str:
         """Send one request and return the raw response text."""

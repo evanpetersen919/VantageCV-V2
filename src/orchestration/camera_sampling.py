@@ -3,7 +3,9 @@
 The ego view sits on a driving lane's centreline at a typical sensor height and
 looks ahead along the lane with a little yaw jitter. Poses are rejected when the
 camera would be inside a building or a parked/driving vehicle, or when a
-building blocks the view within ``MIN_CLEAR_AHEAD_M``.
+building blocks the view within ``MIN_CLEAR_AHEAD_M``. Given the scenario bounds, a pose is also
+rejected when the city's edge lies within ``CLEAR_TO_EDGE_M`` ahead, since the frame would be
+mostly the empty horizon beyond the generated area.
 """
 
 from dataclasses import dataclass
@@ -20,6 +22,8 @@ LOOK_TARGET_HEIGHT_M = 1.2
 YAW_JITTER_RAD = np.radians(10.0)
 LANE_POSITION_RANGE = (0.1, 0.9)
 MIN_CLEAR_AHEAD_M = 15.0
+CLEAR_TO_EDGE_M = 60.0
+EDGE_MARGIN_M = 5.0
 BUILDING_MARGIN_M = 1.0
 VEHICLE_MARGIN_M = 0.5
 MAX_ATTEMPTS = 80
@@ -94,8 +98,20 @@ def _heading_with_jitter(
     )
 
 
+def _within(point: NDArray[np.float64], bounds: Bounds, margin: float) -> bool:
+    """Whether a 2D point is inside ``bounds`` shrunk by ``margin`` on every side."""
+    x_min, y_min, x_max, y_max = bounds
+    return bool(
+        x_min + margin <= point[0] <= x_max - margin
+        and y_min + margin <= point[1] <= y_max - margin
+    )
+
+
 def _candidate(
-    scenario: ScenarioResult, rng: np.random.Generator, lanes: List[int]
+    scenario: ScenarioResult,
+    rng: np.random.Generator,
+    lanes: List[int],
+    bounds: Optional[Bounds],
 ) -> Optional[CameraPose]:
     """One random ego pose on a random lane, or ``None`` if it is unusable."""
     lane = scenario.lanes[lanes[int(rng.integers(len(lanes)))]]
@@ -108,6 +124,10 @@ def _candidate(
         return None
     direction = (end - start) / max(float(np.linalg.norm(end - start)), 1e-9)
     heading = _heading_with_jitter(direction, rng)
+    if bounds is not None and not _within(
+        ground + heading * CLEAR_TO_EDGE_M, bounds, EDGE_MARGIN_M
+    ):
+        return None
     clear_end = ground + heading * MIN_CLEAR_AHEAD_M
     if any(_segment_hits_box(ground, clear_end, b.aabb) for b in scenario.buildings):
         return None
@@ -119,13 +139,18 @@ def _candidate(
     )
 
 
-def sample_ego_pose(scenario: ScenarioResult, rng: np.random.Generator) -> Optional[CameraPose]:
-    """A valid ego camera pose for ``scenario``, or ``None`` if none was found."""
+def sample_ego_pose(
+    scenario: ScenarioResult, rng: np.random.Generator, bounds: Optional[Bounds] = None
+) -> Optional[CameraPose]:
+    """A valid ego camera pose for ``scenario``, or ``None`` if none was found.
+
+    With ``bounds`` (the area the scenario was generated in), views toward the edge are avoided.
+    """
     lanes = [lane_id for lane_id, lane in scenario.lanes.items() if len(lane.centerline) >= 2]
     if not lanes:
         return None
     for _ in range(MAX_ATTEMPTS):
-        pose = _candidate(scenario, rng, lanes)
+        pose = _candidate(scenario, rng, lanes, bounds)
         if pose is not None:
             return pose
     return None

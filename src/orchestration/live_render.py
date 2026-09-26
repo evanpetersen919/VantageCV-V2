@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
+import websockets
+import websockets.exceptions
 from numpy.typing import NDArray
 from PIL import Image
 from scipy import ndimage
@@ -27,7 +29,7 @@ from scipy import ndimage
 from src.orchestration.scenario_serializer import _mesh_to_json
 from src.procedural.mesh_factory import flat_quad_mesh
 from src.sensors.camera_model import Camera, CameraExtrinsics, CameraIntrinsics
-from src.ue5.backend import UE5Backend
+from src.ue5.backend import UE5Backend, UE5CommunicationTimeoutError, UE5RPCError
 
 UE_DEFAULT_FOV_DEG = 90.0
 UE_FOV_REFERENCE_ASPECT = 4.0 / 3.0
@@ -43,6 +45,18 @@ CALIBRATION_HALF_SIDE_M = 1.0
 CALIBRATION_CAMERA = (np.array([-8.0, -20.0, 14.0]), np.array([14.0, 2.0, 0.0]))
 CALIBRATION_MATCH_RADIUS_PX = 40.0
 WHITE_LEVEL = 190
+RECOVERABLE_ERRORS = (
+    TimeoutError,
+    UE5CommunicationTimeoutError,
+    UE5RPCError,
+    ConnectionError,
+    OSError,
+    websockets.exceptions.WebSocketException,
+)
+
+
+class GameUnavailableError(RuntimeError):
+    """The game stopped answering and did not come back."""
 
 
 def vertical_fov_deg() -> float:
@@ -96,6 +110,24 @@ class LiveRenderer:
         self._payload_path.write_text(json.dumps(payload), encoding="utf-8")
         await self._backend.load_scenario_file(self._payload_path)
         await asyncio.sleep(self._load_seconds)
+
+    async def recover(self, wait_seconds: float = 20.0, attempts: int = 12) -> None:
+        """Wait for a hung or restarting game to answer again, reconnecting each try.
+
+        Raises ``GameUnavailableError`` if it never does (about ``wait_seconds * attempts``).
+        """
+        for _ in range(attempts):
+            await asyncio.sleep(wait_seconds)
+            try:
+                await self._backend.reconnect()
+                await self._backend.ping()
+                return
+            except RECOVERABLE_ERRORS:
+                continue
+        raise GameUnavailableError(
+            f"the game did not answer for {wait_seconds * attempts:.0f} s; restart it and rerun "
+            "the same command to resume"
+        )
 
     async def _wait_for_new_file(self, since: float) -> None:
         """Block until the screenshot file is newer than ``since`` and has stopped growing."""
