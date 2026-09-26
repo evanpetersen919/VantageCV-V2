@@ -5,12 +5,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from src.orchestration.camera_sampling import (
+from src.orchestration.camera_sampling import (  # pylint: disable=protected-access
     BUILDING_MARGIN_M,
     CLEAR_TO_EDGE_M,
     EGO_EDGE_INSET_M,
     EGO_HEIGHT_RANGE_M,
     LOOK_AHEAD_M,
+    MIN_CLEAR_AHEAD_VEHICLE_M,
+    _segment_hits_box,
     overview_pose,
     sample_ego_pose,
     sample_lot_pose,
@@ -131,3 +133,21 @@ def test_ego_poses_stay_inset_from_the_city_edge() -> None:
         ground = pose.position[:2]
         assert BOUNDS[0] + EGO_EDGE_INSET_M <= ground[0] <= BOUNDS[2] - EGO_EDGE_INSET_M
         assert BOUNDS[1] + EGO_EDGE_INSET_M <= ground[1] <= BOUNDS[3] - EGO_EDGE_INSET_M
+
+
+def test_ego_pose_is_not_framed_nose_in_against_a_parked_vehicle() -> None:
+    """A vehicle a few metres directly ahead disqualifies the pose (the earlier version only
+    checked whether the ground point itself sat inside a vehicle's footprint, missing a vehicle
+    a short distance further along the same heading -- a real bug found by eye in a live render:
+    the camera ended up effectively inside the vehicle's body, a near-black, useless frame)."""
+    scenario = _scenario()
+    rng = np.random.Generator(np.random.PCG64([11, 11]))
+    for _ in range(30):
+        pose = sample_ego_pose(scenario, rng)
+        assert pose is not None
+        ground = pose.position[:2]
+        direction = pose.look_at[:2] - ground
+        direction = direction / np.linalg.norm(direction)
+        close_ahead = ground + direction * MIN_CLEAR_AHEAD_VEHICLE_M
+        for vehicle in scenario.vehicles:
+            assert not _segment_hits_box(ground, close_ahead, vehicle.aabb)
