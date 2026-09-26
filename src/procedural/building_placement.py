@@ -36,7 +36,7 @@ set.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Sequence, Set, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -289,6 +289,9 @@ class Building:  # pylint: disable=too-many-instance-attributes
     building_type: BuildingType = BuildingType.MIXED_USE
     material: str = "concrete"
     style_name: str = DEFAULT_BUILDING_STYLE.name
+    # (x_min, y_min, x_max, y_max, z_max) of the placed facade pieces, when known: the
+    # label extent, which reaches past the footprint (see building_extent.py).
+    label_extent: Optional[Tuple[float, float, float, float, float]] = None
 
     def __hash__(self) -> int:
         return hash(self.building_id)

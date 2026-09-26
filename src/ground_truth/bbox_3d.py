@@ -105,9 +105,11 @@ class BoundingBox3D:
 def extract_bbox_3d(building: Building) -> BoundingBox3D:
     """Extract a BoundingBox3D from one generated Building."""
     x_min, y_min, x_max, y_max = building.aabb
+    height = building.height
+    if building.label_extent is not None:
+        x_min, y_min, x_max, y_max, height = building.label_extent
     length = x_max - x_min
     width = y_max - y_min
-    height = building.height
 
     center = np.array([(x_min + x_max) / 2.0, (y_min + y_max) / 2.0, height / 2.0])
     dimensions = np.array([length, width, height])
