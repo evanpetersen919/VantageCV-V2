@@ -387,6 +387,8 @@ AProceduralScenarioLoader::AProceduralScenarioLoader()
 
 void AProceduralScenarioLoader::ClearPreviousScenario()
 {
+	const double ClearStartSeconds = FPlatformTime::Seconds();
+	const int32 ActorsToDestroy = SpawnedAssetActors.Num();
 	TArray<UProceduralMeshComponent*> MeshComponents;
 	GetComponents<UProceduralMeshComponent>(MeshComponents);
 	for (UProceduralMeshComponent* MeshComponent : MeshComponents)
@@ -402,10 +404,11 @@ void AProceduralScenarioLoader::ClearPreviousScenario()
 	{
 		if (SpawnedActor != nullptr)
 		{
-			SpawnedActor->Destroy();
+			GetWorld()->DestroyActor(SpawnedActor, /*bNetForce=*/false, /*bShouldModifyLevel=*/false);
 		}
 	}
 	SpawnedAssetActors.Reset();
+	UE_LOG(LogProceduralScenarioLoader, Display, TEXT("ClearPreviousScenario: destroyed %d actor(s) in %.2f s"), ActorsToDestroy, FPlatformTime::Seconds() - ClearStartSeconds);
 }
 
 bool AProceduralScenarioLoader::HideIfTemplateTerrain(AActor* Actor)
@@ -613,6 +616,25 @@ void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& 
 				RainVolume->Settings.AddBlendable(RainMaterial, 1.0f);
 				SpawnedAssetActors.Add(RainVolume);
 			}
+		}
+	}
+
+	// Auto-exposure normally takes seconds to adapt after a camera cut, so a
+	// frame captured right after moving the camera has the wrong brightness
+	// and frames of one scenario disagree. Make it adapt almost instantly.
+	{
+		FActorSpawnParameters ExposureSpawnParams;
+		ExposureSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		if (APostProcessVolume* ExposureVolume = World->SpawnActor<APostProcessVolume>(FVector::ZeroVector, FRotator::ZeroRotator, ExposureSpawnParams))
+		{
+			ExposureVolume->bUnbound = true;
+			ExposureVolume->BlendWeight = 1.0f;
+			ExposureVolume->Priority = 100.0f;
+			ExposureVolume->Settings.bOverride_AutoExposureSpeedUp = true;
+			ExposureVolume->Settings.AutoExposureSpeedUp = 1000.0f;
+			ExposureVolume->Settings.bOverride_AutoExposureSpeedDown = true;
+			ExposureVolume->Settings.AutoExposureSpeedDown = 1000.0f;
+			SpawnedAssetActors.Add(ExposureVolume);
 		}
 	}
 

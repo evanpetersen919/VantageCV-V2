@@ -28,6 +28,7 @@ import asyncio
 import itertools
 import json
 import time
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import websockets
@@ -75,6 +76,11 @@ def parse_response(raw: Dict[str, Any]) -> Any:
     return raw["result"]
 
 
+def _as_text(message: Any) -> str:
+    """A received websocket message (text or bytes) as text."""
+    return message if isinstance(message, str) else bytes(message).decode("utf-8")
+
+
 class UE5Backend:
     """JSON-RPC-over-WebSocket client for a running UE5 instance."""
 
@@ -92,6 +98,34 @@ class UE5Backend:
         self.uri = uri
         self.timeout_seconds = timeout_seconds
         self._request_id_counter = itertools.count(1)
+        self._connection: Optional[Any] = None
+
+    async def __aenter__(self) -> "UE5Backend":
+        """Keep one connection open for every call inside ``async with`` -- the
+        connect handshake alone costs a couple of game frames per call otherwise."""
+        self._connection = await websockets.connect(self.uri, max_size=None, ping_interval=None)
+        return self
+
+    async def __aexit__(self, *_exc: Any) -> None:
+        """Close the shared connection."""
+        if self._connection is not None:
+            await self._connection.close()
+            self._connection = None
+
+    async def _exchange(self, request: Dict[str, Any]) -> str:
+        """Send one request and return the raw response text."""
+        if self._connection is not None:
+            await asyncio.wait_for(
+                self._connection.send(json.dumps(request)), timeout=self.timeout_seconds
+            )
+            return _as_text(
+                await asyncio.wait_for(self._connection.recv(), timeout=self.timeout_seconds)
+            )
+        async with websockets.connect(self.uri, max_size=None, ping_interval=None) as connection:
+            await asyncio.wait_for(
+                connection.send(json.dumps(request)), timeout=self.timeout_seconds
+            )
+            return _as_text(await asyncio.wait_for(connection.recv(), timeout=self.timeout_seconds))
 
     async def call(self, method: str, params: Optional[Dict[str, Any]] = None) -> Any:
         """Make one JSON-RPC call and return its result.
@@ -130,15 +164,7 @@ class UE5Backend:
             # dead-connection detection; the keepalive ping only adds a
             # false-positive failure mode for exactly the slow, blocking
             # calls (like this one) that need long timeouts most.
-            async with websockets.connect(
-                self.uri, max_size=None, ping_interval=None
-            ) as connection:
-                await asyncio.wait_for(
-                    connection.send(json.dumps(request)), timeout=self.timeout_seconds
-                )
-                raw_response = await asyncio.wait_for(
-                    connection.recv(), timeout=self.timeout_seconds
-                )
+            raw_response = await self._exchange(request)
         except asyncio.TimeoutError as exc:
             raise UE5CommunicationTimeoutError(
                 f"No response from {self.uri} within {self.timeout_seconds}s"
@@ -151,6 +177,11 @@ class UE5Backend:
         """Send a generated scenario (nodes/edges/lanes/buildings/meshes,
         JSON-serialized) to UE5's ``LoadProceduralScenario`` RPC method."""
         return await self.call("LoadProceduralScenario", {"scenario": payload})
+
+    async def load_scenario_file(self, path: Path) -> Any:
+        """Have UE5 read a serialized scenario from ``path`` (same machine) instead of
+        receiving it through the socket, which moves only ~0.2 MB/s on a full scene."""
+        return await self.call("LoadProceduralScenario", {"scenario_path": str(path.resolve())})
 
     async def ping(self) -> float:
         """Round-trip a no-op RPC call and return elapsed time in seconds."""

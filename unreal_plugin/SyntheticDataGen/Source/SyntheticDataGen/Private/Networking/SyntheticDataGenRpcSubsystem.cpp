@@ -24,6 +24,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
 #include "UnrealClient.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSyntheticDataGenRpc, Log, All);
@@ -146,11 +147,21 @@ void USyntheticDataGenRpcSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
+namespace
+{
+constexpr int32 ServicePassesPerFrame = 16;
+}
+
 bool USyntheticDataGenRpcSubsystem::TickServer(float /*DeltaTime*/)
 {
 	if (Server != nullptr)
 	{
-		Server->Tick();
+		// A few service passes per frame: the socket layer moves a small chunk per pass, and the
+		// frame rate of a full scene is low, so one pass per frame made every call cost seconds.
+		for (int32 Pass = 0; Pass < ServicePassesPerFrame; ++Pass)
+		{
+			Server->Tick();
+		}
 	}
 	return true; // keep ticking every frame until Deinitialize removes this ticker
 }
@@ -247,19 +258,34 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 			return BuildErrorResponse(RequestId, -32602, TEXT("Invalid params: expected an object"));
 		}
 
-		const TSharedPtr<FJsonObject>* ScenarioObject = nullptr;
-		if (!(*Params)->TryGetObjectField(TEXT("scenario"), ScenarioObject))
-		{
-			return BuildErrorResponse(RequestId, -32602, TEXT("Invalid params: missing 'scenario' object"));
-		}
-
-		// AProceduralScenarioLoader::LoadProceduralScenario's own
-		// interface takes ScenarioJson as a string (it does its own
-		// parsing), so re-serialize the already-parsed "scenario"
-		// sub-object back into JSON text for it.
 		FString ScenarioJson;
-		const TSharedRef<TJsonWriter<>> ScenarioWriter = TJsonWriterFactory<>::Create(&ScenarioJson);
-		FJsonSerializer::Serialize(ScenarioObject->ToSharedRef(), ScenarioWriter);
+		FString ScenarioPath;
+		if ((*Params)->TryGetStringField(TEXT("scenario_path"), ScenarioPath))
+		{
+			// A payload of many MB is far faster read from disk (the client
+			// writes it on the same machine) than pushed through the socket.
+			if (!FFileHelper::LoadFileToString(ScenarioJson, *ScenarioPath))
+			{
+				return BuildErrorResponse(
+					RequestId, -32000, FString::Printf(TEXT("Could not read scenario file %s"), *ScenarioPath));
+			}
+		}
+		else
+		{
+			const TSharedPtr<FJsonObject>* ScenarioObject = nullptr;
+			if (!(*Params)->TryGetObjectField(TEXT("scenario"), ScenarioObject))
+			{
+				return BuildErrorResponse(
+					RequestId, -32602, TEXT("Invalid params: expected 'scenario' or 'scenario_path'"));
+			}
+
+			// AProceduralScenarioLoader::LoadProceduralScenario's own
+			// interface takes ScenarioJson as a string (it does its own
+			// parsing), so re-serialize the already-parsed "scenario"
+			// sub-object back into JSON text for it.
+			const TSharedRef<TJsonWriter<>> ScenarioWriter = TJsonWriterFactory<>::Create(&ScenarioJson);
+			FJsonSerializer::Serialize(ScenarioObject->ToSharedRef(), ScenarioWriter);
+		}
 
 		AProceduralScenarioLoader* Loader = FindOrSpawnLoader();
 		if (Loader == nullptr)
