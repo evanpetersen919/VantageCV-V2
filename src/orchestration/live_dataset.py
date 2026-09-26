@@ -6,21 +6,35 @@ rendered. The labels of a frame come from ``render_frame`` with the camera the
 game rendered through (``ue_camera``), so image and annotations share one model.
 Every frame gets a QA overlay of its labels; the images carry their scenario
 conditions and camera pose in the COCO ``images`` entries.
+
+A run is crash-safe and resumable: each finished scenario is stored on its own (see
+``dataset_store.py``), a failed scenario is retried after waiting for the game to answer
+again, and rerunning the same command skips everything already finished.
 """
 
+import hashlib
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, TypeVar
 
 import numpy as np
 from PIL import Image, ImageDraw
 
+from src.export.annotation_policy import AnnotationPolicy, apply_policy
 from src.export.coco_exporter import CocoFrame, export_coco
 from src.ground_truth.overlay import draw_box_3d
 from src.orchestration.camera_sampling import CameraPose, overview_pose, sample_ego_pose
-from src.orchestration.dataset_generator import Bounds, generate_scenario, render_frame, write_json
-from src.orchestration.live_render import LiveRenderer, ue_camera, vertical_fov_deg
+from src.orchestration.dataset_generator import Bounds, generate_scenario, render_frame
+from src.orchestration.dataset_store import DatasetStore
+from src.orchestration.live_render import (
+    RECOVERABLE_ERRORS,
+    GameUnavailableError,
+    LiveRenderer,
+    ue_camera,
+    vertical_fov_deg,
+)
 from src.orchestration.scenario_serializer import serialize_scenario
 from src.procedural.environment import TimeOfDay, Weather, draw_weather, scenario_environment
 from src.procedural.scenario import ScenarioTypeConfig
@@ -29,6 +43,9 @@ NIGHT_SHARE = 0.2
 NIGHT_RAIN_SHARE = 0.2
 PARTLY_HIDDEN_BELOW = 0.5
 MAX_CALIBRATION_ERROR_PX = 3.0
+MAX_VIEWS_PER_SCENARIO = 100
+MAX_SCENARIO_ATTEMPTS = 3
+T = TypeVar("T")
 DEFAULT_VIEWS: Tuple[str, ...] = ("ego", "ego", "overview")
 
 
@@ -48,9 +65,10 @@ def draw_conditions(seed: int) -> Tuple[TimeOfDay, Weather]:
 class LiveDatasetResult:
     """What a run produced."""
 
-    frames: List[CocoFrame] = field(default_factory=list)
+    rendered_scenarios: int = 0
+    resumed_scenarios: int = 0
     skipped_scenarios: int = 0
-    skipped_views: int = 0
+    frames: int = 0
     calibration_error_px: float = 0.0
     elapsed_seconds: float = 0.0
 
@@ -62,7 +80,9 @@ def _views_for(
     rng = np.random.Generator(np.random.PCG64([seed, 0x51C3]))
     poses: List[CameraPose] = []
     for kind in views:
-        pose = overview_pose(bounds) if kind == "overview" else sample_ego_pose(scenario, rng)
+        pose = (
+            overview_pose(bounds) if kind == "overview" else sample_ego_pose(scenario, rng, bounds)
+        )
         if pose is not None:
             poses.append(pose)
     return poses
@@ -106,6 +126,91 @@ def _frame_metadata(
     }
 
 
+def _settings(
+    config: ScenarioTypeConfig,
+    bounds: Bounds,
+    views: Tuple[str, ...],
+    base_seed: int,
+    policy: AnnotationPolicy,
+) -> Dict[str, Any]:
+    """The settings a run is identified by; a resume must match them."""
+    return {
+        "config_hash": hashlib.sha1(config.model_dump_json().encode("utf-8")).hexdigest(),
+        "bounds": list(bounds),
+        "views": list(views),
+        "base_seed": base_seed,
+        "night_share": NIGHT_SHARE,
+        "night_rain_share": NIGHT_RAIN_SHARE,
+        "vertical_fov_deg": round(vertical_fov_deg(), 4),
+        "annotation_policy": policy.settings(),
+    }
+
+
+async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-locals
+    renderer: LiveRenderer,
+    config: ScenarioTypeConfig,
+    bounds: Bounds,
+    output_dir: Path,
+    index: int,
+    views: Tuple[str, ...],
+    seed: int,
+    policy: AnnotationPolicy,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Generate, load and photograph one scenario; return its COCO images and annotations.
+
+    A scenario the validator rejects has no frames (empty lists), the same every time.
+    """
+    conditions = draw_conditions(seed)
+    try:
+        scenario = generate_scenario(
+            seed, config, bounds, f"live_{index:04d}", time_of_day=conditions[0]
+        )
+    except ValueError:
+        return [], []
+    environment = scenario_environment(scenario.season, conditions[0], conditions[1], seed)
+    await renderer.load(serialize_scenario(scenario, environment))
+    frames: List[CocoFrame] = []
+    for view_index, pose in enumerate(_views_for(scenario, views, bounds, seed)):
+        name = f"{scenario.scenario_id}_{view_index}_{pose.kind}"
+        image_path = output_dir / "images" / f"{name}.png"
+        width, height = await renderer.capture(pose.position, pose.look_at, image_path)
+        camera = ue_camera(pose.position, pose.look_at, width, height)
+        image_id = index * MAX_VIEWS_PER_SCENARIO + view_index
+        frame = render_frame(scenario, camera, image_id, f"images/{name}.png")
+        frame, dropped = apply_policy(frame, policy)
+        frame.metadata = _frame_metadata(scenario, conditions, seed, pose)
+        frame.metadata["dropped_annotations"] = dropped
+        _save_qa(frame, image_path, output_dir / "qa" / f"{name}.png")
+        frames.append(frame)
+    coco = export_coco(frames, policy.profile)
+    return coco["images"], coco["annotations"]
+
+
+async def _with_recovery(
+    renderer: LiveRenderer, label: str, operation: Callable[[], Awaitable[T]]
+) -> T:
+    """Run ``operation``; if the game fails, wait for it to answer again and retry.
+
+    Raises ``GameUnavailableError`` after ``MAX_SCENARIO_ATTEMPTS`` failures.
+    """
+    for attempt in range(1, MAX_SCENARIO_ATTEMPTS + 1):
+        try:
+            return await operation()
+        except RECOVERABLE_ERRORS as error:
+            print(
+                f"{label} attempt {attempt}/{MAX_SCENARIO_ATTEMPTS} failed: "
+                f"{type(error).__name__}: {error}",
+                flush=True,
+            )
+            if attempt == MAX_SCENARIO_ATTEMPTS:
+                raise GameUnavailableError(
+                    f"{label} failed {MAX_SCENARIO_ATTEMPTS} times; "
+                    "rerun the same command to resume"
+                ) from error
+            await renderer.recover()
+    raise AssertionError("unreachable")
+
+
 async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arguments
     renderer: LiveRenderer,
     config: ScenarioTypeConfig,
@@ -114,43 +219,66 @@ async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arg
     num_scenarios: int,
     base_seed: int,
     views: Tuple[str, ...] = DEFAULT_VIEWS,
+    policy: Optional[AnnotationPolicy] = None,
 ) -> LiveDatasetResult:
-    """Render ``num_scenarios`` scenarios x ``views`` and write images, QA overlays and COCO."""
+    """Render ``num_scenarios`` scenarios x ``views``, resuming any earlier run in ``output_dir``.
+
+    Raises ``ManifestMismatchError`` if ``output_dir`` holds a run with other settings and
+    ``GameUnavailableError`` if the game stops answering (everything finished so far is
+    kept; rerun the same command to continue).
+    """
     started = time.perf_counter()
+    policy = policy or AnnotationPolicy()
+    store = DatasetStore(output_dir, export_coco([], policy.profile)["categories"])
+    store.check_manifest(_settings(config, bounds, views, base_seed, policy))
     result = LiveDatasetResult()
-    result.calibration_error_px = await renderer.calibration_error_px(output_dir / "calibration")
-    if result.calibration_error_px > MAX_CALIBRATION_ERROR_PX:
-        raise RuntimeError(
-            f"camera model does not match the game (calibration error "
-            f"{result.calibration_error_px:.2f} px > {MAX_CALIBRATION_ERROR_PX} px)"
+    if any(store.load_part(index) is None for index in range(num_scenarios)):
+        result.calibration_error_px = await _with_recovery(
+            renderer,
+            "camera check",
+            lambda: renderer.calibration_error_px(output_dir / "calibration"),
         )
-    for index in range(num_scenarios):
-        seed = base_seed + index
-        conditions = draw_conditions(seed)
-        try:
-            scenario = generate_scenario(
-                seed, config, bounds, f"live_{index:04d}", time_of_day=conditions[0]
+        if result.calibration_error_px > MAX_CALIBRATION_ERROR_PX:
+            raise RuntimeError(
+                f"camera model does not match the game (calibration error "
+                f"{result.calibration_error_px:.2f} px > {MAX_CALIBRATION_ERROR_PX} px)"
             )
-        except ValueError:
-            result.skipped_scenarios += 1
-            continue
-        environment = scenario_environment(scenario.season, conditions[0], conditions[1], seed)
-        await renderer.load(serialize_scenario(scenario, environment))
-        for view_index, pose in enumerate(_views_for(scenario, views, bounds, seed)):
-            name = f"{scenario.scenario_id}_{view_index}_{pose.kind}"
-            image_path = output_dir / "images" / f"{name}.png"
-            width, height = await renderer.capture(pose.position, pose.look_at, image_path)
-            camera = ue_camera(pose.position, pose.look_at, width, height)
-            frame = render_frame(scenario, camera, len(result.frames), f"images/{name}.png")
-            frame.metadata = _frame_metadata(scenario, conditions, seed, pose)
-            _save_qa(frame, image_path, output_dir / "qa" / f"{name}.png")
-            result.frames.append(frame)
-        print(
-            f"scenario {index + 1}/{num_scenarios} seed {seed} {conditions[0].value}/"
-            f"{conditions[1].value}: {len(result.frames)} frames so far",
-            flush=True,
-        )
-    write_json(output_dir / "annotations.json", export_coco(result.frames))
+    try:
+        for index in range(num_scenarios):
+            existing = store.load_part(index)
+            if existing is not None:
+                result.resumed_scenarios += 1
+                result.frames += len(existing["images"])
+                continue
+            images, annotations = await _with_recovery(
+                renderer,
+                f"scenario {index}",
+                partial(
+                    _render_scenario,
+                    renderer,
+                    config,
+                    bounds,
+                    output_dir,
+                    index,
+                    views,
+                    base_seed + index,
+                    policy,
+                ),
+            )
+            store.save_part(index, images, annotations)
+            result.frames += len(images)
+            if images:
+                result.rendered_scenarios += 1
+            else:
+                result.skipped_scenarios += 1
+            print(
+                f"scenario {index + 1}/{num_scenarios} seed {base_seed + index}: "
+                f"{len(images)} frames, {result.frames} total, "
+                f"{time.perf_counter() - started:.0f} s elapsed",
+                flush=True,
+            )
+    finally:
+        store.merge()
     result.elapsed_seconds = time.perf_counter() - started
     return result
 

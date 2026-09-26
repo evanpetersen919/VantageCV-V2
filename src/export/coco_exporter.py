@@ -18,7 +18,7 @@ from typing import Any, Dict, List
 
 from src.ground_truth.bbox_2d import BoundingBox2D
 from src.ground_truth.bbox_3d import BoundingBox3D
-from src.ground_truth.categories import BUILDING, CATEGORY_NAMES
+from src.ground_truth.categories import BUILDING, FINE_PROFILE, CategoryProfile
 from src.ground_truth.segmentation import compute_silhouette
 from src.sensors.camera_model import Camera
 
@@ -45,12 +45,13 @@ class CocoFrame:
     silhouettes_by_id: Dict[int, Any] = field(default_factory=dict)
 
 
-def _bbox_2d_to_coco_annotation(
+def _bbox_2d_to_coco_annotation(  # pylint: disable=too-many-arguments
     annotation_id: int,
     image_id: int,
     bbox_2d: BoundingBox2D,
     category_id: int,
     silhouette: Any,
+    fine_category_id: int,
 ) -> Dict[str, Any]:
     """Build one COCO annotation dict from a projected 2D box and
     (optionally) its polygon silhouette."""
@@ -70,14 +71,19 @@ def _bbox_2d_to_coco_annotation(
         "iscrowd": 0,
         "segmentation": segmentation,
         "visibility_fraction": round(bbox_2d.visible_fraction, 3),
+        "truncation": round(bbox_2d.truncation, 3),
+        "fine_category_id": fine_category_id,
     }
 
 
-def export_coco(frames: List[CocoFrame]) -> Dict[str, Any]:
+def export_coco(frames: List[CocoFrame], profile: CategoryProfile = FINE_PROFILE) -> Dict[str, Any]:
     """Build a complete COCO-format dict from a list of frames.
 
     Parameters
     ----------
+    profile : CategoryProfile
+        The output classes (default: this project's own fine categories). Objects of a
+        fine category the profile does not map are left out.
     frames : List[CocoFrame]
         One entry per rendered camera view. Each frame's own
         ``bboxes_2d`` (already visibility-filtered by
@@ -115,26 +121,32 @@ def export_coco(frames: List[CocoFrame]) -> Dict[str, Any]:
                     silhouette = compute_silhouette(frame.camera, bbox_3d)
                 category_id = bbox_3d.category_id
 
+            if category_id not in profile.mapping:
+                continue
             annotations.append(
                 _bbox_2d_to_coco_annotation(
-                    annotation_id_counter, frame.image_id, bbox_2d, category_id, silhouette
+                    annotation_id_counter,
+                    frame.image_id,
+                    bbox_2d,
+                    profile.mapping[category_id],
+                    silhouette,
+                    category_id,
                 )
             )
             annotation_id_counter += 1
 
     categories = [
         {"id": category_id, "name": name, "supercategory": _supercategory(name)}
-        for category_id, name in sorted(CATEGORY_NAMES.items())
+        for category_id, name in profile.categories
     ]
 
     return {"images": images, "annotations": annotations, "categories": categories}
 
 
 def _supercategory(category_name: str) -> str:
-    """COCO's conventional broad grouping for one of this dataset's own
-    category names."""
+    """COCO's conventional broad grouping for a category name."""
     if category_name == "building":
         return "structure"
-    if category_name == "pedestrian":
+    if category_name in ("pedestrian", "person"):
         return "person"
     return "vehicle"
