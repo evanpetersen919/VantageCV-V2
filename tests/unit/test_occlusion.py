@@ -8,7 +8,7 @@ import pytest
 from src.ground_truth.bbox_2d import BoundingBox2D, project_bboxes_3d_to_2d
 from src.ground_truth.bbox_3d import BoundingBox3D
 from src.ground_truth.categories import SEDAN
-from src.ground_truth.occlusion import filter_occluded, sample_points, visible_fraction
+from src.ground_truth.occlusion import _surface_hits, filter_occluded, visible_fraction
 from src.sensors.camera_model import Camera, CameraExtrinsics, CameraIntrinsics
 
 
@@ -36,18 +36,25 @@ CAR = (4.5, 1.9, 1.5)
 TRUCK_SIZE = (8.0, 2.5, 4.0)
 
 
-def test_sample_points_lie_inside_the_box() -> None:
-    """Sample points lie inside the box."""
+def test_surface_hits_lie_on_the_box_surface_facing_the_camera() -> None:
+    """Every ray hit is on the box boundary and on the side nearest the camera."""
     box = _box(1, 10.0, 3.0, CAR, heading=0.7)
-    points = sample_points(box)
-    assert points.shape == (27, 3)
+    camera = _camera()
+    hits = _surface_hits(camera, box)
+    assert len(hits) > 50
     cos_h, sin_h = np.cos(-0.7), np.sin(-0.7)
-    offset = points - box.center
-    local_x = offset[:, 0] * cos_h - offset[:, 1] * sin_h
-    local_y = offset[:, 0] * sin_h + offset[:, 1] * cos_h
-    assert np.abs(local_x).max() == pytest.approx(0.9 * CAR[0] / 2.0)
-    assert np.abs(local_y).max() == pytest.approx(0.9 * CAR[1] / 2.0)
-    assert np.abs(offset[:, 2]).max() == pytest.approx(0.9 * CAR[2] / 2.0)
+    offset = hits - box.center
+    local = np.column_stack(
+        [
+            offset[:, 0] * cos_h - offset[:, 1] * sin_h,
+            offset[:, 0] * sin_h + offset[:, 1] * cos_h,
+            offset[:, 2],
+        ]
+    )
+    on_surface = np.isclose(np.abs(local) / (box.dimensions / 2.0), 1.0, atol=1e-6).any(axis=1)
+    assert on_surface.all()
+    to_hits = np.linalg.norm(hits - camera.extrinsics.translation, axis=1)
+    assert to_hits.mean() < np.linalg.norm(box.center - camera.extrinsics.translation)
 
 
 def test_unobstructed_box_is_fully_visible() -> None:
@@ -90,7 +97,8 @@ def test_rotated_occluder_uses_its_own_frame() -> None:
     car = _box(1, 30.0, 0.0, CAR)
     assert visible_fraction(_camera(), car, [car, wall]) == 0.0
     along_sight_line = _box(3, 15.0, 0.0, (10.0, 0.3, 4.0))
-    assert visible_fraction(_camera(), car, [car, along_sight_line]) == pytest.approx(18.0 / 27.0)
+    partly = visible_fraction(_camera(), car, [car, along_sight_line])
+    assert 0.3 < partly < 0.95
     off_to_the_side = _box(4, 15.0, 6.0, (10.0, 0.3, 4.0))
     assert visible_fraction(_camera(), car, [car, off_to_the_side]) == 1.0
 
@@ -118,3 +126,14 @@ def test_visible_fraction_is_validated() -> None:
     """A fraction outside [0, 1] is rejected."""
     with pytest.raises(ValueError):
         BoundingBox2D(1, 0.0, 0.0, 10.0, 10.0, 1.0, visible_fraction=1.5)
+
+
+def test_far_car_seen_only_over_a_trucks_roof_is_not_counted_visible() -> None:
+    """Grazing view over a tall truck: a sliver of roof, not a third of the car."""
+    high_camera = Camera(
+        CameraIntrinsics.from_fov(90.0, 1280, 720),
+        CameraExtrinsics.looking_at(np.array([0.0, 0.0, 4.5]), np.array([60.0, 0.0, 1.0])),
+    )
+    truck = _box(2, 6.0, 0.0, (8.0, 2.5, 4.4))
+    car = _box(1, 90.0, 0.0, CAR)
+    assert visible_fraction(high_camera, car, [car, truck]) < 0.1
