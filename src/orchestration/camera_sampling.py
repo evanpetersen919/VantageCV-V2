@@ -23,6 +23,11 @@ LOOK_TARGET_HEIGHT_M = 1.2
 YAW_JITTER_RAD = np.radians(10.0)
 LANE_POSITION_RANGE = (0.1, 0.9)
 MIN_CLEAR_AHEAD_M = 15.0
+# A parked vehicle right ahead is normal (it is exactly what a detector needs to see), but the
+# camera must not be framed nose-in against one -- a real bug found by eye: a vehicle a few
+# metres ahead of the sampled point, undetected because only buildings were checked, put the
+# camera effectively inside the vehicle's body (near-black frame, no usable view at all).
+MIN_CLEAR_AHEAD_VEHICLE_M = 4.0
 CLEAR_TO_EDGE_M = 60.0
 # Half a city block (avg_block_size starts at 80 m): a camera closer than this to the
 # generated area's edge can see the void beyond it to the side, not just ahead, because the
@@ -137,6 +142,9 @@ def _candidate(
         return None
     clear_end = ground + heading * MIN_CLEAR_AHEAD_M
     if any(_segment_hits_box(ground, clear_end, b.aabb) for b in scenario.buildings):
+        return None
+    clear_end_vehicle = ground + heading * MIN_CLEAR_AHEAD_VEHICLE_M
+    if any(_segment_hits_box(ground, clear_end_vehicle, v.aabb) for v in scenario.vehicles):
         return None
     target = ground + heading * LOOK_AHEAD_M
     return CameraPose(
