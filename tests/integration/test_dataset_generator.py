@@ -155,14 +155,18 @@ def test_generate_dataset_creates_output_dir_if_missing(urban_config, bounds, tm
 
 
 def test_generate_dataset_performance_reasonable(urban_config, bounds, tmp_path) -> None:
-    """Export performance: generating a small multi-scenario dataset
-    completes in well under a minute (a coarse smoke-test budget, not a
-    precise benchmark -- see KNOWN_GAPS_AND_ISSUES.md on this pipeline's
-    known performance limitations at larger scale)."""
+    """Export performance: generating a small multi-scenario dataset completes in a
+    reasonable time (a coarse smoke-test budget, not a precise benchmark -- see
+    KNOWN_GAPS_AND_ISSUES.md on this pipeline's known performance limitations at
+    larger scale). 180s, not 60s: shared CI runners measured ~3x slower than a dev
+    machine for this numpy-heavy path (72.6s observed on GitHub Actions vs ~20s
+    locally), on top of real per-object work added since the original 60s budget
+    (occlusion ray casts, mesh-based label refinement, measured building/pedestrian
+    geometry lookups)."""
     result = generate_dataset(
         num_scenarios=3, base_seed=1, config=urban_config, bounds=bounds, output_dir=tmp_path
     )
-    assert result.elapsed_seconds < 60.0
+    assert result.elapsed_seconds < 180.0
 
 
 def test_generate_scenario_raises_on_degenerate_bounds(urban_config) -> None:
