@@ -28,7 +28,9 @@ async def _run(args: argparse.Namespace) -> None:
     async with UE5Backend(args.ue5_uri, timeout_seconds=300.0) as backend:
         result = await generate_live_dataset(
             LiveRenderer(backend),
-            load_scenario_config(args.config),
+            load_scenario_config(args.config).model_copy(
+                update={"parking_lot_fraction": args.parking_lot_fraction}
+            ),
             tuple(args.bounds),
             output_dir,
             args.num_scenarios,
@@ -58,6 +60,13 @@ def main() -> None:
         choices=sorted(PROFILES),
         default="coco",
         help="output classes: coco (person/car/bus/truck, COCO ids, no buildings) or fine",
+    )
+    parser.add_argument(
+        "--parking-lot-fraction",
+        type=float,
+        default=0.3,
+        help="share of city blocks holding a surface lot (the template default of 0.1 left over "
+        "half the scenarios without one)",
     )
     parser.add_argument("--min-box-height", type=float, default=MIN_BOX_HEIGHT_PX)
     parser.add_argument("--min-box-width", type=float, default=MIN_BOX_WIDTH_PX)
