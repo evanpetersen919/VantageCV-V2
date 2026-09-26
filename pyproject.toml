@@ -75,6 +75,12 @@ ignore_missing_imports = true
 module = "pycocotools.*"
 ignore_missing_imports = true
 
+# ultralytics is only used by the training/evaluation scripts, run in a separate environment
+# (see bin/train_detector.py); it is deliberately not a project dependency.
+[[tool.mypy.overrides]]
+module = "ultralytics.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"
