@@ -66,6 +66,12 @@ LOT_UV_TILE_METERS = 4.0
 # A lot covers between these fractions of its block's free interior along
 # each axis (1.0 = the whole interior).
 LOT_EXTENT_FRACTION_RANGE = (0.5, 1.0)
+# A lot never exceeds these sides (the longer along its aisles): about 20 stalls per row and
+# four rows, 80 stalls at most. Without a cap a lot filled a whole block (up to 420 stalls,
+# 126 m long), which puts hundreds of near-identical parked cars in a frame; a design choice
+# for training data, not a limit of real lots.
+LOT_MAX_LONG_SIDE_M = 60.0
+LOT_MAX_SHORT_SIDE_M = 45.0
 # Share of a lot's stalls that hold a car, drawn once per lot.
 PARKED_OCCUPANCY_RANGE = (0.3, 0.9)
 # Share of cars that back into their stall (the rest drive in nose-first).
@@ -376,8 +382,14 @@ def plan_parking_lots(  # pylint: disable=too-many-locals
         x_min, y_min, x_max, y_max = _block_free_rectangle(block, inset)
         if x_max <= x_min or y_max <= y_min:
             continue
-        width = (x_max - x_min) * float(frac_x)
-        depth = (y_max - y_min) * float(frac_y)
+        free_width, free_depth = x_max - x_min, y_max - y_min
+        if free_width >= free_depth:
+            free_width = min(free_width, LOT_MAX_LONG_SIDE_M)
+            free_depth = min(free_depth, LOT_MAX_SHORT_SIDE_M)
+        else:
+            free_width = min(free_width, LOT_MAX_SHORT_SIDE_M)
+            free_depth = min(free_depth, LOT_MAX_LONG_SIDE_M)
+        width, depth = free_width * float(frac_x), free_depth * float(frac_y)
         lot_x = x_min + (x_max - x_min - width) * int(anchor_x)
         lot_y = y_min + (y_max - y_min - depth) * int(anchor_y)
         # The driveway leaves by one of the two short sides (the ends of the

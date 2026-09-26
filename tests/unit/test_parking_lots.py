@@ -22,6 +22,8 @@ from src.procedural.parking_lots import (
     DRIVEWAY_RAMP_OUTER_Z_M,
     DRIVEWAY_WIDTH_M,
     ISLAND_PERIOD_STALLS,
+    LOT_MAX_LONG_SIDE_M,
+    LOT_MAX_SHORT_SIDE_M,
     LOT_SURFACE_Z_M,
     MIN_STALLS_PER_ROW,
     PARKED_MIX_EXPONENT,
@@ -439,14 +441,14 @@ def test_every_lot_has_wheel_stops_in_one_of_the_block_styles(urban_config, boun
 
 
 def test_block_styles_are_random_per_stall_deterministic_and_all_used(urban_config, bounds) -> None:
-    """Within a lot the styles mix (every style shows up in a big lot, in
-    about equal shares); the same seed gives the same styles and another seed
-    a different sequence."""
+    """Across a scenario's lots the styles mix (every style shows up, in about
+    equal shares); the same seed gives the same styles and another seed a
+    different sequence."""
     config = _config(urban_config, 0.7)
     first = generate_scenario(42, config, bounds, "a")
     again = generate_scenario(42, config, bounds, "b")
     other = generate_scenario(43, config, bounds, "c")
-    styles = max((lot.wheel_stop_styles for lot in first.parking_lots), key=len)
+    styles = [style for lot in first.parking_lots for style in lot.wheel_stop_styles]
     assert len(styles) > 100
     assert set(styles) == set(range(len(PARKING_BLOCK_ASSET_PATHS)))
     for style in range(len(PARKING_BLOCK_ASSET_PATHS)):
@@ -459,3 +461,20 @@ def test_block_styles_are_random_per_stall_deterministic_and_all_used(urban_conf
     assert [lot.wheel_stop_styles for lot in first.parking_lots] != [
         lot.wheel_stop_styles for lot in other.parking_lots
     ]
+
+
+def test_lots_never_exceed_the_size_cap(urban_config, bounds) -> None:
+    """No lot is longer than 60 m, wider than 45 m or holds more than 80 stalls, and sizes vary."""
+    config = _config(urban_config, 0.7)
+    lots = [
+        lot
+        for seed in range(20)
+        for lot in generate_scenario(seed, config, bounds, "cap").parking_lots
+    ]
+    assert lots
+    for lot in lots:
+        x_min, y_min, x_max, y_max = lot.bounds
+        assert max(x_max - x_min, y_max - y_min) <= LOT_MAX_LONG_SIDE_M + 1e-6
+        assert min(x_max - x_min, y_max - y_min) <= LOT_MAX_SHORT_SIDE_M + 1e-6
+        assert len(lot.stalls) <= 80
+    assert len({len(lot.stalls) for lot in lots}) > 5
