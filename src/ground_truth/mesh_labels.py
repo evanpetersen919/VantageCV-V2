@@ -7,9 +7,9 @@ For objects with a real mesh the label is instead the extent of the projected
 mesh vertices, and the segmentation polygon is their convex hull.
 
 The box is the whole object's extent clipped to the image (amodal within the
-frame); how much of it is visible is ``BoundingBox2D.visible_fraction``. A mesh
-with any vertex at or behind the camera cannot be projected cleanly, so the
-caller keeps the box-derived label for it.
+frame); how much of it is visible is ``BoundingBox2D.visible_fraction``. Triangles that
+cross the camera's near plane are cut there, so a vehicle right beside the camera
+is still labelled tightly.
 """
 
 from dataclasses import replace
@@ -25,16 +25,32 @@ from src.sensors.camera_model import Camera
 MIN_DEPTH_M = 0.3
 
 
+def _near_clipped_points(in_camera: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    """Camera-space points of the triangle soup cut at the near plane: the vertices in
+    front of it plus the points where triangle edges cross it."""
+    corners = in_camera.reshape(-1, 3, 3)
+    front = corners[:, :, 2] >= MIN_DEPTH_M
+    kept = [in_camera[front.reshape(-1)]]
+    for first, second in ((0, 1), (1, 2), (2, 0)):
+        crossing = front[:, first] != front[:, second]
+        start, end = corners[crossing, first], corners[crossing, second]
+        fraction = (MIN_DEPTH_M - start[:, 2]) / (end[:, 2] - start[:, 2])
+        kept.append(start + fraction[:, None] * (end - start))
+    return np.concatenate(kept)
+
+
 def project_vertices(
     camera: Camera, triangles: npt.NDArray[np.float64]
 ) -> Optional[npt.NDArray[np.float64]]:
-    """Pixel positions of every triangle vertex, or ``None`` if any is within
-    ``MIN_DEPTH_M`` of (or behind) the camera."""
+    """Pixel positions of the triangle soup's vertices, with triangles that cross the
+    near plane (``MIN_DEPTH_M``) cut there; ``None`` if nothing is in front of it."""
     points = triangles.reshape(-1, 3)
     in_camera = (points - camera.extrinsics.get_translation_vector()) @ (
         camera.extrinsics.get_rotation_matrix().T
     )
     if (in_camera[:, 2] < MIN_DEPTH_M).any():
+        in_camera = _near_clipped_points(in_camera)
+    if len(in_camera) == 0:
         return None
     intrinsics = camera.intrinsics
     normalized = in_camera[:, :2] / in_camera[:, 2:3]
@@ -75,8 +91,8 @@ def refine_with_meshes(
     """Replace the box-derived 2D box of every object that has a mesh with the tight
     box of its projected mesh; return the new boxes and the objects' silhouettes.
 
-    Objects whose mesh cannot be projected keep their box-derived label; objects whose
-    mesh lies entirely outside the image are dropped.
+    Objects whose mesh is entirely behind the camera keep their box-derived label; objects
+    whose mesh lies entirely outside the image are dropped.
     """
     refined: List[BoundingBox2D] = []
     silhouettes: Dict[int, npt.NDArray[np.float64]] = {}
