@@ -5,6 +5,7 @@
 // live PIE viewport -- see KNOWN_GAPS_AND_ISSUES.md's "[RESOLVED]
 // LoadProceduralScenario now dispatches real mesh sections" entry.
 
+#include "UObject/UObjectArray.h"
 #include "DataExport/ProceduralScenarioLoader.h"
 #include "ActorSpawn/VehicleActorSpawner.h"
 #include "ProceduralMesh/ScenarioMeshBuilder.h"
@@ -408,7 +409,7 @@ void AProceduralScenarioLoader::ClearPreviousScenario()
 		}
 	}
 	SpawnedAssetActors.Reset();
-	UE_LOG(LogProceduralScenarioLoader, Display, TEXT("ClearPreviousScenario: destroyed %d actor(s) in %.2f s"), ActorsToDestroy, FPlatformTime::Seconds() - ClearStartSeconds);
+	UE_LOG(LogProceduralScenarioLoader, Display, TEXT("ClearPreviousScenario: destroyed %d actor(s) in %.2f s; %d UObjects live"), ActorsToDestroy, FPlatformTime::Seconds() - ClearStartSeconds, GUObjectArray.GetObjectArrayNumMinusAvailable());
 }
 
 bool AProceduralScenarioLoader::HideIfTemplateTerrain(AActor* Actor)
@@ -1019,8 +1020,11 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 				continue;
 			}
 
-			UVehicleActorSpawner* Spawner = NewObject<UVehicleActorSpawner>(this);
-			AActor* SpawnedVehicle = Spawner->SpawnVehicle(GetWorld(), AssetData);
+			if (AssetSpawner == nullptr)
+			{
+				AssetSpawner = NewObject<UVehicleActorSpawner>(this);
+			}
+			AActor* SpawnedVehicle = AssetSpawner->SpawnVehicle(GetWorld(), AssetData);
 			ApplyAssetScalars(SpawnedVehicle);
 			if (SpawnedVehicle != nullptr)
 			{
