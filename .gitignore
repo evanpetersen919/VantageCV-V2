@@ -60,3 +60,10 @@ QOL_RESEARCH_CHECKLIST.md
 # Generated review output
 boxes_out/
 live_dataset/
+
+# Separate training environment (PyTorch + ultralytics), see bin/train_detector.py
+.venv-train/
+
+# Training and evaluation outputs
+runs/
+results/smoke_*

@@ -107,9 +107,9 @@ def _score_subset(gt: COCO, detections: List[Dict[str, Any]], image_ids: Sequenc
         zero = {name: (0.0 if counts[name] else float("nan")) for name in names}
         overall = {stat: (0.0 if any(counts.values()) else float("nan")) for stat in STAT_NAMES}
         return Scores(len(image_ids), overall, zero, dict(zero), counts)
-    evaluator = COCOeval(gt, gt.loadRes(copy.deepcopy(kept)), "bbox")
-    evaluator.params.imgIds = list(image_ids)
     with contextlib.redirect_stdout(io.StringIO()):
+        evaluator = COCOeval(gt, gt.loadRes(copy.deepcopy(kept)), "bbox")
+        evaluator.params.imgIds = list(image_ids)
         evaluator.evaluate()
         evaluator.accumulate()
         evaluator.summarize()
