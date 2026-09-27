@@ -27,6 +27,7 @@
 #include "ProceduralScenarioLoader.generated.h"
 
 class ULevel;
+class UVehicleActorSpawner;
 
 /**
  * Parses and loads one generated scenario (as JSON from the Python-side
@@ -162,6 +163,14 @@ private:
 	 * world and do). */
 	UPROPERTY()
 	TArray<TObjectPtr<AActor>> SpawnedAssetActors;
+
+	/**
+	 * One spawner reused for every asset of every load. Creating a spawner per asset leaked one
+	 * UObject per asset: an actor component registers itself with its owning actor, which keeps
+	 * it alive, so ~29k of them piled up per load and the process hit the engine's UObject
+	 * limit (25,231,360) after roughly a thousand loads. */
+	UPROPERTY()
+	TObjectPtr<UVehicleActorSpawner> AssetSpawner;
 
 	/**
 	 * Guards registering OnLevelAddedToWorld with FWorldDelegates only
