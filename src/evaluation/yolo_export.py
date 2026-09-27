@@ -52,12 +52,18 @@ def _label_lines(  # pylint: disable=too-many-locals
     return lines
 
 
-def _write_side(dataset_dir: Path, name: str, class_order: Sequence[int]) -> Tuple[int, int]:
-    """Labels and the list file for ``<name>.json``; returns (images, boxes)."""
-    coco = json.loads((dataset_dir / f"{name}.json").read_text(encoding="utf-8"))
+def write_yolo_split(
+    dataset_dir: Path, name: str, coco: Dict[str, Any], class_order: Sequence[int] = CLASS_ORDER
+) -> Tuple[int, int]:
+    """YOLO labels and the ``<name>.txt`` list for the COCO dict ``coco``; (images, boxes).
+
+    Images are found at ``dataset_dir / file_name``. Ignore regions (``iscrowd`` 1) are not
+    labels and are left out, so a benchmark loaded with ``loaders`` can be exported directly.
+    """
     by_image: Dict[int, List[Dict[str, Any]]] = {}
     for annotation in coco["annotations"]:
-        by_image.setdefault(annotation["image_id"], []).append(annotation)
+        if not annotation.get("iscrowd", 0):
+            by_image.setdefault(annotation["image_id"], []).append(annotation)
     paths, boxes = [], 0
     for image in coco["images"]:
         image_path = (dataset_dir / image["file_name"]).resolve()
@@ -71,6 +77,20 @@ def _write_side(dataset_dir: Path, name: str, class_order: Sequence[int]) -> Tup
     return len(paths), boxes
 
 
+def write_data_yaml(dataset_dir: Path, class_order: Sequence[int] = CLASS_ORDER) -> None:
+    """The ultralytics ``data.yaml`` for ``train.txt`` / ``val.txt`` in ``dataset_dir``."""
+    names = "\n".join(f"  {index}: {OUR_CLASSES[cid]}" for index, cid in enumerate(class_order))
+    root = dataset_dir.resolve().as_posix()
+    yaml = f"path: {root}\ntrain: train.txt\nval: val.txt\nnames:\n{names}\n"
+    (dataset_dir / "data.yaml").write_text(yaml, encoding="utf-8")
+
+
+def _write_side(dataset_dir: Path, name: str, class_order: Sequence[int]) -> Tuple[int, int]:
+    """Labels and the list file for ``<name>.json``; returns (images, boxes)."""
+    coco = json.loads((dataset_dir / f"{name}.json").read_text(encoding="utf-8"))
+    return write_yolo_split(dataset_dir, name, coco, class_order)
+
+
 def write_yolo_dataset(
     dataset_dir: Path, class_order: Sequence[int] = CLASS_ORDER
 ) -> Dict[str, Any]:
@@ -82,8 +102,5 @@ def write_yolo_dataset(
     for name in ("train", "val"):
         images, boxes = _write_side(dataset_dir, name, class_order)
         counts[name] = {"images": images, "boxes": boxes}
-    names = "\n".join(f"  {index}: {OUR_CLASSES[cid]}" for index, cid in enumerate(class_order))
-    root = dataset_dir.resolve().as_posix()
-    yaml = f"path: {root}\ntrain: train.txt\nval: val.txt\nnames:\n{names}\n"
-    (dataset_dir / "data.yaml").write_text(yaml, encoding="utf-8")
+    write_data_yaml(dataset_dir, class_order)
     return counts
