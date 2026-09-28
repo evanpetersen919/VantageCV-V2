@@ -13,11 +13,21 @@ for real, executable usage examples.
 
 ## What the generator produces
 
-Each frame is a real UE5 render (not a mock), labeled from the same 3D scene
-data used to place every actor. Boxes are shrunk to the visible region for
-partially-occluded objects (matching BDD100K/Cityscapes' own annotation
-convention -- see [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md)), and every object
-carries a convex-hull segmentation polygon alongside its box:
+Every object is placed and tracked as a real 3D box (center, dimensions,
+heading) -- that 3D geometry is what drives occlusion ray-casting and 2D
+projection, and every generated frame's QA overlay draws it directly (yellow
+wireframe below) alongside the exported 2D box (white) and segmentation
+silhouette (cyan), so the two stay honestly checkable against each other:
+
+![A whole generated city block from directly above, with 3D wireframe boxes on every building and vehicle, plus their 2D projected boxes](docs/images/city_overview_2d_3d_boxes.jpg)
+
+Only the 2D box and segmentation polygon are written into the exported COCO
+dataset today -- the 3D boxes stay internal-only for now (no LiDAR point
+clouds are generated yet to pair them with; see
+[`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)). Boxes are shrunk to
+the visible region for partially-occluded objects (matching BDD100K/
+Cityscapes' own annotation convention -- see
+[`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md)):
 
 ![Bounding boxes and segmentation polygons on a live-rendered night/rain scene](docs/images/segmentation_and_bbox_example.jpg)
 
