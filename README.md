@@ -1,4 +1,8 @@
-# Synthetic AV Dataset Generator
+# VantageCV Remastered
+
+### Synthetic AV Dataset Generator
+
+![A generated city street at golden hour: colored vehicles, pedestrians and varied building facades](docs/images/hero_golden_hour_street.jpg)
 
 Procedural, deterministic, seed-based generation of synthetic autonomous-vehicle
 perception datasets: road networks, lane topology, buildings, traffic, sensor
