@@ -22,13 +22,23 @@ import numpy.typing as npt
 from PIL import Image
 from scipy.ndimage import gaussian_filter, laplace
 
-# Measured against 300 real images each; see EXPERIMENT_LOG.md's post-v3 diagnostic section.
+# Measured against 300 real images each, resized to 960px longest side (matching training
+# imgsz, since that is the resolution the network actually sees -- see
+# EXPERIMENT_LOG.md's post-v3 diagnostic section).
 TARGETS = {
     "laplacian_var": 260.0,  # BDD 279.3, Cityscapes 240.2
     "saturation_mean": 70.0,  # BDD 73.8, Cityscapes 49.3 (splitting the difference)
     "block_score": 1.4,  # BDD 1.863, Cityscapes 1.001 (BDD-specific; moderate middle ground)
     "residual_std": 4.7,  # BDD 4.69, Cityscapes 4.78
 }
+TRAIN_IMGSZ = 960
+
+
+def _resize_longest_side(image: Image.Image, longest: int) -> Image.Image:
+    """``image`` scaled so its longest side is exactly ``longest`` pixels."""
+    scale = longest / max(image.size)
+    size = (round(image.size[0] * scale), round(image.size[1] * scale))
+    return image.resize(size, Image.Resampling.BILINEAR)
 
 
 def _laplacian_variance(gray: npt.NDArray[np.float64]) -> float:
@@ -90,7 +100,7 @@ def main() -> None:
 
     paths: List[Path] = sorted((args.dataset / "images").glob("*.png"))
     sample = random.Random(args.seed).sample(paths, min(args.sample_size, len(paths)))
-    images = [Image.open(p).convert("RGB") for p in sample]
+    images = [_resize_longest_side(Image.open(p).convert("RGB"), TRAIN_IMGSZ) for p in sample]
 
     baseline = np.array([_measure(image) for image in images]).mean(axis=0)
     print(
@@ -106,10 +116,10 @@ def main() -> None:
 
     grid = [
         (blur, sat, noise, quality)
-        for blur in (1.0, 1.5, 2.0)
+        for blur in (0.0, 0.2, 0.4, 0.6, 0.8)
         for sat in (0.75,)
         for noise in (0.0, 3.0)
-        for quality in (60, 75, 90)
+        for quality in (75, 90)
     ]
     for blur_sigma, sat_scale, noise_std, jpeg_quality in grid:
         processed = [
