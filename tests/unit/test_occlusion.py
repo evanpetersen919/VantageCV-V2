@@ -8,7 +8,12 @@ import pytest
 from src.ground_truth.bbox_2d import BoundingBox2D, project_bboxes_3d_to_2d
 from src.ground_truth.bbox_3d import BoundingBox3D
 from src.ground_truth.categories import SEDAN
-from src.ground_truth.occlusion import _surface_hits, filter_occluded, visible_fraction
+from src.ground_truth.occlusion import (
+    _surface_hits,
+    filter_occluded,
+    visible_fraction,
+    visible_region_box,
+)
 from src.sensors.camera_model import Camera, CameraExtrinsics, CameraIntrinsics
 
 
@@ -137,3 +142,49 @@ def test_far_car_seen_only_over_a_trucks_roof_is_not_counted_visible() -> None:
     truck = _box(2, 6.0, 0.0, (8.0, 2.5, 4.4))
     car = _box(1, 90.0, 0.0, CAR)
     assert visible_fraction(high_camera, car, [car, truck]) < 0.1
+
+
+def test_visible_region_box_is_none_when_nothing_is_occluded() -> None:
+    """A fully-visible object keeps its ordinary full-extent box (no shrink applies)."""
+    car = _box(1, 30.0, 12.0, CAR)
+    truck = _box(2, 15.0, 0.0, TRUCK_SIZE)
+    assert visible_region_box(_camera(), car, [car, truck]) is None
+
+
+def test_visible_region_box_is_none_when_fully_hidden() -> None:
+    """A fully-hidden object has no visible region to box."""
+    car = _box(1, 30.0, 0.0, CAR)
+    truck = _box(2, 15.0, 0.0, TRUCK_SIZE)
+    assert visible_region_box(_camera(), car, [car, truck]) is None
+
+
+def test_visible_region_box_shrinks_to_the_unoccluded_side() -> None:
+    """A car half behind a truck gets a region box narrower than its full projected extent,
+    tight to the side that is actually visible."""
+    camera = _camera()
+    truck = _box(2, 15.0, 0.0, TRUCK_SIZE)
+    car = _box(1, 30.0, 2.6, CAR, heading=np.pi / 2)
+    full = project_bboxes_3d_to_2d(camera, [car])[0]
+    region = visible_region_box(camera, car, [car, truck])
+    assert region is not None
+    x_min, _, x_max, _ = region
+    assert x_max - x_min < full.x_max - full.x_min
+    # the car is offset to +y (left of the truck's centreline), so the visible slice should
+    # be the far (larger-x-in-image, i.e. left-side) half, not the near/occluded half.
+    assert x_min > full.x_min
+
+
+def test_filter_occluded_shrinks_a_partly_hidden_box_without_growing_past_the_full_extent() -> None:
+    """The box filter_occluded returns for a partly-hidden object is strictly narrower than
+    its own unoccluded full extent, and never wider than it."""
+    camera = _camera()
+    truck = _box(2, 15.0, 0.0, TRUCK_SIZE)
+    car = _box(1, 30.0, 2.6, CAR, heading=np.pi / 2)
+    boxes = {box.object_id: box for box in (car, truck)}
+    full = project_bboxes_3d_to_2d(camera, [car])[0]
+    kept = filter_occluded(camera, [full], boxes)
+    assert len(kept) == 1
+    shrunk = kept[0]
+    assert full.x_min <= shrunk.x_min < shrunk.x_max <= full.x_max
+    assert shrunk.x_max - shrunk.x_min < full.x_max - full.x_min
+    assert 0.2 < shrunk.visible_fraction < 0.8

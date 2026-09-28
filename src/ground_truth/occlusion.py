@@ -261,6 +261,62 @@ def _blocked_mask(
     return blocked
 
 
+def _hits_and_visibility(
+    camera: Camera,
+    box: BoundingBox3D,
+    occluders: List[BoundingBox3D],
+    meshes: Dict[int, npt.NDArray[np.float64]],
+) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.bool_]]:
+    """(every surface-hit world point, whether each has a clear line of sight to the camera).
+
+    Shared by ``visible_fraction``, ``visible_region_box`` and ``filter_occluded`` so the hit
+    grid and occluder search are computed once per object, not once per caller.
+    """
+    hits = _surface_hits(camera, box, meshes.get(box.object_id))
+    if len(hits) == 0:
+        return hits, np.zeros(0, dtype=bool)
+    origin = camera.extrinsics.get_translation_vector()
+    others = _nearby_occluders(origin, hits, [o for o in occluders if o.object_id != box.object_id])
+    if not others:
+        return hits, np.ones(len(hits), dtype=bool)
+    return hits, ~_blocked_mask(origin, hits, others, meshes)
+
+
+def _pixel_bounds(
+    camera: Camera, points: npt.NDArray[np.float64]
+) -> Optional[Tuple[float, float, float, float]]:
+    """Pixel (x_min, y_min, x_max, y_max) enclosing ``points``'s projections, or ``None``
+    if none of them project in front of the camera."""
+    pixels = []
+    for point in points:
+        pixel, depth = camera.project(point)
+        if pixel is not None and depth > 0:
+            pixels.append(pixel)
+    if not pixels:
+        return None
+    array = np.array(pixels)
+    return (
+        float(array[:, 0].min()),
+        float(array[:, 1].min()),
+        float(array[:, 0].max()),
+        float(array[:, 1].max()),
+    )
+
+
+def _shrunk_to_region(
+    bbox_2d: BoundingBox2D, region: Tuple[float, float, float, float]
+) -> BoundingBox2D:
+    """``bbox_2d`` clamped to ``region``, intersected with its own extent so it can only
+    shrink, never grow; returns ``bbox_2d`` unchanged if the intersection is degenerate."""
+    x_min = max(region[0], bbox_2d.x_min)
+    y_min = max(region[1], bbox_2d.y_min)
+    x_max = min(region[2], bbox_2d.x_max)
+    y_max = min(region[3], bbox_2d.y_max)
+    if x_max > x_min and y_max > y_min:
+        return replace(bbox_2d, x_min=x_min, y_min=y_min, x_max=x_max, y_max=y_max)
+    return bbox_2d
+
+
 def visible_fraction(
     camera: Camera,
     box: BoundingBox3D,
@@ -275,15 +331,30 @@ def visible_fraction(
     the object being measured and as occluders. Returns 0.0 when no camera ray
     through the silhouette hits the object.
     """
-    meshes = meshes or {}
-    hits = _surface_hits(camera, box, meshes.get(box.object_id))
+    hits, visible = _hits_and_visibility(camera, box, occluders, meshes or {})
     if len(hits) == 0:
         return 0.0
-    origin = camera.extrinsics.get_translation_vector()
-    others = _nearby_occluders(origin, hits, [o for o in occluders if o.object_id != box.object_id])
-    if not others:
-        return 1.0
-    return float(1.0 - _blocked_mask(origin, hits, others, meshes).mean())
+    return float(visible.mean())
+
+
+def visible_region_box(
+    camera: Camera,
+    box: BoundingBox3D,
+    occluders: List[BoundingBox3D],
+    meshes: Optional[Dict[int, npt.NDArray[np.float64]]] = None,
+) -> Optional[Tuple[float, float, float, float]]:
+    """Pixel bounds tight to just the unoccluded portion of ``box``'s silhouette.
+
+    ``None`` when nothing is visible, or when nothing is occluded at all (the caller should
+    keep the object's ordinary full-extent box in that case). BDD100K and Cityscapes both box
+    only the visible portion of a partly-occluded object (confirmed against BDD100K's own
+    annotation instructions); this project's boxes previously always kept the full,
+    un-occluded extent above the visibility floor, a real, confirmed convention mismatch.
+    """
+    hits, visible = _hits_and_visibility(camera, box, occluders, meshes or {})
+    if len(hits) == 0 or visible.all():
+        return None
+    return _pixel_bounds(camera, hits[visible])
 
 
 def filter_occluded(
@@ -293,12 +364,14 @@ def filter_occluded(
     minimum: float = MIN_VISIBLE_FRACTION,
     meshes: Optional[Dict[int, npt.NDArray[np.float64]]] = None,
 ) -> List[BoundingBox2D]:
-    """Stamp each 2D box with its occlusion-aware visible fraction and drop the
-    boxes below ``minimum`` (objects effectively hidden behind others).
+    """Stamp each 2D box with its occlusion-aware visible fraction, drop the boxes below
+    ``minimum`` (objects effectively hidden behind others), and shrink the rest to their
+    visible region when partly occluded (never grown past the object's own full-extent box).
 
-    Every box in ``bboxes_3d_by_id`` counts as a potential occluder, whether or
-    not it has a 2D box of its own; ``meshes`` gives some of them a real shape.
+    Every box in ``bboxes_3d_by_id`` counts as a potential occluder, whether or not it has a
+    2D box of its own; ``meshes`` gives some of them a real shape.
     """
+    meshes = meshes or {}
     occluders = list(bboxes_3d_by_id.values())
     kept: List[BoundingBox2D] = []
     for bbox_2d in bboxes_2d:
@@ -306,7 +379,14 @@ def filter_occluded(
         if bbox_3d is None:
             kept.append(bbox_2d)
             continue
-        fraction = visible_fraction(camera, bbox_3d, occluders, meshes)
-        if fraction >= minimum:
-            kept.append(replace(bbox_2d, visible_fraction=fraction))
+        hits, visible = _hits_and_visibility(camera, bbox_3d, occluders, meshes)
+        fraction = float(visible.mean()) if len(hits) else 0.0
+        if fraction < minimum:
+            continue
+        bbox_2d = replace(bbox_2d, visible_fraction=fraction)
+        if len(hits) and not visible.all():
+            region = _pixel_bounds(camera, hits[visible])
+            if region is not None:
+                bbox_2d = _shrunk_to_region(bbox_2d, region)
+        kept.append(bbox_2d)
     return kept
