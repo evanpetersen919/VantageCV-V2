@@ -44,7 +44,7 @@ from src.orchestration.scenario_serializer import serialize_scenario
 from src.procedural.environment import TimeOfDay, Weather, draw_weather, scenario_environment
 from src.procedural.scenario import ScenarioTypeConfig
 
-NIGHT_SHARE = 0.2
+NIGHT_SHARE = 0.39
 NIGHT_RAIN_SHARE = 0.2
 PARTLY_HIDDEN_BELOW = 0.5
 MAX_CALIBRATION_ERROR_PX = 3.0
@@ -57,8 +57,10 @@ DEFAULT_VIEWS: Tuple[str, ...] = ("ego", "ego", "overview")
 def draw_conditions(seed: int) -> Tuple[TimeOfDay, Weather]:
     """Time of day and weather for ``seed``, each from its own RNG stream.
 
-    ``NIGHT_SHARE`` of scenarios are at night (a design choice). Night takes clear or
-    rain only (its moonlit sky is kept); day draws from ``WEATHER_SHARES``.
+    ``NIGHT_SHARE`` of scenarios are at night, matching BDD100K val's own measured
+    39% night share (10,000 images; see the sim-to-real comparison this project ran).
+    Night takes clear or rain only (its moonlit sky is kept); day draws from
+    ``WEATHER_SHARES``.
     """
     rng = np.random.Generator(np.random.PCG64([seed, 0x7D1A]))
     if rng.random() < NIGHT_SHARE:
