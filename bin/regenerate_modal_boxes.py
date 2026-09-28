@@ -9,8 +9,10 @@ originally exported (see the occlusion.py commit that added ``visible_region_box
 Writes each scenario's part as soon as it finishes (``DatasetStore``, the same resumable,
 crash-safe mechanism ``generate_live_dataset.py`` uses), instead of holding everything in
 memory until the very end: rerunning the same command after an interruption skips whatever
-already finished. Images are hard-linked into the output directory (same file, no 6 GB copy)
-since only the label geometry changes, not the pixels.
+already finished. Images are hard-linked into the output directory up front, before any
+annotation work starts (same file, no 6 GB copy, and independent of annotation progress
+since only the label geometry changes, not the pixels) -- so ``images/`` is fully populated
+within seconds, while ``parts/`` (and the final ``annotations.json``) fill in over the run.
 
     PYTHONPATH=. python bin/regenerate_modal_boxes.py --dataset live_dataset/train2000_v3 \\
         --out live_dataset/train2000_v4b
@@ -111,9 +113,9 @@ def main() -> None:
     policy = AnnotationPolicy(COCO_PROFILE)
     store = DatasetStore(args.out, export_coco([], policy.profile)["categories"])
     store.check_manifest({"source": str(args.dataset), "profile": policy.profile.name})
+    _link_images(args.dataset, args.out)  # independent of annotation progress; do it first
     _regenerate(args.dataset, args.config, policy, store)
     coco = store.merge()
-    _link_images(args.dataset, args.out)
     print(
         f"done: {len(coco['images'])} images, {len(coco['annotations'])} annotations -> {args.out}"
     )
