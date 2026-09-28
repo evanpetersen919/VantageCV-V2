@@ -75,6 +75,18 @@ def ue_camera(
     return Camera(intrinsics, CameraExtrinsics.looking_at(position, look_at))
 
 
+def camera_from_image_entry(image: Dict[str, Any]) -> Camera:
+    """``ue_camera`` built from one stored COCO image entry's own pose/size fields
+    (``camera_position``, ``camera_look_at``, ``width``, ``height``) -- the camera a
+    regenerated scenario's geometry must be projected through to match that image exactly."""
+    return ue_camera(
+        np.array(image["camera_position"]),
+        np.array(image["camera_look_at"]),
+        image["width"],
+        image["height"],
+    )
+
+
 def _to_ue(point: NDArray[np.float64]) -> List[float]:
     """A python-world point as UE centimetres (Y mirrored)."""
     return [
