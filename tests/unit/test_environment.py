@@ -8,9 +8,12 @@ from src.orchestration.dataset_generator import generate_scenario
 from src.orchestration.scenario_serializer import serialize_scenario
 from src.procedural.environment import (
     DEFAULT_ENVIRONMENT,
+    NIGHT_ENVIRONMENT,
+    NIGHT_EXPOSURE_BIAS_RANGE_EV,
     EnvironmentConfig,
     Season,
     TimeOfDay,
+    Weather,
     build_ground_mesh,
     scenario_environment,
     season_environment,
@@ -137,3 +140,34 @@ def test_night_environment_is_season_independent_and_moonlit() -> None:
     assert all(scenario_environment(season, TimeOfDay.NIGHT) == night for season in Season)
     assert night.sun_pitch_deg < 0.0  # light stays above the horizon
     assert all(night.exposure_bias < season_environment(season).exposure_bias for season in Season)
+
+
+def test_night_brightness_is_seeded_and_varies_within_the_measured_range() -> None:
+    """With a seed, night's exposure is drawn from the real-benchmark-fit range, not fixed."""
+    low, high = NIGHT_EXPOSURE_BIAS_RANGE_EV
+    draws = [
+        scenario_environment(Season.WINTER, TimeOfDay.NIGHT, seed=seed).exposure_bias
+        for seed in range(50)
+    ]
+    assert all(low <= bias <= high for bias in draws)
+    assert len(set(draws)) > 1  # not the same fixed value every time
+    again = scenario_environment(Season.WINTER, TimeOfDay.NIGHT, seed=7).exposure_bias
+    assert again == scenario_environment(Season.WINTER, TimeOfDay.NIGHT, seed=7).exposure_bias
+
+
+def test_night_rain_keeps_its_own_exposure_variety() -> None:
+    """Night rain layers exposure variety on top of rain variety, not instead of it."""
+    low, high = NIGHT_EXPOSURE_BIAS_RANGE_EV
+    biases = {
+        scenario_environment(Season.WINTER, TimeOfDay.NIGHT, Weather.RAIN, seed=seed).exposure_bias
+        for seed in range(50)
+    }
+    assert all(low <= bias <= high for bias in biases)
+    assert len(biases) > 1
+    rained = scenario_environment(Season.WINTER, TimeOfDay.NIGHT, Weather.RAIN, seed=3)
+    assert rained.rain_intensity is not None and rained.rain_intensity > 0.0
+
+
+def test_night_without_a_seed_keeps_the_old_fixed_preset() -> None:
+    """No seed means the previous, deterministic behaviour (existing callers unaffected)."""
+    assert scenario_environment(Season.WINTER, TimeOfDay.NIGHT) == NIGHT_ENVIRONMENT

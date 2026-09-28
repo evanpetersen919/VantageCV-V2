@@ -397,6 +397,25 @@ def _vary_rain(env: EnvironmentConfig, seed: int) -> EnvironmentConfig:
     )
 
 
+# Night brightness variety: measured directly against BDD100K's own night images (not
+# tuned by eye, unlike the presets above). Our night renders' mean pixel brightness had a
+# std of only 1.92 across 318 images (range 15.6-25.0, a 1.6x ratio) against BDD100K
+# night's std of 15.73 across a 300-image sample (range 6.9-108.6, a 15.6x ratio) --
+# essentially no variety where real photos have a lot. Exposure is a log2 (EV) quantity,
+# so a brightness ratio R needs a span of log2(R) stops: BDD's 15.6x ratio needs about 3.97
+# stops. The centre is shifted from the previous fixed -3.0 by log2(30.43/19.55) = 0.64
+# stops, so the new range's midpoint brightness matches BDD's own mean, not just its
+# spread. Both figures come from bin/measure_night_brightness.py.
+NIGHT_EXPOSURE_BIAS_RANGE_EV: Tuple[float, float] = (-4.34, -0.38)
+
+
+def _vary_night_brightness(env: EnvironmentConfig, seed: int) -> EnvironmentConfig:
+    """``env`` with its exposure drawn from ``NIGHT_EXPOSURE_BIAS_RANGE_EV`` (its own RNG
+    stream, so nothing else in the scenario changes) instead of a single fixed value."""
+    rng = np.random.Generator(np.random.PCG64([seed, 0x714E]))
+    return dataclasses.replace(env, exposure_bias=float(rng.uniform(*NIGHT_EXPOSURE_BIAS_RANGE_EV)))
+
+
 def scenario_environment(
     season: Season,
     time_of_day: TimeOfDay,
@@ -409,7 +428,8 @@ def scenario_environment(
 
     Night takes clear or rain (its own moonlit sky is kept; rain adds wet
     surfaces, a little haze and dimmer streaks). With a ``seed``, rain gets
-    its own strength, wind slant and streak pattern.
+    its own strength, wind slant and streak pattern, and night's exposure is
+    drawn from ``NIGHT_EXPOSURE_BIAS_RANGE_EV`` instead of one fixed value.
 
     Raises
     ------
@@ -419,10 +439,14 @@ def scenario_environment(
     if time_of_day == TimeOfDay.NIGHT:
         if weather == Weather.RAIN:
             night_rain = dataclasses.replace(NIGHT_ENVIRONMENT, **_NIGHT_RAIN_OVERRIDES)
-            return _vary_rain(night_rain, seed) if seed is not None else night_rain
+            if seed is None:
+                return night_rain
+            return _vary_night_brightness(_vary_rain(night_rain, seed), seed)
         if weather != Weather.CLEAR:
             raise ValueError(f"weather {weather.value!r} is not defined for night scenarios")
-        return NIGHT_ENVIRONMENT
+        if seed is None:
+            return NIGHT_ENVIRONMENT
+        return _vary_night_brightness(NIGHT_ENVIRONMENT, seed)
     env = dataclasses.replace(season_environment(season), **_WEATHER_OVERRIDES[weather])
     return _vary_rain(env, seed) if weather == Weather.RAIN and seed is not None else env
 

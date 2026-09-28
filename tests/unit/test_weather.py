@@ -5,6 +5,7 @@ import pytest
 
 from src.procedural.environment import (
     NIGHT_ENVIRONMENT,
+    NIGHT_EXPOSURE_BIAS_RANGE_EV,
     WEATHER_SHARES,
     Season,
     TimeOfDay,
@@ -170,7 +171,8 @@ def test_seeded_rain_varies_strength_slant_and_pattern_deterministically() -> No
 
 
 def test_night_rain_is_seeded_too_and_keeps_its_dimmer_streaks() -> None:
-    """Night rain varies with the seed and stays dimmer than day rain."""
+    """Night rain varies with the seed, stays dimmer than day rain, and its exposure
+    varies within the measured night-brightness range rather than staying fixed."""
     night = [
         scenario_environment(Season.SUMMER, TimeOfDay.NIGHT, Weather.RAIN, seed=seed)
         for seed in range(50)
@@ -178,4 +180,6 @@ def test_night_rain_is_seeded_too_and_keeps_its_dimmer_streaks() -> None:
     day = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN)
     assert len({env.rain_density for env in night}) == 3
     assert max(env.rain_intensity for env in night) < day.rain_intensity
-    assert all(env.exposure_bias == NIGHT_ENVIRONMENT.exposure_bias for env in night)
+    low, high = NIGHT_EXPOSURE_BIAS_RANGE_EV
+    assert all(low <= env.exposure_bias <= high for env in night)
+    assert len({env.exposure_bias for env in night}) > 1
