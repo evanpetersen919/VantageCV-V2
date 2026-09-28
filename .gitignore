@@ -67,3 +67,4 @@ live_dataset/
 # Training and evaluation outputs
 runs/
 results/smoke_*
+weights/
