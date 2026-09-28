@@ -95,6 +95,7 @@ def main() -> None:
     parser.add_argument("--max-det", type=int, default=300)
     parser.add_argument("--max-images", type=int, default=None)
     parser.add_argument("--device", default="0")
+    parser.add_argument("--conditions", nargs="+", default=None, help="e.g. timeofday scene")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
 
@@ -107,7 +108,8 @@ def main() -> None:
         eval_set.coco["annotations"] = [
             a for a in eval_set.coco["annotations"] if a["image_id"] in kept
         ]
-    report = score(eval_set, detections)
+    score_kwargs = {} if args.conditions is None else {"conditions": args.conditions}
+    report = score(eval_set, detections, **score_kwargs)
     print(format_report(report))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(

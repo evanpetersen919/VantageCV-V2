@@ -1,12 +1,18 @@
 """Tests for the annotation policy, class profiles and truncation."""
 
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 import pytest
 
-from src.export.annotation_policy import EXCLUDED_CLASS, TOO_SMALL, AnnotationPolicy, apply_policy
+from src.export.annotation_policy import (
+    EXCLUDED_CLASS,
+    TOO_FAR,
+    TOO_SMALL,
+    AnnotationPolicy,
+    apply_policy,
+)
 from src.export.coco_exporter import CocoFrame, export_coco
 from src.ground_truth.bbox_2d import BoundingBox2D, project_bbox_3d_to_2d
 from src.ground_truth.bbox_3d import BoundingBox3D
@@ -24,15 +30,19 @@ from src.orchestration.dataset_store import DatasetStore
 from src.orchestration.live_render import ue_camera
 
 
-def _frame(categories: List[int], heights_px: List[float]) -> CocoFrame:
-    """A frame with one box per (category, height): 3D boxes are placeholders."""
+def _frame(
+    categories: List[int], heights_px: List[float], distances_m: Optional[List[float]] = None
+) -> CocoFrame:
+    """A frame with one box per (category, height, distance-from-camera-along-x)."""
     camera = ue_camera(np.zeros(3), np.array([10.0, 0.0, 0.0]), 1920, 1080)
+    if distances_m is None:
+        distances_m = [5.0] * len(categories)
     boxes_2d = []
     boxes_3d = {}
-    for index, (category, height) in enumerate(zip(categories, heights_px)):
+    for index, (category, height, distance) in enumerate(zip(categories, heights_px, distances_m)):
         boxes_2d.append(BoundingBox2D(index, 100.0, 100.0, 100.0 + height, 100.0 + height, 1.0))
         boxes_3d[index] = BoundingBox3D(
-            index, np.array([5.0, 0.0, 1.0]), np.array([2.0, 2.0, 2.0]), category_id=category
+            index, np.array([distance, 0.0, 1.0]), np.array([2.0, 2.0, 2.0]), category_id=category
         )
     return CocoFrame(0, "x.png", camera, boxes_2d, boxes_3d)
 
@@ -42,7 +52,7 @@ def test_coco_profile_drops_buildings_and_keeps_street_classes() -> None:
     frame = _frame([BUILDING, SEDAN, PEDESTRIAN], [50.0, 50.0, 50.0])
     kept, dropped = apply_policy(frame, AnnotationPolicy(COCO_PROFILE))
     assert [box.object_id for box in kept.bboxes_2d] == [1, 2]
-    assert dropped == {EXCLUDED_CLASS: 1, TOO_SMALL: 0}
+    assert dropped == {EXCLUDED_CLASS: 1, TOO_SMALL: 0, TOO_FAR: 0}
 
 
 def test_fine_profile_keeps_buildings() -> None:
@@ -62,6 +72,32 @@ def test_objects_below_the_size_floor_are_dropped_and_counted() -> None:
     narrow = _frame([SEDAN], [40.0])
     narrow.bboxes_2d[0] = BoundingBox2D(0, 100.0, 100.0, 103.0, 140.0, 1.0)
     assert apply_policy(narrow, policy)[1][TOO_SMALL] == 1
+
+
+def test_objects_beyond_the_category_max_distance_are_dropped_and_counted() -> None:
+    """A pedestrian just past its 30 m cutoff is dropped; a sedan at the same distance is kept."""
+    policy = AnnotationPolicy(COCO_PROFILE)
+    frame = _frame([PEDESTRIAN, PEDESTRIAN, SEDAN], [40.0, 40.0, 40.0], [29.9, 30.1, 30.1])
+    kept, dropped = apply_policy(frame, policy)
+    assert [box.object_id for box in kept.bboxes_2d] == [0, 2]
+    assert dropped == {EXCLUDED_CLASS: 0, TOO_SMALL: 0, TOO_FAR: 1}
+
+
+def test_max_distance_is_per_category_not_global() -> None:
+    """Bus (41 m) and truck (53 m) use their own fitted cutoffs, not a shared one."""
+    policy = AnnotationPolicy(COCO_PROFILE)
+    frame = _frame([BUS, TRUCK], [40.0, 40.0], [45.0, 45.0])
+    kept, dropped = apply_policy(frame, policy)
+    assert [box.object_id for box in kept.bboxes_2d] == [1]
+    assert dropped[TOO_FAR] == 1
+
+
+def test_max_distance_is_configurable() -> None:
+    """A caller can override the fitted defaults, e.g. to disable the cutoff entirely."""
+    policy = AnnotationPolicy(COCO_PROFILE, max_distance_m={})
+    frame = _frame([PEDESTRIAN], [40.0], [500.0])
+    kept, dropped = apply_policy(frame, policy)
+    assert len(kept.bboxes_2d) == 1 and dropped[TOO_FAR] == 0
 
 
 def test_export_maps_classes_to_coco_ids_and_keeps_the_fine_id() -> None:
