@@ -6,8 +6,14 @@ every car would render the same cream white. The project therefore owns a copy
 of each model's paint material with that gradient switched off
 (``unreal_plugin/tools/create_vehicle_paint.py``); a payload swaps it in for the
 ``veh_carPaint`` slot and sets ``BaseColor`` (and the metallic flake tints) to
-the drawn colour. Models with a livery of their own (the yellow taxi, the police
-car, the box van, the trucks and the bus) keep their look.
+the drawn colour. The van, trucks and bus were originally left fixed too, but
+having every bus and most trucks render in one identical colour in every
+scenario turned out to hurt training diversity more than it helped livery
+realism, so they were extended to the same paint copy mechanism (confirmed via
+``inspect_vehicle_paint_slots.py`` that their ``veh_carPaint`` material carries
+the same ``Paint Variation`` switch). Only the yellow taxi (``vehCar_vehicle12``)
+and the police car (``vehCar_vehicle13``) keep their look: City Sample bakes
+those in as specific, recognisable liveries, not an arbitrary paint job.
 
 Colour shares are the US model-year-2025 figures from iSeeCars' study of about
 22 million vehicles: white 25.7%, black 23.4%, gray 22.9%, silver 8.4%, red
@@ -37,7 +43,12 @@ RECOLORABLE_MODELS = (
     "vehCar_vehicle06",
     "vehCar_vehicle07",
     "vehVan_vehicle01",
+    "vehVan_vehicle09",
     "vehTruck_vehicle04",
+    "vehTruck_vehicle08",
+    "vehTruck_vehicle11",
+    "vehTruck_trailer01",
+    "vehBus_vehicle10",
 )
 PAINT_SCALE = 1.2
 VEHICLE_FOLDER_INDEX = 3
