@@ -6,8 +6,11 @@ scenario's part file, so this is a pure geometry recompute: no running game, no 
 Only ``filter_occluded``'s box-shrinking behaviour differs from how the source dataset was
 originally exported (see the occlusion.py commit that added ``visible_region_box``).
 
-Images are hard-linked into the output directory (same file, no 6 GB copy) since only the
-label geometry changes, not the pixels.
+Writes each scenario's part as soon as it finishes (``DatasetStore``, the same resumable,
+crash-safe mechanism ``generate_live_dataset.py`` uses), instead of holding everything in
+memory until the very end: rerunning the same command after an interruption skips whatever
+already finished. Images are hard-linked into the output directory (same file, no 6 GB copy)
+since only the label geometry changes, not the pixels.
 
     PYTHONPATH=. python bin/regenerate_modal_boxes.py --dataset live_dataset/train2000_v3 \\
         --out live_dataset/train2000_v4b
@@ -17,14 +20,21 @@ import argparse
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from src.export.annotation_policy import AnnotationPolicy, apply_policy
 from src.export.coco_exporter import CocoFrame, export_coco
 from src.ground_truth.categories import COCO_PROFILE
-from src.orchestration.dataset_generator import ScenarioResult, generate_scenario, render_frame
+from src.orchestration.dataset_generator import (
+    Bounds,
+    ScenarioResult,
+    generate_scenario,
+    render_frame,
+)
+from src.orchestration.dataset_store import DatasetStore
 from src.orchestration.live_dataset import draw_conditions
 from src.orchestration.live_render import camera_from_image_entry
+from src.procedural.scenario import ScenarioTypeConfig
 from src.utils.config_loader import load_scenario_config
 
 
@@ -49,30 +59,47 @@ def _frame_for(
     return frame
 
 
-def _regenerate(dataset_dir: Path, config_path: Path, policy: AnnotationPolicy) -> List[CocoFrame]:
-    """One ``CocoFrame`` per existing image, with freshly computed (modal) boxes."""
+def _part_for_scenario(
+    part_path: Path,
+    seed: int,
+    bounds: Bounds,
+    config: ScenarioTypeConfig,
+    policy: AnnotationPolicy,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """One scenario's fresh (images, annotations) part, from its stored part file."""
+    images = json.loads(part_path.read_text(encoding="utf-8"))["images"]
+    if not images:
+        return [], []
+    time_of_day, _weather = draw_conditions(seed)
+    scenario = generate_scenario(
+        seed, config, bounds, images[0]["scenario_id"], time_of_day=time_of_day
+    )
+    frames = [_frame_for(image, scenario, policy) for image in images]
+    coco = export_coco(frames, policy.profile)
+    return coco["images"], coco["annotations"]
+
+
+def _regenerate(
+    dataset_dir: Path, config_path: Path, policy: AnnotationPolicy, store: DatasetStore
+) -> None:
+    """Save one part per scenario, with freshly computed (modal) boxes; skips finished ones."""
     manifest = json.loads((dataset_dir / "manifest.json").read_text(encoding="utf-8"))
     bounds = tuple(manifest["bounds"])
     config = load_scenario_config(config_path).model_copy(update={"parking_lot_fraction": 0.3})
-    frames: List[CocoFrame] = []
     part_paths = sorted((dataset_dir / "parts").glob("scenario_*.json"))
+    done = store.completed()
     for scenario_index, part_path in enumerate(part_paths):
-        seed = manifest["base_seed"] + scenario_index
-        images = json.loads(part_path.read_text(encoding="utf-8"))["images"]
-        if not images:
+        if scenario_index in done:
             continue
-        time_of_day, _weather = draw_conditions(seed)
-        scenario = generate_scenario(
-            seed, config, bounds, images[0]["scenario_id"], time_of_day=time_of_day
-        )
-        frames.extend(_frame_for(image, scenario, policy) for image in images)
-        if (scenario_index + 1) % 100 == 0:
-            print(f"{scenario_index + 1}/{len(part_paths)} scenarios")
-    return frames
+        seed = manifest["base_seed"] + scenario_index
+        images, annotations = _part_for_scenario(part_path, seed, bounds, config, policy)
+        store.save_part(scenario_index, images, annotations)
+        if (scenario_index + 1) % 20 == 0:
+            print(f"{scenario_index + 1}/{len(part_paths)} scenarios", flush=True)
 
 
 def main() -> None:
-    """Parse arguments, regenerate annotations, link images, write the new dataset."""
+    """Parse arguments, regenerate annotations (resumably), link images, merge."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n", maxsplit=1)[0])
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
@@ -82,10 +109,10 @@ def main() -> None:
     args = parser.parse_args()
 
     policy = AnnotationPolicy(COCO_PROFILE)
-    frames = _regenerate(args.dataset, args.config, policy)
-    coco: Dict[str, Any] = export_coco(frames, policy.profile)
-    args.out.mkdir(parents=True, exist_ok=True)
-    (args.out / "annotations.json").write_text(json.dumps(coco), encoding="utf-8")
+    store = DatasetStore(args.out, export_coco([], policy.profile)["categories"])
+    store.check_manifest({"source": str(args.dataset), "profile": policy.profile.name})
+    _regenerate(args.dataset, args.config, policy, store)
+    coco = store.merge()
     _link_images(args.dataset, args.out)
     print(
         f"done: {len(coco['images'])} images, {len(coco['annotations'])} annotations -> {args.out}"
