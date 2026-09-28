@@ -92,6 +92,10 @@ improvement means these three factors are not the dominant cause of the sim-to-r
    lane paint, wet-road glare — rather than vehicle/pedestrian shape. Directly corroborates
    finding 1: the model likely learned "sharp edge = object" from oversharpened, oversaturated
    training renders, a cue any high-contrast real texture also satisfies.
+
+   ![Grad-CAM on a Cityscapes frame: the hottest activations sit in the tree canopy at the top of the frame, not on the DHL truck below it](docs/images/gradcam_truck_foliage.jpg)
+   *The model's top prediction here is "truck" (conf 0.78) on the real DHL truck, but the
+   strongest, reddest Grad-CAM activations are in the foliage above it, not the truck itself.*
 3. **Label convention** (confirmed via BDD100K's official annotation instructions, direct
    quote): BDD100K boxes only the *visible* portion of an object for both truncation and
    occlusion (modal). Cityscapes' polygon-derived instances work the same way. Our frame-edge
