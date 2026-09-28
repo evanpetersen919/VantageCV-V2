@@ -28,7 +28,7 @@ import numpy as np
 
 from src.ground_truth.categories import COCO_PROFILE
 from src.orchestration.dataset_generator import ScenarioResult, generate_scenario, render_frame
-from src.orchestration.live_render import ue_camera
+from src.orchestration.live_render import camera_from_image_entry
 from src.utils.config_loader import load_scenario_config
 
 # Median box height as a fraction of image height, averaged across BDD100K val (10,000
@@ -42,12 +42,7 @@ def _image_records(
     scenario: ScenarioResult, image: Dict[str, Any], records: Dict[str, List[Tuple[float, float]]]
 ) -> None:
     """Append this ego image's (distance_m, box_height_px) pairs into ``records``, in place."""
-    camera = ue_camera(
-        np.array(image["camera_position"]),
-        np.array(image["camera_look_at"]),
-        image["width"],
-        image["height"],
-    )
+    camera = camera_from_image_entry(image)
     frame = render_frame(scenario, camera, image["id"], image["file_name"])
     origin = camera.extrinsics.get_translation_vector()
     for box in frame.bboxes_2d:
