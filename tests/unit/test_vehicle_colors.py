@@ -24,6 +24,7 @@ SEDAN = "/Game/Vehicle/vehCar_vehicle02/Mesh/SM_Frame_vehCar_vehicle02"
 TAXI = "/Game/Vehicle/vehCar_vehicle12/Mesh/SM_Frame_vehCar_vehicle12"
 POLICE = "/Game/Vehicle/vehCar_vehicle13/Mesh/SM_Frame_vehCar_vehicle13"
 BUS = "/Game/Vehicle/vehBus_vehicle10/Mesh/SM_Frame_vehBus_vehicle10"
+TRUCK = "/Game/Vehicle/vehTruck_vehicle08/Mesh/SM_Frame_vehTruck_vehicle08"
 
 
 def _vehicle(vehicle_id: int, asset_path: str) -> Vehicle:
@@ -47,15 +48,16 @@ def test_shares_are_the_sourced_major_colours_and_sum_to_one() -> None:
 
 
 def test_only_models_with_a_paint_copy_are_recoloured() -> None:
-    """Ordinary cars are recolourable; the taxi, police car and bus keep
-    their livery."""
+    """Ordinary cars, the van, trucks and bus are recolourable; the taxi and
+    police car keep their baked-in livery."""
     assert is_recolorable(SEDAN)
-    assert not any(is_recolorable(path) for path in (TAXI, POLICE, BUS))
+    assert is_recolorable(BUS) and is_recolorable(TRUCK)
+    assert not any(is_recolorable(path) for path in (TAXI, POLICE))
     assert paint_material_replacement(TAXI) is None
     assert paint_material_replacement(SEDAN) == {
         PAINT_SLOT_NAME: "/Game/VantageCV/VehiclePaint/vehCar_vehicle02.vehCar_vehicle02"
     }
-    assert len(RECOLORABLE_MODELS) == 7
+    assert len(RECOLORABLE_MODELS) == 12
 
 
 def test_draws_are_deterministic_and_follow_the_shares() -> None:

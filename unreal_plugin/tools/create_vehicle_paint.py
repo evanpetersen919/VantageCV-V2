@@ -18,7 +18,13 @@ with ``Paint Variation`` off; the scenario payload swaps it in and sets
 ``BaseColor``. Nothing shared is edited.
 
 ``MODEL_FOLDERS`` must match ``RECOLORABLE_MODELS`` in
-``src/procedural/vehicle_colors.py``.
+``src/procedural/vehicle_colors.py``. Confirmed (not assumed) via
+``inspect_vehicle_paint_slots.py``: every model below has a ``veh_carPaint``
+slot whose material instance carries the same ``Paint Variation`` static
+switch as the original 7, so the same duplicate-and-flip mechanism applies
+uniformly to all of them. ``vehCar_vehicle12`` (taxi) and ``vehCar_vehicle13``
+(police) are deliberately excluded: they are City Sample's baked-in taxi and
+police liveries, not ordinary passenger cars, and must keep their look.
 """
 
 import unreal  # type: ignore[import-not-found]  # pylint: disable=import-error
@@ -33,7 +39,12 @@ MODEL_FOLDERS = (
     "vehCar_vehicle06",
     "vehCar_vehicle07",
     "vehVan_vehicle01",
+    "vehVan_vehicle09",
     "vehTruck_vehicle04",
+    "vehTruck_vehicle08",
+    "vehTruck_vehicle11",
+    "vehTruck_trailer01",
+    "vehBus_vehicle10",
 )
 
 
