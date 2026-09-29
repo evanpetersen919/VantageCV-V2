@@ -21,6 +21,12 @@ EGO_HEIGHT_RANGE_M = (1.4, 1.9)
 LOOK_AHEAD_M = 30.0
 LOOK_TARGET_HEIGHT_M = 1.2
 YAW_JITTER_RAD = np.radians(10.0)
+# Real dashcam/ADAS mounting is never perfectly level -- a few degrees of pitch from
+# suspension load, mount angle and road grade is normal and currently entirely absent (every
+# synthetic frame looks exactly level). +-3 degrees is a conservative, real-world-plausible
+# range: applied at LOOK_AHEAD_M, it shifts the look-at target's height by only +-1.6 m,
+# nowhere near enough to point at the sky or the road surface.
+PITCH_JITTER_RAD = np.radians(3.0)
 LANE_POSITION_RANGE = (0.1, 0.9)
 MIN_CLEAR_AHEAD_M = 15.0
 # A parked vehicle right ahead is normal (it is exactly what a detector needs to see), but the
@@ -109,6 +115,13 @@ def _heading_with_jitter(
     )
 
 
+def _pitched_target_z(distance_m: float, rng: np.random.Generator) -> float:
+    """``LOOK_TARGET_HEIGHT_M`` shifted by a random pitch within +-``PITCH_JITTER_RAD``,
+    for a target ``distance_m`` ahead of the camera."""
+    pitch = float(rng.uniform(-PITCH_JITTER_RAD, PITCH_JITTER_RAD))
+    return LOOK_TARGET_HEIGHT_M + distance_m * float(np.tan(pitch))
+
+
 def _within(point: NDArray[np.float64], bounds: Bounds, margin: float) -> bool:
     """Whether a 2D point is inside ``bounds`` shrunk by ``margin`` on every side."""
     x_min, y_min, x_max, y_max = bounds
@@ -150,7 +163,7 @@ def _candidate(
     return CameraPose(
         "ego",
         np.array([ground[0], ground[1], float(rng.uniform(*EGO_HEIGHT_RANGE_M))]),
-        np.array([target[0], target[1], LOOK_TARGET_HEIGHT_M]),
+        np.array([target[0], target[1], _pitched_target_z(LOOK_AHEAD_M, rng)]),
     )
 
 
@@ -213,5 +226,5 @@ def _lot_pose(
     return CameraPose(
         "lot",
         np.array([ground[0], ground[1], height]),
-        np.array([target[0], target[1], LOOK_TARGET_HEIGHT_M]),
+        np.array([target[0], target[1], _pitched_target_z(LOOK_AHEAD_M, rng)]),
     )

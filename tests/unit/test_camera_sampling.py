@@ -11,7 +11,9 @@ from src.orchestration.camera_sampling import (  # pylint: disable=protected-acc
     EGO_EDGE_INSET_M,
     EGO_HEIGHT_RANGE_M,
     LOOK_AHEAD_M,
+    LOOK_TARGET_HEIGHT_M,
     MIN_CLEAR_AHEAD_VEHICLE_M,
+    PITCH_JITTER_RAD,
     _segment_hits_box,
     overview_pose,
     sample_ego_pose,
@@ -68,6 +70,29 @@ def test_ego_poses_are_usable_positions() -> None:
             x_min, y_min, x_max, y_max = vehicle.aabb
             assert not (x_min <= ground[0] <= x_max and y_min <= ground[1] <= y_max)
         assert np.linalg.norm(pose.look_at[:2] - ground) == pytest.approx(LOOK_AHEAD_M)
+
+
+def test_ego_pose_pitch_stays_within_the_jitter_bound() -> None:
+    """The look-at target's height never implies more than +-PITCH_JITTER_RAD of pitch."""
+    scenario = _scenario()
+    rng = np.random.Generator(np.random.PCG64([13, 13]))
+    max_offset = LOOK_AHEAD_M * np.tan(PITCH_JITTER_RAD)
+    for _ in range(30):
+        pose = sample_ego_pose(scenario, rng)
+        assert pose is not None
+        assert abs(pose.look_at[2] - LOOK_TARGET_HEIGHT_M) <= max_offset + 1e-9
+
+
+def test_ego_pose_pitch_actually_varies_across_samples() -> None:
+    """Pitch jitter is real, not a no-op: repeated samples take on different target heights."""
+    scenario = _scenario()
+    rng = np.random.Generator(np.random.PCG64([17, 17]))
+    heights = set()
+    for _ in range(30):
+        pose = sample_ego_pose(scenario, rng)
+        assert pose is not None
+        heights.add(round(float(pose.look_at[2]), 6))
+    assert len(heights) > 1
 
 
 def test_ego_pose_needs_lanes() -> None:
