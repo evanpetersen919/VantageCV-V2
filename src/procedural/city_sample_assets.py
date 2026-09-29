@@ -116,11 +116,20 @@ VEHICLE_ASSET_PATHS: Dict[str, List[str]] = {
         "/Game/Vehicle/vehVan_vehicle01/Mesh/SM_Frame_vehVan_vehicle01",
         "/Game/Vehicle/vehVan_vehicle09/Mesh/SM_Frame_vehVan_vehicle09",
     ],
+    # vehTruck_trailer01 (a bare cargo trailer, no cab -- see its own comment
+    # below) is deliberately NOT listed here: sampled as a standalone
+    # "vehicle" like the other three, it drove down the road on its own,
+    # with nothing pulling it (found by inspection: 1 in 4 truck-category
+    # spawns was a free-floating trailer). None of these three cab bodies is
+    # a real semi-tractor with a fifth-wheel hitch, so there is no real
+    # asset in this project to couple the trailer to -- excluding it, not
+    # inventing hitch geometry, is the honest fix. Its measured box stays in
+    # VEHICLE_MODEL_BOUNDS/VEHICLE_PART_PATHS below in case a real coupled
+    # tractor-trailer feature is built later.
     "truck": [
         "/Game/Vehicle/vehTruck_vehicle04/Mesh/SM_Frame_vehTruck_vehicle04",
         "/Game/Vehicle/vehTruck_vehicle08/Mesh/SM_Frame_vehTruck_vehicle08",
         "/Game/Vehicle/vehTruck_vehicle11/Mesh/SM_Frame_vehTruck_vehicle11",
-        "/Game/Vehicle/vehTruck_trailer01/Mesh/SM_Frame_vehTruck_trailer01",
     ],
     "bus": [
         "/Game/Vehicle/vehBus_vehicle10/Mesh/SM_Frame_vehBus_vehicle10",
@@ -319,6 +328,8 @@ VEHICLE_PART_PATHS: Dict[str, List[str]] = {
     # confirmed by direct folder inspection (its "Trans" mesh sits
     # directly under Mesh/, not a Transparent/ subfolder, and is a
     # tarp/cover mesh, not glass -- a cargo trailer has no windows).
+    # Kept here (unused by VEHICLE_ASSET_PATHS -- see that dict's own
+    # comment) for a possible future real tractor-trailer feature.
     "vehTruck_trailer01": [
         "/Game/Vehicle/vehTruck_trailer01/Mesh/SM_Wheel_Axel1_L_vehTruck_trailer01",
         "/Game/Vehicle/vehTruck_trailer01/Mesh/SM_Wheel_Axel1_R_vehTruck_trailer01",

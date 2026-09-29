@@ -53,6 +53,14 @@ def test_asset_paths_are_unique_across_all_vehicle_types() -> None:
     assert len(all_paths) == len(set(all_paths))
 
 
+def test_the_cab_less_trailer_is_never_a_standalone_driving_vehicle() -> None:
+    """vehTruck_trailer01 is a bare cargo trailer with no cab (see the module's
+    own comments): sampled like any other "truck", it drove down the road with
+    nothing pulling it. No vehicle type's asset pool may offer it."""
+    for vehicle_type, paths in VEHICLE_ASSET_PATHS.items():
+        assert not any("vehTruck_trailer01" in path for path in paths), vehicle_type
+
+
 def test_real_vehicle_class_mix_covers_every_dimension_type() -> None:
     """REAL_US_VEHICLE_CLASS_MIX has exactly the same keys as
     VEHICLE_DIMENSIONS -- every scenario_templates/*.yaml vehicle_mix
