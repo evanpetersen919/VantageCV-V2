@@ -105,8 +105,9 @@ def test_season_presets_differ_in_sun_and_fog_and_winter_is_lowest_and_coolest()
 
 
 def _birches(result) -> list:
-    """The street-birch pieces of a generated scenario."""
-    return [p for p in result.street_furniture_pieces if "/Kit_Tree_Birch/" in p.asset_path]
+    """The street-tree pieces of a generated scenario (any species -- since
+    tree_species varies per scenario, a fixed seed is no longer always birch)."""
+    return [p for p in result.street_furniture_pieces if "/Kit_Tree_" in p.asset_path]
 
 
 def test_scenario_season_drives_trees_and_is_seeded(urban_config, bounds) -> None:
