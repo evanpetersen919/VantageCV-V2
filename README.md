@@ -138,7 +138,16 @@ a real, executed `doctest`, not untested prose.
 ### Live rendering (real UE5 frames)
 
 Requires a running UE5 game session with the plugin loaded (see
-`unreal_plugin/SyntheticDataGen/`), reachable over the WebSocket RPC bridge:
+`unreal_plugin/SyntheticDataGen/`), reachable over the WebSocket RPC bridge. Launch it with
+`bin/launch_ue5.ps1` rather than starting `UnrealEditor.exe` by hand -- it strips the
+`ELECTRON_RUN_AS_NODE` environment variable (silently breaks the editor if inherited from a
+VS Code/Cursor process tree) and pins the render resolution to 1920x1080 (every dataset in
+`EXPERIMENT_LOG.md` was captured at this resolution; without an explicit `-ResX`/`-ResY` the
+game window instead matches whatever the desktop's current resolution happens to be):
+
+```powershell
+powershell -File bin/launch_ue5.ps1
+```
 
 ```bash
 python bin/generate_live_dataset.py \
