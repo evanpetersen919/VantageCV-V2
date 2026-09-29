@@ -248,10 +248,23 @@ class BuildingType(str, Enum):
 # building. Not exhaustive real-world taxonomy -- a reasonable, varied
 # default set with no rendering/material-authoring phase to validate
 # against yet (see KNOWN_GAPS_AND_ISSUES.md's procedural-materials entry).
+# Each family also includes an extra confirmed-migrated colour/finish variant
+# (brick_brown, stucco_khaki, metal_brass, block_granite, block_limestone) that
+# was already present in the UE5 project but never sampled -- every building of
+# a given type rendered with exactly the same single material, an easy shortcut
+# a detector could key on that real building stock (dozens of colours/finishes
+# per material family) doesn't offer.
 BUILDING_MATERIALS_BY_TYPE: Dict[BuildingType, Tuple[str, ...]] = {
-    BuildingType.RESIDENTIAL: ("brick", "wood_siding", "stucco"),
-    BuildingType.MIXED_USE: ("brick", "concrete", "glass_curtain_wall"),
-    BuildingType.COMMERCIAL: ("glass_curtain_wall", "concrete", "metal_panel"),
+    BuildingType.RESIDENTIAL: ("brick", "brick_brown", "wood_siding", "stucco", "stucco_khaki"),
+    BuildingType.MIXED_USE: ("brick", "brick_brown", "concrete", "glass_curtain_wall"),
+    BuildingType.COMMERCIAL: (
+        "glass_curtain_wall",
+        "concrete",
+        "metal_panel",
+        "metal_brass",
+        "block_granite",
+        "block_limestone",
+    ),
 }
 
 
