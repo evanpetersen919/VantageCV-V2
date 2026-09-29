@@ -29,7 +29,32 @@
     "pavement": {
       "asset_path": "/Game/Road/Material/MI/M_Sidewalk_Master_Inst",
       "source": "CitySample Content/Road/Material/MI/M_Sidewalk_Master_Inst.uasset",
-      "used_by": "block_pavement.py build_block_pavement_meshes -- sidewalk-height paving filling the inside of every city block, flush from the curb to the building fronts (already migrated into VantageCV_UE5)"
+      "used_by": "block_pavement.py build_block_pavement_meshes -- sidewalk-height paving filling the inside of every city block, flush from the curb to the building fronts (already migrated into VantageCV_UE5). Variant 0 of 6, chosen by block index % 6 -- see pavement_1..pavement_5"
+    },
+    "pavement_1": {
+      "asset_path": "/Game/Road/Material/MI/M_Sidewalk_Master_Inst_2",
+      "source": "CitySample Content/Road/Material/MI/M_Sidewalk_Master_Inst_2.uasset",
+      "used_by": "block_pavement.py build_block_pavement_meshes -- variant 1 of 6, same usage as pavement"
+    },
+    "pavement_2": {
+      "asset_path": "/Game/Road/Material/MI/M_Sidewalk_Master_Inst_3",
+      "source": "CitySample Content/Road/Material/MI/M_Sidewalk_Master_Inst_3.uasset",
+      "used_by": "block_pavement.py build_block_pavement_meshes -- variant 2 of 6, same usage as pavement"
+    },
+    "pavement_3": {
+      "asset_path": "/Game/Road/Material/MI/M_Sidewalk_Master_Inst_4",
+      "source": "CitySample Content/Road/Material/MI/M_Sidewalk_Master_Inst_4.uasset",
+      "used_by": "block_pavement.py build_block_pavement_meshes -- variant 3 of 6, same usage as pavement"
+    },
+    "pavement_4": {
+      "asset_path": "/Game/Road/Material/MI/M_Sidewalk_Master_Inst_5",
+      "source": "CitySample Content/Road/Material/MI/M_Sidewalk_Master_Inst_5.uasset",
+      "used_by": "block_pavement.py build_block_pavement_meshes -- variant 4 of 6, same usage as pavement"
+    },
+    "pavement_5": {
+      "asset_path": "/Game/Road/Material/MI/M_Sidewalk_Master_Inst_6",
+      "source": "CitySample Content/Road/Material/MI/M_Sidewalk_Master_Inst_6.uasset",
+      "used_by": "block_pavement.py build_block_pavement_meshes -- variant 5 of 6, same usage as pavement"
     },
     "ground": {
       "asset_path": "/Game/Road/Material/MI/M_Asphalt_Master_Inst_ParkingLots",
