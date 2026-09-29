@@ -6,6 +6,7 @@ import numpy as np
 
 from src.orchestration.dataset_generator import generate_scenario
 from src.orchestration.scenario_serializer import serialize_scenario
+from src.procedural.block_pavement import PAVEMENT_MATERIAL_TAGS
 from src.procedural.environment import (
     DEFAULT_ENVIRONMENT,
     NIGHT_ENVIRONMENT,
@@ -74,7 +75,8 @@ def test_serialize_scenario_adds_ground_and_environment_only_when_asked(
     materials = {mesh["material"] for mesh in extra[1:]}
     assert "pavement" in materials
     assert "asphalt" in materials  # the paved intersection surfaces
-    assert materials - {"pavement", "asphalt"} <= {"roof_0", "roof_1", "roof_2", "roof_3"}
+    remaining = materials - set(PAVEMENT_MATERIAL_TAGS) - {"asphalt"}
+    assert remaining <= {"roof_0", "roof_1", "roof_2", "roof_3"}
     assert dressed["environment"] == DEFAULT_ENVIRONMENT.to_json()
     json.dumps(dressed)
 

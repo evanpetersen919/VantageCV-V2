@@ -13,19 +13,20 @@ runtime.
 import json
 from pathlib import Path
 
+from src.procedural.block_pavement import PAVEMENT_MATERIAL_TAGS
 from src.procedural.building_placement import BUILDING_MATERIALS_BY_TYPE
 
 _MATERIAL_TAGS_PATH = Path(__file__).resolve().parents[2] / "configs" / "material_tags.json"
 
-# Tags mesh_factory.py emits as fixed string literals, not derived from
-# building_placement.py's own per-type material table -- see
+# Tags mesh_factory.py/block_pavement.py emit as fixed string literals, not derived
+# from building_placement.py's own per-type material table -- see
 # MeshFactory.build_road_mesh/build_vehicle_mesh/build_pedestrian_mesh.
 _FIXED_MESH_FACTORY_TAGS = {
     "asphalt",
     "vehicle_paint",
     "pedestrian",
     "ground",
-    "pavement",
+    *PAVEMENT_MATERIAL_TAGS,
     "roof_0",
     "roof_1",
     "roof_2",

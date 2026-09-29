@@ -14,6 +14,11 @@ is exactly where the curb line runs. That inset rectangle is filled with
 one quad at sidewalk height. The quad is a hair below the sidewalk slabs'
 top so the real slabs stay visible on top of it, and it also fills the
 gaps at intersection corners where the per-edge sidewalks stop.
+
+Each block gets one of 6 migrated sidewalk material variants (``pavement`` ..
+``pavement_5``, real City Sample content), chosen deterministically by the block's
+position in ``identify_city_blocks``' own ordering, instead of every block sharing the
+one fixed material.
 """
 
 from typing import Dict, List
@@ -31,6 +36,30 @@ BLOCK_PAVEMENT_Z_METERS = 0.10
 # Metres of world space per texture repeat.
 BLOCK_PAVEMENT_UV_TILE_METERS = 3.0
 
+# Number of migrated sidewalk materials (pavement, pavement_1 .. pavement_5) -- every
+# block used the same single sidewalk material regardless of scenario or position, an
+# easy shortcut a detector could latch onto that real streets (dozens of real sidewalk
+# finishes) don't offer. Mirrors roofs.py's identical building_id % ROOF_MATERIAL_COUNT
+# pattern, using each block's position in identify_city_blocks' own deterministic
+# ordering as its id.
+PAVEMENT_MATERIAL_COUNT = 6
+
+# Every material tag build_block_pavement_meshes can emit, in variant order.
+PAVEMENT_MATERIAL_TAGS = (
+    "pavement",
+    "pavement_1",
+    "pavement_2",
+    "pavement_3",
+    "pavement_4",
+    "pavement_5",
+)
+
+
+def _pavement_material(block_index: int) -> str:
+    """The migrated sidewalk material tag for the ``block_index``-th city block."""
+    variant = block_index % PAVEMENT_MATERIAL_COUNT
+    return "pavement" if variant == 0 else f"pavement_{variant}"
+
 
 def build_block_pavement_meshes(
     nodes: Dict[int, RoadNode], edges: Dict[int, RoadEdge]
@@ -42,7 +71,7 @@ def build_block_pavement_meshes(
     inset = max(edge.num_lanes for edge in edges.values()) * LANE_WIDTH_METERS
 
     meshes: List[Mesh] = []
-    for block in identify_city_blocks(nodes, edges):
+    for block_index, block in enumerate(identify_city_blocks(nodes, edges)):
         x_min, y_min = block.min(axis=0) + inset
         x_max, y_max = block.max(axis=0) - inset
         if x_max <= x_min or y_max <= y_min:
@@ -55,7 +84,7 @@ def build_block_pavement_meshes(
                 y_max,
                 BLOCK_PAVEMENT_Z_METERS,
                 BLOCK_PAVEMENT_UV_TILE_METERS,
-                "pavement",
+                _pavement_material(block_index),
             )
         )
     return meshes

@@ -3,7 +3,11 @@
 import numpy as np
 
 from src.orchestration.dataset_generator import generate_scenario
-from src.procedural.block_pavement import BLOCK_PAVEMENT_Z_METERS, build_block_pavement_meshes
+from src.procedural.block_pavement import (
+    BLOCK_PAVEMENT_Z_METERS,
+    PAVEMENT_MATERIAL_COUNT,
+    build_block_pavement_meshes,
+)
 from src.procedural.building_placement import identify_city_blocks
 from src.procedural.lane_topology import LANE_WIDTH_METERS
 
@@ -23,14 +27,30 @@ def test_one_quad_per_block_inset_by_the_road_half_width(urban_config, bounds) -
 
     assert blocks
     assert len(meshes) == len(blocks)  # every block here is larger than the roads' pavement
-    for block, mesh in zip(blocks, meshes):
-        assert mesh.material == "pavement"
+    for index, (block, mesh) in enumerate(zip(blocks, meshes)):
+        expected = (
+            "pavement"
+            if index % PAVEMENT_MATERIAL_COUNT == 0
+            else (f"pavement_{index % PAVEMENT_MATERIAL_COUNT}")
+        )
+        assert mesh.material == expected
         assert np.allclose(mesh.vertices[:, 2], BLOCK_PAVEMENT_Z_METERS)
         assert np.allclose(mesh.vertices[:, :2].min(axis=0), block.min(axis=0) + inset)
         assert np.allclose(mesh.vertices[:, :2].max(axis=0), block.max(axis=0) - inset)
         for first in range(0, 6, 3):
             a, b, c = (mesh.vertices[i] for i in mesh.triangles[first : first + 3])
             assert (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) > 0  # faces up
+
+
+def test_multiple_blocks_get_different_pavement_materials(urban_config, bounds) -> None:
+    """A city with more than PAVEMENT_MATERIAL_COUNT blocks doesn't render every
+    sidewalk with the exact same material -- real streets vary sidewalk finish
+    block to block, and this was previously a single fixed material everywhere."""
+    scenario = generate_scenario(42, urban_config, bounds, "pavement_variety_test")
+    meshes = build_block_pavement_meshes(scenario.nodes, scenario.edges)
+    materials = {mesh.material for mesh in meshes}
+    assert len(meshes) >= PAVEMENT_MATERIAL_COUNT  # otherwise variety couldn't show up
+    assert len(materials) > 1
 
 
 def test_pavement_stays_below_the_sidewalk_slabs_top() -> None:
