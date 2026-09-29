@@ -169,14 +169,86 @@ is now confirmed to matter somewhat, but like v4a it isn't the dominant lever ei
 transfer still isn't close to the COCO-pretrained baseline (34.8 AP) or the real-control
 arm (28.1 AP).
 
-## v5 — mosaic ablation + registering unused tree/building/prop assets (planned)
+## v5a — mosaic ablation (quick signal)
+
+**Change:** two YOLOv10m scratch runs on the same v4b training set, differing only in
+`mosaic`: default (`1.0`) vs. `mosaic=0`, all other augmentation/hyperparameters identical.
+Evaluated both on the same fast 1,000-image slice of BDD100K val (not the full 10,000-image
+benchmark used elsewhere in this log — a quick signal, not a final number) at the standard
+`imgsz=960 conf=0.001 iou=0.6`.
+
+| Arm | AP / AP50 | person | car | bus | truck |
+|---|---|---|---|---|---|
+| mosaic=1.0 (default) | 2.9 / 6.2 | 4.4 | 6.3 | 0.5 | 0.5 |
+| mosaic=0 | **3.2 / 7.2** | 4.8 | 6.4 | 0.9 | 0.8 |
+
+**Verdict: mosaic off wins on every class, on this quick slice** — small in absolute terms
+(+0.3 AP, ~10% relative) but directionally consistent, unlike the mixed/class-splitting
+pattern v4a showed. This is consistent with the standing hypothesis: this project's images
+are single coherent scenes with real geometric consistency (fixed camera height, consistent
+distance-to-scale relationships) that 4-way mosaic stitching destroys, and a model trained
+without it retains those real cues better. Not yet confirmed at full-benchmark scale or
+across a second seed — see the priority list below for what would raise confidence.
+
+## v5b — registering unused tree/building/prop assets (planned, not yet done)
 
 Requires one real UE5 re-render (tree species change which mesh appears in-scene, unlike
-v4a/v4b's pure post-process/geometry recomputes), so bundling in every other confirmed,
-cheap, already-installed-asset fix from the post-v3 diagnostic rather than paying for a
-third render cycle later: `Kit_Tree_Alder`, `Kit_Tree_Maple_Red`, `Kit_Tree_Maple_Sugar`
-(currently every street tree is birch), 2 unused `CHH` building facade levels, the unused
-`Kit_StreetLamp_B` style, and the unused bench/sign kits — plus `mosaic=0` (and other heavy
-geometric augmentation disabled) in training, an untested hypothesis that mosaic's
-4-images-stitched-together composites teach scale/position cues that don't match this
-project's single-coherent-scene images.
+v4a/v4b/v5a's pure post-process/geometry or training-flag changes): `Kit_Tree_Alder`,
+`Kit_Tree_Maple_Red`, `Kit_Tree_Maple_Sugar` (currently every street tree is birch), 2 unused
+`CHH` building facade levels, the unused `Kit_StreetLamp_B` style, and the unused bench/sign
+kits. Paused pending the priority-ranking synthesis below, since several higher-ranked items
+don't require a render cycle at all.
+
+## Priority list: most critical to least critical (post-v4b/v5a synthesis)
+
+Four research passes fed this ranking: a statistical-rigor audit, a Grad-CAM comparison
+across v3/v4a/v4b(scratch+finetune) on 11 real images, a "what would a startup-grade
+pipeline need" gap analysis, and the v5a mosaic ablation above. Ranked by expected impact on
+real-world transfer, not by ease of implementation.
+
+1. **The model isn't learning real object shape at all — it's keyed on spurious texture.**
+   Grad-CAM overlays (`runs/gradcam_v2/`) show the *same* attention pattern — foliage edges,
+   curb lines, lane paint, glare — across every arm tested (v3, v4a pixel-realism, v4b modal
+   boxes), on the same 11 real images. None of the fixes shipped so far touched this at all;
+   they moved AP by fractions of a point while the underlying failure mode is untouched. This
+   is the single most important open finding: until synthetic training teaches shape/silhouette
+   cues that generalize, every other fix is polishing a symptom. Likely needs deliberate
+   domain randomization (textures, materials, lighting) specifically aimed at decorrelating
+   class identity from background texture, not just more realism.
+2. **Zero domain randomization of camera intrinsics/extrinsics, materials, or textures.**
+   Every render uses the same camera model and a fixed small set of building/vehicle
+   materials. Real datasets are shot on dozens of different camera rigs; a detector trained
+   on one fixed synthetic camera setup has an easy shortcut (exact pixel-to-metric scale) that
+   doesn't exist in real data and won't transfer. This is upstream of and likely a bigger lever
+   than any single asset fix (trees, lamps, etc.).
+3. **Dataset scale is 1-2 orders of magnitude below the academic synthetic baselines this
+   project is implicitly competing with** (~2,000 images here vs. 100k+ in published
+   sim-to-real work). Every arm in this log is trained on a dataset small enough that label
+   convention and augmentation flags can visibly move the needle by whole percentage
+   points — a sign the model is data-starved, not just imperfectly labeled.
+4. **No run in this entire experiment (v1 through v5a) has ever been repeated with a
+   different seed.** Every "gain" or "regression" logged above, including v4b's flagship
+   +0.9 AP and v5a's +0.3 AP, is a single sample with completely unmeasured run-to-run
+   variance. Before trusting any ranking in this list numerically, the top 2-3 candidate
+   fixes should be validated with at least 2 seeds each.
+5. **Mosaic augmentation** (this ablation): real, consistent, but modest (+0.3 AP quick
+   signal) — worth keeping `mosaic=0` as the default going forward given it's free (a training
+   flag, no re-render) and never lost on any class, but it will not close the sim-to-real gap
+   by itself and should not be over-weighted relative to items 1-3.
+6. **Modal (visible-region) occlusion boxes** (v4b, already shipped) — confirmed real,
+   modest gain on the scratch arm (+0.9 AP), flat on fine-tune. Correct box convention is a
+   prerequisite others might build on, but the Grad-CAM evidence (item 1) shows it doesn't
+   touch the actual attention problem.
+7. **Small-object/rare-class volatility** (per the statistical-rigor agent): bus/truck
+   numbers swing by 2-4x across arms on ground truth as small as 93-98 boxes (Cityscapes).
+   These deltas are consistent with sampling noise alone and shouldn't be read as signal
+   without more data or seeds.
+8. **Architecture/tooling gaps that block scaling up**, not blockers to any single number
+   today but blockers to acting on items 2-3 cheaply: single-instance sequential live-render
+   architecture (Ray parallelism exists for the offline path but was never extended to
+   live-render), no automated synthetic-vs-real drift detection, 3D boxes/lane-graph data
+   computed then discarded at export (no LiDAR pairing yet).
+9. **Unused already-installed assets** (Alder/Maple Red/Maple Sugar trees, extra building
+   facades, second lamp style, bench/sign kits — v5b above) — real diversity gaps, but the
+   least critical item here: cheap to add, but nothing in the Grad-CAM evidence suggests
+   scene-object diversity is the bottleneck compared to items 1-4.
