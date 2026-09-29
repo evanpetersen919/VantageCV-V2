@@ -11,6 +11,7 @@ from src.procedural.street_furniture import (
     END_MARGIN_METERS,
     LAMP_STYLES,
     TREE_BASE_STYLES,
+    TREE_SPECIES,
     FurnitureRule,
     TreeRule,
     furniture_rules,
@@ -187,3 +188,19 @@ def test_tree_base_style_selects_the_base_model() -> None:
         )
         assert bases
         assert {b.asset_path for b in bases} == {base_asset}
+
+
+def test_tree_species_selects_the_species_and_defaults_to_birch() -> None:
+    """Every species draws its trees only from its own variant pool (never mixed with
+    another species), and the default (species 0) is birch -- unchanged behaviour for
+    every caller that doesn't pass tree_species."""
+    lanes, edges = _straight_road(200.0)
+    for species, variants in enumerate(TREE_SPECIES):
+        _, trees = _trees_and_bases(
+            generate_street_furniture_pieces(lanes, edges, tree_species=species, seed=3)
+        )
+        assert trees
+        assert {t.asset_path for t in trees} <= set(variants)
+
+    _, default_trees = _trees_and_bases(generate_street_furniture_pieces(lanes, edges, seed=3))
+    assert {t.asset_path for t in default_trees} <= set(TREE_SPECIES[0])
