@@ -127,17 +127,41 @@ _BIRCH_VARIANTS: Tuple[str, ...] = tuple(
     f"/Game/Prop/Kit_Tree_Birch/Mesh/SM_Tree_Birch_{v}" for v in "fgh"
 )
 
+# Confirmed present (migrated) but never sampled: every street tree rendered as birch
+# regardless of scenario. No placement measurement exists per-species (Epic's own point
+# cloud was only broken down by birch variant), so these reuse birch's own measured
+# spacing/scale/offset via TreeRule -- only the mesh itself varies, exactly like birch's
+# own f/g/h variant pool, not a new, unmeasured placement pattern.
+_ALDER_VARIANTS: Tuple[str, ...] = tuple(
+    f"/Game/Prop/Kit_Tree_Alder/Mesh/Tree_Alder_{v}" for v in "AB"
+)
+_MAPLE_RED_VARIANTS: Tuple[str, ...] = ("/Game/Prop/Kit_Tree_Maple_Red/Mesh/Tree_Maple_Red_A",)
+_MAPLE_SUGAR_VARIANTS: Tuple[str, ...] = tuple(
+    f"/Game/Prop/Kit_Tree_Maple_Sugar/Mesh/Tree_Maple_{v}" for v in "AB"
+)
+
+# One species per scenario (mirrors LAMP_STYLES/TREE_BASE_STYLES' own "one per scenario"
+# convention): every tree along every street in a scenario is the same species, but which
+# species now varies scenario to scenario instead of always being birch.
+TREE_SPECIES: Tuple[Tuple[str, ...], ...] = (
+    _BIRCH_VARIANTS,
+    _ALDER_VARIANTS,
+    _MAPLE_RED_VARIANTS,
+    _MAPLE_SUGAR_VARIANTS,
+)
+
 _Rule = Union[FurnitureRule, TreeRule]
 
 
-def furniture_rules(lamp_style: int = 0) -> List[_Rule]:
+def furniture_rules(lamp_style: int = 0, tree_species: int = 0) -> List[_Rule]:
     """The placement rules, highest priority first (a lower-priority item
     is skipped where it would come closer than its clearance to one that
     is already placed)."""
     lamp_path, lamp_rotation = LAMP_STYLES[lamp_style % len(LAMP_STYLES)]
+    tree_asset_paths = TREE_SPECIES[tree_species % len(TREE_SPECIES)]
     return [
         FurnitureRule("lamp", lamp_path, 0.40, 14.35, 0.0, lamp_rotation, 1.0),
-        TreeRule("tree", _BIRCH_VARIANTS, 1.5, 20.21, 0.25, 2.5, 0.108, 1.2, (0.8, 1.1)),
+        TreeRule("tree", tree_asset_paths, 1.5, 20.21, 0.25, 2.5, 0.108, 1.2, (0.8, 1.1)),
         FurnitureRule("hydrant", _HYDRANT, 0.30, 27.87, 0.31, 0.0, 1.2),
         FurnitureRule("sign", _SIGN, 0.55, 33.35, 0.63, 0.0, 1.2),
         FurnitureRule("trash", _TRASH, 0.40, 12.35, 0.47, 0.0, 1.2),
@@ -216,6 +240,7 @@ def generate_street_furniture_pieces(  # pylint: disable=too-many-locals,too-man
     edges: Dict[int, RoadEdge],
     lamp_style: int = 0,
     tree_base_style: int = 0,
+    tree_species: int = 0,
     seed: int = 0,
     include_trees: bool = True,
     keep_out_rects: Sequence[Rect] = (),
@@ -224,16 +249,16 @@ def generate_street_furniture_pieces(  # pylint: disable=too-many-locals,too-man
     directed road edge. No prop is placed within ``keep_out_margin_m`` of a
     ``keep_out_rects`` rectangle (a parking-lot driveway).
 
-    Item positions are deterministic (``lamp_style`` and ``tree_base_style``
-    select the scenario's lamp model and tree-base model); only each tree's
-    scale, yaw and birch variant are random, from ``seed``. Each rule
-    places an item every ``spacing_m`` starting at ``END_MARGIN_METERS +
-    phase * spacing``, skipping any spot too close to an item that was
-    already placed on the same run.
+    Item positions are deterministic (``lamp_style``, ``tree_base_style`` and
+    ``tree_species`` select the scenario's lamp model, tree-base model and tree
+    species); only each tree's scale, yaw and within-species mesh variant are
+    random, from ``seed``. Each rule places an item every ``spacing_m`` starting
+    at ``END_MARGIN_METERS + phase * spacing``, skipping any spot too close to
+    an item that was already placed on the same run.
     """
     rules: Sequence[_Rule] = [
         rule
-        for rule in furniture_rules(lamp_style)
+        for rule in furniture_rules(lamp_style, tree_species)
         if include_trees or not isinstance(rule, TreeRule)
     ]
     base_asset = TREE_BASE_STYLES[tree_base_style % len(TREE_BASE_STYLES)]

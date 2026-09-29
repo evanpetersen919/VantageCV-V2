@@ -54,6 +54,7 @@ from src.procedural.scenario import ScenarioTypeConfig
 from src.procedural.street_furniture import (
     LAMP_STYLES,
     TREE_BASE_STYLES,
+    TREE_SPECIES,
     generate_street_furniture_pieces,
 )
 from src.procedural.traffic_lights import generate_traffic_light_pieces
@@ -235,6 +236,10 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
 
     lamp_style = int(style_rng.integers(len(LAMP_STYLES)))
     tree_base_style = int(style_rng.integers(len(TREE_BASE_STYLES)))
+    # Drawn after every other style_rng use in this function, so adding it doesn't shift
+    # any pre-existing seed's lamp_style/tree_base_style/season choice (see the season
+    # comment above).
+    tree_species = int(style_rng.integers(len(TREE_SPECIES)))
     parking_lot_props = parking_lot_pieces(parking_lots, lamp_style)
     parking_lot_props += driveway_crosswalk_pieces(parking_lots)
 
@@ -243,6 +248,7 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         edges,
         lamp_style=lamp_style,
         tree_base_style=tree_base_style,
+        tree_species=tree_species,
         seed=seed,
         include_trees=season_has_trees(chosen_season),
         keep_out_rects=[lot.driveway.gap for lot in parking_lots if lot.driveway is not None],
