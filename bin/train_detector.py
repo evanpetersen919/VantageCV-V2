@@ -15,6 +15,10 @@ The two arms that matter for a fair sim-to-real claim differ only in ``--weights
 
 Training environment: ``python -m venv .venv-train`` then, inside it, install a CUDA build of
 PyTorch from pytorch.org followed by ``pip install ultralytics pycocotools``.
+
+``--mosaic`` defaults to ultralytics' own default (1.0). The v5a ablation
+(``EXPERIMENT_LOG.md``) found ``--mosaic 0`` a real, consistent, if modest, win on real-image
+transfer for this project's single-coherent-scene images -- pass it explicitly to use that.
 """
 
 import argparse
@@ -34,6 +38,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", default="0")
     parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--mosaic", type=float, default=1.0)
     args = parser.parse_args()
 
     from ultralytics import YOLO  # pylint: disable=import-outside-toplevel,import-error
@@ -49,6 +54,7 @@ def main() -> None:
         workers=args.workers,
         project=str(args.project.resolve()),
         name=args.name,
+        mosaic=args.mosaic,
         deterministic=True,
     )
 
