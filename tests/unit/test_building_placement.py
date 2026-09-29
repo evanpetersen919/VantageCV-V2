@@ -490,6 +490,28 @@ def test_generated_building_types_are_not_all_the_same(urban_config, bounds) -> 
     assert len(observed_types) > 1
 
 
+def test_extra_material_variants_are_reachable(urban_config, bounds) -> None:
+    """The extra colour/finish variants added alongside each material family
+    (brick_brown, stucco_khaki, metal_brass, block_granite, block_limestone) are
+    actually sampled given enough scenarios, not dead tuple entries that never
+    come up in practice."""
+    observed_materials = set()
+    for seed in range(20):
+        road_gen = RoadNetworkGenerator(seed, urban_config)
+        nodes, edges = road_gen.generate(bounds)
+        buildings = BuildingPlacementGenerator(seed, urban_config).generate(nodes, edges)
+        observed_materials.update(b.material for b in buildings)
+
+    extra_variants = {
+        "brick_brown",
+        "stucco_khaki",
+        "metal_brass",
+        "block_granite",
+        "block_limestone",
+    }
+    assert observed_materials & extra_variants
+
+
 def test_building_type_and_material_deterministic_across_seeds(urban_config, bounds) -> None:
     """Same seed produces identical building_type/material assignments."""
     road_gen = RoadNetworkGenerator(7, urban_config)

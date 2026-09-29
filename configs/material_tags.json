@@ -66,6 +66,11 @@
       "source": "CitySample Content/Building/Material/MI/Brick/MI_Bldg_BrickOffset_Red.uasset",
       "used_by": "building_placement.py BUILDING_MATERIALS_BY_TYPE[RESIDENTIAL, MIXED_USE]"
     },
+    "brick_brown": {
+      "asset_path": "/Game/Building/Material/MI/Brick/MI_Bldg_BrickOffset_Brown",
+      "source": "CitySample Content/Building/Material/MI/Brick/MI_Bldg_BrickOffset_Brown.uasset",
+      "used_by": "building_placement.py BUILDING_MATERIALS_BY_TYPE[RESIDENTIAL, MIXED_USE] -- brown variant, was migrated but never sampled"
+    },
     "wood_siding": {
       "asset_path": "/Game/Building/Material/MI/Wood/MI_Bldg_Wood_Cedar",
       "source": "CitySample Content/Building/Material/MI/Wood/MI_Bldg_Wood_Cedar.uasset",
@@ -75,6 +80,11 @@
       "asset_path": "/Game/Building/Material/MI/Paint/MI_Bldg_PaintedStone_Beige",
       "source": "CitySample Content/Building/Material/MI/Paint/MI_Bldg_PaintedStone_Beige.uasset",
       "used_by": "building_placement.py BUILDING_MATERIALS_BY_TYPE[RESIDENTIAL] -- no dedicated stucco asset exists in City Sample's kit; a painted-smooth-stone finish is the closest real visual match"
+    },
+    "stucco_khaki": {
+      "asset_path": "/Game/Building/Material/MI/Paint/MI_Bldg_PaintedStone_Khaki",
+      "source": "CitySample Content/Building/Material/MI/Paint/MI_Bldg_PaintedStone_Khaki.uasset",
+      "used_by": "building_placement.py BUILDING_MATERIALS_BY_TYPE[RESIDENTIAL] -- khaki variant, was migrated but never sampled"
     },
     "concrete": {
       "asset_path": "/Game/Building/Material/MI/Concrete/MI_Bldg_Concrete_Dirty",
@@ -90,6 +100,21 @@
       "asset_path": "/Game/Building/Material/MI/Metal/MI_Bldg_Metal_Brushed",
       "source": "CitySample Content/Building/Material/MI/Metal/MI_Bldg_Metal_Brushed.uasset",
       "used_by": "building_placement.py BUILDING_MATERIALS_BY_TYPE[COMMERCIAL]"
+    },
+    "metal_brass": {
+      "asset_path": "/Game/Building/Material/MI/Metal/MI_Bldg_Metal_Brass",
+      "source": "CitySample Content/Building/Material/MI/Metal/MI_Bldg_Metal_Brass.uasset",
+      "used_by": "building_placement.py BUILDING_MATERIALS_BY_TYPE[COMMERCIAL] -- brass variant, was migrated but never sampled"
+    },
+    "block_granite": {
+      "asset_path": "/Game/Building/Material/MI/Block/MI_Bldg_Block_Granite",
+      "source": "CitySample Content/Building/Material/MI/Block/MI_Bldg_Block_Granite.uasset",
+      "used_by": "building_placement.py BUILDING_MATERIALS_BY_TYPE[COMMERCIAL] -- whole Block family was migrated but never sampled"
+    },
+    "block_limestone": {
+      "asset_path": "/Game/Building/Material/MI/Block/MI_Bldg_Block_Limestone",
+      "source": "CitySample Content/Building/Material/MI/Block/MI_Bldg_Block_Limestone.uasset",
+      "used_by": "building_placement.py BUILDING_MATERIALS_BY_TYPE[COMMERCIAL] -- whole Block family was migrated but never sampled"
     },
     "vehicle_paint": {
       "asset_path": "/Game/Building/Material/MI/Paint/MI_Bldg_PaintedMetal_Red",
