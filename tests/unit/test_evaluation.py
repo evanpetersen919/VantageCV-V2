@@ -10,7 +10,7 @@ import pytest
 from src.evaluation import class_maps
 from src.evaluation.loaders import load_bdd100k, load_cityscapes
 from src.evaluation.scoring import format_report, remap_coco80, score
-from src.evaluation.split import split_scenarios, write_split
+from src.evaluation.split import copy_dataset_side_files, split_scenarios, write_split
 
 PERSON, CAR, BUS, TRUCK = class_maps.PERSON, class_maps.CAR, class_maps.BUS, class_maps.TRUCK
 
@@ -339,3 +339,20 @@ def test_split_rejects_bad_fractions_and_unlabelled_scenarios(tmp_path: Path) ->
     )
     with pytest.raises(ValueError, match="scenario_id"):
         write_split(tmp_path)
+
+
+def test_copy_dataset_side_files_copies_whichever_exist(tmp_path: Path) -> None:
+    """split.json/manifest.json are copied when present; a missing one is silently skipped,
+    and nothing else in the source directory is touched."""
+    source = tmp_path / "source"
+    out = tmp_path / "out"
+    source.mkdir()
+    out.mkdir()
+    (source / "split.json").write_text('{"train": []}', encoding="utf-8")
+    (source / "annotations.json").write_text("{}", encoding="utf-8")  # not a side file
+
+    copy_dataset_side_files(source, out)
+
+    assert (out / "split.json").read_text(encoding="utf-8") == '{"train": []}'
+    assert not (out / "manifest.json").exists()
+    assert not (out / "annotations.json").exists()
