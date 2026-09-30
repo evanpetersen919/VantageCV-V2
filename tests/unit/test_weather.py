@@ -151,7 +151,9 @@ def test_shares_sum_to_one_and_the_draw_is_seeded_and_follows_them() -> None:
 def test_seeded_rain_varies_strength_slant_and_pattern_deterministically() -> None:
     """A seed gives rain its own strength, wind slant and pattern seed: the
     same seed repeats, seeds spread over the strengths and slant range, and
-    non-rain weather ignores the seed."""
+    non-rain weather ignores the seed for its rain-specific fields (material
+    appearance still varies with the seed regardless of weather -- see
+    ``test_material_appearance_now_varies_on_every_weather_not_just_rain``)."""
     a = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN, seed=5)
     assert a == scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN, seed=5)
     envs = [
@@ -167,7 +169,10 @@ def test_seeded_rain_varies_strength_slant_and_pattern_deterministically() -> No
     assert light.rain_intensity < heavy.rain_intensity
     assert light.ripple_density < heavy.ripple_density
     clear = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.OVERCAST, seed=5)
-    assert clear == scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.OVERCAST)
+    unseeded = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.OVERCAST)
+    assert clear.rain_intensity is None and unseeded.rain_intensity is None
+    assert clear.rain_slant == unseeded.rain_slant
+    assert clear.rain_seed == unseeded.rain_seed
 
 
 def test_night_rain_is_seeded_too_and_keeps_its_dimmer_streaks() -> None:

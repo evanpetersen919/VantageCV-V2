@@ -416,6 +416,66 @@ def _vary_night_brightness(env: EnvironmentConfig, seed: int) -> EnvironmentConf
     return dataclasses.replace(env, exposure_bias=float(rng.uniform(*NIGHT_EXPOSURE_BIAS_RANGE_EV)))
 
 
+# Always-on material-appearance domain randomization (priority-list item #1: Grad-CAM showed
+# spurious background-texture attention unfixed by every prior change; EXPERIMENT_LOG.md's
+# segmentation-guided-background-stylization entries confirmed a real, positive Grad-CAM shift
+# from randomizing background appearance more aggressively). Before this, building tint/
+# roughness and asphalt/pavement roughness only varied at all when it was raining (see
+# ``_WET_ASSET_SCALARS``/``_WET_ASSET_VECTOR_SCALES``/``_WET_SURFACES`` above) -- every clear,
+# overcast, fog, golden-hour, sunset, dawn-haze and night scenario rendered these surfaces with
+# the exact same fixed appearance every time. This reuses those exact same confirmed-real
+# parameter names (proven to reach the live material instances by the rain preset already
+# shipping), with deliberately wider, non-realistic ranges per Tobin et al. 2017 / Tremblay et
+# al. 2018's own domain-randomization prescription (randomize non-realistically so the network
+# can't key on a consistent background appearance) -- centred on, and swinging past, the wet
+# preset's own values in both directions, not a narrow "looks realistically dry" range. Puddle-
+# specific parameters are deliberately excluded (a puddle with no rain would look like a
+# rendering bug, a scene-plausibility concern distinct from the training-signal one this is
+# aimed at); tint and roughness/specular still vary even though they're applied without regard
+# to whether the scene is "supposed" to look worn, glossy or grimy.
+_TINT_SCALE_JITTER_RANGE = (0.6, 1.3)
+_BUILDING_ROUGHNESS_JITTER_RANGE = (0.15, 0.9)
+_SURFACE_ROUGHNESS_JITTER_RANGE = (0.2, 0.95)
+_SURFACE_BASE_ROUGHNESS_JITTER_RANGE = (0.3, 1.2)
+_SURFACE_SPECULAR_JITTER_RANGE = (0.1, 0.7)
+_BUILDING_SLOT_PATTERNS = ("Bldg_block*", "Bldg_brick*", "Bldg_painted*")
+_SURFACE_TAGS = ("asphalt", "ground", "pavement")
+
+
+def _vary_material_appearance(env: EnvironmentConfig, seed: int) -> EnvironmentConfig:
+    """``env`` with an always-on, per-scenario random tint/roughness jitter merged into its
+    asset/surface overrides -- any key a weather preset already set (e.g. rain's wetness look)
+    is left alone, so this only fills in scenarios that had no material randomization at all."""
+    rng = np.random.Generator(np.random.PCG64([seed, 0x9A57]))
+    jitter_scalars = {
+        f"{pattern}|Roughness Max M1": float(rng.uniform(*_BUILDING_ROUGHNESS_JITTER_RANGE))
+        for pattern in _BUILDING_SLOT_PATTERNS
+    }
+    jitter_vectors = {
+        f"{pattern}|Color Tint M1"
+        if pattern != "Bldg_painted*"
+        else f"{pattern}|Color Tint/Mult(A) M1": float(rng.uniform(*_TINT_SCALE_JITTER_RANGE))
+        for pattern in _BUILDING_SLOT_PATTERNS
+    }
+    jitter_surfaces = {
+        tag: {
+            "Roughness MFPD": float(rng.uniform(*_SURFACE_ROUGHNESS_JITTER_RANGE)),
+            "BaseRoughnessMult": float(rng.uniform(*_SURFACE_BASE_ROUGHNESS_JITTER_RANGE)),
+            "Specular MFPD": float(rng.uniform(*_SURFACE_SPECULAR_JITTER_RANGE)),
+        }
+        for tag in _SURFACE_TAGS
+    }
+    return dataclasses.replace(
+        env,
+        asset_scalars={**jitter_scalars, **(env.asset_scalars or {})},
+        asset_vector_scales={**jitter_vectors, **(env.asset_vector_scales or {})},
+        surface_scalars={
+            tag: {**jitter_surfaces.get(tag, {}), **(env.surface_scalars or {}).get(tag, {})}
+            for tag in set(jitter_surfaces) | set(env.surface_scalars or {})
+        },
+    )
+
+
 def scenario_environment(
     season: Season,
     time_of_day: TimeOfDay,
@@ -441,14 +501,19 @@ def scenario_environment(
             night_rain = dataclasses.replace(NIGHT_ENVIRONMENT, **_NIGHT_RAIN_OVERRIDES)
             if seed is None:
                 return night_rain
-            return _vary_night_brightness(_vary_rain(night_rain, seed), seed)
+            return _vary_material_appearance(
+                _vary_night_brightness(_vary_rain(night_rain, seed), seed), seed
+            )
         if weather != Weather.CLEAR:
             raise ValueError(f"weather {weather.value!r} is not defined for night scenarios")
         if seed is None:
             return NIGHT_ENVIRONMENT
-        return _vary_night_brightness(NIGHT_ENVIRONMENT, seed)
+        return _vary_material_appearance(_vary_night_brightness(NIGHT_ENVIRONMENT, seed), seed)
     env = dataclasses.replace(season_environment(season), **_WEATHER_OVERRIDES[weather])
-    return _vary_rain(env, seed) if weather == Weather.RAIN and seed is not None else env
+    if seed is None:
+        return env
+    env = _vary_rain(env, seed) if weather == Weather.RAIN else env
+    return _vary_material_appearance(env, seed)
 
 
 # Epic's tree kits are bare branch skeletons (no leaves, see
