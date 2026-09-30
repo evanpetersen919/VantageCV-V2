@@ -7,7 +7,10 @@ import numpy as np
 from src.orchestration.dataset_generator import generate_scenario
 from src.orchestration.scenario_serializer import serialize_scenario
 from src.procedural.block_pavement import PAVEMENT_MATERIAL_TAGS
-from src.procedural.environment import (
+from src.procedural.environment import (  # pylint: disable=protected-access
+    _BUILDING_ROUGHNESS_JITTER_RANGE,
+    _SURFACE_ROUGHNESS_JITTER_RANGE,
+    _TINT_SCALE_JITTER_RANGE,
     DEFAULT_ENVIRONMENT,
     NIGHT_ENVIRONMENT,
     NIGHT_EXPOSURE_BIAS_RANGE_EV,
@@ -174,3 +177,47 @@ def test_night_rain_keeps_its_own_exposure_variety() -> None:
 def test_night_without_a_seed_keeps_the_old_fixed_preset() -> None:
     """No seed means the previous, deterministic behaviour (existing callers unaffected)."""
     assert scenario_environment(Season.WINTER, TimeOfDay.NIGHT) == NIGHT_ENVIRONMENT
+
+
+def test_material_appearance_now_varies_on_every_weather_not_just_rain() -> None:
+    """Before this, a clear-day scenario had no asset/surface material overrides at all --
+    with a seed, every scenario (any weather, day or night) now gets some, and they vary."""
+    clear_envs = [
+        scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.CLEAR, seed=seed)
+        for seed in range(20)
+    ]
+    for env in clear_envs:
+        assert env.asset_scalars and env.asset_vector_scales and env.surface_scalars
+    assert len({tuple(sorted(env.asset_scalars.items())) for env in clear_envs}) > 1
+
+
+def test_material_appearance_jitter_is_seeded_and_bounded() -> None:
+    """The jittered values stay within their declared ranges and are deterministic per seed."""
+    env = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.CLEAR, seed=11)
+    again = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.CLEAR, seed=11)
+    assert env.asset_scalars == again.asset_scalars
+    assert env.asset_vector_scales == again.asset_vector_scales
+    assert env.surface_scalars == again.surface_scalars
+
+    low, high = _BUILDING_ROUGHNESS_JITTER_RANGE
+    assert all(low <= value <= high for value in env.asset_scalars.values())
+    tint_low, tint_high = _TINT_SCALE_JITTER_RANGE
+    assert all(tint_low <= value <= tint_high for value in env.asset_vector_scales.values())
+    for tag_values in env.surface_scalars.values():
+        assert _SURFACE_ROUGHNESS_JITTER_RANGE[0] <= tag_values["Roughness MFPD"]
+        assert tag_values["Roughness MFPD"] <= _SURFACE_ROUGHNESS_JITTER_RANGE[1]
+
+
+def test_rain_keeps_its_own_wetness_values_not_the_jitter() -> None:
+    """Rain's deliberate wet-surface look (fixed, proven values) must survive the new
+    always-on jitter untouched -- the jitter only fills gaps rain doesn't already set."""
+    rained = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN, seed=5)
+    assert rained.surface_scalars["asphalt"]["Puddle Height MFPD"] == 0.9
+    assert rained.asset_vector_scales["Bldg_block*|Color Tint M1"] == 0.75
+    assert rained.asset_scalars["veh_carPaint|Max Roughness"] == 0.02
+
+
+def test_night_also_gets_material_jitter_with_a_seed() -> None:
+    """Night scenarios previously had no material randomization surface at all either."""
+    night = scenario_environment(Season.WINTER, TimeOfDay.NIGHT, seed=9)
+    assert night.asset_scalars and night.surface_scalars
