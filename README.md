@@ -2,6 +2,15 @@
 
 ### Synthetic AV Dataset Generator
 
+[![Lint and Test](https://github.com/evanpetersen919/VantageCV-V2/actions/workflows/lint_and_test.yml/badge.svg)](https://github.com/evanpetersen919/VantageCV-V2/actions/workflows/lint_and_test.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
+![Unreal Engine 5.4](https://img.shields.io/badge/Unreal%20Engine-5.4-black.svg)
+
+**Procedural driving scenes, rendered in real UE5, with pixel-exact labels -- and an open,
+honest research log of how well a detector trained only on them transfers to real photos
+(BDD100K, Cityscapes), including what didn't work.**
+
 ![A generated city street at golden hour: colored vehicles, pedestrians and varied building facades](docs/images/hero_golden_hour_street.jpg)
 
 Procedural, deterministic, seed-based generation of synthetic autonomous-vehicle
@@ -62,12 +71,44 @@ captures and labels the frame.
 
 ### Ongoing: sim-to-real transfer experiment
 
-A live-rendered synthetic dataset trained YOLOv10m detectors that transfer
-poorly to real photos (BDD100K, Cityscapes) so far. [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md)
+A live-rendered synthetic dataset (~2,000 images) trains YOLOv10m detectors that
+are scored on real photos they have never seen. [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md)
 tracks every training run, what changed, the measured real-benchmark results,
 and a full evidence-based diagnostic pass (pixel statistics, Grad-CAM, label
 convention research, rendering-pipeline audit) -- an honest, in-progress
 research log, not a highlight reel.
+
+Real-benchmark AP (COCO-style, person/car/bus/truck), one change per version:
+
+| Version | What changed | BDD100K scratch / fine-tune | Cityscapes scratch / fine-tune |
+|---|---|---|---|
+| v1 | first live-rendered dataset | 2.9 / 4.9 | 2.5 / 10.3 |
+| v3 | distance cutoffs fit to real box sizes, night-brightness variety, vehicle paint diversity | 2.7 / 6.1 | 4.3 / 12.9 |
+| v4b | boxes cover only the visible part of occluded objects | 3.6 / 6.3 | 4.3 / 12.4 |
+| v5 | camera pitch, material/tree variety, cab-less-trailer bug fix, no mosaic | **4.0 / 6.4** | **7.8** / 12.0 |
+| *reference* | COCO-pretrained (no synthetic data) / real images only | 34.8 / 28.1 | 41.6 / 26.1 |
+
+Scratch = trained from random weights on synthetic data only; fine-tune = starts from
+COCO weights. Synthetic-only transfer is still far below real-data baselines -- the
+current diagnosis (Grad-CAM shows the detector keys on background texture like foliage
+and curbs rather than object shape) and the experiments aimed at it are in the log.
+
+## Roadmap and help wanted
+
+Open problems where a contribution would matter most (details and evidence in
+[`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md)):
+
+- **Texture/shape bias**: randomize background appearance so detectors learn object
+  shape (segmentation-guided background randomization is already in
+  `bin/stylize_backgrounds.py`; renderer-side randomization is next).
+- **Camera realism**: roll and field-of-view randomization need a small RPC/engine change
+  (`unreal_plugin/`); post-process effects (vignette, bloom, film grain) are absent.
+- **Scale and variance**: only ~2,000 images, and no result has been repeated across
+  seeds yet -- multi-seed runs and larger datasets would make the numbers trustworthy.
+- **3D ground truth / LiDAR**: computed internally but not exported
+  (see [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)).
+
+New here? Read [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Requirements
 

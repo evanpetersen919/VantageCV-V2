@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this project or its experiment log, please cite it as below."
+title: "VantageCV Remastered: Synthetic AV Dataset Generator"
+authors:
+  - family-names: "Petersen"
+    given-names: "Evan"
+repository-code: "https://github.com/evanpetersen919/VantageCV-V2"
+license: MIT
+keywords:
+  - synthetic data
+  - autonomous driving
+  - sim-to-real
+  - Unreal Engine
+  - object detection
