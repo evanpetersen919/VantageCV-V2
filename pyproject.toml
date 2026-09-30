@@ -81,6 +81,13 @@ ignore_missing_imports = true
 module = "ultralytics.*"
 ignore_missing_imports = true
 
+# cv2/torch/pytorch_grad_cam: same category as ultralytics above -- only used by
+# bin/gradcam_compare.py, run in the separate .venv-train environment, deliberately not a
+# project dependency.
+[[tool.mypy.overrides]]
+module = ["cv2.*", "torch.*", "pytorch_grad_cam.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"
