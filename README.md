@@ -20,6 +20,26 @@ game (City Sample assets) and exported as COCO datasets with 2D boxes,
 segmentation, occlusion/truncation, and per-scenario condition metadata
 (season, weather, time of day).
 
+## Highlights
+
+- **Real renders, exact labels.** Every object is a tracked 3D box; 2D boxes and
+  segmentation polygons are projected through the same camera the engine renders with,
+  and a self-check against four known ground squares runs before every dataset
+  (typically about 0.5 px of error).
+- **Deterministic and resumable.** A scenario seed reproduces a frame exactly, and a
+  crashed render run resumes where it stopped.
+- **Measured, not guessed.** Distance cutoffs and night brightness are fit to real
+  BDD100K/Cityscapes statistics, and the vehicle mix follows real registration data, with
+  the evidence written down.
+- **An honest research log.** Every training run is scored on real benchmarks, including
+  the negative results and a Grad-CAM diagnosis of *why* synthetic-only detectors
+  underperform ([results](#ongoing-sim-to-real-transfer-experiment)).
+- **Engineered to be checked.** 800+ tests, pylint 10/10, strict mypy, CI on every push.
+
+Jump to: [Results](#ongoing-sim-to-real-transfer-experiment) ·
+[Roadmap and help wanted](#roadmap-and-help-wanted) · [Quick start](#quick-start) ·
+[Project layout](#project-layout) · [Contributing](CONTRIBUTING.md)
+
 See [`docs/architecture.rst`](docs/architecture.rst) (or the built Sphinx docs)
 for the full system design, and [`docs/user_guide.rst`](docs/user_guide.rst)
 for real, executable usage examples.
@@ -52,16 +72,18 @@ a wide range of real-world driving conditions in the same set of city layouts:
 
 ## Status
 
-The core procedural pipeline (road network → lanes → buildings → traffic →
-meshes → validation → sensors/ground truth → export → distributed/resumable
-generation → docs) is complete, plus follow-on additions beyond MASTER_PROMPT's
-own roadmap (vehicle/pedestrian placement, a real CLI + YAML config loader,
-per-lane turn connectivity, an opt-in sensor noise model, spatial
-acceleration for LiDAR/depth/segmentation, building types/materials,
-configurable road setback, and gable roofs for residential buildings). See
-[`docs/release_notes.rst`](docs/release_notes.rst) for what shipped in each
-phase/addition and [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)
-for every deliberate scope decision and bug found along the way.
+The core pipeline is complete: road network → lanes → buildings → traffic → meshes →
+validation → sensors/ground truth → export → distributed/resumable generation → docs.
+Beyond the original plan it also includes:
+
+- vehicle and pedestrian placement, per-lane turn connectivity, traffic-signal phasing
+- a real CLI and YAML config loader
+- building types, materials and gable roofs; configurable road setback
+- an opt-in sensor noise model; spatial acceleration for LiDAR/depth/segmentation
+
+See [`docs/release_notes.rst`](docs/release_notes.rst) for what shipped in each phase and
+[`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md) for every deliberate scope
+decision and bug found along the way.
 
 `unreal_plugin/SyntheticDataGen/` is built, compiled and the primary way real
 datasets get rendered: a WebSocket JSON-RPC bridge (`src/ue5/backend.py`)
@@ -212,18 +234,31 @@ poetry run sphinx-build -b html docs docs/_build/html
 
 ## Project layout
 
+**Library (`src/`)**
+
 - `src/procedural/` -- road network, lane topology, building placement, traffic, mesh generation
 - `src/sensors/` -- camera/LiDAR models
 - `src/ground_truth/` -- bbox/segmentation/depth-map extraction
 - `src/export/` -- COCO exporter, metadata aggregation
 - `src/validation/` -- dataset sanity checks
 - `src/orchestration/` -- end-to-end pipeline, Ray-based parallel generation, resumable/checkpointed generation
+- `src/evaluation/` -- real-benchmark loaders (BDD100K, Cityscapes), COCO scoring, dataset splits, YOLO export
 - `src/ue5/` -- JSON-RPC/WebSocket client for UE5, driving a live game session
 - `unreal_plugin/SyntheticDataGen/` -- UE5 C++ plugin: scenario loading, mesh spawning, night lights, RPC server (built and in active use)
 - `configs/` -- scenario and sensor YAML templates (`urban_dense`/`urban_sparse` are real and loadable via `src/utils/config_loader.py`; the other three are reference-only, see `KNOWN_GAPS_AND_ISSUES.md`)
-- `bin/generate_dataset.py` -- offline procedural generation, no live game
-- `bin/generate_live_dataset.py` -- real UE5 rendering, the primary path for actual training data
-- `bin/train_detector.py`, `bin/evaluate_detector.py` -- YOLO training and real-benchmark (BDD100K/Cityscapes) evaluation for the sim-to-real experiment
-- `EXPERIMENT_LOG.md` -- every training run in that experiment: what changed, why, and the measured results
-- `docs/` -- Sphinx documentation source
-- `tests/` -- unit and integration test suites
+
+**Command-line tools (`bin/`)**
+
+- Generate: `generate_dataset.py` (offline, no live game) and `generate_live_dataset.py` (real UE5 rendering, the primary path for training data); `launch_ue5.ps1` starts the game session it talks to
+- Prepare: `split_dataset.py`, `export_yolo.py`, `audit_dataset.py`
+- Train and score: `train_detector.py`, `evaluate_detector.py`, `prepare_real_control.py`
+- Diagnose: `gradcam_compare.py` (Grad-CAM overlays on a fixed real-image panel)
+- Experiment transforms (no re-render): `regenerate_modal_boxes.py`, `apply_image_realism.py`, `stylize_backgrounds.py`
+- Measure real statistics the generator is fit to: `fit_max_annotation_distance.py`, `measure_night_brightness.py`, `measure_vehicle_bounds.py`, and the other `measure_*.py` scripts
+
+**Project records**
+
+- `EXPERIMENT_LOG.md` -- every training run in the sim-to-real experiment: what changed, why, and the measured results
+- `KNOWN_GAPS_AND_ISSUES.md` -- every deliberate scope decision and bug found along the way
+- `docs/` -- Sphinx documentation source; `tests/` -- unit and integration test suites
+- `CONTRIBUTING.md` -- how to help; `CITATION.cff` -- how to cite
