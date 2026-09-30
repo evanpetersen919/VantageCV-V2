@@ -7,6 +7,7 @@ seed, and the split file records exactly which scenarios went where.
 """
 
 import json
+import shutil
 from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Set, Tuple
@@ -15,6 +16,19 @@ import numpy as np
 
 ANNOTATIONS_FILE = "annotations.json"
 CONDITION_KEYS = ("time_of_day", "weather", "view")
+
+# Every live-dataset side file besides annotations.json/train.json/val.json/images/ itself --
+# copied verbatim by any tool that reprocesses a dataset's images without touching its splits
+# or scenario metadata (bin/apply_image_realism.py, bin/stylize_backgrounds.py).
+DATASET_SIDE_FILES = ("split.json", "manifest.json")
+
+
+def copy_dataset_side_files(dataset_dir: Path, out_dir: Path) -> None:
+    """Copy ``DATASET_SIDE_FILES`` from ``dataset_dir`` to ``out_dir``, whichever exist."""
+    for name in DATASET_SIDE_FILES:
+        source = dataset_dir / name
+        if source.exists():
+            shutil.copy2(source, out_dir / name)
 
 
 def split_scenarios(

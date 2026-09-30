@@ -14,13 +14,14 @@ train.json/val.json and this script's output images, or just copy the label side
 
 import argparse
 import json
-import shutil
 from pathlib import Path
 from typing import Any, Dict
 
 import numpy as np
 from PIL import Image
 from scipy.ndimage import gaussian_filter
+
+from src.evaluation.split import copy_dataset_side_files
 
 BLUR_SIGMA = 0.4
 SATURATION_SCALE = 0.75
@@ -60,10 +61,7 @@ def main() -> None:
             continue
         data = _repoint_to_jpg(json.loads(source.read_text(encoding="utf-8")))
         (args.out / name).write_text(json.dumps(data), encoding="utf-8")
-    for name in ("split.json", "manifest.json"):
-        source = args.dataset / name
-        if source.exists():
-            shutil.copy2(source, args.out / name)
+    copy_dataset_side_files(args.dataset, args.out)
 
     (args.out / "images").mkdir(parents=True, exist_ok=True)
     sources = sorted((args.dataset / "images").glob("*.png"))
