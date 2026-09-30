@@ -229,14 +229,25 @@ pipeline need" gap analysis, and the v5a mosaic ablation above. Ranked by expect
 real-world transfer, not by ease of implementation.
 
 1. **The model isn't learning real object shape at all — it's keyed on spurious texture.**
-   Grad-CAM overlays (`runs/gradcam_v2/`) show the *same* attention pattern — foliage edges,
-   curb lines, lane paint, glare — across every arm tested (v3, v4a pixel-realism, v4b modal
-   boxes), on the same 11 real images. None of the fixes shipped so far touched this at all;
-   they moved AP by fractions of a point while the underlying failure mode is untouched. This
-   is the single most important open finding: until synthetic training teaches shape/silhouette
-   cues that generalize, every other fix is polishing a symptom. Likely needs deliberate
-   domain randomization (textures, materials, lighting) specifically aimed at decorrelating
-   class identity from background texture, not just more realism.
+   Grad-CAM overlays (`runs/gradcam_v2/`, `runs/gradcam_v3/`) show the *same* attention
+   pattern — foliage edges, curb lines, lane paint, glare — across every arm tested (v3, v4a
+   pixel-realism, v4b modal boxes), on the same 11 real images. **Update (Grad-CAM v3, see the
+   entry above): v5's changes measurably reduced this in daytime conditions, but did not fix
+   it, and night is untouched.** A specific, now-confirmed reason: this project's live-render
+   pipeline has a real, generic material-override system (scalar/vector/whole-material-swap)
+   reaching buildings, ground/pavement and vehicles, but **trees/foliage have zero appearance-
+   override mechanism at all** — no fix so far could have touched Grad-CAM's foliage cue
+   directly, regardless of intent. This is the single most important open finding: until
+   synthetic training teaches shape/silhouette cues that generalize, every other fix is
+   polishing a symptom. Grounded in the literature, not a guess: Geirhos et al. 2019 (ImageNet
+   CNNs are texture-biased by default; training on style-randomized-texture data restores
+   shape bias) and Tobin et al. 2017 / Tremblay et al. 2018 (sim-to-real domain randomization:
+   randomize textures/lighting/camera in non-realistic ways specifically to force shape
+   learning) all independently prescribe the same fix this project has never tried: texture/
+   style randomization decorrelating class identity from background texture, not more
+   realism. A full plan for this (staged: rebuild Grad-CAM tooling → segmentation-guided
+   background stylization, no re-render needed → push existing render-side randomization
+   harder → new C++ texture/post-process work if still needed) is written up separately.
 2. **Zero domain randomization of camera intrinsics/extrinsics, materials, or textures.**
    Every render uses the same camera model and a fixed small set of building/vehicle
    materials. Real datasets are shot on dozens of different camera rigs; a detector trained
@@ -307,3 +318,36 @@ noise-consistent without repeated seeds. Net: this is real, meaningful progress,
 priority list's #1 finding (Grad-CAM's spurious-texture attention, unaddressed by any change
 in this log so far), transfer is still far from the COCO-pretrained (34.8 AP) or real-control
 (28.1 AP) baselines.
+
+## Grad-CAM v3 — rebuilt tool, first v5 baseline (priority-list #1, Step 0)
+
+**Change:** the Grad-CAM script that produced every prior finding (`runs/gradcam/`,
+`runs/gradcam_v2/`) was never committed and no longer exists anywhere in the repo or its git
+history -- rebuilt as `bin/gradcam_compare.py`, a real, tracked tool, using
+`pytorch_grad_cam` (already installed in `.venv-train`) for the CAM math rather than
+reimplementing it by hand. Hooks the same three detection-scale feature maps as before,
+confirmed against the actual model graph this time (`model.model.model[16]`/`[19]`/`[22]` --
+the P3/P4/P5 inputs to YOLOv10's detect head), targeting the model's own single highest
+class-confidence cell (any class, any anchor). Reuses the exact same 11-image real panel (5
+BDD100K day, 3 BDD100K night, 3 Cityscapes) so overlays are directly comparable to the
+surviving `runs/gradcam_v2/` PNGs. Ran against all 8 available checkpoints (v3/v4a/v4b/v5,
+scratch + fine-tune each) for a complete, consistent, single-methodology comparison --
+including v5, for which no Grad-CAM evidence existed before now.
+
+**Verdict (scratch arm, the more diagnostic one since fine-tune inherits COCO's own shape
+priors and shows much cooler, already object-concentrated activation regardless of arm):
+real but partial, condition-dependent improvement, not a fix.** On multiple daytime images
+(BDD100K and Cityscapes), v5's hottest activation band visibly shifted from being entirely
+off-object in v3 -- concentrated in tree canopy, signage and sky, nowhere near either vehicle
+in frame -- to running along the actual vehicle body/curb line in v5, with foliage still warm
+but no longer the single hottest region. At night, neither version attends to real objects:
+v3's heat sits in a flat, uniform top-of-frame border band (a pure image-position artifact),
+while v5 replaces that with diffuse, scattered noise across the whole frame -- different
+failure mode, not a fix, and consistent with night's persistently lowest AP across every arm
+in this entire log. Net: v5's camera/material/tree-species batch measurably reduced (not
+eliminated) spurious-texture dominance in daytime conditions, while night remains
+untouched -- confirms priority-list #1 is still open, but for a more specific reason than
+before: **trees/foliage have no appearance-override mechanism in this pipeline at all** (a
+real capability gap traced this session, see the priority-list update below), so no fix
+shipped so far could have touched that specific cue directly. Full 88-overlay panel (8
+checkpoints x 11 images) at `runs/gradcam_v3/` (untracked, same convention as `gradcam_v2/`).
