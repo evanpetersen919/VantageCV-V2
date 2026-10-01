@@ -37,7 +37,7 @@ segmentation, occlusion/truncation, and per-scenario condition metadata
 - **Engineered to be checked.** 800+ tests, pylint 10/10, strict mypy, CI on every push.
 
 Jump to: [Results](#ongoing-sim-to-real-transfer-experiment) ·
-[Roadmap and help wanted](#roadmap-and-help-wanted) · [Quick start](#quick-start) ·
+[Roadmap](#roadmap) · [Quick start](#quick-start) ·
 [Project layout](#project-layout) · [Contributing](CONTRIBUTING.md)
 
 See [`docs/architecture.rst`](docs/architecture.rst) (or the built Sphinx docs)
@@ -116,9 +116,9 @@ COCO weights. Synthetic-only transfer is still far below real-data baselines -- 
 current diagnosis (Grad-CAM shows the detector keys on background texture like foliage
 and curbs rather than object shape) and the experiments aimed at it are in the log.
 
-## Roadmap and help wanted
+## Roadmap
 
-Open problems where a contribution would matter most (details and evidence in
+Open problems the project is working on (details and evidence in
 [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md)):
 
 - **Texture/shape bias**: randomize background appearance so detectors learn object

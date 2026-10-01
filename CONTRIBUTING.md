@@ -9,7 +9,7 @@ useful contributions are usually **evidence**, not just code.
   [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md) comes from a command you can rerun. If yours
   differs, open an issue with your settings -- no result in the log has been repeated across
   seeds yet, so independent runs are genuinely valuable.
-- **Pick an item from the roadmap** in the [README](README.md#roadmap-and-help-wanted), or
+- **Pick an item from the roadmap** in the [README](README.md#roadmap), or
   from [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md) (entries marked `[DEFERRED]`
   are scoped and waiting for someone).
 - **Report a rendering or labeling bug** with a screenshot and the scenario seed -- generation
