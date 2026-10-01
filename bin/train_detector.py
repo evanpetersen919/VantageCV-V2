@@ -19,6 +19,9 @@ PyTorch from pytorch.org followed by ``pip install ultralytics pycocotools``.
 ``--mosaic`` defaults to ultralytics' own default (1.0). The v5a ablation
 (``EXPERIMENT_LOG.md``) found ``--mosaic 0`` a real, consistent, if modest, win on real-image
 transfer for this project's single-coherent-scene images -- pass it explicitly to use that.
+``--close-mosaic`` defaults to ultralytics' own 10. With ``--mosaic 0`` it changes nothing about
+the augmentation (mosaic is already off), but ``--close-mosaic 0`` skips the end-of-run dataloader
+rebuild, which deadlocked once on Windows (see ``EXPERIMENT_LOG.md``).
 """
 
 import argparse
@@ -39,6 +42,7 @@ def main() -> None:
     parser.add_argument("--device", default="0")
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--mosaic", type=float, default=1.0)
+    parser.add_argument("--close-mosaic", type=int, default=10)
     args = parser.parse_args()
 
     from ultralytics import YOLO  # pylint: disable=import-outside-toplevel,import-error
@@ -55,6 +59,7 @@ def main() -> None:
         project=str(args.project.resolve()),
         name=args.name,
         mosaic=args.mosaic,
+        close_mosaic=args.close_mosaic,
         deterministic=True,
     )
 
