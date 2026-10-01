@@ -118,20 +118,16 @@ and curbs rather than object shape) and the experiments aimed at it are in the l
 
 ## Roadmap
 
-Open problems the project is working on (details and evidence in
-[`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md)):
+Open problems the project is working on (evidence in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md)):
 
-- **Texture/shape bias**: randomize background appearance so detectors learn object
-  shape (segmentation-guided background randomization is already in
-  `bin/stylize_backgrounds.py`; renderer-side randomization is next).
-- **Camera realism**: roll and field-of-view randomization need a small RPC/engine change
-  (`unreal_plugin/`); post-process effects (vignette, bloom, film grain) are absent.
-- **Scale and variance**: only ~2,000 images, and no result has been repeated across
-  seeds yet -- multi-seed runs and larger datasets would make the numbers trustworthy.
-- **3D ground truth / LiDAR**: computed internally but not exported
-  (see [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)).
+- **Texture/shape bias:** randomize backgrounds so detectors learn object shape
+  (started in `bin/stylize_backgrounds.py`; renderer-side randomization next).
+- **Camera realism:** roll, field of view and post-process effects need a small RPC/engine change.
+- **Scale and variance:** ~2,000 images so far; multi-seed repeats are in progress.
+- **3D labels and LiDAR:** computed but not exported (see
+  [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)).
 
-New here? Read [`CONTRIBUTING.md`](CONTRIBUTING.md).
+New here? See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Requirements
 
