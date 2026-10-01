@@ -108,6 +108,7 @@ Real-benchmark AP (COCO-style, person/car/bus/truck), one change per version:
 | v3 | distance cutoffs fit to real box sizes, night-brightness variety, vehicle paint diversity | 2.7 / 6.1 | 4.3 / 12.9 |
 | v4b | boxes cover only the visible part of occluded objects | 3.6 / 6.3 | 4.3 / 12.4 |
 | v5 | camera pitch, material/tree variety, cab-less-trailer bug fix, no mosaic | **4.0 / 6.4** | **7.8** / 12.0 |
+| v6 | always-on material/surface appearance jitter | 4.1 / 6.4 | 6.6 / 12.1 |
 | *reference* | COCO-pretrained (no synthetic data) / real images only | 34.8 / 28.1 | 41.6 / 26.1 |
 
 Scratch = trained from random weights on synthetic data only; fine-tune = starts from
