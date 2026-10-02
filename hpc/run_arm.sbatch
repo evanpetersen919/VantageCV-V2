@@ -1,0 +1,47 @@
+#!/bin/bash
+#SBATCH --job-name=vcv
+#SBATCH --output=%x_%j.log
+# One training arm + its two real-benchmark evaluations. Submit with hpc/submit.sh (it sets the
+# variables below and the Slurm resources from config.env).
+set -euo pipefail
+: "${NAME:?}" "${DATA:?}" "${SEED:?}" "${MOSAIC:?}" "${CLOSE:?}" "${HPC_CONFIG:?}"
+EPOCHS="${EPOCHS:-200}"
+WEIGHTS="${WEIGHTS:-yolov10m.yaml}"
+
+source "$HPC_CONFIG"
+for m in $MODULES; do module load "$m"; done
+source "$HPC_ROOT/venv/bin/activate"
+cd "$HPC_ROOT/repo"
+export PYTHONPATH=.
+
+# Copy the training data to node-local scratch when the node offers it (shared filesystems are slow
+# with thousands of small images), and regenerate the data files to point there.
+LOCAL="${SLURM_TMPDIR:-${TMPDIR:-}}"
+if [ -n "$LOCAL" ] && [ -d "$LOCAL" ]; then
+  mkdir -p "$LOCAL/data" "$LOCAL/yaml"
+  cp -r "$HPC_ROOT/data/train2000_v5" "$HPC_ROOT/data/bdd100k_control" "$LOCAL/data/"
+  python bin/hpc_make_data.py --root "$LOCAL/data" --out "$LOCAL/yaml"
+  YAML="$LOCAL/yaml/$DATA.yaml"
+else
+  YAML="$HPC_ROOT/yaml/$DATA.yaml"
+fi
+
+echo "=== $NAME: training (seed $SEED, mosaic $MOSAIC, close-mosaic $CLOSE, $EPOCHS epochs) ==="
+python bin/train_detector.py --data "$YAML" --weights "$WEIGHTS" --name "$NAME" \
+  --project "$HPC_ROOT/runs" --epochs "$EPOCHS" --imgsz 960 --batch 8 --seed "$SEED" \
+  --workers 4 --mosaic "$MOSAIC" --close-mosaic "$CLOSE"
+
+echo "=== $NAME: BDD100K ==="
+python bin/evaluate_detector.py --weights "$HPC_ROOT/runs/$NAME/weights/best.pt" \
+  --class-space ours --benchmark bdd100k \
+  --labels "$HPC_ROOT/data/bdd100k/labels/100k/val" --images "$HPC_ROOT/data/bdd100k/images/100k/val" \
+  --imgsz 960 --conf 0.001 --iou 0.6 --max-det 100 --device 0 \
+  --out "$HPC_ROOT/results/${NAME}_bdd100k.json"
+
+echo "=== $NAME: Cityscapes ==="
+python bin/evaluate_detector.py --weights "$HPC_ROOT/runs/$NAME/weights/best.pt" \
+  --class-space ours --benchmark cityscapes --cityscapes-root "$HPC_ROOT/data/cityscapes" \
+  --imgsz 960 --conf 0.001 --iou 0.6 --max-det 100 --device 0 \
+  --out "$HPC_ROOT/results/${NAME}_cityscapes.json"
+
+echo "=== $NAME: ALL DONE ==="
