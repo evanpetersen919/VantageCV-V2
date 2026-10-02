@@ -1,0 +1,3 @@
+*.sh text eol=lf
+*.sbatch text eol=lf
+*.env text eol=lf

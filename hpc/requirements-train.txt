@@ -1,0 +1,10 @@
+# Versions the local runs used (RTX 4080, Python 3.11.9). Keep these identical on the cluster:
+# results are only comparable between runs that share GPU type, library versions and seed.
+ultralytics==8.4.163
+numpy==2.4.6
+pillow==12.3.0
+pycocotools==2.0.11
+PyYAML==6.0.3
+scipy==1.17.1
+# torch / torchvision are installed separately from $TORCH_INDEX (see setup_env.sh):
+#   torch==2.14.0   torchvision==0.29.0
