@@ -9,6 +9,7 @@ EPOCHS="${EPOCHS:-200}"
 WEIGHTS="${WEIGHTS:-yolov10m.yaml}"
 
 source "$HPC_CONFIG"
+[ -f "$(dirname "$HPC_CONFIG")/config.local.env" ] && source "$(dirname "$HPC_CONFIG")/config.local.env"
 for m in $MODULES; do module load "$m"; done
 source "$HPC_ROOT/venv/bin/activate"
 cd "$HPC_ROOT/repo"
@@ -18,10 +19,14 @@ export PYTHONPATH=.
 # with thousands of small images), and regenerate the data files to point there.
 LOCAL="${SLURM_TMPDIR:-${TMPDIR:-}}"
 if [ -n "$LOCAL" ] && [ -d "$LOCAL" ]; then
-  mkdir -p "$LOCAL/data" "$LOCAL/yaml"
-  cp -r "$HPC_ROOT/data/train2000_v5" "$HPC_ROOT/data/bdd100k_control" "$LOCAL/data/"
-  python bin/hpc_make_data.py --root "$LOCAL/data" --out "$LOCAL/yaml"
-  YAML="$LOCAL/yaml/$DATA.yaml"
+  # One folder per job: jobs on the same node share /tmp, and a shared folder made parallel jobs
+  # collide. It is removed when the job ends, so six jobs cannot fill the node's disk.
+  SCRATCH="$LOCAL/vcv-${SLURM_JOB_ID:-$$}"
+  trap 'rm -rf "$SCRATCH"' EXIT
+  mkdir -p "$SCRATCH/data" "$SCRATCH/yaml"
+  cp -r "$HPC_ROOT/data/train2000_v5" "$HPC_ROOT/data/bdd100k_control" "$SCRATCH/data/"
+  python bin/hpc_make_data.py --root "$SCRATCH/data" --out "$SCRATCH/yaml"
+  YAML="$SCRATCH/yaml/$DATA.yaml"
 else
   YAML="$HPC_ROOT/yaml/$DATA.yaml"
 fi
