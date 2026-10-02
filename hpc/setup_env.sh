@@ -4,6 +4,7 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/config.env"
+[ -f "$HERE/config.local.env" ] && source "$HERE/config.local.env"
 for m in $MODULES; do module load "$m"; done
 
 mkdir -p "$HPC_ROOT"/{data,yaml,runs,results,logs}

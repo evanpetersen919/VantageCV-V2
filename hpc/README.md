@@ -5,7 +5,7 @@ Run every comparison on **one** machine: results from different GPUs or library 
 comparable, even with the same seed. The planned jobs below therefore re-run both arms (real-only
 and real + synthetic, three seeds each) on the cluster.
 
-## 1. Cluster facts (run on the cluster, then edit `hpc/config.env`)
+## 1. Cluster facts (run on the cluster, then put your values in `hpc/config.local.env`)
 
 ```bash
 sinfo -o "%P %G %l %c"        # partitions, GPUs, time limits, CPUs
@@ -32,7 +32,8 @@ scp vantagecv_data.tar <you>@<cluster>:~/vantagecv/
 ```bash
 git clone https://github.com/evanpetersen919/VantageCV-V2.git ~/vantagecv/repo
 cd ~/vantagecv/repo
-nano hpc/config.env                       # fill in partition, time limit, modules
+cp hpc/config.env hpc/config.local.env   # your copy; git-ignored, so pulls never conflict
+nano hpc/config.local.env                # fill in HPC_ROOT, partition, time limit, modules
 bash hpc/setup_env.sh                     # venv + pinned libraries; prints the versions
 mkdir -p ~/vantagecv/data && tar -xf ~/vantagecv/vantagecv_data.tar -C ~/vantagecv/data
 source ~/vantagecv/venv/bin/activate
@@ -59,7 +60,7 @@ Then log them in `EXPERIMENT_LOG.md`. Weights stay on the cluster under `~/vanta
 
 ## Notes
 
-- Raise `SLURM_TIME` in `config.env` if the GPU is slower than an RTX 4080 (the mixed run is about
+- Raise `SLURM_TIME` in `config.local.env` if the GPU is slower than an RTX 4080 (the mixed run is about
   5 h on that card).
 - Once in a while ultralytics deadlocks rebuilding its dataloader near the end of a run (seen once
   locally). If a job stops logging for ~30 min, cancel it and resubmit with `CLOSE=0`.

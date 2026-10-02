@@ -5,6 +5,7 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/config.env"
+[ -f "$HERE/config.local.env" ] && source "$HERE/config.local.env"
 NAME="$1"; DATA="$2"; SEED="$3"; MOSAIC="$4"; CLOSE="$5"; EPOCHS="${6:-200}"; WEIGHTS="${7:-yolov10m.yaml}"
 ARGS=(--partition "$SLURM_PARTITION" --gres "$SLURM_GRES" --cpus-per-task "$SLURM_CPUS"
       --mem "$SLURM_MEM" --time "$SLURM_TIME" --job-name "$NAME" --chdir "$HPC_ROOT/logs")

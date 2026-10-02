@@ -68,3 +68,6 @@ live_dataset/
 runs/
 results/smoke_*
 weights/
+
+# cluster-specific settings (see hpc/README.md)
+hpc/config.local.env
