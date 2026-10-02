@@ -64,6 +64,26 @@ def test_control_samples_only_training_images_and_is_deterministic(tmp_path: Pat
     assert other_split["train"] != chosen["train"] and other == first
 
 
+def test_skip_gives_a_disjoint_extra_slice_of_the_same_shuffle(tmp_path: Path) -> None:
+    """A second draw that skips the first draw's total never repeats one of its images, so an extra
+    real set can be added to the control without overlapping its train or validation images."""
+    images_zip, labels_zip, _ = _zips(tmp_path, 12)
+    control.build_control(images_zip, labels_zip, tmp_path / "base", 4, 2, 0)
+    control.build_control(images_zip, labels_zip, tmp_path / "extra", 4, 0, 0, skip=6)
+    base = json.loads((tmp_path / "base" / "split.json").read_text(encoding="utf-8"))
+    extra = json.loads((tmp_path / "extra" / "split.json").read_text(encoding="utf-8"))
+    assert extra["skip"] == 6 and extra["val"] == []
+    assert len(extra["train"]) == 4
+    assert not set(extra["train"]) & (set(base["train"]) | set(base["val"]))
+
+
+def test_skip_past_the_end_is_an_error(tmp_path: Path) -> None:
+    """Asking for more images than remain after the skip fails loudly instead of returning fewer."""
+    images_zip, labels_zip, _ = _zips(tmp_path, 12)
+    with pytest.raises(ValueError, match="skipping"):
+        control.build_control(images_zip, labels_zip, tmp_path / "out", 4, 0, 0, skip=10)
+
+
 def test_control_labels_use_our_classes_and_leave_riders_and_signs_out(tmp_path: Path) -> None:
     """Each image has exactly one label line, the car, as class index 1; a rider is not a label."""
     images_zip, labels_zip, _ = _zips(tmp_path, 4)

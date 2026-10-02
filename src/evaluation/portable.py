@@ -10,6 +10,8 @@ it is replaced with the dataset's new location.
 from pathlib import Path, PureWindowsPath
 from typing import Dict, Iterable, List, Sequence
 
+from src.evaluation.yolo_export import label_path_for
+
 CLASS_NAMES: Dict[int, str] = {0: "person", 1: "car", 2: "bus", 3: "truck"}
 
 
@@ -60,3 +62,30 @@ def data_yaml(train_lists: Sequence[Path], val_list: Path) -> str:
         f"val: {val_list.as_posix()}\n"
         f"names:\n{names_block}\n"
     )
+
+
+def write_fraction_list(source_list: Path, fraction: float, out_path: Path) -> Path:
+    """Write the first ``round(fraction * n)`` lines of ``source_list`` to ``out_path``.
+
+    The control's list is a seeded random order, so the first lines are a random sample, and a
+    smaller fraction is always contained in a larger one (25% inside 50% inside 100%).
+    """
+    lines = [line for line in source_list.read_text(encoding="utf-8").splitlines() if line.strip()]
+    count = round(len(lines) * fraction)
+    out_path.write_text("\n".join(lines[:count]) + "\n", encoding="utf-8")
+    return out_path
+
+
+def missing_files(list_path: Path) -> List[str]:
+    """Image files listed in ``list_path`` that do not exist, plus any whose label file is
+    missing (a label file may be empty, but it must exist for ultralytics to count the image)."""
+    problems: List[str] = []
+    for line in list_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        image = Path(line.strip())
+        if not image.exists():
+            problems.append(f"image missing: {image}")
+        elif not label_path_for(image).exists():
+            problems.append(f"label missing: {label_path_for(image)}")
+    return problems
