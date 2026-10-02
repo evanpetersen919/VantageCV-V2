@@ -63,4 +63,14 @@ Then log them in `EXPERIMENT_LOG.md`. Weights stay on the cluster under `~/vanta
 - Raise `SLURM_TIME` in `config.local.env` if the GPU is slower than an RTX 4080 (the mixed run is about
   5 h on that card).
 - Once in a while ultralytics deadlocks rebuilding its dataloader near the end of a run (seen once
-  locally). If a job stops logging for ~30 min, cancel it and resubmit with `CLOSE=0`.
+  locally, at epoch 191). If a job stops logging for ~30 minutes, `scancel` it and resume from its
+  last checkpoint, which finishes the same 200-epoch recipe (do **not** resubmit with
+  `--close-mosaic 0` for the mosaic-on runs: that keeps mosaic on for the last 10 epochs, a
+  different recipe):
+
+  ```bash
+  source $HPC_ROOT/venv/bin/activate && cd $HPC_ROOT/repo
+  python -c "from ultralytics import YOLO; YOLO('$HPC_ROOT/runs/NAME/weights/last.pt').train(resume=True)"
+  ```
+
+  Then run the two evaluations from `hpc/run_arm.sbatch` by hand on the resumed `best.pt`.
