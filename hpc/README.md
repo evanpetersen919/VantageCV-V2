@@ -50,7 +50,61 @@ squeue -u $USER                                       # then read ~/vantagecv/lo
 bash hpc/submit_planned.sh                            # 6 jobs: real-only and mixed, seeds 0-2
 ```
 
-## 5. Bring results back
+## 5. Control and data-efficiency runs (second batch)
+
+Answers two questions the first batch left open: is the gain just from having 2x the data (control:
+3,676 real images), and how does it change with less real data (25% / 50% of the 1,838).
+All of these validate on the same 199 real images, same recipe, seeds 0-2.
+
+On your PC, pack the extra 1,838 disjoint real images (about 137 MB) and send them:
+
+```bash
+tar -cf /f/hpc_upload/vantagecv_extra.tar -C /f/datasets bdd100k_control_extra
+scp /f/hpc_upload/vantagecv_extra.tar <you>@<cluster>:~/vantagecv/
+```
+
+On the cluster:
+
+```bash
+cd ~/vantagecv/repo && git pull                       # config.local.env is git-ignored, so it is kept
+tar -xf ~/vantagecv/vantagecv_extra.tar -C ~/vantagecv/data
+source ~/vantagecv/venv/bin/activate
+PYTHONPATH=. python bin/hpc_make_data.py --root ~/vantagecv/data --out ~/vantagecv/yaml
+PYTHONPATH=. python bin/hpc_check_data.py --yaml-dir ~/vantagecv/yaml
+```
+
+The check must end with every line `OK` and these counts (train / val):
+
+| data file | train | val |
+|---|---|---|
+| real_control | 1838 | 199 |
+| mixed_real_v5 | 3676 | 199 |
+| real_3676 | 3676 | 199 |
+| real_25pct / mixed_25pct | 460 / 2298 | 199 |
+| real_50pct / mixed_50pct | 919 / 2757 | 199 |
+
+Then submit:
+
+```bash
+bash hpc/submit_control.sh          # 3 jobs: hpc_real3676_s0-2
+bash hpc/submit_sweep.sh 25         # 6 jobs: hpc_real25_s*, hpc_mixed25_s*
+bash hpc/submit_sweep.sh 50         # 6 jobs: hpc_real50_s*, hpc_mixed50_s*
+```
+
+Check that a job started correctly (about 2-3 minutes after it leaves `PENDING`):
+
+```bash
+squeue -u $USER                                  # state R (running); PD means waiting for a GPU
+tail -n 40 ~/vantagecv/logs/hpc_real3676_s0_*.log
+grep -E "train: Scanning|val: Scanning" ~/vantagecv/logs/hpc_real3676_s0_*.log | head
+```
+
+In the log, `train: Scanning ... 3676 images` (the counts in the table above), a `val` scan of 199, no
+`Traceback`, then epoch lines `1/200` with a changing loss. Finished jobs print `ALL DONE` and leave
+`~/vantagecv/results/<name>_bdd100k.json` and `_cityscapes.json`; `sacct -j <id> --format=State,Elapsed`
+shows `COMPLETED`. The two batches can run together if the GPUs are free; they are independent.
+
+## 6. Bring results back
 
 ```bash
 scp "<you>@<cluster>:~/vantagecv/results/*.json" F:/vscode/VantageCV-V2/results/

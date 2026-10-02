@@ -6,8 +6,10 @@ import pytest
 
 from src.evaluation.portable import (
     data_yaml,
+    missing_files,
     reroot_image_list,
     reroot_image_path,
+    write_fraction_list,
     write_rerooted_lists,
 )
 
@@ -76,3 +78,36 @@ def test_data_yaml_lists_every_train_file_and_the_four_classes() -> None:
     assert "  - /o/real_train.txt\n  - /o/synth_train.txt\n" in text
     assert "val: /o/real_val.txt" in text
     assert "0: person" in text and "3: truck" in text
+
+
+def test_fraction_list_takes_the_first_lines_and_nests(tmp_path: Path) -> None:
+    """25% is the first quarter of the list and is contained in the 50% list."""
+    source = tmp_path / "train.txt"
+    source.write_text("".join(f"/d/images/{i}.jpg\n" for i in range(8)), encoding="utf-8")
+
+    quarter = write_fraction_list(source, 0.25, tmp_path / "q.txt").read_text().split()
+    half = write_fraction_list(source, 0.5, tmp_path / "h.txt").read_text().split()
+
+    assert quarter == ["/d/images/0.jpg", "/d/images/1.jpg"]
+    assert half[:2] == quarter and len(half) == 4
+
+
+def test_missing_files_reports_absent_images_and_labels(tmp_path: Path) -> None:
+    """An image needs both itself and its label file; an empty label file is fine."""
+    images, labels = tmp_path / "images", tmp_path / "labels"
+    images.mkdir()
+    labels.mkdir()
+    (images / "ok.jpg").write_bytes(b"x")
+    (labels / "ok.txt").write_text("", encoding="utf-8")
+    (images / "nolabel.jpg").write_bytes(b"x")
+    listing = tmp_path / "list.txt"
+    listing.write_text(
+        "\n".join(str(images / name) for name in ("ok.jpg", "nolabel.jpg", "gone.jpg")),
+        encoding="utf-8",
+    )
+
+    problems = missing_files(listing)
+
+    assert len(problems) == 2
+    assert any("label missing" in p and "nolabel" in p for p in problems)
+    assert any("image missing" in p and "gone" in p for p in problems)

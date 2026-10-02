@@ -1,6 +1,7 @@
 #!/bin/bash
 # Submit one arm.   bash hpc/submit.sh NAME DATA SEED MOSAIC CLOSE [EPOCHS] [WEIGHTS]
-#   DATA is one of: synth_v5 | real_control | mixed_real_v5
+#   DATA is one of: synth_v5 | real_control | mixed_real_v5 | real_3676 | real_25pct | real_50pct |
+#   mixed_25pct | mixed_50pct
 # Example (quick smoke test, 2 epochs):  bash hpc/submit.sh smoke real_control 0 1.0 10 2
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
