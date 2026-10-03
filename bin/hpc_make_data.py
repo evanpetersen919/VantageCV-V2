@@ -14,20 +14,47 @@ below. Every file validates on the same 199 real images, so scores are comparabl
 * ``mixed_25pct.yaml`` / ``mixed_50pct.yaml`` -- those fractions + all 1,838 synthetic images
 * ``mixed_big.yaml`` / ``mixed_25pct_big.yaml`` / ``mixed_50pct_big.yaml`` -- the same real data +
   both synthetic batches (v5 and v5b, 3,691 images; written only if ``train2000_v5b`` is present)
+* ``mixed_25pct_notb.yaml`` / ``mixed_25pct_rand.yaml`` -- 25% real + the synthetic images with
+  no truck or bus (both batches), vs 25% real + the same number of randomly chosen synthetic
+  images (written only if ``train2000_v5b`` is present): do synthetic trucks/buses carry the gain?
 
     python bin/hpc_make_data.py --root /scratch/me/vantagecv_data --out /scratch/me/vantagecv_yaml
 """
 
 import argparse
 from pathlib import Path
+from typing import Dict, List
 
-from src.evaluation.portable import data_yaml, write_fraction_list, write_rerooted_lists
+from src.evaluation.portable import (
+    data_yaml,
+    write_class_free_list,
+    write_fraction_list,
+    write_random_list,
+    write_rerooted_lists,
+)
 
 SYNTH_DIR = "train2000_v5"
 REAL_DIR = "bdd100k_control"
 EXTRA_DIR = "bdd100k_control_extra"
 SYNTH_B_DIR = "train2000_v5b"
 FRACTIONS = (25, 50)
+TRUCK_BUS = {2, 3}  # class ids of bus and truck in this project's four classes
+POOL_SEED = 0
+
+
+def _truck_bus_files(
+    out: Path, real: Dict[str, Path], batches: List[Dict[str, Path]]
+) -> Dict[str, str]:
+    """25% real + the synthetic images without a truck or bus, and + as many random ones."""
+    pool = [batch["train"] for batch in batches]
+    no_tb = write_class_free_list(pool, TRUCK_BUS, out / "synth_no_truck_bus_train.txt")
+    count = len(no_tb.read_text(encoding="utf-8").split())
+    rand = write_random_list(pool, count, POOL_SEED, out / "synth_random_train.txt")
+    quarter = out / f"{REAL_DIR}_25pct_train.txt"
+    return {
+        "mixed_25pct_notb.yaml": data_yaml([quarter, no_tb], real["val"]),
+        "mixed_25pct_rand.yaml": data_yaml([quarter, rand], real["val"]),
+    }
 
 
 def main() -> None:
@@ -64,6 +91,9 @@ def main() -> None:
             files[f"mixed_{percent}pct_big.yaml"] = data_yaml(
                 [subset, synth["train"], synth_b["train"]], real["val"]
             )
+
+    if synth_b is not None:
+        files.update(_truck_bus_files(args.out, real, [synth, synth_b]))
 
     for name, content in files.items():
         (args.out / name).write_text(content, encoding="utf-8")
