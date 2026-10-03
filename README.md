@@ -111,9 +111,10 @@ Real-benchmark AP (COCO-style, person/car/bus/truck), one change per version:
 | v6 | always-on material/surface appearance jitter | 4.1 / 6.4 | 6.6 / 12.1 |
 | *reference* | COCO-pretrained (no synthetic data) / real images only | 34.8 / 28.1 | 41.6 / 26.1 |
 
-**Adding synthetic data to real data helps a little.** Training on 1,838 real BDD100K images plus the
-1,838 synthetic ones beat the same real images alone by +0.66 AP (28.94 vs 28.28, three seeds each, every
-mixed run above every real-only run), mostly on people and cars; no gain on buses, trucks or night.
+**Synthetic data helps most when real data is scarce.** Added to 460 real BDD100K images it raises
+AP by +4.7 (18.2 to 22.9); to 919, +3.3; to 1,838, +0.7 (three seeds each, p < 0.001 for the first two).
+It is not a substitute: 3,676 real images score 3.0 AP higher than 1,838 real plus 1,838 synthetic,
+and one synthetic image is worth roughly a third to a sixth of a real one.
 Details and caveats in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
 
 Scratch = trained from random weights on synthetic data only; fine-tune = starts from
@@ -128,7 +129,7 @@ Open problems the project is working on (evidence in [`EXPERIMENT_LOG.md`](EXPER
 - **Texture/shape bias:** randomize backgrounds so detectors learn object shape
   (started in `bin/stylize_backgrounds.py`; renderer-side randomization next).
 - **Camera realism:** roll, field of view and post-process effects need a small RPC/engine change.
-- **Scale and variance:** ~2,000 synthetic images so far; the headline comparison is now repeated across seeds, wider sweeps are next.
+- **Scale and variance:** one 1,838-image synthetic set so far, all comparisons repeated across seeds; a second batch is rendering to test how the benefit scales with synthetic volume.
 - **3D labels and LiDAR:** computed but not exported (see
   [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)).
 
