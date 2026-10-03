@@ -12,6 +12,8 @@ below. Every file validates on the same 199 real images, so scores are comparabl
   data-volume match for the mixed set (written only if ``bdd100k_control_extra`` is present)
 * ``real_25pct.yaml`` / ``real_50pct.yaml`` -- 25% / 50% of the control's training images
 * ``mixed_25pct.yaml`` / ``mixed_50pct.yaml`` -- those fractions + all 1,838 synthetic images
+* ``mixed_big.yaml`` / ``mixed_25pct_big.yaml`` / ``mixed_50pct_big.yaml`` -- the same real data +
+  both synthetic batches (v5 and v5b, 3,691 images; written only if ``train2000_v5b`` is present)
 
     python bin/hpc_make_data.py --root /scratch/me/vantagecv_data --out /scratch/me/vantagecv_yaml
 """
@@ -24,6 +26,7 @@ from src.evaluation.portable import data_yaml, write_fraction_list, write_reroot
 SYNTH_DIR = "train2000_v5"
 REAL_DIR = "bdd100k_control"
 EXTRA_DIR = "bdd100k_control_extra"
+SYNTH_B_DIR = "train2000_v5b"
 FRACTIONS = (25, 50)
 
 
@@ -45,12 +48,22 @@ def main() -> None:
     if (args.root / EXTRA_DIR).is_dir():
         extra = write_rerooted_lists(args.root / EXTRA_DIR, args.root / EXTRA_DIR, args.out)
         files["real_3676.yaml"] = data_yaml([real["train"], extra["train"]], real["val"])
+    synth_b = None
+    if (args.root / SYNTH_B_DIR).is_dir():
+        synth_b = write_rerooted_lists(args.root / SYNTH_B_DIR, args.root / SYNTH_B_DIR, args.out)
+        files["mixed_big.yaml"] = data_yaml(
+            [real["train"], synth["train"], synth_b["train"]], real["val"]
+        )
     for percent in FRACTIONS:
         subset = write_fraction_list(
             real["train"], percent / 100.0, args.out / f"{REAL_DIR}_{percent}pct_train.txt"
         )
         files[f"real_{percent}pct.yaml"] = data_yaml([subset], real["val"])
         files[f"mixed_{percent}pct.yaml"] = data_yaml([subset, synth["train"]], real["val"])
+        if synth_b is not None:
+            files[f"mixed_{percent}pct_big.yaml"] = data_yaml(
+                [subset, synth["train"], synth_b["train"]], real["val"]
+            )
 
     for name, content in files.items():
         (args.out / name).write_text(content, encoding="utf-8")

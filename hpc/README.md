@@ -121,7 +121,33 @@ real images) that wait for their own pre-train (`squeue` shows them as `PD` with
 cancelled by Slurm rather than run from missing weights. Fine-tune seed k starts from pre-train
 seed k. Compare with `bin/analyze_runs.py --baseline hpc_mixed25 --arms hpc_ft25` (and 50, `hpc_mixed`).
 
-## 7. Bring results back
+## 7. Synthetic-volume test (fourth batch)
+
+Does a second synthetic batch (`train2000_v5b`: same generator, new seeds, 1,853 train images) add
+anything? Real data + both batches (3,691 synthetic) is compared with real + the first batch only.
+
+On your PC, send the second batch (about 6.3 GB):
+
+```bash
+scp /f/hpc_upload/vantagecv_synth_b.tar <you>@<cluster>:~/vantagecv/
+```
+
+On the cluster:
+
+```bash
+cd ~/vantagecv/repo && git pull
+tar -xf ~/vantagecv/vantagecv_synth_b.tar -C ~/vantagecv/data
+source ~/vantagecv/venv/bin/activate
+PYTHONPATH=. python bin/hpc_make_data.py --root ~/vantagecv/data --out ~/vantagecv/yaml
+PYTHONPATH=. python bin/hpc_check_data.py --yaml-dir ~/vantagecv/yaml
+bash hpc/submit_scale.sh          # 6 jobs: hpc_mixed25big_s*, hpc_mixedbig_s*
+```
+
+The check must list `mixed_25pct_big` (train 4151), `mixed_50pct_big` (4610) and `mixed_big` (5529),
+all `OK`. Compare with `bin/analyze_runs.py --baseline hpc_real25 --arms hpc_mixed25 hpc_mixed25big`
+(and `hpc_real_only` with `hpc_mixed hpc_mixedbig`).
+
+## 8. Bring results back
 
 ```bash
 scp "<you>@<cluster>:~/vantagecv/results/*.json" F:/vscode/VantageCV-V2/results/

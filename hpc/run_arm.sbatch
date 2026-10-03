@@ -26,6 +26,7 @@ if [ -n "$LOCAL" ] && [ -d "$LOCAL" ]; then
   mkdir -p "$SCRATCH/data" "$SCRATCH/yaml"
   cp -r "$HPC_ROOT/data/train2000_v5" "$HPC_ROOT/data/bdd100k_control" "$SCRATCH/data/"
   [ -d "$HPC_ROOT/data/bdd100k_control_extra" ] && cp -r "$HPC_ROOT/data/bdd100k_control_extra" "$SCRATCH/data/"
+  [ -d "$HPC_ROOT/data/train2000_v5b" ] && cp -r "$HPC_ROOT/data/train2000_v5b" "$SCRATCH/data/"
   python bin/hpc_make_data.py --root "$SCRATCH/data" --out "$SCRATCH/yaml"
   YAML="$SCRATCH/yaml/$DATA.yaml"
 else
