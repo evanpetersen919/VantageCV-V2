@@ -104,7 +104,24 @@ In the log, `train: Scanning ... 3676 images` (the counts in the table above), a
 `~/vantagecv/results/<name>_bdd100k.json` and `_cityscapes.json`; `sacct -j <id> --format=State,Elapsed`
 shows `COMPLETED`. The two batches can run together if the GPUs are free; they are independent.
 
-## 6. Bring results back
+## 6. Synthetic pre-training, then real fine-tuning (third batch)
+
+Tests the alternative to mixed training: learn from the synthetic images first, then fine-tune on
+the real ones. Needs no new data, only `git pull`:
+
+```bash
+cd ~/vantagecv/repo && git pull
+bash hpc/submit_pretrain.sh        # 12 jobs
+```
+
+Three synthetic-only runs (`hpc_pretrain_s0-2`, 200 epochs, no mosaic) start at once. Each has
+three fine-tunes (`hpc_ft25_s*`, `hpc_ft50_s*`, `hpc_ft100_s*`: 50 epochs on 25% / 50% / 100% of the
+real images) that wait for their own pre-train (`squeue` shows them as `PD` with reason
+`Dependency`; they start on their own once it finishes). If a pre-train fails, its fine-tunes are
+cancelled by Slurm rather than run from missing weights. Fine-tune seed k starts from pre-train
+seed k. Compare with `bin/analyze_runs.py --baseline hpc_mixed25 --arms hpc_ft25` (and 50, `hpc_mixed`).
+
+## 7. Bring results back
 
 ```bash
 scp "<you>@<cluster>:~/vantagecv/results/*.json" F:/vscode/VantageCV-V2/results/
