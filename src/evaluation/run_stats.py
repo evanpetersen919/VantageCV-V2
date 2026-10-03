@@ -17,12 +17,18 @@ from scipy import stats
 _NAME = re.compile(r"^(?P<arm>.+)_s(?P<seed>\d+)_(?P<benchmark>bdd100k|cityscapes)\.json$")
 
 
-def arm_runs(results_dir: Path, arm: str, benchmark: str) -> List[Dict[str, Any]]:
-    """Every seed's result for ``arm`` on ``benchmark``, ordered by seed."""
+def arm_runs(
+    results_dir: Path, arm: str, benchmark: str, exclude: Sequence[str] = ()
+) -> List[Dict[str, Any]]:
+    """Every seed's result for ``arm`` on ``benchmark``, ordered by seed.
+
+    ``exclude`` lists run names (for example ``hpc_adamw_mixed_s1``) to leave out, for a run known
+    to be invalid; the caller should say so wherever the numbers are reported.
+    """
     found: List[Tuple[int, Dict[str, Any]]] = []
     for path in results_dir.glob(f"{arm}_s*_{benchmark}.json"):
         match = _NAME.match(path.name)
-        if match and match["arm"] == arm:
+        if match and match["arm"] == arm and f"{arm}_s{match['seed']}" not in exclude:
             found.append((int(match["seed"]), json.loads(path.read_text(encoding="utf-8"))))
     return [data for _, data in sorted(found, key=lambda item: item[0])]
 
