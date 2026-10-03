@@ -129,7 +129,7 @@ Open problems the project is working on (evidence in [`EXPERIMENT_LOG.md`](EXPER
 - **Texture/shape bias:** randomize backgrounds so detectors learn object shape
   (started in `bin/stylize_backgrounds.py`; renderer-side randomization next).
 - **Camera realism:** roll, field of view and post-process effects need a small RPC/engine change.
-- **Scale and variance:** one 1,838-image synthetic set so far, all comparisons repeated across seeds; a second batch is rendering to test how the benefit scales with synthetic volume.
+- **Scale and variance:** doubling the synthetic set to 3,691 images added little (about +0.9 AP at best), so the next effort goes to the classes and conditions where it trails real data most: trucks, buses and night.
 - **3D labels and LiDAR:** computed but not exported (see
   [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)).
 
