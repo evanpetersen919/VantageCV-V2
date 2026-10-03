@@ -37,11 +37,14 @@ def main() -> None:
     parser.add_argument("--results", type=Path, default=Path("results"))
     parser.add_argument("--arms", nargs="+", required=True)
     parser.add_argument("--baseline", default=None, help="arm every other arm is compared with")
+    parser.add_argument(
+        "--exclude", nargs="*", default=[], help="run names to leave out, e.g. hpc_adamw_mixed_s1"
+    )
     args = parser.parse_args()
 
     arms = ([args.baseline] if args.baseline else []) + [a for a in args.arms if a != args.baseline]
     for benchmark in BENCHMARKS:
-        runs = {arm: arm_runs(args.results, arm, benchmark) for arm in arms}
+        runs = {arm: arm_runs(args.results, arm, benchmark, args.exclude) for arm in arms}
         print(f"\n=== {benchmark} ===")
         tables: Dict[str, Dict[str, List[float]]] = {}
         for arm, arm_results in runs.items():

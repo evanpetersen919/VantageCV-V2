@@ -111,10 +111,11 @@ Real-benchmark AP (COCO-style, person/car/bus/truck), one change per version:
 | v6 | always-on material/surface appearance jitter | 4.1 / 6.4 | 6.6 / 12.1 |
 | *reference* | COCO-pretrained (no synthetic data) / real images only | 34.8 / 28.1 | 41.6 / 26.1 |
 
-**Synthetic data helps most when real data is scarce.** Added to 460 real BDD100K images it raises
-AP by +4.7 (18.2 to 22.9); to 919, +3.3; to 1,838, +0.7 (three seeds each, p < 0.001 for the first two).
-It is not a substitute: 3,676 real images score 3.0 AP higher than 1,838 real plus 1,838 synthetic,
-and one synthetic image is worth roughly a third to a sixth of a real one.
+**Synthetic data helps at every real-data size tested, most when real data is scarce.** Added to 460 real
+BDD100K images it raises AP by +4.7 (18.2 to 22.9); to 919, +3.3; to 1,838, about +2 (optimizer held fixed;
+two seeds of that arm, a third is being re-run; three seeds elsewhere, p < 0.01 for the first two).
+It is not a substitute: the same number of real images scores 2-3 AP higher, and roughly 3 to 7 synthetic
+images are worth one real one.
 Details and caveats in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
 
 Scratch = trained from random weights on synthetic data only; fine-tune = starts from

@@ -36,3 +36,11 @@ def test_welch_reports_difference_and_needs_two_runs_for_a_p_value() -> None:
     assert math.isclose(diff, 1.0) and p_value < 0.01
     assert math.isnan(welch([1.0], [2.0, 2.1])[1])
     assert mean_sd([2.0]) == (2.0, 0.0)
+
+
+def test_arm_runs_can_exclude_a_named_run(tmp_path: Path) -> None:
+    """An invalid run is left out when named, and only that one."""
+    for seed, ap in ((0, 0.3), (1, 0.1), (2, 0.31)):
+        (tmp_path / f"arm_s{seed}_bdd100k.json").write_text(json.dumps(_result(ap, 0.5, 0.1)))
+    runs = arm_runs(tmp_path, "arm", "bdd100k", exclude=["arm_s1"])
+    assert [round(metric(run)) for run in runs] == [30, 31]
