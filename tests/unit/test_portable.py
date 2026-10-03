@@ -9,7 +9,9 @@ from src.evaluation.portable import (
     missing_files,
     reroot_image_list,
     reroot_image_path,
+    write_class_free_list,
     write_fraction_list,
+    write_random_list,
     write_rerooted_lists,
 )
 
@@ -111,3 +113,28 @@ def test_missing_files_reports_absent_images_and_labels(tmp_path: Path) -> None:
     assert len(problems) == 2
     assert any("label missing" in p and "nolabel" in p for p in problems)
     assert any("image missing" in p and "gone" in p for p in problems)
+
+
+def test_class_free_and_random_lists(tmp_path: Path) -> None:
+    """Images with a listed class are dropped; the random list is reproducible and sized."""
+    images, labels = tmp_path / "images", tmp_path / "labels"
+    images.mkdir()
+    labels.mkdir()
+    rows = {
+        "a": "0 0.5 0.5 0.1 0.1\n1 0.5 0.5 0.1 0.1",
+        "b": "3 0.5 0.5 0.1 0.1",
+        "c": "",
+        "d": "2 0.5 0.5 0.1 0.1",
+    }
+    for name, text in rows.items():
+        (images / f"{name}.jpg").write_bytes(b"x")
+        (labels / f"{name}.txt").write_text(text, encoding="utf-8")
+    listing = tmp_path / "list.txt"
+    listing.write_text("\n".join(str(images / f"{n}.jpg") for n in rows) + "\n", encoding="utf-8")
+
+    kept = write_class_free_list([listing], {2, 3}, tmp_path / "free.txt").read_text().split()
+    first = write_random_list([listing], 2, 0, tmp_path / "r1.txt").read_text().split()
+    again = write_random_list([listing], 2, 0, tmp_path / "r2.txt").read_text().split()
+
+    assert [Path(x).stem for x in kept] == ["a", "c"]
+    assert first == again and len(first) == 2

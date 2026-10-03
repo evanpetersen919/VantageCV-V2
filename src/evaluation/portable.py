@@ -7,8 +7,9 @@ path, so only the part of each path from its ``images`` folder onward matters; e
 it is replaced with the dataset's new location.
 """
 
+import random
 from pathlib import Path, PureWindowsPath
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, Iterable, List, Sequence, Set
 
 from src.evaluation.yolo_export import label_path_for
 
@@ -89,3 +90,36 @@ def missing_files(list_path: Path) -> List[str]:
         elif not label_path_for(image).exists():
             problems.append(f"label missing: {label_path_for(image)}")
     return problems
+
+
+def _image_lines(source_lists: Sequence[Path]) -> List[str]:
+    """Every non-empty line of every list, in order."""
+    lines: List[str] = []
+    for source in source_lists:
+        lines += [x for x in source.read_text(encoding="utf-8").splitlines() if x.strip()]
+    return lines
+
+
+def image_classes(image_line: str) -> Set[int]:
+    """Class ids that appear in an image's label file (empty if it has none)."""
+    label = label_path_for(Path(image_line.strip()))
+    if not label.exists():
+        return set()
+    return {
+        int(row.split()[0]) for row in label.read_text(encoding="utf-8").splitlines() if row.strip()
+    }
+
+
+def write_class_free_list(source_lists: Sequence[Path], classes: Set[int], out_path: Path) -> Path:
+    """Write the images from ``source_lists`` whose labels contain none of ``classes``."""
+    kept = [line for line in _image_lines(source_lists) if not image_classes(line) & classes]
+    out_path.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    return out_path
+
+
+def write_random_list(source_lists: Sequence[Path], count: int, seed: int, out_path: Path) -> Path:
+    """Write ``count`` images drawn at random (reproducibly) from ``source_lists``."""
+    lines = _image_lines(source_lists)
+    chosen = random.Random(seed).sample(lines, count)
+    out_path.write_text("\n".join(chosen) + "\n", encoding="utf-8")
+    return out_path

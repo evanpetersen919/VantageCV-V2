@@ -167,7 +167,26 @@ A job started correctly if its log shows `optimizer: AdamW(lr=0.00125, momentum=
 Compare with `bin/analyze_runs.py --baseline hpc_adamw_real400 --arms hpc_adamw_mixed` (and
 `hpc_adamw_real3676`, `hpc_adamw_mixedbig`).
 
-## 9. Bring results back
+## 9. Do synthetic trucks and buses carry the gain? (sixth batch)
+
+Only 510 of the 3,691 synthetic training images contain neither a truck nor a bus. At 25% real
+(460 images), `hpc_notb25_*` adds exactly those 510; `hpc_rand25_*` adds 510 randomly chosen
+synthetic images instead (same count, same real images). Both use AdamW. If the no-truck/bus set
+keeps the gain, including on truck and bus AP, the synthetic trucks and buses are not what helps.
+No new data is needed (the lists are built from `train2000_v5` and `train2000_v5b`):
+
+```bash
+cd ~/vantagecv/repo && git pull
+source ~/vantagecv/venv/bin/activate
+PYTHONPATH=. python bin/hpc_make_data.py --root ~/vantagecv/data --out ~/vantagecv/yaml
+PYTHONPATH=. python bin/hpc_check_data.py --yaml-dir ~/vantagecv/yaml   # mixed_25pct_notb and _rand: train 970
+bash hpc/submit_truckbus_test.sh      # 6 jobs: hpc_notb25_s*, hpc_rand25_s*
+```
+
+Compare with `bin/analyze_runs.py --baseline hpc_rand25 --arms hpc_notb25` (and `hpc_real25` for the
+no-synthetic reference).
+
+## 10. Bring results back
 
 ```bash
 scp "<you>@<cluster>:~/vantagecv/results/*.json" F:/vscode/VantageCV-V2/results/
