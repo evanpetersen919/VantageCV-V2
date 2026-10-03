@@ -687,7 +687,8 @@ Caveats, stated plainly: the two recipes are not compute-matched (fine-tune runs
 real images, mixed 200); only one fine-tune length and the default learning rate were tried, so a
 longer or lower-rate fine-tune might close the gap; pre-train weights were chosen on a synthetic
 validation split; three seeds per arm and borderline p-values; bus/truck have few ground-truth
-boxes (302 and 746 on BDD100K), so those differences are noisy.
+boxes on Cityscapes (98 and 93; BDD100K has 1,597 and 4,231, but only 302 and 746 at night), so
+those differences are noisy.
 
 **Next:** the second-batch volume test is running (real + 3,691 synthetic at 25% and 100% real).
 
@@ -731,10 +732,43 @@ The remaining distance to real data is concentrated in truck, bus and night (-3.
 equal-count real), which points at image content for those cases, not at volume.
 Caveats, stated plainly: three seeds per arm and borderline p-values; the larger runs also take more
 optimizer steps per epoch (5,529 vs 3,676 images), so extra compute is not separated from extra
-data; bus/truck have few ground-truth boxes (302 and 746 on BDD100K), so their differences are
-noisy; both batches come from one generator, so a second batch adds scene variety only to the
+data; bus/truck have few ground-truth boxes on Cityscapes (98 and 93) and at night on BDD100K (302
+and 746), so their differences there are noisy; both batches come from one generator, so a second batch adds scene variety only to the
 extent the seeds do.
 
 **Next:** do not spend effort on faster or larger rendering yet. Look at where the generator is
 weakest for truck, bus and night -- instance counts, sizes and models of those classes in the
 synthetic set vs BDD100K, and how night frames differ -- and target them.
+
+## Correction: the optimizer differs between arms (found in review, verified)
+
+An independent review of the results found a confound that affects several comparisons above.
+Ultralytics' default `optimizer=auto` picks **MuSGD (lr 0.01) when `ceil(N/64) x epochs > 10,000`,
+otherwise AdamW (lr 0.00125)** (`ultralytics/engine/trainer.py`, `build_optimizer`). Checked in the
+installed 8.4.163 source and in the local training logs (the 1,838-image real control logged AdamW,
+the 3,676-image real + synthetic run logged MuSGD). Applying the rule to every arm:
+
+* AdamW: real25, real50, real-only (1,838), mixed25 (2,298), mixed50 (2,757), the synthetic
+  pre-train runs and all fine-tunes (50 epochs).
+* MuSGD: mixed (3,676), real3676, mixed25big (4,151), mixedbig (5,529).
+
+What this does and does not affect:
+
+* **Not affected (same optimizer both sides):** the 25% and 50% gains from synthetic data
+  (+4.7, +3.3); mixed vs real3676 (both MuSGD, same steps: real is +3.04 better); mixedbig vs
+  mixed (both MuSGD; but with 1.5x the steps); pre-train + fine-tune vs mixed at 25% and 50%.
+* **Confounded (optimizer differs):** mixed vs real-only at 100% real (+0.66) and the "+3.70" for
+  3,676 real vs 1,838 real; mixed25big vs mixed25 (-0.27); mixedbig vs real-only (+1.59); fine-tune
+  vs mixed at 100%. These numbers mix the effect of the data with the effect of the optimizer.
+
+Other corrections: (1) bus/truck "302 and 746" boxes are the **night** subset of BDD100K; the full
+val set has 1,597 bus and 4,231 truck boxes (Cityscapes: 98 and 93); (2) the "smallest possible
+exact permutation p" of 0.05 for 3 vs 3 is one-sided (two-sided it is 0.10); (3) the "real-image
+equivalents" interpolate linearly on a concave curve and are therefore upper-biased; log-linear
+interpolation gives roughly +450 / +490 / +240 real images at 25% / 50% / 100% real instead of
++450 / +570 / +330; (4) with 17 mixed-vs-real-only tests at 100% real, a Holm correction
+leaves only BDD car significant, so the 100% claims are weak even before the optimizer issue.
+
+**Follow-up runs (prepared, same recipe with the optimizer fixed to AdamW lr 0.00125):** mixed,
+real3676, mixed25big and mixedbig, plus a step-matched real-only run (400 epochs, so the same
+number of optimizer steps as mixed), 3 seeds each.

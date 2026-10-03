@@ -7,6 +7,10 @@ set -euo pipefail
 : "${NAME:?}" "${DATA:?}" "${SEED:?}" "${MOSAIC:?}" "${CLOSE:?}" "${HPC_CONFIG:?}"
 EPOCHS="${EPOCHS:-200}"
 WEIGHTS="${WEIGHTS:-yolov10m.yaml}"
+# OPTIMIZER=AdamW fixes the optimizer (same settings ultralytics' "auto" uses for short runs);
+# otherwise "auto" picks MuSGD or AdamW from the run length, which differs between arms.
+OPT_ARGS=""
+[ -n "${OPTIMIZER:-}" ] && OPT_ARGS="--optimizer $OPTIMIZER --lr0 0.00125 --momentum 0.9 --warmup-bias-lr 0.0"
 
 source "$HPC_CONFIG"
 [ -f "$(dirname "$HPC_CONFIG")/config.local.env" ] && source "$(dirname "$HPC_CONFIG")/config.local.env"
@@ -36,7 +40,7 @@ fi
 echo "=== $NAME: training (seed $SEED, mosaic $MOSAIC, close-mosaic $CLOSE, $EPOCHS epochs) ==="
 python bin/train_detector.py --data "$YAML" --weights "$WEIGHTS" --name "$NAME" \
   --project "$HPC_ROOT/runs" --epochs "$EPOCHS" --imgsz 960 --batch 8 --seed "$SEED" \
-  --workers 4 --mosaic "$MOSAIC" --close-mosaic "$CLOSE"
+  --workers 4 --mosaic "$MOSAIC" --close-mosaic "$CLOSE" $OPT_ARGS
 
 echo "=== $NAME: BDD100K ==="
 python bin/evaluate_detector.py --weights "$HPC_ROOT/runs/$NAME/weights/best.pt" \
