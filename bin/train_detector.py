@@ -43,7 +43,28 @@ def main() -> None:
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--mosaic", type=float, default=1.0)
     parser.add_argument("--close-mosaic", type=int, default=10)
+    parser.add_argument(
+        "--optimizer",
+        default="auto",
+        help="'auto' lets ultralytics pick (MuSGD for long runs, AdamW for short ones, so arms "
+        "of different size can differ); name one (e.g. AdamW) with --lr0/--momentum to fix it",
+    )
+    parser.add_argument("--lr0", type=float, default=None, help="initial learning rate")
+    parser.add_argument("--momentum", type=float, default=None)
+    parser.add_argument(
+        "--warmup-bias-lr",
+        type=float,
+        default=None,
+        help="'auto' sets this to 0.0 when it picks AdamW; pass 0.0 to match that",
+    )
     args = parser.parse_args()
+    optimizer_args = {"optimizer": args.optimizer}
+    if args.lr0 is not None:
+        optimizer_args["lr0"] = args.lr0
+    if args.momentum is not None:
+        optimizer_args["momentum"] = args.momentum
+    if args.warmup_bias_lr is not None:
+        optimizer_args["warmup_bias_lr"] = args.warmup_bias_lr
 
     from ultralytics import YOLO  # pylint: disable=import-outside-toplevel,import-error
 
@@ -61,6 +82,7 @@ def main() -> None:
         mosaic=args.mosaic,
         close_mosaic=args.close_mosaic,
         deterministic=True,
+        **optimizer_args,
     )
 
 

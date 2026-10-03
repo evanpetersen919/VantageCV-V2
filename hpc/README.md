@@ -147,7 +147,27 @@ The check must list `mixed_25pct_big` (train 4151), `mixed_50pct_big` (4610) and
 all `OK`. Compare with `bin/analyze_runs.py --baseline hpc_real25 --arms hpc_mixed25 hpc_mixed25big`
 (and `hpc_real_only` with `hpc_mixed hpc_mixedbig`).
 
-## 8. Bring results back
+## 8. Optimizer control (fifth batch)
+
+Ultralytics' default `optimizer=auto` picks MuSGD for long runs (`ceil(N/64) x epochs > 10,000`,
+which is every arm with more than about 3,200 images) and AdamW for short ones, so arms of different
+size trained with different optimizers. This batch re-runs the affected arms with AdamW fixed
+(`OPTIMIZER=AdamW` makes `run_arm.sbatch` pass `--optimizer AdamW --lr0 0.00125 --momentum 0.9
+--warmup-bias-lr 0.0`, the same values `auto` uses for AdamW), plus a real-only run with the same
+number of optimizer steps as the 3,676-image arms (400 epochs):
+
+```bash
+cd ~/vantagecv/repo && git pull
+bash hpc/submit_optimizer_control.sh      # 15 jobs, names hpc_adamw_*
+```
+
+A job started correctly if its log shows `optimizer: AdamW(lr=0.00125, momentum=0.9)` (grep for
+`optimizer:`); a line saying `MuSGD` means the setting was not applied. The longest jobs
+(`hpc_adamw_mixedbig`, `hpc_adamw_real400`) need the raised `SLURM_TIME` you used for the big runs.
+Compare with `bin/analyze_runs.py --baseline hpc_adamw_real400 --arms hpc_adamw_mixed` (and
+`hpc_adamw_real3676`, `hpc_adamw_mixedbig`).
+
+## 9. Bring results back
 
 ```bash
 scp "<you>@<cluster>:~/vantagecv/results/*.json" F:/vscode/VantageCV-V2/results/
