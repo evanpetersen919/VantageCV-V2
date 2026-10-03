@@ -186,7 +186,19 @@ bash hpc/submit_truckbus_test.sh      # 6 jobs: hpc_notb25_s*, hpc_rand25_s*
 Compare with `bin/analyze_runs.py --baseline hpc_rand25 --arms hpc_notb25` (and `hpc_real25` for the
 no-synthetic reference).
 
-## 10. Bring results back
+## 10. Recovering runs that trained but were not scored
+
+If a job fails after training (for example the environment was damaged), its weights are still in
+`$HPC_ROOT/runs/<name>/weights/best.pt`. Repair the cause, then score without retraining:
+
+```bash
+bash hpc/submit_eval.sh NAME1 NAME2 ...   # or no names: every run under runs/ that lacks results
+```
+
+Each `eval_<name>` job runs only the two evaluations from `hpc/run_arm.sbatch` and writes the same
+`<name>_bdd100k.json` / `<name>_cityscapes.json` files.
+
+## 11. Bring results back
 
 ```bash
 scp "<you>@<cluster>:~/vantagecv/results/*.json" F:/vscode/VantageCV-V2/results/
