@@ -17,6 +17,8 @@ below. Every file validates on the same 199 real images, so scores are comparabl
 * ``mixed_25pct_notb.yaml`` / ``mixed_25pct_rand.yaml`` -- 25% real + the synthetic images with
   no truck or bus (both batches), vs 25% real + the same number of randomly chosen synthetic
   images (written only if ``train2000_v5b`` is present): do synthetic trucks/buses carry the gain?
+* ``mixed_25pct_realism.yaml`` -- 25% real + the v5 synthetic images after the calibrated realism
+  post-process (``train2000_v5_realism``; written only if that folder is present)
 
     python bin/hpc_make_data.py --root /scratch/me/vantagecv_data --out /scratch/me/vantagecv_yaml
 """
@@ -37,6 +39,7 @@ SYNTH_DIR = "train2000_v5"
 REAL_DIR = "bdd100k_control"
 EXTRA_DIR = "bdd100k_control_extra"
 SYNTH_B_DIR = "train2000_v5b"
+REALISM_DIR = "train2000_v5_realism"
 FRACTIONS = (25, 50)
 TRUCK_BUS = {2, 3}  # class ids of bus and truck in this project's four classes
 POOL_SEED = 0
@@ -94,6 +97,10 @@ def main() -> None:
 
     if synth_b is not None:
         files.update(_truck_bus_files(args.out, real, [synth, synth_b]))
+    if (args.root / REALISM_DIR).is_dir():
+        processed = write_rerooted_lists(args.root / REALISM_DIR, args.root / REALISM_DIR, args.out)
+        quarter = args.out / f"{REAL_DIR}_25pct_train.txt"
+        files["mixed_25pct_realism.yaml"] = data_yaml([quarter, processed["train"]], real["val"])
 
     for name, content in files.items():
         (args.out / name).write_text(content, encoding="utf-8")
