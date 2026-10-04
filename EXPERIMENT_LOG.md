@@ -855,3 +855,14 @@ global-image-statistics hypothesis cheaply: apply the calibrated pixel-realism p
 (`bin/apply_image_realism.py`) to the existing synthetic images and re-run the 25%-real mixed arm
 (no rendering); (3) large-vehicle content (semis, box trucks, more bus models) is the content
 candidate that the data supports, but needs new assets; (4) do not cut the truck share.
+
+### Correction: the numbered vehicle material instances are not livery variants
+
+An asset audit said each bus/truck model's 23 numbered `MI_<model>_N` material instances were
+unused livery variants. A read-only editor script (`unreal_plugin/tools/inspect_vehicle_instances.py`)
+listed what each one overrides: they are the model's **per-part materials** (glass, windshield,
+window, tire, rim, mirror, light, bulb, licence plate, interior, undercar, steel, plastic...), each
+pointing at the same shared textures. The only livery content is one fixed side-graphic texture pair
+(`GraphicsL`/`GraphicsR`) on the bus and two of the trucks. There is no unused livery variety to
+switch on; more bus/truck variety needs more models. The idea of using "unused livery variants" is
+withdrawn.
