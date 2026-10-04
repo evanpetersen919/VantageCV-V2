@@ -1183,3 +1183,21 @@ itself would give a 1.6 m gap with this long-framed tractor, which looks open, s
 wins over the mechanical one. Checked on rendered street scenes as well as the isolated rig.
 
 ![Zoom on the cab-trailer junction in a rendered street frame: the trailer's front wall sits just behind the cab with a narrow gap, its underside overhangs the tractor's rear tandem](docs/images/tractor_trailer_junction.jpg)
+
+### The trailer has no tail-lamp geometry to measure; the generic lamps land on its rear corners
+
+Question: are the trailer's tail lights placed where a real one has them? Cars get measured lamp
+positions from their separate `SM_Taillight_*` meshes (`bin/measure_vehicle_lamps.py`); the
+trailer's part list has only wheels (`SM_Wheel_Axel1-3_L/R`), so there was nothing to measure.
+The rear face was rendered from 3.2 m behind (`docs/images/tractor_trailer_rear.jpg`): it shows
+the double doors, a rear ledge, a step and a bumper bar, and no lenses at all. The lamps are not
+a mesh and not a texture: **this trailer model has no tail lamps**, so any lamp position is a
+choice, not a measurement.
+
+The lights the generator uses for a rig (`_generic_lamp_positions`, box end + 0.25 m, 0.995 m
+either side of the centreline, 0.9 m high; the 0.9 m height is inside FMVSS 108's 0.38-1.83 m
+range) project, at the render's 225 px/m, to the lower corners of the rear face, on the ledge
+beside the step: where a trailer's marker lamps are on a real one. They are point lights
+without a visible lens (no measured lens size, so no glow is drawn, by the module's own rule).
+Left unchanged. Not measured: whether the missing lens looks wrong in a night frame (the light
+spill lights the rear face; a lens would add a red disc).
