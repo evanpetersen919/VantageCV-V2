@@ -52,6 +52,14 @@ class ScenarioTypeConfig(BaseModel):
     parking_lot_fraction : float
         Share of city blocks (in expectation) that hold a surface parking
         lot instead of buildings, in [0, 1]. Defaults to 0 (no lots).
+    fleet : str
+        Which vehicle model weighting to use: ``"v5"`` (every model of a
+        type equally likely, the pickup counted as a truck) or ``"v7"``
+        (per-model weights, the pickup counted as a car); see
+        ``city_sample_assets.FLEET_MODEL_WEIGHTS``.
+    pedestrian_density_fraction : Tuple[float, float]
+        (min, max) share of ``traffic_density`` used as a sidewalk spot's
+        pedestrian occupancy; drawn once per scenario when min < max.
     road_setback_meters : float
         Minimum clearance (meters) a building must keep from every road,
         beyond the road's own half-width -- read by
@@ -72,6 +80,8 @@ class ScenarioTypeConfig(BaseModel):
     complexity_score: int
     road_setback_meters: float = 2.0
     parking_lot_fraction: float = 0.0
+    fleet: str = "v5"
+    pedestrian_density_fraction: Tuple[float, float] = (0.3, 0.3)
 
     @field_validator("avg_block_size", "building_heights", "traffic_density")
     @classmethod
@@ -102,6 +112,23 @@ class ScenarioTypeConfig(BaseModel):
         total = sum(value.values())
         if not 0.99 <= total <= 1.01:
             raise ValueError(f"vehicle_mix fractions must sum to ~1.0, got {total}")
+        return value
+
+    @field_validator("fleet")
+    @classmethod
+    def _validate_fleet(cls, value: str) -> str:
+        if value not in ("v5", "v7"):
+            raise ValueError(f"fleet must be 'v5' or 'v7', got {value!r}")
+        return value
+
+    @field_validator("pedestrian_density_fraction")
+    @classmethod
+    def _validate_pedestrian_density(cls, value: Tuple[float, float]) -> Tuple[float, float]:
+        low, high = value
+        if not 0.0 <= low <= high <= 1.0:
+            raise ValueError(
+                f"pedestrian_density_fraction must satisfy 0 <= min <= max <= 1, got {value}"
+            )
         return value
 
     @field_validator("parking_lot_fraction")

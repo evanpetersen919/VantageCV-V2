@@ -102,4 +102,9 @@ def load_scenario_config(path: Union[str, Path]) -> ScenarioTypeConfig:
     if "parking_lot_fraction" in buildings:
         kwargs["parking_lot_fraction"] = buildings["parking_lot_fraction"]
 
+    if "fleet" in traffic:
+        kwargs["fleet"] = traffic["fleet"]
+    if "pedestrian_density_fraction" in traffic:
+        kwargs["pedestrian_density_fraction"] = tuple(traffic["pedestrian_density_fraction"])
+
     return ScenarioTypeConfig(**kwargs)

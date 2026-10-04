@@ -136,6 +136,53 @@ VEHICLE_ASSET_PATHS: Dict[str, List[str]] = {
     ],
 }
 
+# Per-model sampling weights for the "v7" fleet, within each vehicle type. The v5 fleet draws
+# every model of a type with equal probability and counts the pickup (vehTruck_vehicle04) as a
+# truck, which put pickups at 18% of all vehicles *labelled truck* (BDD100K: trucks are 4.1% of
+# car boxes) and made half of the "SUV" draws taxis and police cars. v7 counts pickups and
+# vans as "suv" (the car class in the COCO profile), keeps only the larger vehicles under
+# "truck", and weights the models by their share of US registrations: pickups 18.03% and vans
+# 4.21% of light vehicles (see REAL_US_VEHICLE_CLASS_MIX above for the citation). The weights
+# of the taxi (vehicle12) and police car (vehicle13) are disclosed design choices: roughly 1.5%
+# and 0.7% of all vehicles. City Sample has no SUV model, so the five sedans stand in for the
+# sedan and SUV registrations together.
+_VEHICLE_FOLDER = "/Game/Vehicle"
+
+
+def _body(folder: str) -> str:
+    return f"{_VEHICLE_FOLDER}/{folder}/Mesh/SM_Frame_{folder}"
+
+
+FLEET_MODEL_WEIGHTS: Dict[str, Dict[str, Dict[str, float]]] = {
+    "v7": {
+        "sedan": {
+            _body(f"vehCar_vehicle{number}"): 1.0 for number in ("02", "03", "05", "06", "07")
+        },
+        "suv": {
+            _body("vehTruck_vehicle04"): 1.0,
+            _body("vehVan_vehicle01"): 0.15,
+            _body("vehVan_vehicle09"): 0.10,
+            _body("vehCar_vehicle12"): 0.10,
+            _body("vehCar_vehicle13"): 0.05,
+        },
+        "truck": {_body("vehTruck_vehicle08"): 1.0, _body("vehTruck_vehicle11"): 1.0},
+        "bus": {_body("vehBus_vehicle10"): 1.0},
+    }
+}
+
+
+def fleet_models(fleet: str, vehicle_type: str) -> Tuple[List[str], List[float]]:
+    """Asset paths and sampling weights of ``vehicle_type`` in ``fleet``.
+
+    The "v5" fleet is ``VEHICLE_ASSET_PATHS`` with equal weights.
+    """
+    if fleet == "v5":
+        paths = VEHICLE_ASSET_PATHS[vehicle_type]
+        return list(paths), [1.0] * len(paths)
+    weights = FLEET_MODEL_WEIGHTS[fleet][vehicle_type]
+    return list(weights), list(weights.values())
+
+
 # Additional static meshes (wheels/doors) spawned alongside a vehicle's
 # body at the exact same position/rotation -- see this module's own
 # docstring for why no per-part offset is needed. Keyed by vehicle

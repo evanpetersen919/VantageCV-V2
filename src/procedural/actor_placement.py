@@ -43,6 +43,7 @@ from src.procedural.city_sample_assets import (
     PEDESTRIAN_WALKING_DYNAMIC_WINDOWS,
     PEDESTRIAN_WALKING_POSE_BIAS_FRACTION,
     VEHICLE_ASSET_PATHS,
+    fleet_models,
     pedestrian_face_and_hair,
 )
 from src.procedural.lane_topology import compute_node_clearance
@@ -305,11 +306,15 @@ def _sample_vehicle_type(rng: np.random.Generator, vehicle_mix: Dict[str, float]
     return str(rng.choice(types, p=weights))
 
 
-def _sample_asset_path(rng: np.random.Generator, vehicle_type: str) -> str:
+def _sample_asset_path(rng: np.random.Generator, vehicle_type: str, fleet: str = "v5") -> str:
     """Sample one real City Sample asset path for ``vehicle_type``,
     uniformly from ``VEHICLE_ASSET_PATHS[vehicle_type]`` -- deterministic
     given the same ``rng`` state, same as every other sampling step in
     this module."""
+    if fleet != "v5":
+        paths, weights = fleet_models(fleet, vehicle_type)
+        probabilities = np.array(weights) / sum(weights)
+        return paths[int(rng.choice(len(paths), p=probabilities))]
     paths = VEHICLE_ASSET_PATHS[vehicle_type]
     index = int(rng.integers(0, len(paths)))
     return paths[index]
@@ -328,6 +333,19 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         self.rng = np.random.Generator(np.random.PCG64(seed))
         self._vehicle_counter = 0
         self._pedestrian_counter = 0
+        # The share of traffic density used as pedestrian occupancy: fixed unless the config
+        # gives a range, then drawn once per scenario from its own stream so the main rng
+        # (and so every v5 draw) is unchanged.
+        density_low, density_high = config.pedestrian_density_fraction
+        self._pedestrian_density = (
+            density_low
+            if density_low == density_high
+            else float(
+                np.random.Generator(np.random.PCG64([seed, 0x9E5D])).uniform(
+                    density_low, density_high
+                )
+            )
+        )
         self._last_pose_frame: Optional[float] = None
 
     def generate(
@@ -593,7 +611,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         own real length. ``braking`` marks a vehicle stopped in a queue
         (its brake lights are on when the scenario is lit for night)."""
         vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
-        asset_path = _sample_asset_path(self.rng, vehicle_type)
+        asset_path = _sample_asset_path(self.rng, vehicle_type, self.config.fleet)
         length, width, height, offset_x, offset_y, z_min = vehicle_box(asset_path, vehicle_type)
         if front_bumper_at_position:
             # The stop line is where the FRONT bumper sits: half the box's length
@@ -624,7 +642,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
     def _try_place_sidewalk_pedestrian(  # pylint: disable=too-many-locals
         self, zone: SpawnZone, edges: Dict[int, RoadEdge], occupancy: float
     ) -> Optional[Pedestrian]:
-        pedestrian_occupancy = occupancy * PEDESTRIAN_DENSITY_FRACTION_OF_TRAFFIC
+        pedestrian_occupancy = occupancy * self._pedestrian_density
         if self.rng.random() > pedestrian_occupancy:
             return None
         assert zone.edge_id is not None  # every PEDESTRIAN zone carries one
@@ -688,7 +706,12 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         that's still moving). A node absent from ``active_phases``
         (uncontrolled/stop-sign -- see ``signal_phasing.py``'s scope
         note) always allows crossing, unaffected by this gate."""
-        crossing_occupancy = occupancy * PEDESTRIAN_CROSSING_DENSITY_FRACTION_OF_TRAFFIC
+        crossing_occupancy = (
+            occupancy
+            * PEDESTRIAN_CROSSING_DENSITY_FRACTION_OF_TRAFFIC
+            * self._pedestrian_density
+            / PEDESTRIAN_DENSITY_FRACTION_OF_TRAFFIC
+        )
         if self.rng.random() > crossing_occupancy:
             return None
         assert zone.heading_rad is not None  # every CROSSING zone carries one
