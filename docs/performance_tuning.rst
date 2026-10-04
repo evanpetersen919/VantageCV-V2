@@ -127,3 +127,28 @@ with 4 scenarios' worth of work, not 8), and the final
 ``annotations.json`` was byte-identical to an uninterrupted run over
 the same scenarios. See ``KNOWN_GAPS_AND_ISSUES.md`` for the exact
 timings.
+
+Live rendering time (measured)
+--------------------------------
+
+Everything above is about the Python generator. Rendering frames in the live UE5 game is far slower
+and dominates a dataset's cost. Measured from the per-scenario timings of three 800-scenario runs
+(2,037, 2,051 and 2,037 frames; 24,800 to 26,000 s each, 12.2 s per frame, 31 to 32 s per scenario,
+p10 25 s and p90 36 to 42 s):
+
+* **Fixed waits, about 57% of the run, GPU idle:** a 10 s sleep after every scenario load
+  (``load_seconds`` in ``src/orchestration/live_render.py``, about 32% of the run), a 3 s sleep
+  after every camera move (``settle_seconds``, about 25%), and file polling for each screenshot
+  (about 6%, estimated).
+* **About 38% is not attributed** (inferred, not profiled): the engine's screenshot latency and
+  PNG encoding, a copy and image decode to read the size, the analytic ground truth
+  (``render_frame``) and the QA overlay written for every frame.
+* The loop is fully serial: Python ground truth and QA writing block the next engine call.
+
+Ideas that were costed but not built (``EXPERIMENT_LOG.md``'s throughput discussion): replace the
+two sleeps with a readiness signal from the plugin (about 1.6x to 1.9x; check by pixel-diffing the
+old and new capture, since the sleeps may hide streaming, exposure or temporal-AA settling), overlap
+the Python work with the engine and make the QA overlay optional (no change to the images), and run
+two or three game instances on one GPU with per-instance ports and screenshot paths (the
+listening port is a constant in ``SyntheticDataGenRpcSubsystem.h``). A 510-image screening batch
+takes about 1.7 h today.
