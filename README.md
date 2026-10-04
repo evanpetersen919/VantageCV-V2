@@ -116,6 +116,8 @@ BDD100K images it raises AP by +4.7 (18.2 to 22.9); to 919, +3.3; to 1,838, abou
 two seeds of that arm, a third is being re-run; three seeds elsewhere, p < 0.01 for the first two).
 It is not a substitute: the same number of real images scores 2-3 AP higher, and roughly 3 to 7 synthetic
 images are worth one real one.
+
+![BDD100K AP against real training images, with and without synthetic images](docs/images/results_benefit_vs_real_data.png)
 Details and caveats in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
 
 Scratch = trained from random weights on synthetic data only; fine-tune = starts from
