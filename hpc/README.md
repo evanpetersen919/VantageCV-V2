@@ -186,7 +186,52 @@ bash hpc/submit_truckbus_test.sh      # 6 jobs: hpc_notb25_s*, hpc_rand25_s*
 Compare with `bin/analyze_runs.py --baseline hpc_rand25 --arms hpc_notb25` (and `hpc_real25` for the
 no-synthetic reference).
 
-## 10. Recovering runs that trained but were not scored
+## 10. Visible-part (modal) label test
+
+The same v5 images with regenerated labels: a partly hidden car, truck, bus or pedestrian is boxed
+only where it can be seen, as BDD100K boxes it (half of v5's boxes shrink, median remaining area
+56%; class counts barely change). Compared with the original labels on the same images, 25% and
+100% real, AdamW, 3 seeds. Only labels travel (a few MB); the images are hard-linked from
+`train2000_v5` on the cluster:
+
+```bash
+# PC (PowerShell)
+scp F:\hpc_uploadantagecv_v5_modal_labels.tar peter337@hpc-login:/scratch/peter337/VantageCV/
+
+# cluster
+cd /scratch/peter337/VantageCV/data
+tar -xf ../vantagecv_v5_modal_labels.tar                 # train2000_v5_modal/{labels,train.txt,val.txt}
+cp -al train2000_v5/images train2000_v5_modal/images      # hard links: no extra space
+cd ../repo && git pull
+source ../venv/bin/activate && export YOLO_CONFIG_DIR=/scratch/peter337/yolo_config
+PYTHONPATH=. python bin/hpc_make_data.py --root ../data --out ../yaml
+PYTHONPATH=. python bin/hpc_check_data.py --yaml-dir ../yaml   # mixed_modal 3676, mixed_25pct_modal 2298
+bash hpc/submit_modal_test.sh                             # 6 jobs: hpc_modal25_s*, hpc_adamw_modal_s*
+```
+
+Compare `hpc_modal25` with `hpc_mixed25` and `hpc_adamw_modal` with `hpc_adamw_mixed`.
+
+## 11. First v7 batch
+
+512 images from the v7 generator (visible-part labels, v7 fleet with pickups counted as cars,
+calibrated night, hood on half the frames, per-scenario pedestrian density, ego views only;
+seeds 70000-70255), 25% real, AdamW, 3 seeds. Compare `hpc_v7a25` with `hpc_rand25`: the same
+number of training images (972 vs 970) from the earlier generator.
+
+```bash
+# PC (PowerShell): about 1.5 GB
+scp F:\hpc_uploadantagecv_v7a.tar peter337@hpc-login:/scratch/peter337/VantageCV/
+
+# cluster
+cd /scratch/peter337/VantageCV/data && tar -xf ../vantagecv_v7a.tar          # train_v7a/
+cd ../repo && git pull
+source ../venv/bin/activate && export YOLO_CONFIG_DIR=/scratch/peter337/yolo_config
+PYTHONPATH=. python bin/hpc_make_data.py --root ../data --out ../yaml
+PYTHONPATH=. python bin/hpc_check_data.py --yaml-dir ../yaml    # mixed_25pct_v7a: train 972
+bash hpc/submit_v7a.sh                                           # 3 jobs: hpc_v7a25_s*
+```
+
+## 12. Recovering runs that trained but were not scored
 
 If a job fails after training (for example the environment was damaged), its weights are still in
 `$HPC_ROOT/runs/<name>/weights/best.pt`. Repair the cause, then score without retraining:
@@ -198,7 +243,7 @@ bash hpc/submit_eval.sh NAME1 NAME2 ...   # or no names: every run under runs/ t
 Each `eval_<name>` job runs only the two evaluations from `hpc/run_arm.sbatch` and writes the same
 `<name>_bdd100k.json` / `<name>_cityscapes.json` files.
 
-## 11. Bring results back
+## 13. Bring results back
 
 ```bash
 scp "<you>@<cluster>:~/vantagecv/results/*.json" F:/vscode/VantageCV-V2/results/

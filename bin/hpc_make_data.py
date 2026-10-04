@@ -20,6 +20,9 @@ below. Every file validates on the same 199 real images, so scores are comparabl
 * ``mixed_modal.yaml`` / ``mixed_25pct_modal.yaml`` -- the same v5 images with visible-part labels
   (``train2000_v5_modal``: boxes cover only what can be seen of a partly hidden object), at 100%
   and 25% real; written only if that folder is present
+* ``mixed_25pct_v7a.yaml`` -- 25% real + the 512-image v7 batch (``train_v7a``: train and val
+  frames together, 972 images in all, the size of ``mixed_25pct_rand``); written only if that
+  folder is present
 * ``mixed_25pct_realism.yaml`` -- 25% real + the v5 synthetic images after the calibrated realism
   post-process (``train2000_v5_realism``; written only if that folder is present)
 
@@ -44,6 +47,7 @@ EXTRA_DIR = "bdd100k_control_extra"
 SYNTH_B_DIR = "train2000_v5b"
 REALISM_DIR = "train2000_v5_realism"
 MODAL_DIR = "train2000_v5_modal"
+V7A_DIR = "train_v7a"
 FRACTIONS = (25, 50)
 TRUCK_BUS = {2, 3}  # class ids of bus and truck in this project's four classes
 POOL_SEED = 0
@@ -111,6 +115,11 @@ def main() -> None:
         quarter = args.out / f"{REAL_DIR}_25pct_train.txt"
         files["mixed_modal.yaml"] = data_yaml([real["train"], modal["train"]], real["val"])
         files["mixed_25pct_modal.yaml"] = data_yaml([quarter, modal["train"]], real["val"])
+
+    if (args.root / V7A_DIR).is_dir():
+        v7a = write_rerooted_lists(args.root / V7A_DIR, args.root / V7A_DIR, args.out)
+        quarter = args.out / f"{REAL_DIR}_25pct_train.txt"
+        files["mixed_25pct_v7a.yaml"] = data_yaml([quarter, v7a["train"], v7a["val"]], real["val"])
 
     for name, content in files.items():
         (args.out / name).write_text(content, encoding="utf-8")

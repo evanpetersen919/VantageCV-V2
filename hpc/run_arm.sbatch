@@ -33,6 +33,7 @@ if [ -n "$LOCAL" ] && [ -d "$LOCAL" ]; then
   [[ "$DATA" == *_big || "$DATA" == *_notb || "$DATA" == *_rand ]] && [ -d "$HPC_ROOT/data/train2000_v5b" ] && cp -r "$HPC_ROOT/data/train2000_v5b" "$SCRATCH/data/"
   [[ "$DATA" == *_realism ]] && [ -d "$HPC_ROOT/data/train2000_v5_realism" ] && cp -r "$HPC_ROOT/data/train2000_v5_realism" "$SCRATCH/data/"
   [[ "$DATA" == *_modal ]] && [ -d "$HPC_ROOT/data/train2000_v5_modal" ] && cp -r "$HPC_ROOT/data/train2000_v5_modal" "$SCRATCH/data/"
+  [[ "$DATA" == *_v7a ]] && [ -d "$HPC_ROOT/data/train_v7a" ] && cp -r "$HPC_ROOT/data/train_v7a" "$SCRATCH/data/"
   python bin/hpc_make_data.py --root "$SCRATCH/data" --out "$SCRATCH/yaml"
   YAML="$SCRATCH/yaml/$DATA.yaml"
 else
