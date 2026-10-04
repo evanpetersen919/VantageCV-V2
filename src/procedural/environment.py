@@ -77,6 +77,10 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
     # scene.
     exposure_min_brightness: Optional[float] = None
     exposure_max_brightness: Optional[float] = None
+    # "manual" fixes the exposure, so a dark scene stays dark instead of being lifted by
+    # auto-exposure; the scene's own lights then set the brightness (post-process
+    # ``exposure_bias`` is the camera's exposure compensation).
+    exposure_method: Optional[str] = None
     ground_half_extent_m: float = 3000.0
     ground_uv_tile_m: float = 2.0
     ground_z_m: float = -0.02
@@ -164,6 +168,7 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
         limits = {
             name: value
             for name, value in (
+                ("method", self.exposure_method),
                 ("min_brightness", self.exposure_min_brightness),
                 ("max_brightness", self.exposure_max_brightness),
             )
@@ -260,23 +265,39 @@ NIGHT_ENVIRONMENT = EnvironmentConfig(
 
 
 # Night preset of the v7 profile. The v6 night keeps a cool 10000 K "moon" at -22 degrees with
-# a blue-heavy colour gain, and measured against BDD100K night frames its sky is twice as bright
-# (top-band luminance 48 against 24) and blue (blue/red 2.03 against 0.87) because the grade and
-# the auto-exposure lift it. This one lights the scene from a dim, warmer, lower source with a
-# neutral grade and a capped auto-exposure; the numbers are calibrated against those two
-# measurements by ``bin/calibrate_night.py``, not set by eye.
+# a blue-heavy colour gain, and auto-exposure lifts whatever is dark: measured against BDD100K
+# night frames its sky band was twice as bright (luminance 48 against 24) and far too blue (blue
+# over red 2.03 against 0.87), and sun and sky intensity hardly moved it (sun 0.3 to 0.01 lux
+# changed the top band from 75 to 62), because auto-exposure compensated. This preset fixes the
+# exposure ("manual", so a dark scene stays dark and the scene's own lights set the brightness)
+# and was calibrated with ``bin/calibrate_night.py`` on five night scenes per setting:
+#
+#   bands (top / mid / bottom luminance), blue over red, saturation of lit pixels
+#   BDD100K night   24 / 37 / 30   0.82   0.32
+#   this preset     ~31 / ~34 / ~22 (a half-stop above the 8.5 EV candidate that read
+#                   26 / 24 / 16), 0.82, 0.26 before the saturation was nudged up
+#
+# Exposure is +9.0 EV; the other settings are a dim (0.5 lux), cool (9000 K) moon, a faint sky
+# light, a slightly cool grade and reduced saturation. What it does not fix: the sky band is
+# still as bright as the mid band (BDD100K's is darker, 24 against 37), because the buildings
+# are lit by the moon; and the images are about five times sharper than BDD100K night frames
+# (Laplacian variance 360-440 against 78).
 NIGHT_ENVIRONMENT_V7 = EnvironmentConfig(
     sun_pitch_deg=-22.0,
-    sun_temperature_k=6500.0,
-    sun_intensity_lux=0.3,
-    sky_light_intensity=0.15,
+    sun_temperature_k=9000.0,
+    sun_intensity_lux=0.5,
+    sky_light_intensity=0.1,
     rayleigh_scale=0.05,
-    exposure_bias=-1.0,
-    saturation=0.55,
-    color_gain=(1.0, 0.92, 0.85),
+    exposure_method="manual",
+    exposure_bias=9.0,
+    saturation=0.4,
+    color_gain=(0.9, 0.95, 1.05),
     fog_density=0.001,
-    exposure_max_brightness=2.0,
 )
+# Manual exposure is an absolute setting, so the v7 night brightness spread is drawn around the
+# calibrated 9.0 EV with the same width the v6 range measured from BDD100K night frames (a
+# 15.6x brightness ratio, 3.97 stops): 7.0 to 11.0 EV.
+NIGHT_EXPOSURE_BIAS_RANGE_V7_EV: Tuple[float, float] = (7.0, 11.0)
 
 
 class Weather(str, Enum):
@@ -464,11 +485,15 @@ def _vary_rain(env: EnvironmentConfig, seed: int) -> EnvironmentConfig:
 NIGHT_EXPOSURE_BIAS_RANGE_EV: Tuple[float, float] = (-4.34, -0.38)
 
 
-def _vary_night_brightness(env: EnvironmentConfig, seed: int) -> EnvironmentConfig:
-    """``env`` with its exposure drawn from ``NIGHT_EXPOSURE_BIAS_RANGE_EV`` (its own RNG
-    stream, so nothing else in the scenario changes) instead of a single fixed value."""
+def _vary_night_brightness(
+    env: EnvironmentConfig,
+    seed: int,
+    bias_range: Tuple[float, float] = NIGHT_EXPOSURE_BIAS_RANGE_EV,
+) -> EnvironmentConfig:
+    """``env`` with its exposure drawn from ``bias_range`` (its own RNG stream, so nothing else
+    in the scenario changes) instead of a single fixed value."""
     rng = np.random.Generator(np.random.PCG64([seed, 0x714E]))
-    return dataclasses.replace(env, exposure_bias=float(rng.uniform(*NIGHT_EXPOSURE_BIAS_RANGE_EV)))
+    return dataclasses.replace(env, exposure_bias=float(rng.uniform(*bias_range)))
 
 
 # Always-on material-appearance domain randomization (priority-list item #1: Grad-CAM showed
@@ -540,10 +565,20 @@ def _scenario_environment_v7(
         base = NIGHT_ENVIRONMENT_V7
         if weather == Weather.RAIN:
             base = dataclasses.replace(base, **_NIGHT_RAIN_OVERRIDES)
-            return base if seed is None else _vary_rain(_vary_night_brightness(base, seed), seed)
+            return (
+                base
+                if seed is None
+                else _vary_rain(
+                    _vary_night_brightness(base, seed, NIGHT_EXPOSURE_BIAS_RANGE_V7_EV), seed
+                )
+            )
         if weather != Weather.CLEAR:
             raise ValueError(f"weather {weather.value!r} is not defined for night scenarios")
-        return base if seed is None else _vary_night_brightness(base, seed)
+        return (
+            base
+            if seed is None
+            else _vary_night_brightness(base, seed, NIGHT_EXPOSURE_BIAS_RANGE_V7_EV)
+        )
     overrides = dict(_WEATHER_OVERRIDES[weather])
     if weather == Weather.FOG:
         overrides["fog_start_distance_m"] = 0.0

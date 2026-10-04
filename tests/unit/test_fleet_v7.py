@@ -7,7 +7,11 @@ from pathlib import Path
 import numpy as np
 
 from src.ground_truth.categories import COCO_PROFILE, SUV, TRUCK
-from src.procedural.actor_placement import _sample_asset_path, _sample_vehicle_type
+from src.procedural.actor_placement import (
+    ActorPlacementGenerator,
+    _sample_asset_path,
+    _sample_vehicle_type,
+)
 from src.procedural.city_sample_assets import FLEET_MODEL_WEIGHTS, VEHICLE_ASSET_PATHS, fleet_models
 from src.procedural.parking_lots import PARKED_MODELS, PARKED_WEIGHTS_V7, _parked_model
 from src.procedural.scenario import ScenarioTypeConfig
@@ -70,7 +74,11 @@ def test_parked_pool_v5_still_draws_trucks() -> None:
 def test_v7_template_loads_with_its_fleet_and_pedestrian_range() -> None:
     """The v7 template sets the new fields; urban_dense.yaml keeps the v5 defaults."""
     v7 = load_scenario_config(TEMPLATE)
-    assert v7.fleet == "v7" and v7.pedestrian_density_fraction == (0.0, 0.14)
+    assert (
+        v7.fleet == "v7"
+        and v7.pedestrian_density_fraction == (0.0, 0.45)
+        and v7.pedestrian_density_skew == 3.0
+    )
     v5 = load_scenario_config(Path("configs/scenario_templates/urban_dense.yaml"))
     assert v5.fleet == "v5" and v5.pedestrian_density_fraction == (0.3, 0.3)
 
@@ -78,9 +86,25 @@ def test_v7_template_loads_with_its_fleet_and_pedestrian_range() -> None:
 def test_config_rejects_an_unknown_fleet_and_a_bad_density_range() -> None:
     """Typos fail at load time."""
     base = load_scenario_config(TEMPLATE).model_dump()
-    for update in ({"fleet": "v9"}, {"pedestrian_density_fraction": (0.2, 0.1)}):
+    for update in (
+        {"fleet": "v9"},
+        {"pedestrian_density_fraction": (0.2, 0.1)},
+        {"pedestrian_density_skew": 0.5},
+    ):
         try:
             ScenarioTypeConfig(**{**base, **update})
         except ValueError:
             continue
         raise AssertionError(f"accepted {update}")
+
+
+def test_skewed_pedestrian_density_is_mostly_sparse_with_a_crowded_tail() -> (
+    None
+):  # pylint: disable=protected-access
+    """With range (0, 0.45) and skew 3 the median scenario is sparse and the max is crowded."""
+    config = load_scenario_config(TEMPLATE)
+    densities = [ActorPlacementGenerator(seed, config)._pedestrian_density for seed in range(400)]
+    assert 0.0 <= min(densities) and max(densities) <= 0.45
+    assert np.median(densities) < 0.1 < max(densities)
+    v6 = load_scenario_config(Path("configs/scenario_templates/urban_dense.yaml"))
+    assert ActorPlacementGenerator(1, v6)._pedestrian_density == 0.3

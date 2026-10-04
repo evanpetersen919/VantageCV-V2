@@ -59,7 +59,12 @@ class ScenarioTypeConfig(BaseModel):
         ``city_sample_assets.FLEET_MODEL_WEIGHTS``.
     pedestrian_density_fraction : Tuple[float, float]
         (min, max) share of ``traffic_density`` used as a sidewalk spot's
-        pedestrian occupancy; drawn once per scenario when min < max.
+        pedestrian occupancy; drawn once per scenario when min < max, as
+        ``min + (max - min) * u ** skew`` with ``u`` uniform in [0, 1].
+    pedestrian_density_skew : float
+        Exponent of that draw: 1 is uniform, larger values give many sparse scenes and a few
+        crowded ones (real street footage clumps; BDD100K has 3 or more people in 15-23% of
+        frames but one in 32-44%).
     road_setback_meters : float
         Minimum clearance (meters) a building must keep from every road,
         beyond the road's own half-width -- read by
@@ -82,6 +87,7 @@ class ScenarioTypeConfig(BaseModel):
     parking_lot_fraction: float = 0.0
     fleet: str = "v5"
     pedestrian_density_fraction: Tuple[float, float] = (0.3, 0.3)
+    pedestrian_density_skew: float = 1.0
 
     @field_validator("avg_block_size", "building_heights", "traffic_density")
     @classmethod
@@ -119,6 +125,13 @@ class ScenarioTypeConfig(BaseModel):
     def _validate_fleet(cls, value: str) -> str:
         if value not in ("v5", "v7"):
             raise ValueError(f"fleet must be 'v5' or 'v7', got {value!r}")
+        return value
+
+    @field_validator("pedestrian_density_skew")
+    @classmethod
+    def _validate_density_skew(cls, value: float) -> float:
+        if value < 1.0:
+            raise ValueError(f"pedestrian_density_skew must be >= 1, got {value}")
         return value
 
     @field_validator("pedestrian_density_fraction")

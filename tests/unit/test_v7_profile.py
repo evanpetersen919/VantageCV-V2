@@ -20,6 +20,7 @@ from src.orchestration.hood import (
 from src.procedural.environment import (
     NIGHT_ENVIRONMENT,
     NIGHT_ENVIRONMENT_V7,
+    NIGHT_EXPOSURE_BIAS_RANGE_V7_EV,
     WEATHER_SHARES_V7,
     Season,
     TimeOfDay,
@@ -73,15 +74,18 @@ def test_v6_defaults_are_unchanged() -> None:
     assert draw_weather(11) == draw_weather(11, "v6")
 
 
-def test_v7_night_is_dimmer_and_neutral_and_has_no_material_jitter() -> None:
-    """v7 night: much lower sun, neutral-to-warm grade, exposure cap emitted, no jitter."""
-    night = scenario_environment(Season.SUMMER, TimeOfDay.NIGHT, Weather.CLEAR, 7, "v7")
-    assert night.sun_intensity_lux == NIGHT_ENVIRONMENT_V7.sun_intensity_lux
-    assert night.color_gain is not None and night.color_gain[2] <= night.color_gain[0]
-    assert night.asset_scalars is None and night.surface_scalars is None
-    assert night.to_json()["exposure"] == {
-        "max_brightness": NIGHT_ENVIRONMENT_V7.exposure_max_brightness
-    }
+def test_v7_night_uses_manual_exposure_in_the_calibrated_range_and_has_no_jitter() -> None:
+    """v7 night: fixed (manual) exposure drawn within 7-11 EV, a cool dim moon, no jitter."""
+    low, high = NIGHT_EXPOSURE_BIAS_RANGE_V7_EV
+    biases = []
+    for seed in range(40):
+        night = scenario_environment(Season.SUMMER, TimeOfDay.NIGHT, Weather.CLEAR, seed, "v7")
+        biases.append(night.exposure_bias)
+        assert night.to_json()["exposure"] == {"method": "manual"}
+        assert night.asset_scalars is None and night.surface_scalars is None
+    assert low <= min(biases) and max(biases) <= high and max(biases) - min(biases) > 2.0
+    assert NIGHT_ENVIRONMENT_V7.sun_intensity_lux == 0.5
+    assert NIGHT_ENVIRONMENT.sun_intensity_lux is None  # v6 left the map's own, much brighter value
 
 
 def test_v7_fog_starts_at_the_camera_and_is_rare() -> None:

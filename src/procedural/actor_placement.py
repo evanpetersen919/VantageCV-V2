@@ -340,11 +340,10 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         self._pedestrian_density = (
             density_low
             if density_low == density_high
-            else float(
-                np.random.Generator(np.random.PCG64([seed, 0x9E5D])).uniform(
-                    density_low, density_high
-                )
-            )
+            else density_low
+            + (density_high - density_low)
+            * float(np.random.Generator(np.random.PCG64([seed, 0x9E5D])).random())
+            ** config.pedestrian_density_skew
         )
         self._last_pose_frame: Optional[float] = None
 
