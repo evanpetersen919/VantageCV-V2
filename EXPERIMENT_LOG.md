@@ -867,6 +867,14 @@ pointing at the same shared textures. The only livery content is one fixed side-
 switch on; more bus/truck variety needs more models. The idea of using "unused livery variants" is
 withdrawn.
 
+![BDD100K AP against the number of real images, with and without synthetic images](docs/images/results_benefit_vs_real_data.png)
+
+![At 1,838 real images: adding 1,838 synthetic images adds about 2 AP, adding 1,838 real images adds about 5](docs/images/results_control_at_1838_real.png)
+
+![The gap to equal-count real data by class: truck -3.0, bus -2.2, car -1.2, person -1.1](docs/images/results_gap_by_class.png)
+
+*Figures from `bin/plot_results.py` (mean over seeds, bar = sd; the 1,838 real + 1,838 synthetic point has two seeds because one run was invalid).*
+
 ## Generator audit and the v7 realism profile (measured, not yet trained)
 
 Six read-only audits (assets, label definitions, lighting/camera, scene layout, throughput,
@@ -891,6 +899,10 @@ On the same 60 scenarios (ego views, seeds 60000+) the overlapping share falls f
 (now with `--amodal`/`--limit` for checking) can regenerate old datasets' labels without
 rendering; regenerating v5 in amodal mode reproduced the original boxes to 0.1 px on 14 images.
 
+![The same frame labelled with full-extent boxes (left, every dataset so far) and visible-part boxes (right)](docs/images/labels_full_extent_vs_visible.jpg)
+
+*Same frame, same scene. Left: every vehicle's whole extent, so the boxes behind the parked police car stack on top of each other. Right: the fixed labels follow what is visible.*
+
 **Other measured generator differences and the v7 changes.**
 
 | Item | v6 / v5 measured | Real | v7 change | v7 probe result |
@@ -910,6 +922,10 @@ changes how labels project, so it is a separate test); roll and ego headlights (
 snow; the box-overlap share of the v7 ego frames is still 23% *without* the modal fix (4.5% with
 it, on v6 scenes). The semi-truck (the cab `vehicle08` has a trailer socket and `vehicle08` plus
 `vehicle01`... see the asset audit) is Tier B.
+
+![A night frame from the previous generator (saturated blue sky), a v7 probe night frame (black sky, hood), and a real BDD100K night frame](docs/images/night_previous_v7_real.jpg)
+
+*One randomly picked night frame each (not selected to flatter). The real frame happens to be a highway, which is 25% of BDD100K; the generator has no highways yet.*
 
 **Withdrawn or corrected during this work:** the "unused livery variants" (the numbered material
 instances are per-part materials); an interim claim that modal boxes were never integrated (they
