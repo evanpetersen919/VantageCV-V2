@@ -29,11 +29,17 @@ if [ -n "$LOCAL" ] && [ -d "$LOCAL" ]; then
   trap 'rm -rf "$SCRATCH"' EXIT
   mkdir -p "$SCRATCH/data" "$SCRATCH/yaml"
   cp -r "$HPC_ROOT/data/train2000_v5" "$HPC_ROOT/data/bdd100k_control" "$SCRATCH/data/"
+  # A data folder the arm needs but the cluster lacks must stop the job: skipping it silently once
+  # left the yaml files unwritten and failed six jobs with a confusing "yaml does not exist".
+  copy_required() {
+    [ -d "$HPC_ROOT/data/$1" ] || { echo "ERROR: $HPC_ROOT/data/$1 is missing (needed by $DATA)" >&2; exit 1; }
+    cp -r "$HPC_ROOT/data/$1" "$SCRATCH/data/"
+  }
   [ -d "$HPC_ROOT/data/bdd100k_control_extra" ] && cp -r "$HPC_ROOT/data/bdd100k_control_extra" "$SCRATCH/data/"
-  [[ "$DATA" == *_big || "$DATA" == *_notb || "$DATA" == *_rand || "$DATA" == *_poor || "$DATA" == *_rich ]] && [ -d "$HPC_ROOT/data/train2000_v5b" ] && cp -r "$HPC_ROOT/data/train2000_v5b" "$SCRATCH/data/"
-  [[ "$DATA" == *_realism ]] && [ -d "$HPC_ROOT/data/train2000_v5_realism" ] && cp -r "$HPC_ROOT/data/train2000_v5_realism" "$SCRATCH/data/"
-  [[ "$DATA" == *_modal ]] && [ -d "$HPC_ROOT/data/train2000_v5_modal" ] && cp -r "$HPC_ROOT/data/train2000_v5_modal" "$SCRATCH/data/"
-  [[ "$DATA" == *_v7a ]] && [ -d "$HPC_ROOT/data/train_v7a" ] && cp -r "$HPC_ROOT/data/train_v7a" "$SCRATCH/data/"
+  [[ "$DATA" == *_big || "$DATA" == *_notb || "$DATA" == *_rand || "$DATA" == *_poor || "$DATA" == *_rich ]] && copy_required train2000_v5b
+  [[ "$DATA" == *_realism ]] && copy_required train2000_v5_realism
+  [[ "$DATA" == *_modal ]] && copy_required train2000_v5_modal
+  [[ "$DATA" == *_v7a ]] && copy_required train_v7a
   python bin/hpc_make_data.py --root "$SCRATCH/data" --out "$SCRATCH/yaml"
   YAML="$SCRATCH/yaml/$DATA.yaml"
 else
