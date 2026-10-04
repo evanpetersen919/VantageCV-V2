@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import numpy as np
+from numpy.typing import NDArray
 from PIL import Image
 from scipy import ndimage
 
@@ -19,6 +20,27 @@ BDD_ROOT = Path("F:/datasets/bdd100k")
 SIZE = (1280, 720)
 BANDS = {"top": (0, 240), "mid": (240, 480), "bot": (480, 720)}
 SAMPLE = 120
+
+
+def mirror_correlation(luma: NDArray[np.float32]) -> float:
+    """How much the road region echoes the scene above it, as a vertical mirror.
+
+    A wet or glossy road reflects what stands above it, so rows below the middle of the frame
+    correlate with the rows the same distance above it, flipped. Both strips are taken from the
+    central columns and each row's mean is removed first, so the shared top-to-bottom brightness
+    gradient does not count: only the left-to-right structure that is mirrored does. 0 means no
+    echo; values near 1 mean a mirror. Assumes the horizon is near the middle of the frame (it
+    is for the renders; real frames vary), so compare means over many images, not single ones.
+    """
+    height, width = luma.shape
+    columns = slice(int(width * 0.3), int(width * 0.7))
+    depth = int(height * 0.3)
+    below = luma[height // 2 + 10 : height // 2 + 10 + depth, columns]
+    above = luma[height // 2 - 10 - depth : height // 2 - 10, columns][::-1]
+    below = below - below.mean(axis=1, keepdims=True)
+    above = above - above.mean(axis=1, keepdims=True)
+    scale = float(np.sqrt((below**2).sum() * (above**2).sum()))
+    return float((below * above).sum() / scale) if scale > 0 else 0.0
 
 
 def image_stats(image: Image.Image) -> Dict[str, float]:
@@ -38,6 +60,7 @@ def image_stats(image: Image.Image) -> Dict[str, float]:
     result["laplacian_var"] = float(ndimage.laplace(luma).var())
     result["share_ge_250"] = float((luma >= 250).mean())
     result["share_lt_10"] = float((luma < 10).mean())
+    result["mirror_corr"] = mirror_correlation(luma)
     step = np.abs(np.diff(luma, axis=1))
     result["jpeg_blockiness"] = float(step[:, 7::8].mean() / max(float(step.mean()), 1e-6))
     return result

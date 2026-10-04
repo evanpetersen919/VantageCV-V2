@@ -82,7 +82,7 @@ def test_v7_night_uses_manual_exposure_in_the_calibrated_range_and_has_no_jitter
         night = scenario_environment(Season.SUMMER, TimeOfDay.NIGHT, Weather.CLEAR, seed, "v7")
         biases.append(night.exposure_bias)
         assert night.to_json()["exposure"] == {"method": "manual"}
-        assert night.asset_scalars is None and night.surface_scalars is None
+        assert night.asset_scalars is None  # v6's material jitter is off
     assert low <= min(biases) and max(biases) <= high and max(biases) - min(biases) > 2.0
     assert NIGHT_ENVIRONMENT_V7.sun_intensity_lux == 0.5
     assert NIGHT_ENVIRONMENT.sun_intensity_lux is None  # v6 left the map's own, much brighter value
@@ -115,3 +115,20 @@ def test_v7_pitch_jitter_is_wider_but_draws_the_same_number_of_values() -> None:
     ]
     assert max(narrow) <= 30.0 * np.tan(PITCH_JITTER_RAD) + 1e-9
     assert max(wide) > max(narrow) and max(wide) <= 30.0 * np.tan(PITCH_JITTER_V7_RAD) + 1e-9
+
+
+def test_v7_roads_are_dry_unless_it_rains() -> None:
+    """Dry weather and clear night get the matte road; rain keeps its wet surfaces."""
+    for time_of_day, weather in (
+        (TimeOfDay.DAY, Weather.CLEAR),
+        (TimeOfDay.DAY, Weather.OVERCAST),
+        (TimeOfDay.NIGHT, Weather.CLEAR),
+    ):
+        env = scenario_environment(Season.SUMMER, time_of_day, weather, 3, "v7")
+        assert env.surface_scalars is not None
+        assert env.surface_scalars["asphalt"]["Roughness MFPD"] == 0.9
+        assert env.surface_scalars["asphalt"]["Puddle Height MFPD"] == 0.0
+    wet = scenario_environment(Season.SUMMER, TimeOfDay.DAY, Weather.RAIN, 3, "v7")
+    assert (
+        wet.surface_scalars is not None and wet.surface_scalars["asphalt"]["Roughness MFPD"] < 0.1
+    )

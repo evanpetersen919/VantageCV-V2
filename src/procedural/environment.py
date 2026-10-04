@@ -559,6 +559,23 @@ def _vary_material_appearance(env: EnvironmentConfig, seed: int) -> EnvironmentC
     )
 
 
+# Dry roads and paving for every v7 scene that is not raining. City Sample's road material has a
+# glossy default that shows as a wet-looking sheen in clear weather; rendering the same six clear
+# summer-day scenes under four settings (``bin/calibrate_night.py --base day``) measured the
+# reflection of the scene above the road (``mirror_corr``) at 0.13 for the default, 0.07-0.08 for
+# these rougher settings, and 0.09 for real clear-day BDD100K frames; the sheen is gone in the
+# renders. Rain keeps its wet surfaces.
+_DRY_SURFACES: Dict[str, Dict[str, float]] = {
+    "asphalt": {
+        "Roughness MFPD": 0.9,
+        "BaseRoughnessMult": 1.0,
+        "Puddle Height MFPD": 0.0,
+        "Specular MFPD": 0.2,
+    },
+    "pavement": {"Roughness MFPD": 0.9, "Puddle Height MFPD": 0.0, "Specular MFPD": 0.2},
+}
+
+
 def _scenario_environment_v7(
     season: Season, time_of_day: TimeOfDay, weather: Weather, seed: Optional[int]
 ) -> EnvironmentConfig:
@@ -577,6 +594,7 @@ def _scenario_environment_v7(
             )
         if weather != Weather.CLEAR:
             raise ValueError(f"weather {weather.value!r} is not defined for night scenarios")
+        base = dataclasses.replace(base, surface_scalars=_DRY_SURFACES)
         return (
             base
             if seed is None
@@ -585,6 +603,8 @@ def _scenario_environment_v7(
     overrides = dict(_WEATHER_OVERRIDES[weather])
     if weather == Weather.FOG:
         overrides["fog_start_distance_m"] = 0.0
+    if weather != Weather.RAIN:
+        overrides["surface_scalars"] = _DRY_SURFACES
     env = dataclasses.replace(season_environment(season), **overrides)
     return _vary_rain(env, seed) if weather == Weather.RAIN and seed is not None else env
 
