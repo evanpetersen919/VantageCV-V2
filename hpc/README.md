@@ -231,7 +231,33 @@ PYTHONPATH=. python bin/hpc_check_data.py --yaml-dir ../yaml    # mixed_25pct_v7
 bash hpc/submit_v7a.sh                                           # 3 jobs: hpc_v7a25_s*
 ```
 
-## 12. Recovering runs that trained but were not scored
+## 12. Does the supply of scarce-class instances decide a supplement's value?
+
+The first v7 batch matched real class frequencies and scored below an equal-size random draw from
+the older generator, with each class moving in step with how many of its instances were supplied
+(person 0.40x instances, -0.89 AP; truck 0.19x, -1.18; car 1.10x, +0.46). This tests it directly,
+without rendering: 510 of the existing v5/v5b images, 25% real, AdamW, 3 seeds each.
+
+| Arm | Selection | Persons / cars / buses / trucks supplied |
+|---|---|---|
+| `hpc_poor25` | fewest persons and trucks | 547 / 3,671 / 89 / 226 (the v7 batch: 508 / 4,201 / 57 / 209) |
+| `hpc_rand25` (already run) | random | 1,256 / 3,821 / 69 / 1,120 |
+| `hpc_rich25` | most persons, trucks and buses | 2,052 / 3,691 / 245 / 1,800 |
+
+Needs only `git pull` (v5 and v5b are already on the cluster):
+
+```bash
+cd /scratch/peter337/VantageCV/repo && git pull
+source ../venv/bin/activate && export YOLO_CONFIG_DIR=/scratch/peter337/yolo_config
+PYTHONPATH=. python bin/hpc_make_data.py --root ../data --out ../yaml
+PYTHONPATH=. python bin/hpc_check_data.py --yaml-dir ../yaml   # mixed_25pct_poor / _rich: train 970
+bash hpc/submit_supply_test.sh                                  # 6 jobs
+```
+
+Read: if `hpc_poor25` scores like `hpc_v7a25` (and below `hpc_rand25`), supply alone explains the v7
+deficit; if `hpc_rich25` beats `hpc_rand25`, oversampling the scarce classes is a free gain.
+
+## 13. Recovering runs that trained but were not scored
 
 If a job fails after training (for example the environment was damaged), its weights are still in
 `$HPC_ROOT/runs/<name>/weights/best.pt`. Repair the cause, then score without retraining:
@@ -243,7 +269,7 @@ bash hpc/submit_eval.sh NAME1 NAME2 ...   # or no names: every run under runs/ t
 Each `eval_<name>` job runs only the two evaluations from `hpc/run_arm.sbatch` and writes the same
 `<name>_bdd100k.json` / `<name>_cityscapes.json` files.
 
-## 13. Bring results back
+## 14. Bring results back
 
 ```bash
 scp "<you>@<cluster>:~/vantagecv/results/*.json" F:/vscode/VantageCV-V2/results/

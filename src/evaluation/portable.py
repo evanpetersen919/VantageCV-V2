@@ -117,6 +117,37 @@ def write_class_free_list(source_lists: Sequence[Path], classes: Set[int], out_p
     return out_path
 
 
+def class_counts(image_line: str) -> Dict[int, int]:
+    """How many boxes of each class an image's label file holds (empty if it has none)."""
+    label = label_path_for(Path(image_line.strip()))
+    counts: Dict[int, int] = {}
+    if label.exists():
+        for row in label.read_text(encoding="utf-8").splitlines():
+            if row.strip():
+                counts[int(row.split()[0])] = counts.get(int(row.split()[0]), 0) + 1
+    return counts
+
+
+def write_ranked_list(  # pylint: disable=too-many-arguments
+    source_lists: Sequence[Path],
+    weights: Dict[int, float],
+    count: int,
+    out_path: Path,
+    highest: bool = True,
+) -> Path:
+    """Write the ``count`` images with the highest (or, with ``highest=False``, the lowest)
+    weighted box count (``weights`` per class); ties keep the source order. Used to give a
+    supplement more or fewer instances of chosen classes without rendering anything."""
+    lines = _image_lines(source_lists)
+    score = {
+        line: sum(weights.get(cls, 0.0) * n for cls, n in class_counts(line).items())
+        for line in lines
+    }
+    chosen = sorted(lines, key=lambda line: -score[line] if highest else score[line])[:count]
+    out_path.write_text("\n".join(chosen) + "\n", encoding="utf-8")
+    return out_path
+
+
 def write_random_list(source_lists: Sequence[Path], count: int, seed: int, out_path: Path) -> Path:
     """Write ``count`` images drawn at random (reproducibly) from ``source_lists``."""
     lines = _image_lines(source_lists)

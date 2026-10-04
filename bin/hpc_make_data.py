@@ -17,6 +17,9 @@ below. Every file validates on the same 199 real images, so scores are comparabl
 * ``mixed_25pct_notb.yaml`` / ``mixed_25pct_rand.yaml`` -- 25% real + the synthetic images with
   no truck or bus (both batches), vs 25% real + the same number of randomly chosen synthetic
   images (written only if ``train2000_v5b`` is present): do synthetic trucks/buses carry the gain?
+* ``mixed_25pct_poor.yaml`` / ``mixed_25pct_rich.yaml`` -- 25% real + 510 of the v5/v5b images
+  chosen for few persons and trucks (about the supply of the v7 batch) or for many persons, trucks
+  and buses; written only if ``train2000_v5b`` is present
 * ``mixed_modal.yaml`` / ``mixed_25pct_modal.yaml`` -- the same v5 images with visible-part labels
   (``train2000_v5_modal``: boxes cover only what can be seen of a partly hidden object), at 100%
   and 25% real; written only if that folder is present
@@ -38,6 +41,7 @@ from src.evaluation.portable import (
     write_class_free_list,
     write_fraction_list,
     write_random_list,
+    write_ranked_list,
     write_rerooted_lists,
 )
 
@@ -50,6 +54,12 @@ MODAL_DIR = "train2000_v5_modal"
 V7A_DIR = "train_v7a"
 FRACTIONS = (25, 50)
 TRUCK_BUS = {2, 3}  # class ids of bus and truck in this project's four classes
+PERSON, BUS, TRUCK = 0, 2, 3
+SUPPLY_COUNT = 510
+# Fewest persons and trucks first (a truck counts 1.6: the weight at which the choice reproduces
+# the v7 batch's 508 persons and 209 trucks to within 8%), and the most persons, trucks and buses.
+POOR_WEIGHTS = {PERSON: 1.0, TRUCK: 1.6}
+RICH_WEIGHTS = {PERSON: 1.0, TRUCK: 1.0, BUS: 3.0}
 POOL_SEED = 0
 
 
@@ -65,6 +75,20 @@ def _truck_bus_files(
     return {
         "mixed_25pct_notb.yaml": data_yaml([quarter, no_tb], real["val"]),
         "mixed_25pct_rand.yaml": data_yaml([quarter, rand], real["val"]),
+    }
+
+
+def _supply_files(
+    out: Path, real: Dict[str, Path], batches: List[Dict[str, Path]]
+) -> Dict[str, str]:
+    """25% real + 510 images chosen for a poor or a rich supply of persons, trucks and buses."""
+    pool = [batch["train"] for batch in batches]
+    poor = write_ranked_list(pool, POOR_WEIGHTS, SUPPLY_COUNT, out / "synth_poor_train.txt", False)
+    rich = write_ranked_list(pool, RICH_WEIGHTS, SUPPLY_COUNT, out / "synth_rich_train.txt")
+    quarter = out / f"{REAL_DIR}_25pct_train.txt"
+    return {
+        "mixed_25pct_poor.yaml": data_yaml([quarter, poor], real["val"]),
+        "mixed_25pct_rich.yaml": data_yaml([quarter, rich], real["val"]),
     }
 
 
@@ -105,6 +129,7 @@ def main() -> None:
 
     if synth_b is not None:
         files.update(_truck_bus_files(args.out, real, [synth, synth_b]))
+        files.update(_supply_files(args.out, real, [synth, synth_b]))
     if (args.root / REALISM_DIR).is_dir():
         processed = write_rerooted_lists(args.root / REALISM_DIR, args.root / REALISM_DIR, args.out)
         quarter = args.out / f"{REAL_DIR}_25pct_train.txt"

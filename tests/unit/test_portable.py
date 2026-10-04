@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from src.evaluation.portable import (
+    class_counts,
     data_yaml,
     missing_files,
     reroot_image_list,
@@ -12,6 +13,7 @@ from src.evaluation.portable import (
     write_class_free_list,
     write_fraction_list,
     write_random_list,
+    write_ranked_list,
     write_rerooted_lists,
 )
 
@@ -138,3 +140,32 @@ def test_class_free_and_random_lists(tmp_path: Path) -> None:
 
     assert [Path(x).stem for x in kept] == ["a", "c"]
     assert first == again and len(first) == 2
+
+
+def test_ranked_list_picks_the_most_or_fewest_boxes_of_the_weighted_classes(tmp_path: Path) -> None:
+    """Weighted counts rank the images; ``highest`` flips the direction; rows are counted."""
+    images, labels = tmp_path / "images", tmp_path / "labels"
+    images.mkdir()
+    labels.mkdir()
+    rows = {
+        "a": "0 .5 .5 .1 .1\n0 .5 .5 .1 .1\n3 .5 .5 .1 .1",
+        "b": "0 .5 .5 .1 .1",
+        "c": "1 .5 .5 .1 .1",
+    }
+    for name, text in rows.items():
+        (images / f"{name}.jpg").write_bytes(b"x")
+        (labels / f"{name}.txt").write_text(text, encoding="utf-8")
+    listing = tmp_path / "list.txt"
+    listing.write_text("\n".join(str(images / f"{n}.jpg") for n in rows) + "\n", encoding="utf-8")
+
+    assert class_counts(str(images / "a.jpg")) == {0: 2, 3: 1}
+    top = (
+        write_ranked_list([listing], {0: 1.0, 3: 1.0}, 2, tmp_path / "top.txt").read_text().split()
+    )
+    low = (
+        write_ranked_list([listing], {0: 1.0, 3: 1.0}, 2, tmp_path / "low.txt", False)
+        .read_text()
+        .split()
+    )
+    assert [Path(x).stem for x in top] == ["a", "b"]
+    assert [Path(x).stem for x in low] == ["c", "b"]
