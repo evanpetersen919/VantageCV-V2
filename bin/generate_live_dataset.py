@@ -18,26 +18,26 @@ from src.ground_truth.categories import PROFILES
 from src.orchestration.dataset_store import ManifestMismatchError
 from src.orchestration.live_dataset import DEFAULT_VIEWS, default_output_dir, generate_live_dataset
 from src.orchestration.live_render import GameUnavailableError, LiveRenderer
+from src.orchestration.profiles import (
+    V6_CONFIG,
+    V6_PARKING_LOT_FRACTION,
+    V7_CONFIG,
+    V7_PARKING_LOT_FRACTION,
+    V7_VIEWS,
+)
 from src.ue5.backend import UE5Backend
 from src.utils.config_loader import load_scenario_config
-
-# What --profile v7 selects unless the matching flag is given: the v7 traffic template, ego
-# views only (the lot view supplied 22% of images but 51% of trucks, and 72% of its boxes
-# overlapped another against 7% in real data) and a lighter share of parking lots.
-V7_CONFIG = Path("configs/scenario_templates/urban_dense_v7.yaml")
-V7_VIEWS = ("ego", "ego")
-V7_PARKING_LOT_FRACTION = 0.1
 
 
 def _resolve_profile(args: argparse.Namespace) -> None:
     """Fill the flags left unset from the chosen ``--profile`` (v6 keeps the old defaults)."""
     v7 = args.profile == "v7"
     if args.config is None:
-        args.config = V7_CONFIG if v7 else Path("configs/scenario_templates/urban_dense.yaml")
+        args.config = V7_CONFIG if v7 else V6_CONFIG
     if args.views is None:
         args.views = list(V7_VIEWS if v7 else DEFAULT_VIEWS)
     if args.parking_lot_fraction is None:
-        args.parking_lot_fraction = V7_PARKING_LOT_FRACTION if v7 else 0.3
+        args.parking_lot_fraction = V7_PARKING_LOT_FRACTION if v7 else V6_PARKING_LOT_FRACTION
 
 
 async def _run(args: argparse.Namespace) -> None:
