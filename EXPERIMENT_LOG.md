@@ -1088,6 +1088,47 @@ v7 deficit is explained by instance supply alone and v7's other changes are neut
 rand25, oversampling the scarce classes is a free gain and the generator should produce
 person- and truck-rich scenes (with the labels and fleet kept correct).
 
+### Instance-supply test result (cluster, 3 seeds each, AdamW, 25% real): half confirmed, half refuted
+
+Pre-set reading: if poor (510 v5/v5b images with about v7a's persons and trucks) scores like v7a,
+instance supply alone explains the v7 deficit; if rich (the 510 with the most persons, trucks and
+buses) beats rand25, oversampling the scarce classes is a free gain. Both are numbers from the 12
+new result files (BDD100K 10,000 images, Cityscapes 500, n=3 per arm, Welch p).
+
+| BDD100K | AP | person | truck | bus |
+|---|---|---|---|---|
+| rand25 | 20.84 | 15.52 | 16.70 | 13.49 |
+| poor25 | 20.66 | 14.78 | 16.21 | 13.86 |
+| rich25 | 20.67 | 16.38 | 16.01 | 12.71 |
+| v7a25 | 19.97 | 14.63 | 15.52 | 11.61 |
+
+- **poor vs v7a: not the same.** Poor is +0.69 AP over v7a (p = 0.031) and indistinguishable from
+  rand25 (-0.18, p = 0.55). Giving rand's images v7a's person and truck supply does not reproduce
+  v7a's overall deficit. About 0.7 AP of v7a's -0.87 is therefore from something other than supply:
+  the other v7 changes (fleet, labels, night, camera, hood, dry roads) are not neutral, or at least
+  not shown to be. Which one is not known; this test cannot say.
+- **Person: supply does matter, causally.** Persons in the supplement about 550 / 1,256 / about
+  2,000 gave person AP 14.78 / 15.52 / 16.38 (poor -0.74, p = 0.028; rich +0.85, p = 0.018), and
+  poor reproduces v7a's person AP (14.78 vs 14.63). Cityscapes agrees (-1.10, +0.96, p = 0.001 and
+  0.007).
+- **Truck and bus: not supported.** Truck AP 16.21 / 16.70 / 16.01 and bus 13.86 / 13.49 / 12.71
+  are not monotonic in supply (rich has about 1,800 trucks and 245 buses against rand's 1,120 and
+  69) and no difference is significant. The earlier dose-response slopes for truck and bus came
+  from arms that differed in total image count as well; at equal image count they do not show up.
+  Cityscapes bus is lower for rich (-5.45, p = 0.062, 500 images, a handful of buses).
+- **Rich does not beat rand25 overall:** AP -0.17 (p = 0.63) on BDD100K, -0.78 (p = 0.36) on
+  Cityscapes. Oversampling the scarce classes buys person AP and nothing else, so it is not a free
+  gain.
+
+**What this means for the generator.** (1) More pedestrians per scene is a real, measured gain for
+person AP and v7's matched-to-real density gave it away; a person-richer pedestrian density is
+worth rendering. (2) Truck and bus AP do not respond to how many instances there are in this data,
+which fits the earlier finding that they are limited by appearance (truck -3.0 AP and bus -2.2
+against equal-count real data), not count. More trucks will not fix them. (3) The 0.7 AP of v7a's
+deficit that supply does not explain needs its own test before the next render adopts every v7
+change together. Caveats: the poor and rich selections are chosen by instance count, so they also
+differ in scene content (crowded versus sparse), and n=3 with bus/truck noise of 1 to 2 AP.
+
 ## Road gloss in clear weather: measured, and a dry road for v7
 
 The question left open by the generator audit: do roads look wet in clear weather? City Sample's
