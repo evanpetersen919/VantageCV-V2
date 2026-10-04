@@ -1029,3 +1029,61 @@ truck +2.0 (p = 0.007), bus +2.7 (p = 0.07); versus equal-count real data the ga
 images from this generator improve a detector at every real-data size tested (+4.7, +3.3, +2.0
 AP at 460, 919 and 1,838 real images), about 3-7 synthetic images per real one, and lose to the
 same number of real images by 2-3 AP.
+
+## Visible-part labels and the first v7 batch (cluster, 3 seeds each, AdamW)
+
+Read with the rule written before the results (previous entry): the label test isolates the box
+convention; `hpc_v7a25` is compared with `hpc_rand25` (972 vs 970 training images).
+
+**Label test: no effect.** The v5 images with regenerated visible-part labels (half of the boxes
+shrink, median remaining area 56%) against the original full-extent labels, same recipe and seeds.
+
+| | BDD100K AP | Cityscapes AP |
+|---|---|---|
+| 25% real: modal vs full-extent | 22.78 vs 22.93 (-0.15, p = 0.74) | 22.88 vs 23.17 (-0.29, p = 0.59) |
+| 100% real: modal vs full-extent | 30.21 vs 29.99 (+0.21, p = 0.053) | 28.13 vs 29.06 (**-0.93**, p = 0.017; bus -3.5) |
+
+Per class and at night nothing moves beyond seed spread at 25% (car +0.33, p = 0.055; night +0.68,
+p = 0.23). The box convention was a real mismatch with BDD100K (overlapping boxes 33% against 8%),
+and correcting it changes labels a lot, but **detection AP does not respond**: the fix is neutral at
+25% real and mixed (+0.2 BDD, -0.9 Cityscapes) at 100%. This is consistent with the v4b entry (whose
+labels were in fact unchanged). The switch stays in v7 as a correctness fix with no measured benefit.
+
+**First v7 batch: not better than the old generator at equal size.** 972 images (460 train + 52
+val frames of the v7 batch, plus the 460 real) against 970 random v5/v5b images, 25% real:
+
+| BDD100K AP | rand25 (old generator) | v7a25 | difference |
+|---|---|---|---|
+| overall | 20.84 ± 0.42 | 19.97 ± 0.29 | **-0.87 (p = 0.047)**; Cityscapes -1.71 (p = 0.11) |
+| person / car / bus / truck | 15.52 / 37.64 / 13.49 / 16.70 | 14.63 / 38.10 / 11.61 / 15.52 | **-0.89 (p = 0.006)** / **+0.46 (p = 0.050)** / -1.88 (n.s.) / **-1.18 (p = 0.021)** |
+| night | 17.39 | 16.87 | -0.52 (p = 0.07) |
+
+Both still beat the real-only arm (18.23), by 1.7 and 2.6 AP. Primary result by the pre-set rule:
+**the v7 profile did not improve per-image value; it is slightly worse.**
+
+**Why (hypothesis formed after seeing this result, so it needs a confirmatory test).** The v7 batch
+deliberately matched real class frequencies, which also cut its instances of the rare classes.
+Training instances in the 510-image supplements: rand25 has 1,256 persons / 3,821 cars / 69 buses /
+1,120 trucks, v7a has 508 / 4,201 / 57 / 209. The class that lost instances lost AP (person 0.40x
+instances, -0.89 AP; truck 0.19x, -1.18) and the class that gained instances gained AP (car 1.10x,
++0.46). Across the 25%-real arms at equal image count the same holds for `notb25` (0 trucks and
+buses: truck AP gain over real-only +1.4 against +2.7 for rand25). Class AP gain over the real-only
+run against log10(instances) over seven 25%-real arms: person slope +3.8 AP per 10x (r = 0.98), car
++3.3 (0.99), truck +0.9 (0.83), bus +1.4 (0.75). Caveats: the arms share counts (three are the same
+v5 images), total image count grows with instance count in the large arms, v7a differs in many
+other ways at once (fleet, labels, night, camera, hood), and bus is noisy.
+
+**What this means for the generator.** The supplement's value to a detector that already has real
+data comes from how many instances of the *scarce* classes (person, truck, bus) it supplies, not
+from matching the real class mix. Matching real frequencies (the v7 pedestrian density and truck
+share) removed exactly the supply that helps. The other v7 changes are not shown to matter either
+way. The measured generator-vs-real differences that remain open are the large vehicles' appearance
+(truck -3.0 AP and bus -2.2 against equal-count real data) and the real-vs-synthetic gap overall,
+not image statistics (null), box convention (null) or class frequencies (harmful when matched).
+
+**Next (cheap, no rendering):** two selections from the 3,691 existing v5/v5b images, 510 each,
+25% real, 3 seeds: (a) matched to v7a's person and truck totals (about 508 and 209), (b)
+instance-rich (the 510 images with the most persons, trucks and buses). If (a) scores like v7a, the
+v7 deficit is explained by instance supply alone and v7's other changes are neutral; if (b) beats
+rand25, oversampling the scarce classes is a free gain and the generator should produce
+person- and truck-rich scenes (with the labels and fleet kept correct).
