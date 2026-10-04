@@ -196,7 +196,7 @@ only where it can be seen, as BDD100K boxes it (half of v5's boxes shrink, media
 
 ```bash
 # PC (PowerShell)
-scp F:\hpc_uploadantagecv_v5_modal_labels.tar peter337@hpc-login:/scratch/peter337/VantageCV/
+scp F:\hpc_upload\vantagecv_v5_modal_labels.tar peter337@hpc-login:/scratch/peter337/VantageCV/
 
 # cluster
 cd /scratch/peter337/VantageCV/data
@@ -220,7 +220,7 @@ number of training images (972 vs 970) from the earlier generator.
 
 ```bash
 # PC (PowerShell): about 1.5 GB
-scp F:\hpc_uploadantagecv_v7a.tar peter337@hpc-login:/scratch/peter337/VantageCV/
+scp F:\hpc_upload\vantagecv_v7a.tar peter337@hpc-login:/scratch/peter337/VantageCV/
 
 # cluster
 cd /scratch/peter337/VantageCV/data && tar -xf ../vantagecv_v7a.tar          # train_v7a/
