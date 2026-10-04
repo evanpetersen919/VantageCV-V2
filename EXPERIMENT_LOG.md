@@ -1129,6 +1129,38 @@ deficit that supply does not explain needs its own test before the next render a
 change together. Caveats: the poor and rich selections are chosen by instance count, so they also
 differ in scene content (crowded versus sparse), and n=3 with bus/truck noise of 1 to 2 AP.
 
+### Next render: the current v7 (`train_v7c`) and v7 with v6 pedestrians (`train_v7p`), rules fixed in advance
+
+A correction to the previous entry's plan: `train_v7a` was rendered before the dry-road change and
+before the tractor-trailer rigs (its trucks included the bare tractor), so it is not the generator
+as it is now. Part of its unexplained 0.7 AP may already be fixed, so the first test is the
+current v7, not an ablation of the old one. Ablating scene content versus look and camera is kept
+in reserve (below).
+
+Two batches, 512 frames each (256 scenarios, seeds 70000-70255, the seeds of `train_v7a`, so scenes
+are the same layouts; pedestrians share the placement random stream with vehicles, so the traffic
+is not guaranteed identical between `c` and `p`), `--profile v7`, 25% real, AdamW, 3 seeds each.
+About 25 s per frame, so about 3.6 h each.
+
+- `train_v7c`: `urban_dense_v7.yaml` as it is now.
+- `train_v7p`: `urban_dense_v7_peds.yaml`: the same except the v6 pedestrian density (constant 0.3,
+  which gave the v5 data its 2.5 persons per image; the measured value, not a new guess).
+
+Reading rules, fixed before any result:
+
+1. `c` vs `rand25` on BDD100K overall AP. If `c` is within 0.4 AP of `rand25` (not significantly
+   different), the old deficit was the road and the rigs and v7 is at parity: adopt it. If `c` is
+   still about 0.7 below `rand25`, run the ablation: scene content (fleet, truck share, rigs,
+   views, parking lots) reverted to v6 versus look and camera (night, roads, weather, camera
+   pitch and height, hood) reverted to v6, pedestrian density held at v7 in both.
+2. `c` vs `v7a`: the effect of the road and rig fixes alone, same scenes. Interpreted only if
+   significant (p < 0.05).
+3. `p` vs `c`: expected, from the supply test, person AP about +0.7 or more. If overall AP is also
+   higher than `c`, the v7 pedestrian density goes back to the v6 value (or a fitted one between).
+   If person AP rises but overall AP does not, more pedestrians are not a net gain here.
+4. Seed noise is about 0.3 AP, so a difference under 0.5 is not interpreted, and truck and bus AP
+   (noise 1 to 2) are reported but not used for decisions.
+
 ## Road gloss in clear weather: measured, and a dry road for v7
 
 The question left open by the generator audit: do roads look wet in clear weather? City Sample's

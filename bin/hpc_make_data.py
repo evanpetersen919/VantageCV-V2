@@ -23,9 +23,9 @@ below. Every file validates on the same 199 real images, so scores are comparabl
 * ``mixed_modal.yaml`` / ``mixed_25pct_modal.yaml`` -- the same v5 images with visible-part labels
   (``train2000_v5_modal``: boxes cover only what can be seen of a partly hidden object), at 100%
   and 25% real; written only if that folder is present
-* ``mixed_25pct_v7a.yaml`` -- 25% real + the 512-image v7 batch (``train_v7a``: train and val
-  frames together, 972 images in all, the size of ``mixed_25pct_rand``); written only if that
-  folder is present
+* ``mixed_25pct_v7a.yaml`` (and ``_v7c``, ``_v7p``) -- 25% real + a 512-image v7 batch
+  (``train_v7a``: train and val frames together, 972 images in all, the size of
+  ``mixed_25pct_rand``); each is written only if its folder is present
 * ``mixed_25pct_realism.yaml`` -- 25% real + the v5 synthetic images after the calibrated realism
   post-process (``train2000_v5_realism``; written only if that folder is present)
 
@@ -51,7 +51,11 @@ EXTRA_DIR = "bdd100k_control_extra"
 SYNTH_B_DIR = "train2000_v5b"
 REALISM_DIR = "train2000_v5_realism"
 MODAL_DIR = "train2000_v5_modal"
-V7A_DIR = "train_v7a"
+V7_BATCHES = (
+    "a",
+    "c",
+    "p",
+)  # train_v7a, train_v7c, train_v7p (see the v7 batch entries in the log)
 FRACTIONS = (25, 50)
 TRUCK_BUS = {2, 3}  # class ids of bus and truck in this project's four classes
 PERSON, BUS, TRUCK = 0, 2, 3
@@ -90,6 +94,20 @@ def _supply_files(
         "mixed_25pct_poor.yaml": data_yaml([quarter, poor], real["val"]),
         "mixed_25pct_rich.yaml": data_yaml([quarter, rich], real["val"]),
     }
+
+
+def _v7_batch_files(root: Path, out: Path, real: Dict[str, Path]) -> Dict[str, str]:
+    """25% real + each v7 batch folder that is present (``train_v7a``, ``train_v7c``, ...)."""
+    files: Dict[str, str] = {}
+    quarter = out / f"{REAL_DIR}_25pct_train.txt"
+    for letter in V7_BATCHES:
+        folder = f"train_v7{letter}"
+        if (root / folder).is_dir():
+            batch = write_rerooted_lists(root / folder, root / folder, out)
+            files[f"mixed_25pct_v7{letter}.yaml"] = data_yaml(
+                [quarter, batch["train"], batch["val"]], real["val"]
+            )
+    return files
 
 
 def main() -> None:
@@ -141,10 +159,7 @@ def main() -> None:
         files["mixed_modal.yaml"] = data_yaml([real["train"], modal["train"]], real["val"])
         files["mixed_25pct_modal.yaml"] = data_yaml([quarter, modal["train"]], real["val"])
 
-    if (args.root / V7A_DIR).is_dir():
-        v7a = write_rerooted_lists(args.root / V7A_DIR, args.root / V7A_DIR, args.out)
-        quarter = args.out / f"{REAL_DIR}_25pct_train.txt"
-        files["mixed_25pct_v7a.yaml"] = data_yaml([quarter, v7a["train"], v7a["val"]], real["val"])
+    files.update(_v7_batch_files(args.root, args.out, real))
 
     for name, content in files.items():
         (args.out / name).write_text(content, encoding="utf-8")
