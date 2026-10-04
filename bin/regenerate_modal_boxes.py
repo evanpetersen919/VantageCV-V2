@@ -50,23 +50,24 @@ def _link_images(dataset_dir: Path, out_dir: Path) -> None:
 
 
 def _frame_for(
-    image: Dict[str, Any], scenario: ScenarioResult, policy: AnnotationPolicy
+    image: Dict[str, Any], scenario: ScenarioResult, policy: AnnotationPolicy, modal: bool
 ) -> CocoFrame:
     """One image's freshly computed (modal) ``CocoFrame``, from its stored camera pose."""
     camera = camera_from_image_entry(image)
-    frame = render_frame(scenario, camera, image["id"], image["file_name"])
+    frame = render_frame(scenario, camera, image["id"], image["file_name"], modal=modal)
     frame, dropped = apply_policy(frame, policy)
     frame.metadata = {k: v for k, v in image.items() if k not in ("id", "file_name")}
     frame.metadata["dropped_annotations"] = dropped
     return frame
 
 
-def _part_for_scenario(
+def _part_for_scenario(  # pylint: disable=too-many-arguments,too-many-locals
     part_path: Path,
     seed: int,
     bounds: Bounds,
     config: ScenarioTypeConfig,
     policy: AnnotationPolicy,
+    modal: bool,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """One scenario's fresh (images, annotations) part, from its stored part file."""
     images = json.loads(part_path.read_text(encoding="utf-8"))["images"]
@@ -76,25 +77,32 @@ def _part_for_scenario(
     scenario = generate_scenario(
         seed, config, bounds, images[0]["scenario_id"], time_of_day=time_of_day
     )
-    frames = [_frame_for(image, scenario, policy) for image in images]
+    frames = [_frame_for(image, scenario, policy, modal) for image in images]
     coco = export_coco(frames, policy.profile)
     return coco["images"], coco["annotations"]
 
 
-def _regenerate(
-    dataset_dir: Path, config_path: Path, policy: AnnotationPolicy, store: DatasetStore
+def _regenerate(  # pylint: disable=too-many-arguments,too-many-locals
+    dataset_dir: Path,
+    config_path: Path,
+    policy: AnnotationPolicy,
+    store: DatasetStore,
+    modal: bool,
+    limit: int,
 ) -> None:
     """Save one part per scenario, with freshly computed (modal) boxes; skips finished ones."""
     manifest = json.loads((dataset_dir / "manifest.json").read_text(encoding="utf-8"))
     bounds = tuple(manifest["bounds"])
     config = load_scenario_config(config_path).model_copy(update={"parking_lot_fraction": 0.3})
     part_paths = sorted((dataset_dir / "parts").glob("scenario_*.json"))
+    if limit:
+        part_paths = part_paths[:limit]
     done = store.completed()
     for scenario_index, part_path in enumerate(part_paths):
         if scenario_index in done:
             continue
         seed = manifest["base_seed"] + scenario_index
-        images, annotations = _part_for_scenario(part_path, seed, bounds, config, policy)
+        images, annotations = _part_for_scenario(part_path, seed, bounds, config, policy, modal)
         store.save_part(scenario_index, images, annotations)
         if (scenario_index + 1) % 20 == 0:
             print(f"{scenario_index + 1}/{len(part_paths)} scenarios", flush=True)
@@ -108,13 +116,21 @@ def main() -> None:
     parser.add_argument(
         "--config", type=Path, default=Path("configs/scenario_templates/urban_dense.yaml")
     )
+    parser.add_argument(
+        "--amodal",
+        action="store_true",
+        help="keep whole-object boxes (to check that regeneration reproduces the source labels)",
+    )
+    parser.add_argument("--limit", type=int, default=0, help="only the first N scenarios")
     args = parser.parse_args()
 
     policy = AnnotationPolicy(COCO_PROFILE)
     store = DatasetStore(args.out, export_coco([], policy.profile)["categories"])
-    store.check_manifest({"source": str(args.dataset), "profile": policy.profile.name})
+    store.check_manifest(
+        {"source": str(args.dataset), "profile": policy.profile.name, "modal": not args.amodal}
+    )
     _link_images(args.dataset, args.out)  # independent of annotation progress; do it first
-    _regenerate(args.dataset, args.config, policy, store)
+    _regenerate(args.dataset, args.config, policy, store, not args.amodal, args.limit)
     coco = store.merge()
     print(
         f"done: {len(coco['images'])} images, {len(coco['annotations'])} annotations -> {args.out}"

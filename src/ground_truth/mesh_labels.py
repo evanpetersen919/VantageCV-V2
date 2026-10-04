@@ -60,23 +60,38 @@ def project_vertices(
 
 
 def tight_box_2d(
-    box: BoundingBox2D, pixels: npt.NDArray[np.float64], camera: Camera
+    box: BoundingBox2D, pixels: npt.NDArray[np.float64], camera: Camera, modal: bool = False
 ) -> Optional[BoundingBox2D]:
     """``box`` with its extent replaced by the projected vertices' extent, clipped to
-    the image; ``None`` if nothing of the object is inside the image."""
+    the image; ``None`` if nothing of the object is inside the image.
+
+    With ``modal`` a partly occluded object (``visible_fraction`` below 1) keeps only the part
+    of that extent inside ``box``, which ``filter_occluded`` has already shrunk to the visible
+    region: BDD100K and Cityscapes box what can be seen. Without it the box is the whole
+    object's extent, whatever hides it (how every dataset up to v6 was labelled, because this
+    function overwrote the shrunken box). Truncation is still measured on the image-clipped
+    extent, so occlusion is not counted as truncation.
+    """
     width, height = camera.intrinsics.width, camera.intrinsics.height
     x_min, y_min = np.clip(pixels.min(axis=0), 0.0, [width, height])
     x_max, y_max = np.clip(pixels.max(axis=0), 0.0, [width, height])
     if x_max <= x_min or y_max <= y_min:
         return None
     full_area = float(np.prod(pixels.max(axis=0) - pixels.min(axis=0)))
+    truncation = truncation_fraction(float((x_max - x_min) * (y_max - y_min)), full_area)
+    if modal and box.visible_fraction < 1.0:
+        x_min, y_min = max(x_min, box.x_min), max(y_min, box.y_min)
+        x_max, y_max = min(x_max, box.x_max), min(y_max, box.y_max)
+        if x_max <= x_min or y_max <= y_min:
+            x_min, y_min = np.clip(pixels.min(axis=0), 0.0, [width, height])
+            x_max, y_max = np.clip(pixels.max(axis=0), 0.0, [width, height])
     return replace(
         box,
         x_min=float(x_min),
         y_min=float(y_min),
         x_max=float(x_max),
         y_max=float(y_max),
-        truncation=truncation_fraction(float((x_max - x_min) * (y_max - y_min)), full_area),
+        truncation=truncation,
     )
 
 
@@ -93,6 +108,7 @@ def refine_with_meshes(
     camera: Camera,
     boxes_2d: List[BoundingBox2D],
     meshes: Dict[int, npt.NDArray[np.float64]],
+    modal: bool = False,
 ) -> Tuple[List[BoundingBox2D], Dict[int, npt.NDArray[np.float64]]]:
     """Replace the box-derived 2D box of every object that has a mesh with the tight
     box of its projected mesh; return the new boxes and the objects' silhouettes.
@@ -108,13 +124,13 @@ def refine_with_meshes(
         if pixels is None:
             refined.append(box)
             continue
-        tight = tight_box_2d(box, pixels, camera)
+        tight = tight_box_2d(box, pixels, camera, modal)
         if tight is None:
             continue  # the object's mesh lies entirely outside the image
         refined.append(tight)
         polygon = silhouette_polygon(pixels)
         if polygon is not None:
             silhouettes[box.object_id] = np.clip(
-                polygon, 0.0, [camera.intrinsics.width, camera.intrinsics.height]
+                polygon, [tight.x_min, tight.y_min], [tight.x_max, tight.y_max]
             )
     return refined, silhouettes
