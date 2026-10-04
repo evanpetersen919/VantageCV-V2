@@ -325,7 +325,7 @@ def default_overview_camera(bounds: Bounds, width: int = 1280, height: int = 720
 
 
 def render_frame(
-    scenario: ScenarioResult, camera: Camera, image_id: int, file_name: str
+    scenario: ScenarioResult, camera: Camera, image_id: int, file_name: str, modal: bool = False
 ) -> CocoFrame:
     """Project a scenario's buildings, vehicles, and pedestrians through
     ``camera`` into one COCO-ready frame.
@@ -334,7 +334,8 @@ def render_frame(
     ``vehicle_id``, ``pedestrian_id`` -- see their respective
     generators), so vehicles' and pedestrians' object_ids are offset by
     the preceding kinds' counts to keep the combined id space unique
-    within this frame.
+    within this frame. With ``modal`` a partly hidden object's box covers only its visible
+    part (see ``mesh_labels.tight_box_2d``).
     """
     vehicle_id_offset = len(scenario.buildings)
     pedestrian_id_offset = vehicle_id_offset + len(scenario.vehicles)
@@ -362,7 +363,7 @@ def render_frame(
         if bbox.category_id == PEDESTRIAN
     }
     bboxes_2d, silhouettes = refine_with_meshes(
-        camera, bboxes_2d, {**vehicle_meshes, **pedestrian_shapes}
+        camera, bboxes_2d, {**vehicle_meshes, **pedestrian_shapes}, modal
     )
 
     return CocoFrame(

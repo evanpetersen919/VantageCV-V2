@@ -277,8 +277,9 @@ NIGHT_ENVIRONMENT = EnvironmentConfig(
 #   this preset     ~31 / ~34 / ~22 (a half-stop above the 8.5 EV candidate that read
 #                   26 / 24 / 16), 0.82, 0.26 before the saturation was nudged up
 #
-# Exposure is +9.0 EV; the other settings are a dim (0.5 lux), cool (9000 K) moon, a faint sky
-# light, a slightly cool grade and reduced saturation. What it does not fix: the sky band is
+# Exposure is centred on +9.6 EV (see NIGHT_EXPOSURE_BIAS_RANGE_V7_EV); the other settings are
+# a dim (0.5 lux), cool (9000 K) moon, a faint sky light, a slightly cool grade and reduced
+# saturation. What it does not fix: the sky band is
 # still as bright as the mid band (BDD100K's is darker, 24 against 37), because the buildings
 # are lit by the moon; and the images are about five times sharper than BDD100K night frames
 # (Laplacian variance 360-440 against 78).
@@ -289,15 +290,17 @@ NIGHT_ENVIRONMENT_V7 = EnvironmentConfig(
     sky_light_intensity=0.1,
     rayleigh_scale=0.05,
     exposure_method="manual",
-    exposure_bias=9.0,
+    exposure_bias=9.6,
     saturation=0.4,
     color_gain=(0.9, 0.95, 1.05),
     fog_density=0.001,
 )
-# Manual exposure is an absolute setting, so the v7 night brightness spread is drawn around the
-# calibrated 9.0 EV with the same width the v6 range measured from BDD100K night frames (a
-# 15.6x brightness ratio, 3.97 stops): 7.0 to 11.0 EV.
-NIGHT_EXPOSURE_BIAS_RANGE_V7_EV: Tuple[float, float] = (7.0, 11.0)
+# Manual exposure is an absolute setting, so the v7 night brightness spread is drawn around a
+# centre with the same width the v6 range measured from BDD100K night frames (a 15.6x brightness
+# ratio, 3.97 stops). The first range, 7.0 to 11.0 EV (centre 9.0), rendered 16 probe night frames
+# with mean luminance 19 (top 17, mid 22, bottom 18) against BDD100K's 30 (24 / 37 / 31), so the
+# centre moves up 0.6 EV: 7.6 to 11.6 EV.
+NIGHT_EXPOSURE_BIAS_RANGE_V7_EV: Tuple[float, float] = (7.6, 11.6)
 
 
 class Weather(str, Enum):

@@ -94,7 +94,9 @@ def measure(args: argparse.Namespace) -> Dict[str, Any]:  # pylint: disable=too-
             continue
         for view_index, pose in enumerate(_views_for(scenario, views, BOUNDS, seed, args.profile)):
             camera = ue_camera(pose.position, pose.look_at, WIDTH, HEIGHT)
-            frame, _ = apply_policy(render_frame(scenario, camera, view_index, "x.png"), policy)
+            frame, _ = apply_policy(
+                render_frame(scenario, camera, view_index, "x.png", modal=v7 or args.modal), policy
+            )
             ids = {
                 box.object_id: frame.bboxes_3d_by_id[box.object_id].category_id
                 for box in frame.bboxes_2d
@@ -139,6 +141,9 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=None)
     parser.add_argument("--views", nargs="+", choices=["ego", "lot", "overview"], default=None)
     parser.add_argument("--parking-lot-fraction", type=float, default=None)
+    parser.add_argument(
+        "--modal", action="store_true", help="visible-part boxes (always on for v7)"
+    )
     parser.add_argument("--scenarios", type=int, default=100)
     parser.add_argument("--seed", type=int, default=50000)
     print(json.dumps(measure(parser.parse_args()), indent=1))

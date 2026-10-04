@@ -17,6 +17,9 @@ below. Every file validates on the same 199 real images, so scores are comparabl
 * ``mixed_25pct_notb.yaml`` / ``mixed_25pct_rand.yaml`` -- 25% real + the synthetic images with
   no truck or bus (both batches), vs 25% real + the same number of randomly chosen synthetic
   images (written only if ``train2000_v5b`` is present): do synthetic trucks/buses carry the gain?
+* ``mixed_modal.yaml`` / ``mixed_25pct_modal.yaml`` -- the same v5 images with visible-part labels
+  (``train2000_v5_modal``: boxes cover only what can be seen of a partly hidden object), at 100%
+  and 25% real; written only if that folder is present
 * ``mixed_25pct_realism.yaml`` -- 25% real + the v5 synthetic images after the calibrated realism
   post-process (``train2000_v5_realism``; written only if that folder is present)
 
@@ -40,6 +43,7 @@ REAL_DIR = "bdd100k_control"
 EXTRA_DIR = "bdd100k_control_extra"
 SYNTH_B_DIR = "train2000_v5b"
 REALISM_DIR = "train2000_v5_realism"
+MODAL_DIR = "train2000_v5_modal"
 FRACTIONS = (25, 50)
 TRUCK_BUS = {2, 3}  # class ids of bus and truck in this project's four classes
 POOL_SEED = 0
@@ -101,6 +105,12 @@ def main() -> None:
         processed = write_rerooted_lists(args.root / REALISM_DIR, args.root / REALISM_DIR, args.out)
         quarter = args.out / f"{REAL_DIR}_25pct_train.txt"
         files["mixed_25pct_realism.yaml"] = data_yaml([quarter, processed["train"]], real["val"])
+
+    if (args.root / MODAL_DIR).is_dir():
+        modal = write_rerooted_lists(args.root / MODAL_DIR, args.root / MODAL_DIR, args.out)
+        quarter = args.out / f"{REAL_DIR}_25pct_train.txt"
+        files["mixed_modal.yaml"] = data_yaml([real["train"], modal["train"]], real["val"])
+        files["mixed_25pct_modal.yaml"] = data_yaml([quarter, modal["train"]], real["val"])
 
     for name, content in files.items():
         (args.out / name).write_text(content, encoding="utf-8")
