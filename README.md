@@ -111,6 +111,13 @@ Real-benchmark AP (COCO-style, person/car/bus/truck), one change per version:
 | v6 | always-on material/surface appearance jitter | 4.1 / 6.4 | 6.6 / 12.1 |
 | *reference* | COCO-pretrained (no synthetic data) / real images only | 34.8 / 28.1 | 41.6 / 26.1 |
 
+**v7 at 25% real (instance-supply test, 3 seeds, AdamW).** A 510-image v7 supplement scored
+-0.9 AP below the same number of random v5 images on BDD100K (p = 0.047). Controlled selections from
+the older data show part of this is supply: pedestrian count drives person AP (550 / 1,256 / about
+2,000 persons in the supplement gave 14.8 / 15.5 / 16.4 person AP), while truck and bus counts do
+not move truck or bus AP. About 0.7 AP of the deficit is not supply and has not been traced yet.
+Details in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
+
 **Synthetic data helps at every real-data size tested, most when real data is scarce.** Added to 460 real
 BDD100K images it raises AP by +4.7 (18.2 to 22.9); to 919, +3.3; to 1,838, +2.0 (optimizer held fixed;
 three seeds each, p < 0.01 throughout).
@@ -132,7 +139,7 @@ Open problems the project is working on (evidence in [`EXPERIMENT_LOG.md`](EXPER
 - **Texture/shape bias:** randomize backgrounds so detectors learn object shape
   (started in `bin/stylize_backgrounds.py`; renderer-side randomization next).
 - **Camera realism:** roll, field of view and post-process effects need a small RPC/engine change.
-- **Scale and variance:** doubling the synthetic set to 3,691 images added little (about +0.9 AP at best), so the next effort goes to the classes and conditions where it trails real data most: trucks, buses and night.
+- **Scale and variance:** doubling the synthetic set to 3,691 images added little (about +0.9 AP at best). More pedestrians per scene helps person AP; more trucks and buses did not help truck or bus AP, so those are an appearance problem, not a count problem.
 - **3D labels and LiDAR:** computed but not exported (see
   [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)).
 
@@ -225,6 +232,11 @@ python bin/generate_live_dataset.py \
     --seed 0 \
     --out ./live_dataset/my_run
 ```
+
+`--profile v7` (with `--config configs/scenario_templates/urban_dense_v7.yaml`) renders the
+second-generation generator: fleet and pedestrian density matched to BDD100K, tractor-trailer rigs,
+dry roads, calibrated night, a hood overlay. The default `v6` behaviour is unchanged. v7 is not
+better yet: see the mixed-data results below.
 
 Runs a camera self-check against four known ground squares before rendering
 anything, and resumes cleanly if the game crashes mid-run (rerun the same
