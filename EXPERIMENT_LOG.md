@@ -1113,3 +1113,37 @@ The default road has a localized sheen, not a mirror; the rougher settings remov
 real value. The v7 profile now uses the second setting (`_DRY_SURFACES`) for every scene that is
 not raining, day and night; rain keeps its wet surfaces. The first v7 batch (`train_v7a`) was
 rendered before this change, so it has the default road. Nothing has been trained on this change.
+
+## Tractor-trailer rigs (the City Sample semi), built and checked by rendering
+
+The truck gap against equal-count real data (-3.0 AP) sits on large vehicles, and the generator had
+no articulated truck: the comment in `city_sample_assets.py` said no asset could couple the bare
+trailer to a cab. The full City Sample pack disagrees: the cab `vehTruck_vehicle08` has a
+`Trailer_Socket`, read with the read-only editor script `unreal_plugin/tools/inspect_trailer_socket.py`:
+root bone, **(-158.0, 0.000061, 149.0) cm, no rotation**. The trailer's origin is its hitch, so the
+trailer goes 1.58 m behind the cab's placement point on the same heading, on the ground (149 cm is
+the fifth-wheel height). The trailer's front face then sits 0.82 m ahead of the cab's rear face,
+over the tractor's rear chassis.
+
+**Implementation (Python only, no engine change):** a rig is one `Vehicle` (`trailer=True`) with one
+box that holds both parts (16.57 x 2.62 x 4.00 m, from the two measured boxes), one mesh (cab plus
+trailer, so occlusion, silhouettes and the visible-part box use the whole rig) and one label, as
+BDD100K and Cityscapes box a tractor-trailer as one truck. The trailer reaches the engine as a
+second static-mesh actor with its axle wheels, in the cab's paint. Rig tail lights sit at the
+trailer's rear; this also fixed the generic lamp placement, which assumed every box was centred on
+the mesh origin. The v7 fleet's truck list is now the rig and the large rigid truck; the bare
+tractor (no trailer) is gone. In 60 test scenarios none was rejected and 356 of 649 trucks were rigs
+(55%). Six new tests; the full suite passes (870).
+
+![Six rendered frames with a tractor-trailer rig: the trailer sits behind the cab on the same heading, the 3D box (magenta) and the 2D box and silhouette cover the whole rig as one truck](docs/images/tractor_trailer_rigs.jpg)
+
+*Overlay frames from five single-scenario probe renders (seeds 90076, 90081, 90094, 90121, 90150),
+picked offline for a rig clearly in view, not for how they look. Boxes: magenta 3D, white 2D,
+cyan silhouette.*
+
+**What is and is not checked.** Checked by rendering: the trailer attaches at the cab's rear with
+no visible gap or overlap, faces the same way, and one box and one silhouette cover the whole rig
+in views from the side, the front quarter and the rear. Not done: trailer tail lamps are carried
+from the box end, not measured; rigs stay straight (no articulation on a turn); only the one
+trailer (a box trailer with a green graphic) exists, so rig diversity is one shape in many
+paints. **Nothing has been trained on rigs**, so there is no result yet on truck AP.

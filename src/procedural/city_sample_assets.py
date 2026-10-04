@@ -149,6 +149,20 @@ VEHICLE_ASSET_PATHS: Dict[str, List[str]] = {
 _VEHICLE_FOLDER = "/Game/Vehicle"
 
 
+# The tractor-trailer rig: the cab vehicle08 and the bare trailer vehTruck_trailer01 that City
+# Sample ships. The cab's skeleton carries a ``Trailer_Socket`` on its root bone at
+# (-158.0, 0.000061, 149.0) cm with no rotation, read with
+# ``unreal_plugin/tools/inspect_trailer_socket.py``; the trailer's own origin is its hitch, so the
+# trailer is placed 1.58 m behind the cab's placement point on the same heading, on the ground
+# (149 cm is the fifth-wheel height). A fleet entry ending in ``RIG_SUFFIX`` is the cab plus that
+# trailer, one vehicle with one label.
+TRACTOR_FOLDER = "vehTruck_vehicle08"
+TRAILER_FOLDER = "vehTruck_trailer01"
+TRAILER_HITCH_X_M = -1.58
+RIG_SUFFIX = "+trailer"
+TRAILER_ID_OFFSET = 1_000_000
+
+
 def _body(folder: str) -> str:
     return f"{_VEHICLE_FOLDER}/{folder}/Mesh/SM_Frame_{folder}"
 
@@ -165,7 +179,10 @@ FLEET_MODEL_WEIGHTS: Dict[str, Dict[str, Dict[str, float]]] = {
             _body("vehCar_vehicle12"): 0.10,
             _body("vehCar_vehicle13"): 0.05,
         },
-        "truck": {_body("vehTruck_vehicle08"): 1.0, _body("vehTruck_vehicle11"): 1.0},
+        "truck": {
+            _body(TRACTOR_FOLDER) + RIG_SUFFIX: 1.0,
+            _body("vehTruck_vehicle11"): 1.0,
+        },
         "bus": {_body("vehBus_vehicle10"): 1.0},
     }
 }

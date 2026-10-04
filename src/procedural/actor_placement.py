@@ -42,6 +42,7 @@ from src.procedural.city_sample_assets import (
     PEDESTRIAN_WALKING_CLIP,
     PEDESTRIAN_WALKING_DYNAMIC_WINDOWS,
     PEDESTRIAN_WALKING_POSE_BIAS_FRACTION,
+    RIG_SUFFIX,
     VEHICLE_ASSET_PATHS,
     fleet_models,
     pedestrian_face_and_hair,
@@ -72,6 +73,7 @@ from src.procedural.traffic_network import (
     TrafficNetwork,
 )
 from src.procedural.vehicle_bounds import VEHICLE_MODEL_BOUNDS
+from src.procedural.vehicle_rig import RIG_BOUNDS
 from src.procedural.vehicle_spacing import (
     moving_regime,
     queued_regime,
@@ -196,6 +198,9 @@ class Vehicle:  # pylint: disable=too-many-instance-attributes
     # the box's underside above the surface. Zero for a generic box.
     box_offset: Tuple[float, float] = (0.0, 0.0)
     box_z_min: float = 0.0
+    # A tractor-trailer rig: ``asset_path`` is the cab, the trailer hitched behind it is part of
+    # this vehicle (box, mesh and label cover both; see vehicle_rig.py).
+    trailer: bool = False
 
     @property
     def box_center(self) -> npt.NDArray[np.float64]:
@@ -284,10 +289,13 @@ def _edge_heading(edge: RoadEdge) -> float:
 
 
 def vehicle_box(
-    asset_path: str, vehicle_type: str
+    asset_path: str, vehicle_type: str, trailer: bool = False
 ) -> Tuple[float, float, float, float, float, float]:
     """(length, width, height, center_x, center_y, z_min) of a vehicle's real
-    box: measured for the model when known, else the type's generic size."""
+    box: measured for the model when known, else the type's generic size. With ``trailer`` the
+    box holds the cab and the trailer hitched behind it."""
+    if trailer:
+        return RIG_BOUNDS
     measured = VEHICLE_MODEL_BOUNDS.get(
         asset_path.split("/")[3] if asset_path.count("/") > 3 else ""
     )
@@ -611,7 +619,12 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         (its brake lights are on when the scenario is lit for night)."""
         vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
         asset_path = _sample_asset_path(self.rng, vehicle_type, self.config.fleet)
-        length, width, height, offset_x, offset_y, z_min = vehicle_box(asset_path, vehicle_type)
+        trailer = asset_path.endswith(RIG_SUFFIX)
+        if trailer:
+            asset_path = asset_path[: -len(RIG_SUFFIX)]
+        length, width, height, offset_x, offset_y, z_min = vehicle_box(
+            asset_path, vehicle_type, trailer
+        )
         if front_bumper_at_position:
             # The stop line is where the FRONT bumper sits: half the box's length
             # ahead of its center, which is itself ``offset_x`` ahead of the
@@ -631,6 +644,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
             braking=braking,
             box_offset=(offset_x, offset_y),
             box_z_min=z_min,
+            trailer=trailer,
         )
         if any(_aabb_overlap(candidate.aabb, other) for other in placed_vehicle_aabbs):
             return None

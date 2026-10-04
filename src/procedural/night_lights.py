@@ -189,15 +189,18 @@ def _generic_lamp_positions(
     """Headlight and tail-light positions for a model with no measured
     lamps: the generic vehicle-type length/width, just outside the body."""
     half = vehicle.length / 2.0
+    # The box is centred ``box_offset[0]`` ahead of the mesh origin (almost nothing for a car, 5 m
+    # behind it for a tractor-trailer rig), and the lamps sit at the box's ends.
+    centre = vehicle.box_offset[0]
     heads = _lamp_world_positions(
         vehicle,
-        half + LAMP_OUTSET_BEYOND_BODY_M,
+        centre + half + LAMP_OUTSET_BEYOND_BODY_M,
         vehicle.width * HEADLIGHT_LATERAL_FRACTION_OF_WIDTH,
         HEADLIGHT_HEIGHT_M,
     )
     tails = _lamp_world_positions(
         vehicle,
-        -(half + LAMP_OUTSET_BEYOND_BODY_M),
+        centre - (half + LAMP_OUTSET_BEYOND_BODY_M),
         vehicle.width * TAILLIGHT_LATERAL_FRACTION_OF_WIDTH,
         TAILLIGHT_HEIGHT_M,
     )

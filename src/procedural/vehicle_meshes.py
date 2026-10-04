@@ -14,6 +14,8 @@ import numpy as np
 import numpy.typing as npt
 
 from src.procedural.actor_placement import Vehicle
+from src.procedural.city_sample_assets import TRAILER_FOLDER
+from src.procedural.vehicle_rig import with_trailer
 
 MESH_FILE = Path(__file__).with_name("vehicle_meshes.npz")
 
@@ -46,12 +48,17 @@ def model_mesh(folder: str) -> Optional[Tuple[npt.NDArray[np.float64], npt.NDArr
 def world_triangles(vehicle: Vehicle) -> Optional[npt.NDArray[np.float64]]:
     """The vehicle's mesh placed in the world as a (T, 3, 3) triangle array, or ``None``.
 
-    Applies the vehicle's heading about z and its placement point and surface height.
+    Applies the vehicle's heading about z and its placement point and surface height. A
+    tractor-trailer rig's mesh is the cab's followed by the trailer's at the hitch.
     """
     mesh = model_mesh(model_folder(vehicle.asset_path))
     if mesh is None:
         return None
     vertices, indices = mesh
+    if vehicle.trailer:
+        trailer_mesh = model_mesh(TRAILER_FOLDER)
+        if trailer_mesh is not None:
+            vertices, indices = with_trailer(vertices, indices, *trailer_mesh)
     cos_h, sin_h = np.cos(vehicle.heading_rad), np.sin(vehicle.heading_rad)
     rotated = np.column_stack(
         [

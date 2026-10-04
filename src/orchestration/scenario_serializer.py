@@ -19,7 +19,10 @@ transform entries for real City Sample content. Vehicles (``category:
 populate ``"assets"``.
 """
 
+import dataclasses
 from typing import Any, Dict, List, Optional
+
+import numpy as np
 
 from src.orchestration.dataset_generator import ScenarioResult
 from src.procedural.actor_placement import Pedestrian, Vehicle
@@ -27,7 +30,13 @@ from src.procedural.block_pavement import build_block_pavement_meshes
 from src.procedural.building_colors import wall_slot_vectors
 from src.procedural.building_facade import FacadePiece
 from src.procedural.building_lights import glass_scalar_overrides, night_glass_replacements
-from src.procedural.city_sample_assets import PEDESTRIAN_MESH_FORWARD_OFFSET_RAD, VEHICLE_PART_PATHS
+from src.procedural.city_sample_assets import (
+    PEDESTRIAN_MESH_FORWARD_OFFSET_RAD,
+    TRAILER_FOLDER,
+    TRAILER_HITCH_X_M,
+    TRAILER_ID_OFFSET,
+    VEHICLE_PART_PATHS,
+)
 from src.procedural.environment import EnvironmentConfig, TimeOfDay, build_ground_mesh
 from src.procedural.intersection_pavement import build_intersection_pavement_meshes
 from src.procedural.mesh_factory import Mesh
@@ -69,6 +78,26 @@ def _vehicle_folder_name(asset_path: str) -> str:
     parts = asset_path.split("/")
     # ["", "Game", "Vehicle", "<folder>", "Mesh", ...] -- index 3.
     return parts[3] if len(parts) > 3 else ""
+
+
+def _trailer_to_asset_json(vehicle: Vehicle) -> Dict[str, Any]:
+    """The trailer of a tractor-trailer rig as its own actor: the trailer body and axle wheels, its
+    origin (its hitch) ``TRAILER_HITCH_X_M`` behind the cab's placement point on the same heading,
+    in the cab's paint. The engine only needs a second static-mesh vehicle; the labels treat both
+    actors as the one rig vehicle (``Vehicle.trailer``)."""
+    forward = np.array([np.cos(vehicle.heading_rad), np.sin(vehicle.heading_rad)])
+    x, y = np.asarray(vehicle.center, dtype=np.float64) + forward * TRAILER_HITCH_X_M
+    trailer_path = f"/Game/Vehicle/{TRAILER_FOLDER}/Mesh/SM_Frame_{TRAILER_FOLDER}"
+    entry = _vehicle_to_asset_json(
+        dataclasses.replace(
+            vehicle,
+            vehicle_id=vehicle.vehicle_id + TRAILER_ID_OFFSET,
+            asset_path=trailer_path,
+            center=np.array([x, y]),
+            trailer=False,
+        )
+    )
+    return entry
 
 
 def _vehicle_to_asset_json(vehicle: Vehicle) -> Dict[str, Any]:
@@ -274,6 +303,7 @@ def serialize_scenario(
     meshes: List[Dict[str, Any]] = [_mesh_to_json(mesh) for mesh in result.meshes]
     night = result.time_of_day == TimeOfDay.NIGHT
     assets: List[Dict[str, Any]] = [_vehicle_to_asset_json(v) for v in result.vehicles]
+    assets += [_trailer_to_asset_json(v) for v in result.vehicles if v.trailer]
     for piece_id, piece in enumerate(result.building_facade_pieces):
         replacements = (
             night_glass_replacements(piece.asset_path, result.building_piece_room_ids[piece_id])
