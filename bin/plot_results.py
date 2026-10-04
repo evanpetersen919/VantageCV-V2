@@ -40,7 +40,7 @@ def _style(axis: Axes) -> None:
     axis.set_axisbelow(True)
 
 
-def figure_benefit(out: Path) -> None:
+def figure_benefit(out: Path) -> None:  # pylint: disable=too-many-locals
     """BDD100K AP against the number of real images, with and without synthetic images."""
     real = [
         ("hpc_real25", 460),
@@ -72,6 +72,17 @@ def figure_benefit(out: Path) -> None:
             markeredgewidth=2,
             capsize=3,
             label=label,
+        )
+    for (real_arm, size), (mixed_arm, _) in zip(real, first):
+        low, high = _ap(real_arm)[0], _ap(mixed_arm)[0]
+        axis.vlines(size * 1.035, low, high, color=INK_2, linewidth=1.2)
+        axis.annotate(
+            f"+{high - low:.1f} AP",
+            (size * 1.06, (low + high) / 2),
+            color=INK,
+            fontsize=10.5,
+            fontweight="bold",
+            va="center",
         )
     axis.legend(loc="upper left", frameon=False, fontsize=10.5, labelcolor=INK)
     axis.set_xscale("log")
@@ -196,8 +207,69 @@ def figure_gap(out: Path) -> None:
     fig.savefig(out / "results_gap_by_class.png", facecolor=SURFACE)
 
 
+def figure_supply(out: Path) -> None:
+    """Person AP against the persons in a 510-image supplement (25% real, same recipe)."""
+    arms = [("hpc_poor25", 547), ("hpc_rand25", 1256), ("hpc_rich25", 2052)]
+    names = ["fewer persons", "random images", "more persons"]
+    stats = []
+    for arm, _ in arms:
+        runs = arm_runs(RESULTS, arm, "bdd100k", EXCLUDE)
+        stats.append(mean_sd([metric(run, "class:person") for run in runs]))
+    fig = Figure(figsize=(8.2, 4.4), dpi=170, facecolor=SURFACE)
+    axis = fig.add_subplot()
+    _style(axis)
+    xs = [persons for _, persons in arms]
+    axis.errorbar(
+        xs,
+        [m for m, _ in stats],
+        yerr=[sd for _, sd in stats],
+        color=BLUE,
+        linewidth=2,
+        marker="o",
+        markersize=9,
+        markeredgecolor=SURFACE,
+        markeredgewidth=2,
+        capsize=3,
+    )
+    for x, (mean, _), name in zip(xs, stats, names):
+        axis.annotate(
+            f"{mean:.1f}\n{name}",
+            (x, mean),
+            textcoords="offset points",
+            xytext=(0, -52),
+            ha="center",
+            color=INK,
+            fontsize=10.5,
+        )
+    axis.set_xscale("log")
+    axis.set_xticks(xs)
+    axis.set_xticklabels([f"{x:,}" for x in xs])
+    axis.minorticks_off()
+    axis.set_xlim(430, 2700)
+    axis.set_ylim(13.9, 17.0)
+    axis.set_xlabel("persons in the 510-image synthetic supplement", color=INK_2)
+    axis.set_ylabel("BDD100K person AP (mean of 3 seeds, bar = sd)", color=INK_2)
+    axis.set_title(
+        "More pedestrians in the synthetic data, better pedestrian detection",
+        color=INK,
+        loc="left",
+        fontsize=13,
+    )
+    fig.text(
+        0.01,
+        0.01,
+        "25% real BDD100K + 510 synthetic images chosen for few, random or many persons. "
+        "Same recipe, AdamW, 3 seeds.\nTruck and bus AP did not follow their counts "
+        "(see EXPERIMENT_LOG.md).",
+        color=INK_2,
+        fontsize=8.5,
+    )
+    fig.tight_layout(rect=(0, 0.07, 1, 1))
+    fig.savefig(out / "results_person_supply.png", facecolor=SURFACE)
+
+
 def main() -> None:
-    """Draw all three figures into ``--out``."""
+    """Draw all four figures into ``--out``."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n", maxsplit=1)[0])
     parser.add_argument("--out", type=Path, default=Path("docs/images"))
     args = parser.parse_args()
@@ -205,6 +277,7 @@ def main() -> None:
     figure_benefit(args.out)
     figure_control(args.out)
     figure_gap(args.out)
+    figure_supply(args.out)
     print("wrote", sorted(p.name for p in args.out.glob("results_*.png")))
 
 

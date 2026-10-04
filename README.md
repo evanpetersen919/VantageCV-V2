@@ -118,6 +118,8 @@ the older data show part of this is supply: pedestrian count drives person AP (5
 not move truck or bus AP. About 0.7 AP of the deficit is not supply and has not been traced yet.
 Details in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
 
+![BDD100K person AP against the number of persons in a 510-image synthetic supplement](docs/images/results_person_supply.png)
+
 **Synthetic data helps at every real-data size tested, most when real data is scarce.** Added to 460 real
 BDD100K images it raises AP by +4.7 (18.2 to 22.9); to 919, +3.3; to 1,838, +2.0 (optimizer held fixed;
 three seeds each, p < 0.01 throughout).
