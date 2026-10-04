@@ -2,8 +2,7 @@
 
     PYTHONPATH=. python bin/plot_results.py --out docs/images
 
-Points are the mean over seeds with the sample standard deviation as the error bar; an arm with
-two usable seeds (the AdamW 1,838 real + 1,838 synthetic arm, one seed was invalid) is marked.
+Points are the mean over three seeds with the sample standard deviation as the error bar.
 """
 
 import argparse
@@ -20,7 +19,7 @@ INK = "#0b0b0b"
 INK_2 = "#52514e"
 GRID = "#e4e3df"
 BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
-EXCLUDE = ("hpc_adamw_mixed_s1",)
+EXCLUDE: Tuple[str, ...] = ()
 RESULTS = Path("results")
 
 
@@ -89,7 +88,7 @@ def figure_benefit(out: Path) -> None:
         0.01,
         0.01,
         "All points use AdamW (chosen automatically for small runs, fixed for larger ones).\n"
-        "The 1,838 real + 1,838 synthetic point has 2 seeds; the others have 3.",
+        "3 seeds each.",
         color=INK_2,
         fontsize=8.5,
     )
@@ -101,7 +100,7 @@ def figure_control(out: Path) -> None:
     """At 1,838 real images: what synthetic images add, and what real images add."""
     arms: List[Tuple[str, str]] = [
         ("hpc_adamw_real400", "1,838 real\n(step-matched)"),
-        ("hpc_adamw_mixed", "+ 1,838 synthetic\n(2 seeds)"),
+        ("hpc_adamw_mixed", "+ 1,838 synthetic"),
         ("hpc_adamw_mixedbig", "+ 3,691 synthetic"),
         ("hpc_adamw_real3676", "3,676 real"),
     ]
@@ -145,7 +144,7 @@ def figure_control(out: Path) -> None:
         0.01,
         0.01,
         "Blue: real images only. Orange: real + synthetic. Same optimizer (AdamW), "
-        "same recipe, 3 seeds unless marked.",
+        "same recipe, 3 seeds.",
         color=INK_2,
         fontsize=8.5,
     )

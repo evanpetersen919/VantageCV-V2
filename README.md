@@ -112,8 +112,8 @@ Real-benchmark AP (COCO-style, person/car/bus/truck), one change per version:
 | *reference* | COCO-pretrained (no synthetic data) / real images only | 34.8 / 28.1 | 41.6 / 26.1 |
 
 **Synthetic data helps at every real-data size tested, most when real data is scarce.** Added to 460 real
-BDD100K images it raises AP by +4.7 (18.2 to 22.9); to 919, +3.3; to 1,838, about +2 (optimizer held fixed;
-two seeds of that arm, a third is being re-run; three seeds elsewhere, p < 0.01 for the first two).
+BDD100K images it raises AP by +4.7 (18.2 to 22.9); to 919, +3.3; to 1,838, +2.0 (optimizer held fixed;
+three seeds each, p < 0.01 throughout).
 It is not a substitute: the same number of real images scores 2-3 AP higher, and roughly 3 to 7 synthetic
 images are worth one real one.
 
