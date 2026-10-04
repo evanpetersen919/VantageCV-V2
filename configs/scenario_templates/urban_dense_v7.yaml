@@ -1,0 +1,35 @@
+# Urban Dense, v7 realism profile: traffic mix matched to measured BDD100K class shares.
+# Same layout as urban_dense.yaml; only the traffic block differs (see EXPERIMENT_LOG.md).
+version: "1.0"
+scenario_type: urban_dense
+
+road_network:
+  avg_block_size: [80.0, 150.0]      # meters, uniform range
+  avg_road_width: 12.0               # meters
+  num_intersections: [4, 9]
+  intersection_types: ["4way", "3way"]
+
+buildings:
+  building_density: 0.8              # coverage ratio
+  building_heights: [20.0, 40.0]     # meters
+  road_setback_meters: 2.0           # narrow sidewalk, buildings close to the curb
+  parking_lot_fraction: 0.1          # share of blocks holding a surface lot (design choice)
+
+traffic:
+  traffic_density: [0.6, 1.0]
+  # v7 fleet (see city_sample_assets.FLEET_MODEL_WEIGHTS): pickups and vans count as cars, as
+  # BDD100K does (its trucks are 4.1% of car boxes; the US pickup share alone is 18%). City
+  # Sample has no SUV model, so "sedan" stands in for cars and SUVs. Shares: trucks 4% and
+  # buses 1.5% of vehicles = 4.3% and 1.6% of car boxes, the measured BDD100K ratios
+  # (0.42 and 0.16 per image against 10.2 cars).
+  fleet: v7
+  vehicle_mix:
+    sedan: 0.74
+    suv: 0.205
+    truck: 0.04
+    bus: 0.015
+  # A person appears in 44% of real city-street frames (BDD100K val); the v5 setting of
+  # 0.3 gave 94%. Drawn per scenario so some scenes have none and some a crowd.
+  pedestrian_density_fraction: [0.0, 0.14]
+
+complexity_score: 80

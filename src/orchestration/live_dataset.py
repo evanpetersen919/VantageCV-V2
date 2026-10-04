@@ -33,6 +33,7 @@ from src.orchestration.camera_sampling import (
 )
 from src.orchestration.dataset_generator import Bounds, generate_scenario, render_frame
 from src.orchestration.dataset_store import DatasetStore
+from src.orchestration.hood import clip_to_hood, hood_top_row, paint_hood
 from src.orchestration.live_render import (
     RECOVERABLE_ERRORS,
     GameUnavailableError,
@@ -54,7 +55,7 @@ T = TypeVar("T")
 DEFAULT_VIEWS: Tuple[str, ...] = ("ego", "ego", "overview")
 
 
-def draw_conditions(seed: int) -> Tuple[TimeOfDay, Weather]:
+def draw_conditions(seed: int, profile: str = "v6") -> Tuple[TimeOfDay, Weather]:
     """Time of day and weather for ``seed``, each from its own RNG stream.
 
     ``NIGHT_SHARE`` of scenarios are at night, matching BDD100K val's own measured
@@ -65,7 +66,7 @@ def draw_conditions(seed: int) -> Tuple[TimeOfDay, Weather]:
     rng = np.random.Generator(np.random.PCG64([seed, 0x7D1A]))
     if rng.random() < NIGHT_SHARE:
         return TimeOfDay.NIGHT, Weather.RAIN if rng.random() < NIGHT_RAIN_SHARE else Weather.CLEAR
-    return TimeOfDay.DAY, draw_weather(seed)
+    return TimeOfDay.DAY, draw_weather(seed, profile)
 
 
 @dataclass
@@ -81,7 +82,7 @@ class LiveDatasetResult:
 
 
 def _views_for(
-    scenario: Any, views: Tuple[str, ...], bounds: Bounds, seed: int
+    scenario: Any, views: Tuple[str, ...], bounds: Bounds, seed: int, profile: str = "v6"
 ) -> List[CameraPose]:
     """The camera poses for one scenario; ego and lot views that find no valid pose are dropped."""
     rng = np.random.Generator(np.random.PCG64([seed, 0x51C3]))
@@ -92,10 +93,25 @@ def _views_for(
         elif kind == "lot":
             pose = sample_lot_pose(scenario, rng, bounds)
         else:
-            pose = sample_ego_pose(scenario, rng, bounds)
+            pose = sample_ego_pose(scenario, rng, bounds, profile)
         if pose is not None:
             poses.append(pose)
     return poses
+
+
+def _add_hood(image_path: Path, seed: int, view_index: int, profile: str) -> Optional[int]:
+    """Paint a hood over the captured frame (v7 only, ego views of a random half); return its
+    highest row, or ``None`` when the frame has none."""
+    if profile != "v7":
+        return None
+    rng = np.random.Generator(np.random.PCG64([seed, 0x400D, view_index]))
+    with Image.open(image_path) as source:
+        picture = source.convert("RGB")
+    top_row = hood_top_row(rng, picture.height)
+    if top_row is None:
+        return None
+    paint_hood(picture, top_row, rng).save(image_path)
+    return top_row
 
 
 def _save_qa(frame: CocoFrame, image_path: Path, qa_path: Path) -> None:
@@ -136,15 +152,16 @@ def _frame_metadata(
     }
 
 
-def _settings(
+def _settings(  # pylint: disable=too-many-arguments
     config: ScenarioTypeConfig,
     bounds: Bounds,
     views: Tuple[str, ...],
     base_seed: int,
     policy: AnnotationPolicy,
+    profile: str = "v6",
 ) -> Dict[str, Any]:
     """The settings a run is identified by; a resume must match them."""
-    return {
+    settings: Dict[str, Any] = {
         "config_hash": hashlib.sha1(config.model_dump_json().encode("utf-8")).hexdigest(),
         "bounds": list(bounds),
         "views": list(views),
@@ -154,6 +171,9 @@ def _settings(
         "vertical_fov_deg": round(vertical_fov_deg(), 4),
         "annotation_policy": policy.settings(),
     }
+    if profile != "v6":
+        settings["profile"] = profile
+    return settings
 
 
 async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-locals
@@ -165,30 +185,36 @@ async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-local
     views: Tuple[str, ...],
     seed: int,
     policy: AnnotationPolicy,
+    profile: str = "v6",
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Generate, load and photograph one scenario; return its COCO images and annotations.
 
     A scenario the validator rejects has no frames (empty lists), the same every time.
     """
-    conditions = draw_conditions(seed)
+    conditions = draw_conditions(seed, profile)
     try:
         scenario = generate_scenario(
             seed, config, bounds, f"live_{index:04d}", time_of_day=conditions[0]
         )
     except ValueError:
         return [], []
-    environment = scenario_environment(scenario.season, conditions[0], conditions[1], seed)
+    environment = scenario_environment(scenario.season, conditions[0], conditions[1], seed, profile)
     await renderer.load(serialize_scenario(scenario, environment))
     frames: List[CocoFrame] = []
-    for view_index, pose in enumerate(_views_for(scenario, views, bounds, seed)):
+    for view_index, pose in enumerate(_views_for(scenario, views, bounds, seed, profile)):
         name = f"{scenario.scenario_id}_{view_index}_{pose.kind}"
         image_path = output_dir / "images" / f"{name}.png"
         width, height = await renderer.capture(pose.position, pose.look_at, image_path)
+        hood_row = _add_hood(image_path, seed, view_index, profile)
         camera = ue_camera(pose.position, pose.look_at, width, height)
         image_id = index * MAX_VIEWS_PER_SCENARIO + view_index
         frame = render_frame(scenario, camera, image_id, f"images/{name}.png")
         frame, dropped = apply_policy(frame, policy)
+        if hood_row is not None:
+            frame = clip_to_hood(frame, hood_row, policy.min_box_height_px)
         frame.metadata = _frame_metadata(scenario, conditions, seed, pose)
+        if hood_row is not None:
+            frame.metadata["hood_top_px"] = hood_row
         frame.metadata["dropped_annotations"] = dropped
         _save_qa(frame, image_path, output_dir / "qa" / f"{name}.png")
         frames.append(frame)
@@ -230,6 +256,7 @@ async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arg
     base_seed: int,
     views: Tuple[str, ...] = DEFAULT_VIEWS,
     policy: Optional[AnnotationPolicy] = None,
+    profile: str = "v6",
 ) -> LiveDatasetResult:
     """Render ``num_scenarios`` scenarios x ``views``, resuming any earlier run in ``output_dir``.
 
@@ -240,7 +267,7 @@ async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arg
     started = time.perf_counter()
     policy = policy or AnnotationPolicy()
     store = DatasetStore(output_dir, export_coco([], policy.profile)["categories"])
-    store.check_manifest(_settings(config, bounds, views, base_seed, policy))
+    store.check_manifest(_settings(config, bounds, views, base_seed, policy, profile))
     result = LiveDatasetResult()
     if any(store.load_part(index) is None for index in range(num_scenarios)):
         result.calibration_error_px = await _with_recovery(
@@ -273,6 +300,7 @@ async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arg
                     views,
                     base_seed + index,
                     policy,
+                    profile,
                 ),
             )
             store.save_part(index, images, annotations)

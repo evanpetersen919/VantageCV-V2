@@ -72,6 +72,11 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
     cloud_layer_height_km: Optional[float] = None
     fog_color: Optional[Tuple[float, float, float]] = None
     color_gain: Optional[Tuple[float, float, float]] = None
+    # Auto-exposure limits (the plugin's "exposure" object): None keeps the engine's own range.
+    # A low maximum stops auto-exposure lifting a dark night sky to the brightness of the
+    # scene.
+    exposure_min_brightness: Optional[float] = None
+    exposure_max_brightness: Optional[float] = None
     ground_half_extent_m: float = 3000.0
     ground_uv_tile_m: float = 2.0
     ground_z_m: float = -0.02
@@ -154,9 +159,22 @@ class EnvironmentConfig:  # pylint: disable=too-many-instance-attributes
             }
         return weather
 
+    def _exposure_json(self) -> Dict[str, Any]:
+        """The ``"exposure"`` object, present only when a limit is set."""
+        limits = {
+            name: value
+            for name, value in (
+                ("min_brightness", self.exposure_min_brightness),
+                ("max_brightness", self.exposure_max_brightness),
+            )
+            if value is not None
+        }
+        return {"exposure": limits} if limits else {}
+
     def to_json(self) -> Dict[str, Any]:
         """The ``"environment"`` object the UE5 loader parses."""
         return {
+            **self._exposure_json(),
             "hide_template_terrain": self.hide_template_terrain,
             "sun": self._sun_json(),
             "fog": self._fog_json(),
@@ -238,6 +256,26 @@ NIGHT_ENVIRONMENT = EnvironmentConfig(
     saturation=0.7,
     color_gain=(0.6, 0.8, 1.3),
     fog_density=0.001,
+)
+
+
+# Night preset of the v7 profile. The v6 night keeps a cool 10000 K "moon" at -22 degrees with
+# a blue-heavy colour gain, and measured against BDD100K night frames its sky is twice as bright
+# (top-band luminance 48 against 24) and blue (blue/red 2.03 against 0.87) because the grade and
+# the auto-exposure lift it. This one lights the scene from a dim, warmer, lower source with a
+# neutral grade and a capped auto-exposure; the numbers are calibrated against those two
+# measurements by ``bin/calibrate_night.py``, not set by eye.
+NIGHT_ENVIRONMENT_V7 = EnvironmentConfig(
+    sun_pitch_deg=-22.0,
+    sun_temperature_k=6500.0,
+    sun_intensity_lux=0.3,
+    sky_light_intensity=0.15,
+    rayleigh_scale=0.05,
+    exposure_bias=-1.0,
+    saturation=0.55,
+    color_gain=(1.0, 0.92, 0.85),
+    fog_density=0.001,
+    exposure_max_brightness=2.0,
 )
 
 
@@ -364,12 +402,29 @@ WEATHER_SHARES: Dict[Weather, float] = {
 }
 
 
-def draw_weather(seed: int) -> Weather:
-    """A weather for ``seed`` by ``WEATHER_SHARES``, from its own RNG stream
-    (so no other draw in a scenario changes)."""
+# The v7 weather shares, moved toward BDD100K val's measured daytime shares (10,000 images;
+# clear 33.5%, overcast 19.8%, partly cloudy 12.1%, rainy 7.5%, snowy 8.0%, foggy 0.1%, and 19%
+# unlabelled): fog down from 7% to 1% (it is 0.1% in the real data, and the v6 fog barely
+# showed), rain from 15% to 9%, clear and overcast up. There is no snow in the generator, so
+# its 8% is a known gap. The low-sun presets stand in for BDD100K's 7.8% dawn/dusk.
+WEATHER_SHARES_V7: Dict[Weather, float] = {
+    Weather.CLEAR: 0.45,
+    Weather.OVERCAST: 0.24,
+    Weather.RAIN: 0.09,
+    Weather.FOG: 0.01,
+    Weather.GOLDEN_HOUR: 0.08,
+    Weather.SUNSET: 0.06,
+    Weather.DAWN_HAZE: 0.07,
+}
+
+
+def draw_weather(seed: int, profile: str = "v6") -> Weather:
+    """A weather for ``seed`` by ``WEATHER_SHARES`` (``WEATHER_SHARES_V7`` for the v7 profile),
+    from its own RNG stream (so no other draw in a scenario changes)."""
     rng = np.random.Generator(np.random.PCG64([seed, 0x9E47]))
-    weathers = list(WEATHER_SHARES)
-    shares = np.array([WEATHER_SHARES[weather] for weather in weathers])
+    table = WEATHER_SHARES_V7 if profile == "v7" else WEATHER_SHARES
+    weathers = list(table)
+    shares = np.array([table[weather] for weather in weathers])
     return weathers[int(rng.choice(len(weathers), p=shares / shares.sum()))]
 
 
@@ -476,11 +531,32 @@ def _vary_material_appearance(env: EnvironmentConfig, seed: int) -> EnvironmentC
     )
 
 
-def scenario_environment(
+def _scenario_environment_v7(
+    season: Season, time_of_day: TimeOfDay, weather: Weather, seed: Optional[int]
+) -> EnvironmentConfig:
+    """The v7 environment: the dimmer neutral night, fog that starts at the camera, and none of
+    v6's always-on material jitter (whose wide roughness range made roads look wet)."""
+    if time_of_day == TimeOfDay.NIGHT:
+        base = NIGHT_ENVIRONMENT_V7
+        if weather == Weather.RAIN:
+            base = dataclasses.replace(base, **_NIGHT_RAIN_OVERRIDES)
+            return base if seed is None else _vary_rain(_vary_night_brightness(base, seed), seed)
+        if weather != Weather.CLEAR:
+            raise ValueError(f"weather {weather.value!r} is not defined for night scenarios")
+        return base if seed is None else _vary_night_brightness(base, seed)
+    overrides = dict(_WEATHER_OVERRIDES[weather])
+    if weather == Weather.FOG:
+        overrides["fog_start_distance_m"] = 0.0
+    env = dataclasses.replace(season_environment(season), **overrides)
+    return _vary_rain(env, seed) if weather == Weather.RAIN and seed is not None else env
+
+
+def scenario_environment(  # pylint: disable=too-many-return-statements
     season: Season,
     time_of_day: TimeOfDay,
     weather: Weather = Weather.CLEAR,
     seed: Optional[int] = None,
+    profile: str = "v6",
 ) -> EnvironmentConfig:
     """The environment for a scenario: the night preset at night
     (season-independent), otherwise the season's daytime preset with the
@@ -491,11 +567,15 @@ def scenario_environment(
     its own strength, wind slant and streak pattern, and night's exposure is
     drawn from ``NIGHT_EXPOSURE_BIAS_RANGE_EV`` instead of one fixed value.
 
+    ``profile="v7"`` selects ``_scenario_environment_v7``.
+
     Raises
     ------
     ValueError
         If a weather other than clear or rain is combined with night.
     """
+    if profile == "v7":
+        return _scenario_environment_v7(season, time_of_day, weather, seed)
     if time_of_day == TimeOfDay.NIGHT:
         if weather == Weather.RAIN:
             night_rain = dataclasses.replace(NIGHT_ENVIRONMENT, **_NIGHT_RAIN_OVERRIDES)

@@ -432,10 +432,27 @@ def plan_parking_lots(  # pylint: disable=too-many-locals
     return lots
 
 
-def _parked_model(rng: np.random.Generator, vehicle_mix: Dict[str, float]) -> ParkedModel:
+# v7: the parked pool drawn by model weight, with the pickup counted as a car. Weights follow
+# the cited registration shares as far as this pool allows (five sedans, one van, one pickup):
+# pickup 1.0 of 6.5 = 15% (US pickups: 18.03%), van 0.5 of 6.5 = 8% (vans: 4.21%).
+PARKED_WEIGHTS_V7: Tuple[float, ...] = (1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 1.0)
+
+
+def _parked_model_v7(rng: np.random.Generator) -> ParkedModel:
+    """One parked model drawn by ``PARKED_WEIGHTS_V7``; the pickup is typed ``suv`` (a car)."""
+    weights = np.array(PARKED_WEIGHTS_V7)
+    model = PARKED_MODELS[int(rng.choice(len(PARKED_MODELS), p=weights / weights.sum()))]
+    return ParkedModel(model.asset_path, "suv") if model.vehicle_type == "truck" else model
+
+
+def _parked_model(
+    rng: np.random.Generator, vehicle_mix: Dict[str, float], fleet: str = "v5"
+) -> ParkedModel:
     """A sedan, SUV or pickup type drawn from the scenario's class mix
     (flattened, see ``PARKED_MIX_EXPONENT``; a bus or delivery truck does not
     fit a stall), then one of that type's suitable models."""
+    if fleet != "v5":
+        return _parked_model_v7(rng)
     weights = (
         np.array([vehicle_mix.get(name, 0.0) for name in PARKED_VEHICLE_TYPES], dtype=float)
         ** PARKED_MIX_EXPONENT
@@ -467,7 +484,7 @@ def parked_vehicles(  # pylint: disable=too-many-locals
             filled = rng.random() < occupancy
             back_in = rng.random() < BACK_IN_FRACTION
             lateral_unit, along_unit, yaw_draw = rng.uniform(-1.0, 1.0, size=3)
-            model = _parked_model(rng, config.vehicle_mix)
+            model = _parked_model(rng, config.vehicle_mix, config.fleet)
             if not filled:
                 continue
             length, width, height, offset_x, offset_y, z_min = vehicle_box(

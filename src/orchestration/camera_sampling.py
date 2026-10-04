@@ -27,6 +27,15 @@ YAW_JITTER_RAD = np.radians(10.0)
 # range: applied at LOOK_AHEAD_M, it shifts the look-at target's height by only +-1.6 m,
 # nowhere near enough to point at the sky or the road surface.
 PITCH_JITTER_RAD = np.radians(3.0)
+# The v7 profile widens both. Real dash-cam footage has a far larger spread of horizon rows than
+# +-3 degrees gives: measured on 12,037 BDD100K frames the per-image horizon row has a standard
+# deviation of 0.105 of the image height against 0.024 for the v6 renders, because phones and
+# dash cams are mounted at many heights and angles and roads slope. +-7 degrees of pitch (about
+# 0.05 of the 73.7 degree vertical field of view per 3.7 degrees) and a 1.25-2.0 m height range
+# are the starting values; ``bin/measure_layout.py`` style checks against the 0.105 target
+# decide whether they go further.
+EGO_HEIGHT_RANGE_V7_M = (1.25, 2.0)
+PITCH_JITTER_V7_RAD = np.radians(7.0)
 LANE_POSITION_RANGE = (0.1, 0.9)
 MIN_CLEAR_AHEAD_M = 15.0
 # A parked vehicle right ahead is normal (it is exactly what a detector needs to see), but the
@@ -115,11 +124,17 @@ def _heading_with_jitter(
     )
 
 
-def _pitched_target_z(distance_m: float, rng: np.random.Generator) -> float:
-    """``LOOK_TARGET_HEIGHT_M`` shifted by a random pitch within +-``PITCH_JITTER_RAD``,
-    for a target ``distance_m`` ahead of the camera."""
-    pitch = float(rng.uniform(-PITCH_JITTER_RAD, PITCH_JITTER_RAD))
+def _pitched_target_z(distance_m: float, rng: np.random.Generator, profile: str = "v6") -> float:
+    """``LOOK_TARGET_HEIGHT_M`` shifted by a random pitch within +-``PITCH_JITTER_RAD``
+    (``PITCH_JITTER_V7_RAD`` for the v7 profile), for a target ``distance_m`` ahead."""
+    limit = PITCH_JITTER_V7_RAD if profile == "v7" else PITCH_JITTER_RAD
+    pitch = float(rng.uniform(-limit, limit))
     return LOOK_TARGET_HEIGHT_M + distance_m * float(np.tan(pitch))
+
+
+def _ego_height(rng: np.random.Generator, profile: str = "v6") -> float:
+    """A camera height from the profile's range."""
+    return float(rng.uniform(*(EGO_HEIGHT_RANGE_V7_M if profile == "v7" else EGO_HEIGHT_RANGE_M)))
 
 
 def _within(point: NDArray[np.float64], bounds: Bounds, margin: float) -> bool:
@@ -136,6 +151,7 @@ def _candidate(
     rng: np.random.Generator,
     lanes: List[int],
     bounds: Optional[Bounds],
+    profile: str = "v6",
 ) -> Optional[CameraPose]:
     """One random ego pose on a random lane, or ``None`` if it is unusable."""
     lane = scenario.lanes[lanes[int(rng.integers(len(lanes)))]]
@@ -162,13 +178,16 @@ def _candidate(
     target = ground + heading * LOOK_AHEAD_M
     return CameraPose(
         "ego",
-        np.array([ground[0], ground[1], float(rng.uniform(*EGO_HEIGHT_RANGE_M))]),
-        np.array([target[0], target[1], _pitched_target_z(LOOK_AHEAD_M, rng)]),
+        np.array([ground[0], ground[1], _ego_height(rng, profile)]),
+        np.array([target[0], target[1], _pitched_target_z(LOOK_AHEAD_M, rng, profile)]),
     )
 
 
 def sample_ego_pose(
-    scenario: ScenarioResult, rng: np.random.Generator, bounds: Optional[Bounds] = None
+    scenario: ScenarioResult,
+    rng: np.random.Generator,
+    bounds: Optional[Bounds] = None,
+    profile: str = "v6",
 ) -> Optional[CameraPose]:
     """A valid ego camera pose for ``scenario``, or ``None`` if none was found.
 
@@ -178,7 +197,7 @@ def sample_ego_pose(
     if not lanes:
         return None
     for _ in range(MAX_ATTEMPTS):
-        pose = _candidate(scenario, rng, lanes, bounds)
+        pose = _candidate(scenario, rng, lanes, bounds, profile)
         if pose is not None:
             return pose
     return None
