@@ -150,15 +150,24 @@ _VEHICLE_FOLDER = "/Game/Vehicle"
 
 
 # The tractor-trailer rig: the cab vehicle08 and the bare trailer vehTruck_trailer01 that City
-# Sample ships. The cab's skeleton carries a ``Trailer_Socket`` on its root bone at
-# (-158.0, 0.000061, 149.0) cm with no rotation, read with
-# ``unreal_plugin/tools/inspect_trailer_socket.py``; the trailer's own origin is its hitch, so the
-# trailer is placed 1.58 m behind the cab's placement point on the same heading, on the ground
-# (149 cm is the fifth-wheel height). A fleet entry ending in ``RIG_SUFFIX`` is the cab plus that
-# trailer, one vehicle with one label.
+# Sample ships. The cab's skeleton carries a ``Trailer_Socket`` (its fifth wheel) on the root bone
+# at (-158.0, 0.000061, 149.0) cm, read with ``unreal_plugin/tools/inspect_trailer_socket.py``. The
+# trailer's origin is NOT its kingpin: its front face is 0.56 m behind the origin and its flat
+# underside (the apron that rides on the fifth wheel, 1.44 m up) runs from there back about 2.9 m.
+# Placing the origin at the socket therefore left a 3 m gap between the cab and the trailer. The
+# placement is measured instead: ``bin/measure_rig_gap.py`` renders the rig alone and reads the
+# gap between the cab's rear wall and the trailer's front wall from a silhouette at body height:
+#   trailer origin behind the cab's (m): -1.58  -0.50  -0.11   0.00   0.90   1.20
+#   measured gap (m):                      3.0    1.9    1.6    1.45   0.55   0.22
+# 0.90 m *ahead* of the cab's origin (the value below is its negative) gives a 0.55 m gap, 0.52 at
+# a 30 m camera and 0.59 at 40 m, inside the 0.3-0.9 m a straight rig has in practice (a design
+# choice, not a measured real-world statistic), and keeps the apron (world x -2.51 to +0.33) over
+# the fifth-wheel plate (about -2.2 to -1.0). A kingpin set 36 in behind the trailer's front, the
+# usual US setback, would give -0.11 and a 1.6 m gap, which looks open. A fleet entry ending in
+# ``RIG_SUFFIX`` is the cab plus that trailer, one vehicle with one label.
 TRACTOR_FOLDER = "vehTruck_vehicle08"
 TRAILER_FOLDER = "vehTruck_trailer01"
-TRAILER_HITCH_X_M = -1.58
+TRAILER_HITCH_X_M = 0.90
 RIG_SUFFIX = "+trailer"
 TRAILER_ID_OFFSET = 1_000_000
 

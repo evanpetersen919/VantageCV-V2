@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src.orchestration.scenario_serializer import _trailer_to_asset_json
+from src.orchestration.scenario_serializer import trailer_asset_json
 from src.procedural.actor_placement import ActorPlacementGenerator, Vehicle, vehicle_box
 from src.procedural.city_sample_assets import (
     RIG_SUFFIX,
@@ -33,13 +33,15 @@ def _rig(heading: float = 0.0) -> Vehicle:
 
 
 def test_rig_box_holds_both_parts_and_is_longer_than_either() -> None:
-    """The box spans the cab's front to the trailer's rear: 16.57 m, as tall as the trailer."""
+    """The box spans the cab's front to the trailer's rear, as tall as the trailer."""
     cab, trailer = VEHICLE_MODEL_BOUNDS[TRACTOR_FOLDER], VEHICLE_MODEL_BOUNDS[TRAILER_FOLDER]
     length, width, height, centre_x, _, _ = RIG_BOUNDS
-    assert abs(length - 16.57) < 0.01 and abs(centre_x - (-5.0355)) < 0.001
-    assert length > cab[0] + trailer[0] - 2.5 and width == max(cab[1], trailer[1])
+    assert abs(length - 14.087) < 0.01 and abs(centre_x - (-3.7955)) < 0.001
+    assert length > cab[0] + trailer[0] - 4.0 and width == max(cab[1], trailer[1])
     assert abs(height - 4.001) < 0.01
-    assert rig_bounds(cab, trailer, TRAILER_HITCH_X_M)[0] > rig_bounds(cab, trailer, 0.0)[0]
+    # a trailer hitched further back makes a longer rig, whichever side of the cab's origin
+    assert rig_bounds(cab, trailer, -1.0)[0] > rig_bounds(cab, trailer, 0.0)[0]
+    assert rig_bounds(cab, trailer, 0.0)[0] > rig_bounds(cab, trailer, 1.0)[0]
 
 
 def test_rig_mesh_is_the_cab_plus_the_trailer_at_the_hitch() -> None:
@@ -50,7 +52,7 @@ def test_rig_mesh_is_the_cab_plus_the_trailer_at_the_hitch() -> None:
     assert triangles is not None
     assert len(triangles) == len(cab_mesh[1]) + len(trailer_mesh[1])
     cab_rear = world_triangles(_rig_without_trailer())[:, :, 0].min()  # type: ignore[index]
-    assert triangles[:, :, 0].min() < cab_rear - 9.0  # the trailer extends well behind the cab
+    assert triangles[:, :, 0].min() < cab_rear - 7.0  # the trailer extends far behind the cab
 
 
 def _rig_without_trailer() -> Vehicle:
@@ -65,7 +67,7 @@ def test_trailer_is_a_second_actor_behind_the_cab_on_the_same_heading() -> None:
         (0.0, (10.0 + TRAILER_HITCH_X_M, 5.0)),
         (np.pi / 2, (10.0, 5.0 + TRAILER_HITCH_X_M)),
     ):
-        entry = _trailer_to_asset_json(_rig(heading))
+        entry = trailer_asset_json(_rig(heading))
         assert entry["asset_path"].endswith(f"SM_Frame_{TRAILER_FOLDER}")
         assert np.allclose(entry["position"][:2], expected, atol=1e-6)
         assert entry["rotation_rad"] == heading and entry["id"] == 7 + TRAILER_ID_OFFSET
@@ -77,7 +79,7 @@ def test_tail_lights_of_a_rig_sit_at_the_trailer_rear_not_the_middle_of_the_box(
     lights = vehicle_lights(_rig())
     tails = [light.position[0] for light in lights if light.kind == "point"]
     heads = [light.position[0] for light in lights if light.kind == "spot"]
-    assert min(tails) < 10.0 - 13.0  # about the trailer's rear face (x = -13.3 from the cab)
+    assert 10.0 - 11.5 < min(tails) < 10.0 - 10.5  # just behind the trailer's rear face (x = -10.8)
     assert max(heads) > 10.0 + 3.0  # about the cab's front (x = +3.25)
 
 

@@ -80,13 +80,13 @@ def _vehicle_folder_name(asset_path: str) -> str:
     return parts[3] if len(parts) > 3 else ""
 
 
-def _trailer_to_asset_json(vehicle: Vehicle) -> Dict[str, Any]:
+def trailer_asset_json(vehicle: Vehicle, hitch_x: float = TRAILER_HITCH_X_M) -> Dict[str, Any]:
     """The trailer of a tractor-trailer rig as its own actor: the trailer body and axle wheels, its
     origin (its hitch) ``TRAILER_HITCH_X_M`` behind the cab's placement point on the same heading,
     in the cab's paint. The engine only needs a second static-mesh vehicle; the labels treat both
     actors as the one rig vehicle (``Vehicle.trailer``)."""
     forward = np.array([np.cos(vehicle.heading_rad), np.sin(vehicle.heading_rad)])
-    x, y = np.asarray(vehicle.center, dtype=np.float64) + forward * TRAILER_HITCH_X_M
+    x, y = np.asarray(vehicle.center, dtype=np.float64) + forward * hitch_x
     trailer_path = f"/Game/Vehicle/{TRAILER_FOLDER}/Mesh/SM_Frame_{TRAILER_FOLDER}"
     entry = _vehicle_to_asset_json(
         dataclasses.replace(
@@ -303,7 +303,7 @@ def serialize_scenario(
     meshes: List[Dict[str, Any]] = [_mesh_to_json(mesh) for mesh in result.meshes]
     night = result.time_of_day == TimeOfDay.NIGHT
     assets: List[Dict[str, Any]] = [_vehicle_to_asset_json(v) for v in result.vehicles]
-    assets += [_trailer_to_asset_json(v) for v in result.vehicles if v.trailer]
+    assets += [trailer_asset_json(v) for v in result.vehicles if v.trailer]
     for piece_id, piece in enumerate(result.building_facade_pieces):
         replacements = (
             night_glass_replacements(piece.asset_path, result.building_piece_room_ids[piece_id])

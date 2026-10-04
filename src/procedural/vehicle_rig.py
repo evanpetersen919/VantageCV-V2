@@ -1,8 +1,8 @@
 """The tractor-trailer rig: one vehicle made of the City Sample cab and its trailer.
 
 The cab (``vehTruck_vehicle08``) and the bare trailer (``vehTruck_trailer01``) are separate
-City Sample models; the trailer's origin is its hitch, which belongs at the cab's
-``Trailer_Socket`` (see ``city_sample_assets.TRAILER_HITCH_X_M``). A rig is placed as one
+City Sample models; the trailer's origin is placed ``TRAILER_HITCH_X_M`` along the cab's x axis (see
+``city_sample_assets`` for how that was measured). A rig is placed as one
 vehicle on the cab's placement point and heading, with a box that holds both parts, a mesh that
 is both parts, and one label (BDD100K and Cityscapes box a tractor-trailer as one truck).
 """

@@ -1147,3 +1147,39 @@ in views from the side, the front quarter and the rear. Not done: trailer tail l
 from the box end, not measured; rigs stay straight (no articulation on a turn); only the one
 trailer (a box trailer with a green graphic) exists, so rig diversity is one shape in many
 paints. **Nothing has been trained on rigs**, so there is no result yet on truck AP.
+
+### Correction: the trailer was placed 3 m too far back; the hitch is now measured
+
+The tractor-trailer entry above placed the trailer's origin at the cab's `Trailer_Socket`
+(1.58 m behind the cab's origin), on the reading that the trailer's origin is its hitch. A visible
+gap between cab and trailer in the renders showed that was wrong. The mesh data explains it: the
+cab's body above the chassis ends at about x = +0.2 to +0.6 m, the chassis runs back to -3.0 m, and
+the trailer's front face is 0.56 m *behind its own origin* with its flat underside (the apron that
+rides on the fifth wheel, 1.44 m up, the same height as the cab's fifth-wheel plate at 1.49 m) running
+back about 2.9 m: the socket marks the fifth wheel on the cab, and the trailer's origin is not its
+kingpin.
+
+The placement was then measured, not argued. `bin/measure_rig_gap.py` renders the rig alone on flat
+ground from the side at body height and reads the gap between the cab's rear wall and the trailer's
+front wall from a silhouette against an empty render (sky and ground texture change between renders,
+so only runs within 16 m of the cab count):
+
+| Trailer origin behind the cab's origin (m) | Measured gap, cab rear wall to trailer front wall |
+|---|---|
+| -1.58 (the socket, as first built) | about 3.0 m |
+| -0.50 | 1.9 m |
+| -0.11 (kingpin 36 in behind the trailer front, the usual US setback) | 1.6 m |
+| 0.00 | 1.45 m |
+| **+0.90 (chosen)** | **0.55 m** (0.52 at a 30 m camera, 0.59 at 40 m) |
+| +1.20 | 0.22 m |
+
+![Side views of the rig at five trailer offsets: -1.58 m leaves a cab-width gap, +0.9 m tucks the trailer in just behind the cab, +1.2 m nearly touches it](docs/images/tractor_trailer_hitch_candidates.jpg)
+
+The target gap (about 0.5 to 0.6 m) is a design choice, inside the 0.3 to 0.9 m a straight rig has in
+practice; that range is a general observation, not a measured statistic. At +0.90 m the trailer's
+apron (world x -2.51 to +0.33) covers the fifth-wheel plate (about -2.2 to -1.0), the wheels stand on
+the ground, and the whole rig box is now 14.09 m long (it was 16.57 m). A 36 in kingpin setback by
+itself would give a 1.6 m gap with this long-framed tractor, which looks open, so the visual target
+wins over the mechanical one. Checked on rendered street scenes as well as the isolated rig.
+
+![Zoom on the cab-trailer junction in a rendered street frame: the trailer's front wall sits just behind the cab with a narrow gap, its underside overhangs the tractor's rear tandem](docs/images/tractor_trailer_junction.jpg)
