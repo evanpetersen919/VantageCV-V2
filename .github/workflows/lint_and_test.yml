@@ -29,6 +29,10 @@ jobs:
           pip install poetry==1.7.1
           poetry install
       - run: poetry run pytest --cov=src --cov-report=xml --cov-fail-under=90 tests/
-      - uses: codecov/codecov-action@v3
+      # The coverage threshold above is what gates the build; the upload is only a report, so
+      # a Codecov outage or certificate problem must not fail the run.
+      - uses: codecov/codecov-action@v5
+        continue-on-error: true
         with:
           files: ./coverage.xml
+          fail_ci_if_error: false
