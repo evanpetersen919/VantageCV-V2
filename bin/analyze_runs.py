@@ -14,12 +14,13 @@ from typing import Any, Dict, List, Optional
 from src.evaluation.portable import CLASS_NAMES
 from src.evaluation.run_stats import arm_runs, mean_sd, metric, welch
 
-BENCHMARKS = ("bdd100k", "cityscapes")
+BENCHMARKS = ("bdd100k", "cityscapes", "bdd100k_scene")
 NIGHT = "timeofday=night"
 
 
 def _rows(runs: List[Dict[str, Any]], benchmark: str) -> Dict[str, List[float]]:
-    """The tracked numbers of every run: overall AP, each class, and BDD100K night."""
+    """The tracked numbers of every run: overall AP, each class, BDD100K night, and (for the scene
+    benchmark) AP, truck and bus AP in each scene."""
     rows: Dict[str, List[float]] = {
         "AP": [metric(r) for r in runs],
         "AP50": [metric(r, "ap50") for r in runs],
@@ -28,6 +29,12 @@ def _rows(runs: List[Dict[str, Any]], benchmark: str) -> Dict[str, List[float]]:
         rows[name] = [metric(r, f"class:{name}") for r in runs]
     if benchmark == "bdd100k":
         rows["night AP"] = [metric(r, "ap", NIGHT) for r in runs]
+    if benchmark == "bdd100k_scene":
+        for scene in sorted(c for c in runs[0]["by_condition"] if c.startswith("scene=")):
+            label = scene.split("=", 1)[1]
+            rows[f"AP {label}"] = [metric(r, "ap", scene) for r in runs]
+            for name in ("truck", "bus"):
+                rows[f"{name} {label}"] = [metric(r, f"class:{name}", scene) for r in runs]
     return rows
 
 
@@ -64,7 +71,7 @@ def main() -> None:
             print(f"\n{arm} minus {base}:")
             for key, vals in table.items():
                 diff, p_value = welch(tables[base][key], vals)
-                print(f"  {key:9s} {diff:+.2f}  (p = {p_value:.3f})")
+                print(f"  {key:22s} {diff:+.2f}  (p = {p_value:.3f})")
 
 
 if __name__ == "__main__":

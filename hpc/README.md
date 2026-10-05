@@ -293,3 +293,21 @@ Then log them in `EXPERIMENT_LOG.md`. Weights stay on the cluster under `~/vanta
   ```
 
   Then run the two evaluations from `hpc/run_arm.sbatch` by hand on the resumed `best.pt`.
+
+## 15. Per-scene scores of trained arms
+
+Does a model fail on scene types the generator never shows (highway, residential)? BDD100K labels each
+image's scene; this scores trained arms again with it added to the time-of-day and weather breakdown
+(no retraining, BDD100K only, about an hour per job). Arms are given without the seed; each seed whose
+weights exist gets one job:
+
+```bash
+cd /scratch/peter337/VantageCV/repo && git pull
+bash hpc/submit_scene_eval.sh hpc_real25 hpc_rand25 hpc_v7p25     # up to 9 jobs
+```
+
+Copy back `hpc_*_bdd100k_scene.json` and compare scenes with
+`python bin/analyze_runs.py --baseline hpc_real25 --arms hpc_rand25 hpc_v7p25` (the benchmark is
+`bdd100k_scene`). Reading rule, set before the results: if highway or residential trail city street by
+more than about 2 AP in the synthetic arms but not in the real-only arm, build that scene type next;
+otherwise scene coverage is not where the models fail.

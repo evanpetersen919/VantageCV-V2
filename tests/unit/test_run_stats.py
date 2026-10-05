@@ -44,3 +44,11 @@ def test_arm_runs_can_exclude_a_named_run(tmp_path: Path) -> None:
         (tmp_path / f"arm_s{seed}_bdd100k.json").write_text(json.dumps(_result(ap, 0.5, 0.1)))
     runs = arm_runs(tmp_path, "arm", "bdd100k", exclude=["arm_s1"])
     assert [round(metric(run)) for run in runs] == [30, 31]
+
+
+def test_scene_results_are_a_separate_benchmark(tmp_path: Path) -> None:
+    """``..._bdd100k_scene.json`` files are found as the ``bdd100k_scene`` benchmark only."""
+    for name in ("arm_s0_bdd100k.json", "arm_s0_bdd100k_scene.json", "arm_s1_bdd100k_scene.json"):
+        (tmp_path / name).write_text(json.dumps({"overall": {"ap": 0.5}}), encoding="utf-8")
+    assert len(arm_runs(tmp_path, "arm", "bdd100k")) == 1
+    assert len(arm_runs(tmp_path, "arm", "bdd100k_scene")) == 2

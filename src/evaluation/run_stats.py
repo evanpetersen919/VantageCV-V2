@@ -1,9 +1,10 @@
 """Summaries and significance tests over repeated runs (same recipe, different seeds).
 
 Result files are named ``<arm>_s<seed>_<benchmark>.json`` (for example
-``hpc_real_only_s0_bdd100k.json``). Runs of one arm differ only by seed, so their mean and spread
-show what a single run can and cannot tell; two arms are compared with Welch's t-test, which does
-not assume equal spread.
+``hpc_real_only_s0_bdd100k.json``; ``..._bdd100k_scene.json`` is the same benchmark scored with the
+scene attribute added). Runs of one arm differ only by seed, so their mean and spread show what a
+single run can and cannot tell; two arms are compared with Welch's t-test, which does not assume
+equal spread.
 """
 
 import json
@@ -14,7 +15,9 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 from scipy import stats
 
-_NAME = re.compile(r"^(?P<arm>.+)_s(?P<seed>\d+)_(?P<benchmark>bdd100k|cityscapes)\.json$")
+_NAME = re.compile(
+    r"^(?P<arm>.+)_s(?P<seed>\d+)_(?P<benchmark>bdd100k_scene|bdd100k|cityscapes)\.json$"
+)
 
 
 def arm_runs(
