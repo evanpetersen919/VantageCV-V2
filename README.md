@@ -111,12 +111,13 @@ Real-benchmark AP (COCO-style, person/car/bus/truck), one change per version:
 | v6 | always-on material/surface appearance jitter | 4.1 / 6.4 | 6.6 / 12.1 |
 | *reference* | COCO-pretrained (no synthetic data) / real images only | 34.8 / 28.1 | 41.6 / 26.1 |
 
-**v7 at 25% real (instance-supply test, 3 seeds, AdamW).** A 510-image v7 supplement scored
--0.9 AP below the same number of random v5 images on BDD100K (p = 0.047). Controlled selections from
-the older data show part of this is supply: pedestrian count drives person AP (550 / 1,256 / about
-2,000 persons in the supplement gave 14.8 / 15.5 / 16.4 person AP), while truck and bus counts do
-not move truck or bus AP. About 0.7 AP of the deficit is not supply and has not been traced yet.
-Details in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
+**v7 at 25% real (3 seeds, AdamW, BDD100K AP).** The first 510-image v7 supplement scored 19.97,
+0.9 below the same number of random older-generator images (20.84). Controlled selections show
+pedestrian count drives person AP (550 / 1,256 / about 2,000 persons in the supplement gave 14.8 /
+15.5 / 16.4 person AP), while truck and bus counts do not move truck or bus AP. Rendering v7 again with
+the older, higher pedestrian density gives 20.99: parity with the older generator, not better, and
+v7 with the real-frequency pedestrian density stays 0.7 behind (20.18). Details in
+[`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
 
 ![BDD100K person AP against the number of persons in a 510-image synthetic supplement](docs/images/results_person_supply.png)
 

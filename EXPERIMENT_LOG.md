@@ -1161,6 +1161,47 @@ Reading rules, fixed before any result:
 4. Seed noise is about 0.3 AP, so a difference under 0.5 is not interpreted, and truck and bus AP
    (noise 1 to 2) are reported but not used for decisions.
 
+### Result: current v7 (`v7c`) and v7 with the v6 pedestrian density (`v7p`), read by the rules fixed above
+
+12 new result files (BDD100K 10,000 images and Cityscapes 500, 3 seeds per arm, AdamW, 25% real).
+
+| BDD100K | AP | person | car | bus | truck | night AP |
+|---|---|---|---|---|---|---|
+| rand25 (older generator) | 20.84 | 15.52 | 37.64 | 13.49 | 16.70 | 17.39 |
+| v7a (first v7 batch) | 19.97 | 14.63 | 38.10 | 11.61 | 15.52 | 16.87 |
+| v7c (current v7) | 20.18 | 15.02 | 38.18 | 12.30 | 15.21 | 17.55 |
+| v7p (current v7, v6 pedestrian density) | 20.99 | 16.24 | 38.11 | 13.51 | 16.12 | 17.88 |
+
+1. **`c` against `rand25`:** AP -0.66 (p = 0.098), outside the 0.4 band, so by the rule v7 as it is
+   now has not reached parity (not significant at n=3; the point estimate is what triggers the rule).
+2. **`c` against `v7a` (interpreted only at p < 0.05):** overall AP +0.22 (p = 0.41): the dry road and
+   the rigs did not move overall AP. Significant: BDD night AP +0.68 (p = 0.020) and Cityscapes truck
+   AP +3.25 (p = 0.029, 500 images, a handful of trucks).
+3. **`p` against `c`:** AP +0.81 (p = 0.045), person AP +1.21 (p = 0.011); Cityscapes person +1.28
+   (p = 0.024). Both overall and person AP rose, so the v7 pedestrian density goes back to the v6
+   value for training data. **`p` against `rand25`:** AP +0.16 (p = 0.66), person +0.71 (p = 0.006),
+   car +0.47 (p = 0.051), truck -0.58 (p = 0.10), night AP +0.49 (p = 0.13).
+
+**Reading.** Restoring the pedestrian density closes the whole remaining gap (+0.81, against a -0.66
+deficit): with it v7 matches the older generator, without it v7 is about 0.7 AP behind. That is
+consistent with the supply test (person AP follows the number of persons). It also means the
+scene-content versus look-and-camera ablation planned for a persistent deficit is not needed now: the
+deficit is accounted for by pedestrian supply. This reading changes what the earlier test said ("about
+0.7 AP of the v7a deficit is not supply"): that estimate came from selecting images, this one from
+rendering with a different density, and both have n=3 noise of about 0.3 AP. The direct test is the
+one to believe.
+
+**What it does not show.** v7 with the v6 pedestrian density is at parity with the older generator on
+overall AP, not better. The v7 changes (calibrated night, dry roads, rigs, matched fleet) are not shown
+to help overall; the only supported gains are small: night AP (+0.5 over `rand25`, +0.68 over `v7a`,
+not significant against `rand25`) and car AP (+0.47). Truck and bus AP did not improve (bus -3.5 on
+Cityscapes against `rand25`, p = 0.15, a handful of buses). Matching real pedestrian frequency (the v7
+density) costs person AP; `p` has a person in 96% of frames against 32% (44% in city frames) in BDD100K.
+Eight metrics per benchmark were compared; the decisions above use only overall and person AP.
+
+**Decision.** Training batches use `urban_dense_v7_peds.yaml` (v7 with the v6 pedestrian density).
+`urban_dense_v7.yaml` keeps the real-frequency density and stays as the record of `v7a` and `v7c`.
+
 ## Road gloss in clear weather: measured, and a dry road for v7
 
 The question left open by the generator audit: do roads look wet in clear weather? City Sample's
