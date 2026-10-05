@@ -1,6 +1,46 @@
 Release Notes
 ==============
 
+1.0 -- 2026-10-05
+-----------------
+
+First release. Every entry below that is headed "Unreleased" shipped in 1.0; what follows is the
+summary.
+
+**Rendering and labels**
+
+- Procedural, seed-deterministic driving scenes rendered live in Unreal Engine 5.4 from City Sample
+  assets through a C++ plugin and a WebSocket RPC bridge. A camera self-check against four known
+  ground squares runs before every dataset (about 0.5 px), and a crashed render resumes where it
+  stopped.
+- Road network, lanes, buildings assembled from the City Sample modular kit, traffic with
+  signal phasing, pedestrians, and articulated tractor-trailers.
+- Season, weather (clear, overcast, fog, rain, golden hour, sunset, dawn haze) and time of day per
+  scenario, with a night preset calibrated against real night footage.
+- COCO and YOLO export with 2D boxes, segmentation polygons, occlusion and truncation per object,
+  and boxes that cover only the visible part of an occluded object (the BDD100K/Cityscapes
+  convention).
+- A second-generation ``--profile v7``: fleet and pedestrian density matched to BDD100K, dry roads,
+  tractor-trailer rigs, calibrated night and a hood overlay. v7 reaches parity with the first
+  generation on overall AP once its pedestrian density is raised; it is not a gain (see the
+  experiment log).
+- The plugin can set vector parameters on the cloud material (``clouds.vectors``), for example
+  ``WindVector = 0`` to hold the clouds still when frames are taken seconds apart.
+
+**Research record**
+
+- A detector training and scoring pipeline (YOLOv10m, BDD100K and Cityscapes), cluster scripts, and
+  paired-seed statistics, with every run logged in ``EXPERIMENT_LOG.md``.
+- Synthetic images added to 460 real BDD100K images raise AP by +4.7 (three seeds). Person AP
+  follows the number of persons in the training supplement; truck and bus AP show no clear trend
+  with their counts.
+
+**Known limits**
+
+- Only 2D boxes and segmentation are exported; 3D boxes exist internally and no LiDAR is generated.
+- Synthetic-only transfer is far below real-data baselines, and truck and bus AP trail real data.
+- Results are three seeds per arm, so differences under about 0.5 AP are not interpreted.
+
 Unreleased -- Buildings now assembled from real City Sample modular kit pieces (walls, corners)
 -------------------------------------------------------------------------------------------------------------------
 
