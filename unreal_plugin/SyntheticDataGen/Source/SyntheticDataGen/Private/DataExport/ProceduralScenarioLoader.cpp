@@ -784,6 +784,11 @@ void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& 
 		const bool bHasExtinction = (*CloudsJson)->TryGetNumberField(TEXT("extinction_scale"), Extinction);
 		const TSharedPtr<FJsonObject>* ScalarsJson = nullptr;
 		const bool bHasScalars = (*CloudsJson)->TryGetObjectField(TEXT("scalars"), ScalarsJson);
+		// Vector parameters of the cloud material, e.g. {"WindVector": [0, 0, 0, 0]} to stop the clouds
+		// scrolling (the material moves its noise by WindVector * Time, in real time, so frames
+		// taken seconds apart show clouds that have drifted).
+		const TSharedPtr<FJsonObject>* VectorsJson = nullptr;
+		const bool bHasVectors = (*CloudsJson)->TryGetObjectField(TEXT("vectors"), VectorsJson);
 		double BottomKm = 0.0;
 		const bool bHasBottom = (*CloudsJson)->TryGetNumberField(TEXT("layer_bottom_km"), BottomKm);
 		double HeightKm = 0.0;
@@ -802,7 +807,7 @@ void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& 
 			{
 				It->SetLayerHeight(static_cast<float>(HeightKm));
 			}
-			if ((bHasExtinction || bHasScalars) && It->GetMaterial() != nullptr)
+			if ((bHasExtinction || bHasScalars || bHasVectors) && It->GetMaterial() != nullptr)
 			{
 				UMaterialInstanceDynamic* CloudMaterial = Cast<UMaterialInstanceDynamic>(It->GetMaterial());
 				if (CloudMaterial == nullptr)
@@ -822,6 +827,25 @@ void AProceduralScenarioLoader::ApplyEnvironment(const TSharedPtr<FJsonObject>& 
 						if (Scalar.Value.IsValid() && Scalar.Value->TryGetNumber(Number))
 						{
 							CloudMaterial->SetScalarParameterValue(FName(*Scalar.Key), static_cast<float>(Number));
+						}
+					}
+				}
+				if (bHasVectors)
+				{
+					for (const auto& Vector : (*VectorsJson)->Values)
+					{
+						const TArray<TSharedPtr<FJsonValue>>* Components = nullptr;
+						if (Vector.Value.IsValid() && Vector.Value->TryGetArray(Components) && Components->Num() >= 3)
+						{
+							auto Component = [Components](int32 Index) -> float
+							{
+								double Number = 0.0;
+								(*Components)[Index]->TryGetNumber(Number);
+								return static_cast<float>(Number);
+							};
+							const float Alpha = Components->Num() >= 4 ? Component(3) : 0.0f;
+							CloudMaterial->SetVectorParameterValue(
+								FName(*Vector.Key), FLinearColor(Component(0), Component(1), Component(2), Alpha));
 						}
 					}
 				}
