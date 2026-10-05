@@ -1202,6 +1202,64 @@ Eight metrics per benchmark were compared; the decisions above use only overall 
 **Decision.** Training batches use `urban_dense_v7_peds.yaml` (v7 with the v6 pedestrian density).
 `urban_dense_v7.yaml` keeps the real-frequency density and stays as the record of `v7a` and `v7c`.
 
+### v8: the truck and bus mix (version 1.1 plan), rules fixed before any batch exists
+
+**Why.** After 1.0 the largest measured gap is trucks. From the existing result files (n = 3
+seeds, BDD100K): at matched real-data size the truck AP gap to real-only data is -2.96 AP
+(p < 0.001), -9.8% relative, larger than person (p < 0.001) or car (p = 0.006); it is the same
+(-2.5 to -3.6) in every weather and time-of-day slice; AP and AP50 move together, so the boxes that
+are found are placed as accurately and the loss is detections missed or mis-scored at IoU 0.5. At
+25% real the truck gain from a synthetic supplement is the smallest of any class (+1.2 to +2.1 AP
+against +2.2 to +4.0 for persons). The supply test already showed more trucks do not help. A
+comparison of real and synthetic labels and crops (the 1,838-image real subset against `train_v7c`;
+type shares are by eye from about 100 crops per class, so they carry that uncertainty, and about
+30% of real crops could not be classified) found a different mix, not a different count (0.42 trucks
+per image against 0.39 real):
+
+| | real BDD100K | v7c |
+|---|---|---|
+| tractor-trailers among trucks | about 5% | about half |
+| box and delivery trucks | about 30% | none (no model) |
+| pickups and vans labelled truck | 15-20% | none (counted as cars) |
+| trucks at night, share of truck boxes | 17% | 39% |
+| buses at night | 20% | 51% |
+| buses per image | 0.18 | 0.11 |
+| bus types | city bus about 40%, shuttles, school buses, vans | one transit bus |
+
+All City Sample truck, van and bus models are already in the fleet, so the box trucks and the other
+bus types need new assets (see the licence question in the 1.1 notes); this entry changes only what
+the models we own can express.
+
+**Change (behind new names, so v7 and every older config draw exactly what they did).** A config
+field `night_vehicle_scale` (types not listed are unchanged; used for moving traffic, as parked
+vehicles are cars and pickups only) and two fleets: `v8a` has 10% tractor-trailers and 90% of the
+3-axle truck (which stands in for the box, dump and utility trucks we have no model for); `v8b`
+is `v8a` with 20% of trucks drawn from the pickup and the two vans, typed truck. Configs
+`urban_dense_v8a.yaml` and `urban_dense_v8b.yaml`, on the v7 profile with the v6 pedestrian density.
+Numbers, with their derivation, are in the configs: night factors 0.30 (truck) and 0.36 (bus) from
+the real night shares; day weights raised so the per-image rates match the real ones (trucks 5.1%,
+buses 3.3% of vehicles).
+
+**Batches and arms.** `train_v8a` and `train_v8b`: 256 scenarios each, seeds 70000-70255 (the seeds
+of `v7a`, `v7c` and `v7p`, so scene layouts match), 25% real, AdamW, 3 seeds. Comparison arm:
+`hpc_v7p25` (20.99 AP on BDD100K).
+
+**Reading rules (written before any result).**
+1. **Does the mix matter?** `v8a25` against `v7p25` on BDD100K truck AP. A gain of at least +1.0 AP
+   with p < 0.05 means the mix is a lever: keep v8a. Anything smaller means it is not, with the
+   models we own.
+2. **Is labelling pickups and vans as trucks worth it?** `v8b25` against `v8a25`. Adopt it only if
+   truck AP gains at least +0.5 and car AP does not fall by more than 0.5 (it adds label noise by
+   design).
+3. **If neither beats `v7p25` by +1.0 on truck AP,** stop tuning the mix. The cause is then the
+   appearance of the models (a box-truck model, if its licence allows) or how trucks are missed
+   (a per-box check of missed against mislabelled), and the next step is chosen from that.
+4. **Guardrails.** Overall, person and car AP must not fall by more than 0.5 against `v7p25`; night
+   AP is reported. Bus AP is reported but does not decide anything (its noise is 1-2 AP).
+5. Differences under about 0.5 AP are not interpreted. Per-scene scores (a separate run, see
+   `hpc/README.md` section 15) decide whether scene coverage is worth building; they do not enter
+   this decision.
+
 ## Road gloss in clear weather: measured, and a dry road for v7
 
 The question left open by the generator audit: do roads look wet in clear weather? City Sample's

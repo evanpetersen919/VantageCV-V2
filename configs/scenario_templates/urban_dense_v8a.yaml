@@ -1,0 +1,45 @@
+# Urban Dense, v8 truck/bus mix on the v7 profile with the v6 pedestrian density (batch train_v8a): everything
+# as urban_dense_v7.yaml except the pedestrian block, which is the v6 setting (a constant 0.3, which
+# put 2.5 persons per image into the v5 data; the v7 skewed 0.45*u^3 puts about 1).
+# Same layout as urban_dense.yaml; only the traffic block differs (see EXPERIMENT_LOG.md).
+version: "1.0"
+scenario_type: urban_dense
+
+road_network:
+  avg_block_size: [80.0, 150.0]      # meters, uniform range
+  avg_road_width: 12.0               # meters
+  num_intersections: [4, 9]
+  intersection_types: ["4way", "3way"]
+
+buildings:
+  building_density: 0.8              # coverage ratio
+  building_heights: [20.0, 40.0]     # meters
+  road_setback_meters: 2.0           # narrow sidewalk, buildings close to the curb
+  parking_lot_fraction: 0.1          # share of blocks holding a surface lot (design choice)
+
+traffic:
+  traffic_density: [0.6, 1.0]
+  # v8 truck and bus mix (fewer rigs). Derived from the measured real-vs-synthetic comparison on
+  # the 1,838-image real subset (748 night, 948 day, 142 dawn images; EXPERIMENT_LOG.md, v8 entry):
+  # - Real trucks and buses are mostly daytime: 17% of real truck boxes and 20% of real bus boxes
+  #   are at night (night images are 40.7% of the real subset), against 39% and 51% in v7c. The
+  #   night/day per-image rate is (0.17/0.407)/(0.83/0.593) = 0.30 for trucks and
+  #   (0.20/0.407)/(0.80/0.593) = 0.36 for buses; ``night_vehicle_scale`` applies those.
+  # - The generator draws 39% night scenarios, and v7c made 0.42 trucks and 0.11 buses per image
+  #   against 0.39 and 0.18 real. The day weights below put the overall per-image rates at the real
+  #   ones with those night factors: day rate = real rate / (0.61 + 0.39 * factor), i.e. trucks
+  #   x1.277 (4.0% -> 5.1%) and buses x2.17 (1.5% -> 3.3%).
+  fleet: v8a
+  vehicle_mix:
+    sedan: 0.711
+    suv: 0.205
+    truck: 0.051
+    bus: 0.033
+  night_vehicle_scale:
+    truck: 0.30
+    bus: 0.36
+  # The v6 value: constant, the density the v5/v5b images (2.5 persons per image) were made with.
+  pedestrian_density_fraction: [0.3, 0.3]
+  pedestrian_density_skew: 1.0
+
+complexity_score: 80

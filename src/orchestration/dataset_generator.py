@@ -163,7 +163,9 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     ).generate(nodes, edges)
     traffic = TrafficNetworkGenerator().generate(nodes, edges, lanes)
     lane_connectivity = LaneConnectivityGenerator().generate(nodes, edges, lanes)
-    vehicles, pedestrians = ActorPlacementGenerator(seed, config).generate(edges, traffic)
+    vehicles, pedestrians = ActorPlacementGenerator(
+        seed, config, night=time_of_day == TimeOfDay.NIGHT
+    ).generate(edges, traffic)
     vehicles += parked_vehicles(
         parking_lots, config, seed, max((v.vehicle_id for v in vehicles), default=-1) + 1
     )

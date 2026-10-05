@@ -23,7 +23,8 @@ below. Every file validates on the same 199 real images, so scores are comparabl
 * ``mixed_modal.yaml`` / ``mixed_25pct_modal.yaml`` -- the same v5 images with visible-part labels
   (``train2000_v5_modal``: boxes cover only what can be seen of a partly hidden object), at 100%
   and 25% real; written only if that folder is present
-* ``mixed_25pct_v7a.yaml`` (and ``_v7c``, ``_v7p``) -- 25% real + a 512-image v7 batch
+* ``mixed_25pct_v7a.yaml`` (and ``_v7c``, ``_v7p``, ``_v8a``, ``_v8b``) -- 25% real + a 512-image
+  v7 or v8 batch
   (``train_v7a``: train and val frames together, 972 images in all, the size of
   ``mixed_25pct_rand``); each is written only if its folder is present
 * ``mixed_25pct_realism.yaml`` -- 25% real + the v5 synthetic images after the calibrated realism
@@ -51,11 +52,7 @@ EXTRA_DIR = "bdd100k_control_extra"
 SYNTH_B_DIR = "train2000_v5b"
 REALISM_DIR = "train2000_v5_realism"
 MODAL_DIR = "train2000_v5_modal"
-V7_BATCHES = (
-    "a",
-    "c",
-    "p",
-)  # train_v7a, train_v7c, train_v7p (see the v7 batch entries in the log)
+BATCHES = ("v7a", "v7c", "v7p", "v8a", "v8b")  # train_<name> folders (v7 and v8 log entries)
 FRACTIONS = (25, 50)
 TRUCK_BUS = {2, 3}  # class ids of bus and truck in this project's four classes
 PERSON, BUS, TRUCK = 0, 2, 3
@@ -97,14 +94,14 @@ def _supply_files(
 
 
 def _v7_batch_files(root: Path, out: Path, real: Dict[str, Path]) -> Dict[str, str]:
-    """25% real + each v7 batch folder that is present (``train_v7a``, ``train_v7c``, ...)."""
+    """25% real + each batch folder that is present (``train_v7a``, ``train_v8a``, ...)."""
     files: Dict[str, str] = {}
     quarter = out / f"{REAL_DIR}_25pct_train.txt"
-    for letter in V7_BATCHES:
-        folder = f"train_v7{letter}"
+    for name in BATCHES:
+        folder = f"train_{name}"
         if (root / folder).is_dir():
             batch = write_rerooted_lists(root / folder, root / folder, out)
-            files[f"mixed_25pct_v7{letter}.yaml"] = data_yaml(
+            files[f"mixed_25pct_{name}.yaml"] = data_yaml(
                 [quarter, batch["train"], batch["val"]], real["val"]
             )
     return files

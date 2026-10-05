@@ -328,16 +328,17 @@ def _sample_asset_path(rng: np.random.Generator, vehicle_type: str, fleet: str =
     return paths[index]
 
 
-class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
+class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods,too-many-instance-attributes
     """Place vehicles and pedestrians at a traffic network's spawn zones.
 
     Exposes a single public entry point (``generate``) by design; the
     rest of the class is private implementation detail of that operation.
     """
 
-    def __init__(self, seed: int, config: ScenarioTypeConfig) -> None:
+    def __init__(self, seed: int, config: ScenarioTypeConfig, night: bool = False) -> None:
         self.seed = seed
         self.config = config
+        self._vehicle_mix = config.vehicle_mix_for(night)
         self.rng = np.random.Generator(np.random.PCG64(seed))
         self._vehicle_counter = 0
         self._pedestrian_counter = 0
@@ -617,7 +618,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods
         bumper sits, not its center, so it is offset backward by half its
         own real length. ``braking`` marks a vehicle stopped in a queue
         (its brake lights are on when the scenario is lit for night)."""
-        vehicle_type = _sample_vehicle_type(self.rng, self.config.vehicle_mix)
+        vehicle_type = _sample_vehicle_type(self.rng, self._vehicle_mix)
         asset_path = _sample_asset_path(self.rng, vehicle_type, self.config.fleet)
         trailer = asset_path.endswith(RIG_SUFFIX)
         if trailer:

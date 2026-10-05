@@ -86,6 +86,10 @@ class ScenarioTypeConfig(BaseModel):
     road_setback_meters: float = 2.0
     parking_lot_fraction: float = 0.0
     fleet: str = "v5"
+    # Factors applied to ``vehicle_mix`` weights at night (types not listed keep their weight): real
+    # trucks and buses are far more common by day than by night, and the generator draws the same
+    # mix at any hour unless this is set.
+    night_vehicle_scale: Dict[str, float] = {}
     pedestrian_density_fraction: Tuple[float, float] = (0.3, 0.3)
     pedestrian_density_skew: float = 1.0
 
@@ -123,9 +127,25 @@ class ScenarioTypeConfig(BaseModel):
     @field_validator("fleet")
     @classmethod
     def _validate_fleet(cls, value: str) -> str:
-        if value not in ("v5", "v7"):
-            raise ValueError(f"fleet must be 'v5' or 'v7', got {value!r}")
+        if value not in ("v5", "v7", "v8a", "v8b"):
+            raise ValueError(f"fleet must be 'v5', 'v7', 'v8a' or 'v8b', got {value!r}")
         return value
+
+    @field_validator("night_vehicle_scale")
+    @classmethod
+    def _validate_night_scale(cls, value: Dict[str, float]) -> Dict[str, float]:
+        if any(factor < 0.0 for factor in value.values()):
+            raise ValueError(f"night_vehicle_scale factors must be >= 0, got {value}")
+        return value
+
+    def vehicle_mix_for(self, night: bool) -> Dict[str, float]:
+        """The mix to draw from: ``vehicle_mix``, with ``night_vehicle_scale`` applied at night."""
+        if not night or not self.night_vehicle_scale:
+            return self.vehicle_mix
+        return {
+            name: weight * self.night_vehicle_scale.get(name, 1.0)
+            for name, weight in self.vehicle_mix.items()
+        }
 
     @field_validator("pedestrian_density_skew")
     @classmethod

@@ -195,6 +195,27 @@ FLEET_MODEL_WEIGHTS: Dict[str, Dict[str, Dict[str, float]]] = {
         "bus": {_body("vehBus_vehicle10"): 1.0},
     }
 }
+# v8: the truck list follows what real BDD100K trucks look like (see the v8 entry in
+# EXPERIMENT_LOG.md,
+# measured on about 100 real crops, so the shares carry that much uncertainty): tractor-trailers are
+# about 5-10% of real trucks, not half. "v8a" cuts the rig and keeps the other model; "v8b" also
+# labels pickups and vans as trucks for 20% of them, as BDD100K annotators did for about 15-20% of
+# its truck boxes. The 3-axle truck stands in for the box, dump and utility trucks we have no
+# model for.
+FLEET_MODEL_WEIGHTS["v8a"] = {
+    **FLEET_MODEL_WEIGHTS["v7"],
+    "truck": {_body(TRACTOR_FOLDER) + RIG_SUFFIX: 0.10, _body("vehTruck_vehicle11"): 0.90},
+}
+FLEET_MODEL_WEIGHTS["v8b"] = {
+    **FLEET_MODEL_WEIGHTS["v7"],
+    "truck": {
+        _body(TRACTOR_FOLDER) + RIG_SUFFIX: 0.10,
+        _body("vehTruck_vehicle11"): 0.70,
+        _body("vehTruck_vehicle04"): 0.10,
+        _body("vehVan_vehicle01"): 0.05,
+        _body("vehVan_vehicle09"): 0.05,
+    },
+}
 
 
 def fleet_models(fleet: str, vehicle_type: str) -> Tuple[List[str], List[float]]:
