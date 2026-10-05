@@ -38,7 +38,7 @@ Jump to: [Results](#results) · [Roadmap](#roadmap) · [Quick start](#quick-star
 
 ![Twelve frames from the generator: aerial views of generated cities, street views at golden hour, sunset, overcast, fog and night, a parking lot, and a pedestrian corner](docs/images/collage_dataset.jpg)
 
-*Twelve frames from one generator: different seeds, layouts and conditions. No frame is edited.*
+*Twelve frames from one generator: different seeds, layouts and conditions. Direct renders, with a mild contrast curve and vignette applied to all of them.*
 
 | ![A new procedural city generated every few seconds while the camera keeps flying: five seconds, two hand-overs between cities, with the seed shown](docs/images/city_generation.webp) | ![The same street and the same camera move, switching from day to night: headlamps, tail lights, street lamps and building lights come on](docs/images/day_to_night.webp) |
 |:---:|:---:|
