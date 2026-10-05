@@ -11,6 +11,10 @@
 honest research log of how well a detector trained only on them transfers to real photos
 (BDD100K, Cityscapes), including what didn't work.**
 
+![A 360 degree orbit around one vehicle: 2D box, segmentation, 3D box, heading, class and distance tags and a live attribute card, all staying locked to the car as the camera moves](docs/images/vehicle_annotations.webp)
+
+*Every annotation type on one vehicle, from a full 360 degree orbit: the labels are the dataset's own, and they follow the object as the viewpoint changes.*
+
 ![A generated city street at golden hour: colored vehicles, pedestrians and varied building facades](docs/images/hero_golden_hour_street.jpg)
 
 Procedural, deterministic, seed-based generation of synthetic autonomous-vehicle
