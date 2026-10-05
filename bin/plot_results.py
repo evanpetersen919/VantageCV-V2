@@ -12,6 +12,7 @@ deviation as the error bar.
 # pylint: disable=too-many-locals,too-many-statements,too-many-arguments,line-too-long
 
 import argparse
+import math
 import textwrap
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
@@ -87,8 +88,9 @@ def _card(
     )
     fig.text(0.05, 0.925, title, color=INK, fontsize=17, fontweight="bold", va="top")
     fig.text(0.05, 0.855, takeaway, color=INK_2, fontsize=10.5, va="top")
-    fig.text(0.95, 0.925, hero, color=INK, fontsize=30, fontweight="bold", va="top", ha="right")
-    fig.text(0.95, 0.835, hero_caption, color=MUTED, fontsize=9.5, va="top", ha="right")
+    if hero:
+        fig.text(0.95, 0.925, hero, color=INK, fontsize=30, fontweight="bold", va="top", ha="right")
+        fig.text(0.95, 0.835, hero_caption, color=MUTED, fontsize=9.5, va="top", ha="right")
     fig.text(
         0.05,
         0.04,
@@ -99,6 +101,12 @@ def _card(
         linespacing=1.4,
     )
     axis = fig.add_axes(box)
+    _style(axis)
+    return fig, axis
+
+
+def _style(axis: Axes) -> None:
+    """Transparent axes with a baseline, a recessive horizontal grid and muted tick labels."""
     axis.set_facecolor("none")
     for side in ("top", "right", "left"):
         axis.spines[side].set_visible(False)
@@ -106,7 +114,6 @@ def _card(
     axis.tick_params(colors=MUTED, labelsize=9.5, length=0, pad=8)
     axis.grid(axis="y", color=GRID, linewidth=0.9)
     axis.set_axisbelow(True)
-    return fig, axis
 
 
 def _legend(
@@ -346,58 +353,125 @@ def figure_gap(out: Path) -> None:
     _save(fig, out, "results_gap_by_class.png")
 
 
+# instances of each class in the 510-image supplements (counted from their label files), by arm
+SUPPLY_COUNTS = {
+    "hpc_poor25": {"person": 547, "truck": 226, "bus": 89},
+    "hpc_rand25": {"person": 1256, "truck": 1120, "bus": 69},
+    "hpc_rich25": {"person": 2052, "truck": 1800, "bus": 245},
+}
+
+
 def figure_supply(out: Path) -> None:
-    """Person AP against the persons in a 510-image supplement (25% real, same recipe)."""
-    arms = [("hpc_poor25", 547), ("hpc_rand25", 1256), ("hpc_rich25", 2052)]
-    names = ["fewer persons", "random images", "more persons"]
-    stats = []
-    for arm, _ in arms:
-        runs = arm_runs(RESULTS, arm, "bdd100k", EXCLUDE)
-        stats.append(mean_sd([metric(run, "class:person") for run in runs]))
-    gain = stats[2][0] - stats[0][0]
-    fig, axis = _card(
-        "More pedestrians, better pedestrian detection",
-        "BDD100K person AP, mean of 3 seeds, for three 510-image synthetic supplements",
-        f"+{gain:.1f} AP",
-        "person AP, fewest to most persons",
-        "25% real BDD100K + 510 synthetic images chosen for few, random or many persons. Same recipe, AdamW, 3 seeds. Truck and bus AP did not follow their counts.",
-        box=(0.105, 0.235, 0.845, 0.50),
+    """Class AP against the instances of that class in a 510-image supplement (25% real).
+
+    Person AP follows the number of persons; truck and bus AP do not follow their counts. The three
+    panels share one vertical span so the slopes can be compared."""
+    classes = [("person", "persons", BLUE), ("truck", "trucks", ORANGE), ("bus", "buses", AQUA)]
+    span = 4.0
+    fig, first = _card(
+        "Persons in the data move person AP; trucks and buses don't",
+        "BDD100K AP per class, mean of 3 seeds, for three 510-image synthetic supplements",
+        "",
+        "",
+        "25% real BDD100K + 510 synthetic images chosen for few, random or many persons, trucks and buses. "
+        "AdamW, 3 seeds; bars are the standard deviation. Every panel spans the same 4 AP.",
+        box=(0.075, 0.29, 0.235, 0.39),
     )
-    low = 13.6
-    xs = [persons for _, persons in arms]
-    ys = [mean for mean, _ in stats]
-    axis.set_ylim(low, 17.4)
-    axis.fill_between(xs, low, ys, color=BLUE, alpha=0.10, linewidth=0)
-    axis.vlines(
-        xs,
-        [m - sd for m, sd in stats],
-        [m + sd for m, sd in stats],
-        color=BLUE,
-        linewidth=1.4,
-        alpha=0.85,
-    )
-    axis.plot(xs, ys, color=BLUE, linewidth=1.8, solid_capstyle="round", solid_joinstyle="round")
-    axis.plot(
-        xs, ys, "o", markersize=9, markerfacecolor=BLUE, markeredgecolor=SURFACE, markeredgewidth=2
-    )
-    for x, (mean, spread), name in zip(xs, stats, names):
-        axis.text(
-            x,
-            mean + spread + 0.22,
-            f"{mean:.1f}",
-            color=INK,
-            fontsize=13,
-            fontweight="bold",
-            ha="center",
+    for index, (name, plural, colour) in enumerate(classes):
+        axis = first if index == 0 else fig.add_axes((0.075 + index * 0.305, 0.29, 0.235, 0.39))
+        if index:
+            _style(axis)
+        points = sorted(
+            (
+                counts[name],
+                *mean_sd(
+                    [metric(r, f"class:{name}") for r in arm_runs(RESULTS, arm, "bdd100k", EXCLUDE)]
+                ),
+            )
+            for arm, counts in SUPPLY_COUNTS.items()
         )
-        axis.text(x, low + 0.18, name, color=MUTED, fontsize=9.5, ha="center")
-    axis.set_xscale("log")
-    axis.set_xticks(xs)
-    axis.set_xticklabels([f"{x:,} persons" for x in xs], color=INK_2)
-    axis.minorticks_off()
-    axis.set_xlim(420, 2700)
-    axis.set_yticks([14, 15, 16, 17])
-    _save(fig, out, "results_person_supply.png")
+        xs = [count for count, _, _ in points]
+        ys = [mean for _, mean, _ in points]
+        centre = (min(ys) + max(ys)) / 2.0
+        axis.set_ylim(centre - span / 2.0, centre + span / 2.0)
+        axis.vlines(
+            xs,
+            [m - sd for _, m, sd in points],
+            [m + sd for _, m, sd in points],
+            color=colour,
+            linewidth=1.4,
+            alpha=0.85,
+        )
+        axis.plot(
+            xs, ys, color=colour, linewidth=1.8, solid_capstyle="round", solid_joinstyle="round"
+        )
+        axis.plot(
+            xs,
+            ys,
+            "o",
+            markersize=9,
+            markerfacecolor=colour,
+            markeredgecolor=SURFACE,
+            markeredgewidth=2,
+        )
+        for x, (_, mean, _) in zip(xs, points):
+            axis.text(
+                x,
+                mean + 0.34,
+                f"{mean:.1f}",
+                color=INK,
+                fontsize=11.5,
+                fontweight="bold",
+                ha="center",
+                va="bottom",
+                bbox={"boxstyle": "round,pad=0.12", "fc": SURFACE, "ec": "none"},
+                zorder=5,
+            )
+        axis.set_xscale("log")
+        axis.set_xticks([])
+        axis.minorticks_off()
+        low_x, high_x = min(xs) / 1.6, max(xs) * 1.6
+        axis.set_xlim(low_x, high_x)
+        axis.set_yticks([])
+        row, previous = 0, None
+        for x in xs:
+            fraction = math.log(x / low_x) / math.log(high_x / low_x)
+            row = 1 - row if previous is not None and fraction - previous < 0.2 else 0
+            axis.text(
+                x,
+                -0.07 - 0.09 * row,
+                f"{x:,}",
+                color=INK_2,
+                fontsize=9.5,
+                ha="center",
+                va="top",
+                transform=axis.get_xaxis_transform(),
+            )
+            previous = fraction
+        axis.set_xlabel(f"{plural} in the supplement", color=MUTED, fontsize=9.3, labelpad=40)
+        fig.add_artist(
+            Line2D(
+                [0.075 + index * 0.305 + 0.006],
+                [0.745],
+                marker="o",
+                markersize=7,
+                color=colour,
+                linestyle="none",
+                transform=fig.transFigure,
+            )
+        )
+        verdict = "rises with the count" if name == "person" else "no clear trend"
+        fig.text(
+            0.075 + index * 0.305 + 0.02,
+            0.745,
+            f"{name}: {verdict}",
+            color=INK,
+            fontsize=11,
+            fontweight="bold",
+            va="center",
+        )
+        axis.grid(axis="y", visible=False)
+    _save(fig, out, "results_class_supply.png")
 
 
 def main() -> None:

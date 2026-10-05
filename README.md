@@ -111,7 +111,7 @@ three seeds each, p < 0.01 throughout). It is not a substitute: the same number 
 - **Generator v7 reaches parity with the older generator, not a gain.** With the older, higher pedestrian density it scores 20.99 against 20.84 (BDD100K AP at 25% real); with a real-frequency pedestrian density it stays 0.7 behind (20.18).
 - **Synthetic-only transfer is still far below real-data baselines.** Grad-CAM shows the detector keys on background texture like foliage and curbs rather than object shape.
 
-![BDD100K person AP against the number of persons in a 510-image synthetic supplement](docs/images/results_person_supply.png)
+![BDD100K AP for person, truck and bus against the number of that class in a 510-image synthetic supplement: person AP rises with the count, truck and bus AP show no clear trend](docs/images/results_class_supply.png)
 
 <details>
 <summary><b>Full version-by-version table, and the v7 detail</b></summary>
