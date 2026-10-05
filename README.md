@@ -1,54 +1,42 @@
-# VantageCV Remastered
+# VantageCV 1.0
 
 ### Synthetic AV Dataset Generator
 
 [![Lint and Test](https://github.com/evanpetersen919/VantageCV-V2/actions/workflows/lint_and_test.yml/badge.svg)](https://github.com/evanpetersen919/VantageCV-V2/actions/workflows/lint_and_test.yml)
+![Version 1.0](https://img.shields.io/badge/version-1.0-1baf7a.svg)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
 ![Unreal Engine 5.4](https://img.shields.io/badge/Unreal%20Engine-5.4-black.svg)
 
-**Procedural driving scenes, rendered in real UE5, with pixel-exact labels -- and an open,
-honest research log of how well a detector trained only on them transfers to real photos
+**Procedural driving scenes, rendered in real Unreal Engine 5, with pixel-exact labels -- and an open,
+honest research log of how well a detector trained on them transfers to real photos
 (BDD100K, Cityscapes), including what didn't work.**
 
 ![A 360 degree orbit around one vehicle: 2D box, segmentation, 3D box, heading, class and distance tags and a live attribute card, all staying locked to the car as the camera moves](docs/images/vehicle_annotations.webp)
 
 *Every annotation type on one vehicle, from a full 360 degree orbit: the labels are the dataset's own, and they follow the object as the viewpoint changes.*
 
-![A generated city street at golden hour: colored vehicles, pedestrians and varied building facades](docs/images/hero_golden_hour_street.jpg)
+| **+4.7 AP** | **about 0.5 px** | **903 tests** |
+|:---:|:---:|:---:|
+| synthetic images added to 460 real BDD100K images ([results](#results)) | camera check: projected points against the engine's render | strict mypy, pylint 10/10, CI on every push |
 
-Procedural, deterministic, seed-based generation of synthetic autonomous-vehicle
-perception datasets: road networks, lane topology, buildings, traffic, sensor
-simulation, and ground-truth annotations, rendered live through a real UE5.4
-game (City Sample assets) and exported as COCO datasets with 2D boxes,
-segmentation, occlusion/truncation, and per-scenario condition metadata
-(season, weather, time of day).
+## What you get
 
-## Highlights
+| | |
+|---|---|
+| **Input** | A seed and a YAML scenario template. The same seed reproduces a frame exactly. |
+| **Output** | COCO datasets (and a YOLO export) with 2D boxes, segmentation polygons, occlusion and truncation per object, and per-image condition metadata. |
+| **Conditions** | Season, weather (clear, overcast, fog, rain, golden hour, sunset, dawn haze) and time of day, drawn per scenario from real conditions data. |
+| **Scene** | Procedural road network, lanes, buildings, traffic (including articulated tractor-trailers) and pedestrians, built from City Sample assets and rendered live in UE5.4. |
+| **Reliability** | A camera self-check runs before every dataset; a crashed render resumes where it stopped. |
 
-- **Real renders, exact labels.** Every object is a tracked 3D box; 2D boxes and
-  segmentation polygons are projected through the same camera the engine renders with,
-  and a self-check against four known ground squares runs before every dataset
-  (typically about 0.5 px of error).
-- **Deterministic and resumable.** A scenario seed reproduces a frame exactly, and a
-  crashed render run resumes where it stopped.
-- **Measured, not guessed.** Distance cutoffs and night brightness are fit to real
-  BDD100K/Cityscapes statistics, and the vehicle mix follows real registration data, with
-  the evidence written down.
-- **An honest research log.** Every training run is scored on real benchmarks, including
-  the negative results and a Grad-CAM diagnosis of *why* synthetic-only detectors
-  underperform ([results](#ongoing-sim-to-real-transfer-experiment)).
-- **Engineered to be checked.** 800+ tests, pylint 10/10, strict mypy, CI on every push.
-
-Jump to: [Results](#ongoing-sim-to-real-transfer-experiment) ·
-[Roadmap](#roadmap) · [Quick start](#quick-start) ·
-[Project layout](#project-layout) · [Contributing](CONTRIBUTING.md)
-
-See [`docs/architecture.rst`](docs/architecture.rst) (or the built Sphinx docs)
-for the full system design, and [`docs/user_guide.rst`](docs/user_guide.rst)
-for real, executable usage examples.
+Jump to: [Results](#results) · [Roadmap](#roadmap) · [Quick start](#quick-start) ·
+[Project layout](#project-layout) · [Contributing](CONTRIBUTING.md) ·
+[Architecture](docs/architecture.rst) · [User guide](docs/user_guide.rst)
 
 ## What the generator produces
+
+![A generated city street at golden hour: colored vehicles, pedestrians and varied building facades](docs/images/hero_golden_hour_street.jpg)
 
 Every object is placed and tracked as a real 3D box (center, dimensions,
 heading) -- that 3D geometry is what drives occlusion ray-casting and 2D
@@ -74,7 +62,12 @@ a wide range of real-world driving conditions in the same set of city layouts:
 
 ![Four scenes from the same generator run: clear day, night rain, overcast day, and clear day with a garbage truck](docs/images/scene_diversity_labels.jpg)
 
-## Status
+**Measured, not guessed.** Distance cutoffs and night brightness are fit to real
+BDD100K/Cityscapes statistics, and the vehicle mix follows real registration data, with
+the evidence written down in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
+
+<details>
+<summary><b>Pipeline and what shipped</b></summary>
 
 The core pipeline is complete: road network → lanes → buildings → traffic → meshes →
 validation → sensors/ground truth → export → distributed/resumable generation → docs.
@@ -95,14 +88,33 @@ drives a live UE5 game session (`bin/generate_live_dataset.py`) that spawns
 each scenario's actual City Sample geometry, vehicles and pedestrians, then
 captures and labels the frame.
 
-### Ongoing: sim-to-real transfer experiment
+</details>
 
-A live-rendered synthetic dataset (~2,000 images) trains YOLOv10m detectors that
-are scored on real photos they have never seen. [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md)
-tracks every training run, what changed, the measured real-benchmark results,
-and a full evidence-based diagnostic pass (pixel statistics, Grad-CAM, label
-convention research, rendering-pipeline audit) -- an honest, in-progress
-research log, not a highlight reel.
+## Results
+
+A live-rendered synthetic dataset trains YOLOv10m detectors that are scored on real photos
+they have never seen. [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md) tracks every training run, what
+changed and the measured results, including a Grad-CAM diagnosis, label-convention research
+and a rendering-pipeline audit -- an honest, in-progress research log, not a highlight reel.
+
+**Synthetic data helps at every real-data size tested, most when real data is scarce.** Added to 460 real
+BDD100K images it raises AP by +4.7 (18.2 to 22.9); to 919, +3.3; to 1,838, +2.0 (optimizer held fixed;
+three seeds each, p < 0.01 throughout). It is not a substitute: the same number of real images scores
+2-3 AP higher, and roughly 3 to 7 synthetic images are worth one real one.
+
+![BDD100K AP against real training images, with and without synthetic images](docs/images/results_benefit_vs_real_data.png)
+
+**What the experiments say so far**
+
+- **Pedestrian count drives person AP.** 550 / 1,256 / about 2,000 persons in a 510-image supplement gave 14.8 / 15.5 / 16.4 person AP.
+- **Truck and bus counts do not drive truck or bus AP.** Those classes look limited by how the vehicles look, not how many there are.
+- **Generator v7 reaches parity with the older generator, not a gain.** With the older, higher pedestrian density it scores 20.99 against 20.84 (BDD100K AP at 25% real); with a real-frequency pedestrian density it stays 0.7 behind (20.18).
+- **Synthetic-only transfer is still far below real-data baselines.** Grad-CAM shows the detector keys on background texture like foliage and curbs rather than object shape.
+
+![BDD100K person AP against the number of persons in a 510-image synthetic supplement](docs/images/results_person_supply.png)
+
+<details>
+<summary><b>Full version-by-version table, and the v7 detail</b></summary>
 
 Real-benchmark AP (COCO-style, person/car/bus/truck), one change per version:
 
@@ -123,21 +135,12 @@ the older, higher pedestrian density gives 20.99: parity with the older generato
 v7 with the real-frequency pedestrian density stays 0.7 behind (20.18). Details in
 [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
 
-![BDD100K person AP against the number of persons in a 510-image synthetic supplement](docs/images/results_person_supply.png)
-
-**Synthetic data helps at every real-data size tested, most when real data is scarce.** Added to 460 real
-BDD100K images it raises AP by +4.7 (18.2 to 22.9); to 919, +3.3; to 1,838, +2.0 (optimizer held fixed;
-three seeds each, p < 0.01 throughout).
-It is not a substitute: the same number of real images scores 2-3 AP higher, and roughly 3 to 7 synthetic
-images are worth one real one.
-
-![BDD100K AP against real training images, with and without synthetic images](docs/images/results_benefit_vs_real_data.png)
-Details and caveats in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
-
 Scratch = trained from random weights on synthetic data only; fine-tune = starts from
 COCO weights. Synthetic-only transfer is still far below real-data baselines -- the
 current diagnosis (Grad-CAM shows the detector keys on background texture like foliage
 and curbs rather than object shape) and the experiments aimed at it are in the log.
+
+</details>
 
 ## Roadmap
 
@@ -152,7 +155,9 @@ Open problems the project is working on (evidence in [`EXPERIMENT_LOG.md`](EXPER
 
 New here? See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-## Requirements
+## Quick start
+
+**Requirements**
 
 - Python 3.11.8
 - [Poetry](https://python-poetry.org/) 1.7.1
@@ -161,7 +166,7 @@ New here? See [`CONTRIBUTING.md`](CONTRIBUTING.md).
   against a City Sample-based UE5 project. Not needed for the offline
   procedural generation path (`bin/generate_dataset.py`, no live game).
 
-## Setup
+**Setup**
 
 ```bash
 poetry install
@@ -171,7 +176,7 @@ poetry run pytest --cov=src tests/
 If `poetry run pytest` doesn't pick up a module you just added, run
 `poetry install` again first -- see `KNOWN_GAPS_AND_ISSUES.md`.
 
-## Quick start
+**Generate a dataset**
 
 Command line, using one of the two real (`urban_dense`/`urban_sparse`)
 scenario templates under `configs/scenario_templates/`:
@@ -218,7 +223,8 @@ See [`docs/user_guide.rst`](docs/user_guide.rst) for more (parallel generation
 via Ray, resumable/checkpointed generation, and more) -- every example there is
 a real, executed `doctest`, not untested prose.
 
-### Live rendering (real UE5 frames)
+<details>
+<summary><b>Live rendering (real UE5 frames)</b></summary>
 
 Requires a running UE5 game session with the plugin loaded (see
 `unreal_plugin/SyntheticDataGen/`), reachable over the WebSocket RPC bridge. Launch it with
@@ -251,11 +257,16 @@ command). See [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md) for how this path is
 actually used end-to-end (dataset generation → YOLO training → real-benchmark
 evaluation).
 
-## Building the docs
+</details>
+
+<details>
+<summary><b>Building the docs</b></summary>
 
 ```bash
 poetry run sphinx-build -b html docs docs/_build/html
 ```
+
+</details>
 
 ## Project layout
 
