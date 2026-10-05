@@ -1,6 +1,6 @@
-# VantageCV 1.0
+# VantageCV Remastered
 
-### Synthetic AV Dataset Generator
+### Synthetic AV Dataset Generator V1.0
 
 [![Lint and Test](https://github.com/evanpetersen919/VantageCV-V2/actions/workflows/lint_and_test.yml/badge.svg)](https://github.com/evanpetersen919/VantageCV-V2/actions/workflows/lint_and_test.yml)
 ![Version 1.0](https://img.shields.io/badge/version-1.0-1baf7a.svg)
@@ -37,6 +37,10 @@ Jump to: [Results](#results) · [Roadmap](#roadmap) · [Quick start](#quick-star
 ## What the generator produces
 
 ![A generated city street at golden hour: colored vehicles, pedestrians and varied building facades](docs/images/hero_golden_hour_street.jpg)
+
+| ![A new procedural city generated every few seconds while the camera keeps flying: five seconds, two hand-overs between cities, with the seed shown](docs/images/city_generation.webp) | ![The same street and the same camera move, switching from day to night: headlamps, tail lights, street lamps and building lights come on](docs/images/day_to_night.webp) |
+|:---:|:---:|
+| *A new city from a new seed every few seconds* | *Same street, same seed, same camera: day to night* |
 
 Every object is placed and tracked as a real 3D box (center, dimensions,
 heading) -- that 3D geometry is what drives occlusion ray-casting and 2D
