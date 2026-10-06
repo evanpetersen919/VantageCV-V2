@@ -1595,3 +1595,22 @@ p = 0.67, seed spread 2.7), bus +1.5, AP +0.41, person -0.45 (p = 0.10), car -0.
 there is distinguishable from noise. Rule 1 (truck AP +1.0 on BDD100K): not met; guardrails hold.
 Rule 3 (small-truck misses must fall, the per-box check) is read when the per-box files for v9a are in;
 until then the cause is not settled, since AP is a mix of small and larger boxes.
+
+#### v9a per-box outcomes (rule 3): small-truck misses did not fall
+
+BDD100K val, 3 seeds, confidence 0.25, `hpc_v9a25` against `hpc_v7p25` (percent of boxes).
+Small trucks (730 boxes): correct 4.7 (v7p 4.2), missed 63.4 (63.0), mislabelled 21.1 (23.1), low
+confidence 10.8 (9.7). Small buses (267): correct 2.0 (0.7), missed 64.8 (64.8). Medium and large
+trucks and buses move by one or two points either way (large trucks correct 41.0 against 42.1; large
+buses 41.9 against 39.5), within the seed spread. Rule 3 asked for small-truck misses below 63% and
+correct above 4%: missed is 63.4%, so it is not met.
+
+Reading: putting 20% small trucks (and 11% small buses) into the training data, matching the real
+share, changed neither the small-box outcomes nor AP. Together with v8a and v8b this closes three
+generator levers for trucks and buses with Epic's own models: the vehicle mix (v8a), labelling
+pickups and vans as trucks (v8b), and the size distribution of the boxes (v9a). Small real boxes of
+every class are hard for this detector (real-only: small cars 42% correct, small persons 14%,
+small trucks 2%), so the small-truck miss rate looks like a resolution and visibility limit of the
+detector at 960 px, not a gap in what the synthetic data shows. Not tested: a higher training image
+size (this changes the detector, not the generator), and truck appearance (box, dump and garbage
+trucks), which needs models City Sample does not have.
