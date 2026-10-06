@@ -1293,6 +1293,34 @@ appearance and mix.
 Caveats: three seeds per arm; the baseline is a retrain (same recipe and seeds as the original, not
 byte-identical); the check compares gap structure, not absolute AP.
 
+### v8a result: cutting the rigs and moving trucks off the night frames did not raise truck AP (rule 1: no)
+
+`train_v8a` (256 scenarios, seeds 70000-70255, 25% real, AdamW, 3 seeds) against `hpc_v7p25`, which has
+the same scenes and pedestrians. Batch statistics against the config's targets: truck boxes at night 17%
+(target 17%, v7p 39%), bus boxes at night 30% (target 20%, on 82 boxes, within about two standard
+deviations), buses 0.16 per image (target 0.18, v7p 0.11), persons and cars unchanged (3.30 and 8.05 per
+image). One miss: trucks fell to 0.31 per image (target 0.39, v7p 0.42), because the tractor-trailers
+produced more labelled boxes per spawned vehicle than the 3-axle truck does.
+
+| BDD100K | AP | person | car | truck | bus | night AP |
+|---|---|---|---|---|---|---|
+| v7p25 | 20.99 | 16.24 | 38.11 | 16.12 | 13.51 | 17.88 |
+| v8a25 | 20.65 | 16.42 | 38.24 | 15.62 | 12.34 | 17.27 |
+| difference (p) | -0.34 (0.34) | +0.18 (0.40) | +0.12 (0.07) | **-0.50 (0.35)** | -1.17 (0.28) | -0.62 (0.10) |
+
+Cityscapes: truck -1.32 (p = 0.43), bus +1.46 (p = 0.30), AP +0.06.
+
+**Rule 1 (needed truck AP +1.0 with p < 0.05): not met.** The guardrails hold (overall, person and car
+within 0.5). With the models we own, a more realistic night share, fewer rigs and a bus rate at the real
+level do not move truck AP. Caveat set beforehand: v8a has 26% fewer truck boxes than v7p, which could
+hide a small gain; the supply test (226 against 1,800 trucks, no difference) says this matters little.
+The tractor-trailers may even help (v7p truck 16.12 against v8a 15.62; rigs also helped truck AP on
+Cityscapes against v7a), but that is not established.
+
+Open: `v8b` (pickups and vans labelled truck for 20% of trucks) is still to be trained, and rule 2 and
+rule 3 are read when it is in. If it also fails to beat v7p25 by +1.0, the mix is closed as a lever and the
+next step is the per-box check (which truck and bus boxes are missed or mislabelled, by size).
+
 ## Road gloss in clear weather: measured, and a dry road for v7
 
 The question left open by the generator audit: do roads look wet in clear weather? City Sample's
