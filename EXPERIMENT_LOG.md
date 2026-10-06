@@ -1434,3 +1434,35 @@ beside the step: where a trailer's marker lamps are on a real one. They are poin
 without a visible lens (no measured lens size, so no glow is drawn, by the module's own rule).
 Left unchanged. Not measured: whether the missing lens looks wrong in a night frame (the light
 spill lights the rear face; a lens would add a red disc).
+
+### Per-box outcomes of truck and bus (real BDD100K val, 3 seeds, confidence 0.25)
+
+Rule (hpc/README.md section 16, fixed before the results): mostly mislabelled -> appearance confusion
+with cars or buses; mostly missed or low-confidence -> the detector does not find them (visibility or
+scale); read the size bins before the totals. Arms: real-only `hpc_real25r`, `hpc_rand25`,
+`hpc_v7p25`, `hpc_v8a25`. 4,231 truck boxes, 1,597 bus boxes; percent of boxes, mean over seeds.
+
+| Truck | correct | mislabelled | low conf. | missed |
+|---|---|---|---|---|
+| real-only | 25.2 | 27.7 | 14.9 | 32.3 |
+| rand25 | 28.6 | 28.9 | 12.4 | 30.2 |
+| v7p25 | 27.6 | 29.9 | 11.3 | 31.3 |
+| v8a25 | 26.8 | 30.1 | 11.9 | 31.2 |
+
+By size (v7p25): small 4% correct, 63% missed; medium 24% correct, 30% mislabelled; large 42% correct,
+32% mislabelled. Mislabelled trucks are called car 77-81%, bus 19-23%. Bus: 22-24% correct in the
+synthetic arms (19% real-only), 33-35% mislabelled (as truck 51%, car 49%), 33% missed; small buses
+65% missed.
+
+Reading: the failure splits two ways by size, and the rule's two branches both hold. Small boxes
+(a quarter of trucks, 17% of buses) are not found at all, 63-67% missed, in every arm: scale.
+Medium and large boxes are found but about a third are given the wrong class, mostly car for a truck
+and a truck/car split for a bus: appearance confusion. The real-only arm shows the same pattern with
+the same mislabel rate (27.7%), so it is not something synthetic data introduces. Synthetic data
+adds about 2-3 points of correct truck boxes and 3-5 of bus, mostly on large boxes; it does not
+reduce mislabelling (28 -> 30%) and does not touch small-box misses. v8a is no better than v7p25 on
+medium trucks (20.4% against 23.7% correct) and worse on large buses (34.8 against 39.5). Cars
+and persons improve in v7p25 against real-only (car 63.0 -> 65.9% correct, person 30.7 -> 37.9%),
+which agrees with the AP results. Not established: how much of the car/truck confusion is
+ambiguity in BDD's own labels rather than detector error; that needs a look at a sample of the
+mislabelled real boxes.
