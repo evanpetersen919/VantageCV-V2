@@ -311,3 +311,20 @@ Copy back `hpc_*_bdd100k_scene.json` and compare scenes with
 `bdd100k_scene`). Reading rule, set before the results: if highway or residential trail city street by
 more than about 2 AP in the synthetic arms but not in the real-only arm, build that scene type next;
 otherwise scene coverage is not where the models fail.
+
+## 16. How are truck and bus boxes missed? (per-box outcomes)
+
+AP says a class trails; this says why. For every real BDD100K val box, a trained arm either finds it
+(right class), calls it something else (car, bus...), finds it only at low confidence, or misses it, by
+box size and time of day. No retraining; about 10-15 minutes per seed:
+
+```bash
+cd /scratch/peter337/VantageCV/repo && git pull
+bash hpc/submit_box_outcomes.sh hpc_real25r hpc_rand25 hpc_v7p25 hpc_v8a25      # up to 12 jobs
+scp ... hpc_*_box_outcomes.json            # copy back, then summarise on the PC
+```
+
+Reading rule, fixed first: if most missed truck boxes are *mislabelled* (wrong_class) the cause is
+appearance confusion with cars or buses; if they are *missed or low-confidence*, the detector does not
+find them at all and the cause is visibility or scale; compare the synthetic arms with the real-only
+arm, and read the size bins before the totals.

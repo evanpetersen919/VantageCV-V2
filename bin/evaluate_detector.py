@@ -17,11 +17,10 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
-from src.evaluation.detections import CLASS_SPACES, boxes_to_detections
+from src.evaluation.detections import CLASS_SPACES
+from src.evaluation.inference import run_detector
 from src.evaluation.loaders import EvalSet, load_bdd100k, load_cityscapes
 from src.evaluation.scoring import ScoreReport, format_report, score
-
-BATCH_SIZE = 16
 
 
 def _load(args: argparse.Namespace) -> EvalSet:
@@ -33,32 +32,17 @@ def _load(args: argparse.Namespace) -> EvalSet:
 
 def _detect(eval_set: EvalSet, args: argparse.Namespace) -> List[Dict[str, Any]]:
     """Run the model over the benchmark images."""
-    from ultralytics import YOLO  # pylint: disable=import-outside-toplevel,import-error
-
-    model = YOLO(str(args.weights))
-    images = eval_set.coco["images"][: args.max_images]
-    detections: List[Dict[str, Any]] = []
-    for start in range(0, len(images), BATCH_SIZE):
-        batch = images[start : start + BATCH_SIZE]
-        results = model.predict(
-            [str(eval_set.image_path(image)) for image in batch],
-            imgsz=args.imgsz,
-            conf=args.conf,
-            iou=args.iou,
-            max_det=args.max_det,
-            device=args.device,
-            verbose=False,
-        )
-        for image, result in zip(batch, results):
-            boxes = result.boxes
-            detections += boxes_to_detections(
-                image["id"],
-                boxes.xyxy.cpu().tolist(),
-                boxes.conf.cpu().tolist(),
-                boxes.cls.cpu().tolist(),
-                args.class_space,
-            )
-    return detections
+    return run_detector(
+        eval_set,
+        args.weights,
+        args.class_space,
+        args.imgsz,
+        args.conf,
+        args.iou,
+        args.max_det,
+        args.device,
+        args.max_images,
+    )
 
 
 def _summary(report: ScoreReport) -> Dict[str, Any]:
