@@ -1260,6 +1260,39 @@ of `v7a`, `v7c` and `v7p`, so scene layouts match), 25% real, AdamW, 3 seeds. Co
    `hpc/README.md` section 15) decide whether scene coverage is worth building; they do not enter
    this decision.
 
+### Per-scene scores: scene coverage is not where the models fail (rule met: no)
+
+Rule fixed before the run (`hpc/README.md` section 15): if highway or residential trail city street by
+more than about 2 AP in the synthetic arms but not in the real-only arm, build that scene type next;
+otherwise scene coverage is not where the models fail. A gap is a scene's AP minus city street's in the
+same run, so how hard a scene is cancels out.
+
+Arms (25% real, AdamW, 3 seeds each, BDD100K val scored with the scene attribute; 9 new result files
+plus the retrained real-only baseline `hpc_real25r`, whose original weights were lost with the old home
+directory): `hpc_real25r` (460 real images only), `hpc_rand25` (older generator) and `hpc_v7p25`.
+
+| Scene (val images) | real-only | rand25 | v7p25 | gain, rand25 / v7p25 |
+|---|---|---|---|---|
+| city street (61.1%) | 18.9 | 21.7 | 21.8 | +2.8 / +2.9 |
+| highway (25.0%) | 15.3 | 17.4 | 17.3 | +2.1 / +2.0 |
+| residential (12.5%) | 18.0 | 20.0 | 20.1 | +2.0 / +2.1 |
+
+Gap to city street: highway -3.58 (real-only), -4.27 (rand25), -4.50 (v7p25); residential -0.87,
+-1.71, -1.72. The synthetic arms trail by 0.7 to 0.9 AP more than real-only on highway (p = 0.066 and
+0.149) and 0.8 to 0.9 on residential (p = 0.172 and 0.218): not significant at n = 3. Truck AP by scene
+shows the same pattern (a gain of about +2 to +3 in each scene). Parking lot and tunnel are 0.5% and
+0.3% of val and are not read.
+
+**Verdict: the rule is not met.** The real-only model already trails city street by -3.6 AP on highway,
+so highway is simply harder, and synthetic data helps by about the same amount in every scene. Highways,
+residential streets, skyscrapers and other city variations are removed from the roadmap as AP levers (a
+small, non-significant extra highway gap remains possible and would need a larger test to see). They may
+still be built for realism. The remaining gap is the one found in the v8 entry: the truck and bus
+appearance and mix.
+
+Caveats: three seeds per arm; the baseline is a retrain (same recipe and seeds as the original, not
+byte-identical); the check compares gap structure, not absolute AP.
+
 ## Road gloss in clear weather: measured, and a dry road for v7
 
 The question left open by the generator audit: do roads look wet in clear weather? City Sample's

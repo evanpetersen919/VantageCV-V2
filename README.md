@@ -304,3 +304,12 @@ poetry run sphinx-build -b html docs docs/_build/html
 - `KNOWN_GAPS_AND_ISSUES.md` -- every deliberate scope decision and bug found along the way
 - `docs/` -- Sphinx documentation source; `tests/` -- unit and integration test suites
 - `CONTRIBUTING.md` -- how to help; `CITATION.cff` -- how to cite
+
+## License and credits
+
+The code is released under the [MIT license](LICENSE). The rendered images and videos in this
+repository were made with Epic Games' City Sample content in Unreal Engine; under Epic's Content
+License Agreement (section 3b, linear media), rendered images and video created with the licensed
+content may be distributed. No Epic asset files are included in this repository.
+
+Unreal Engine and City Sample are the property of Epic Games, Inc.
