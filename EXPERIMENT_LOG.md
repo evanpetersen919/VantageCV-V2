@@ -1466,3 +1466,16 @@ and persons improve in v7p25 against real-only (car 63.0 -> 65.9% correct, perso
 which agrees with the AP results. Not established: how much of the car/truck confusion is
 ambiguity in BDD's own labels rather than detector error; that needs a look at a sample of the
 mislabelled real boxes.
+
+#### What the mislabelled real truck boxes are (looked at, not measured)
+
+Local `runs/real_control` weights on the first 1,500 BDD val images: 683 truck boxes, 166 medium or
+large ones called another class (car 8 in 10, bus the rest). A random 48 of them were cropped into a
+contact sheet and read by eye (counts are my reading, rough, not a labelled audit): about 15 are
+pickups (Ram, Silverado, F-series) or van-like pickups, 5 are cargo vans, about 15 are real trucks
+(box trucks, dump and garbage trucks, an ice-cream truck, a semi cab), the rest are dark, blurred or
+cut-off boxes where the type cannot be judged. So about a third of the confusion is BDD calling pickups
+and vans "truck" where the detector says car, which a car-versus-truck appearance rule cannot settle;
+another third are real trucks (box, dump, garbage) that the detector does call car. Not done: a
+counted audit of more boxes, or asking how many pickups the synthetic fleet contains (v8b adds
+10% pickup and 10% van).
