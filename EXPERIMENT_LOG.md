@@ -1552,3 +1552,25 @@ the exact metres carry that uncertainty; the direction does not. Cars would also
 (the regeneration under-counts them), so cars are left alone in a first test. Median fit (the old
 method) gives person 28, car 43, bus 47, truck 64 m with this config: the old 53 m for trucks was
 not even the median fit for this camera.
+
+### v9a: label trucks and buses farther out (small-truck test), rules fixed before the render
+
+Question: do small trucks missing from the training data cause the 63-67% miss rate on small real
+trucks? `train_v9a` is `train_v7p` (same config `urban_dense_v7_peds.yaml`, profile v7, 256 scenarios,
+seeds 70000-70255, same fleet) with only the labelling cutoffs changed, using the new
+`--max-distance` flag: truck 80 m (v7p 53 m) and bus 60 m (v7p 41 m); cars and persons unchanged.
+Choice of metres: the share fit above says 96 m (truck) and 72 m (bus), but the same regeneration
+puts cars at 30% small at their 54 m where the dataset itself has 41%, so the dataset's boxes are
+about 1.2x smaller in distance terms than the regeneration's (modal boxes, probably); dividing by that
+gives about 80 m and 60 m. This is one class's calibration applied to two others, so the batch's own
+small share is measured before any training (target 18% small for trucks, 17% for buses, within
+about 5 points); if it is off, the cutoffs are adjusted and the batch re-rendered before training.
+Arms: `hpc_v9a25` (25% real, AdamW, 3 seeds) against `hpc_v7p25`.
+
+Rules: (1) a lever if truck AP rises by at least +1.0 over v7p25 on BDD100K val (p < 0.1 over 3
+seeds); (2) guardrails: overall, car and person AP not down by more than 0.5; (3) the per-box
+outcome check must show small-truck misses falling (the cause, not only the effect): small
+trucks missed below 63% (v7p25) and "correct" above 4%. If AP moves but small-truck misses do not,
+the gain came from something else and is not read as support. If neither rule 1 nor 3 is met, small
+trucks are closed as a lever too, leaving truck appearance (box, dump and garbage trucks) as the
+remaining one. Bus AP is reported (1-2 AP noise).

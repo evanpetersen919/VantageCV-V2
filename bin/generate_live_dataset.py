@@ -14,7 +14,7 @@ import asyncio
 from pathlib import Path
 
 from src.export.annotation_policy import MIN_BOX_HEIGHT_PX, MIN_BOX_WIDTH_PX, AnnotationPolicy
-from src.ground_truth.categories import PROFILES
+from src.ground_truth.categories import BUS, PEDESTRIAN, PROFILES, SEDAN, SUV, TRUCK
 from src.orchestration.dataset_store import ManifestMismatchError
 from src.orchestration.live_dataset import DEFAULT_VIEWS, default_output_dir, generate_live_dataset
 from src.orchestration.live_render import GameUnavailableError, LiveRenderer
@@ -27,6 +27,28 @@ from src.orchestration.profiles import (
 )
 from src.ue5.backend import UE5Backend
 from src.utils.config_loader import load_scenario_config
+
+# --max-distance names -> the policy's category ids ("car" covers both sedan and SUV)
+DISTANCE_CLASSES = {
+    "person": (PEDESTRIAN,),
+    "car": (SEDAN, SUV),
+    "bus": (BUS,),
+    "truck": (TRUCK,),
+}
+
+
+def _policy(args: argparse.Namespace) -> AnnotationPolicy:
+    """The annotation policy, with any ``--max-distance CLASS=METRES`` overrides applied."""
+    policy = AnnotationPolicy(PROFILES[args.classes], args.min_box_height, args.min_box_width)
+    for item in args.max_distance:
+        name, _, metres = item.partition("=")
+        if name not in DISTANCE_CLASSES or not metres:
+            raise SystemExit(
+                f"error: --max-distance wants CLASS=METRES, CLASS in {sorted(DISTANCE_CLASSES)}"
+            )
+        for category in DISTANCE_CLASSES[name]:
+            policy.max_distance_m[category] = float(metres)
+    return policy
 
 
 def _resolve_profile(args: argparse.Namespace) -> None:
@@ -54,7 +76,7 @@ async def _run(args: argparse.Namespace) -> None:
             args.num_scenarios,
             args.seed,
             tuple(args.views),
-            AnnotationPolicy(PROFILES[args.classes], args.min_box_height, args.min_box_width),
+            _policy(args),
             args.profile,
         )
     print(
@@ -91,6 +113,14 @@ def main() -> None:
         default=None,
         help="share of city blocks holding a surface lot (v6: 0.3, since the template default of "
         "0.1 left over half the scenarios without one; v7: 0.1)",
+    )
+    parser.add_argument(
+        "--max-distance",
+        nargs="+",
+        default=[],
+        metavar="CLASS=METRES",
+        help="label objects of CLASS (person, car, bus, truck) out to this camera distance "
+        "instead of the policy default; the manifest records the result",
     )
     parser.add_argument("--min-box-height", type=float, default=MIN_BOX_HEIGHT_PX)
     parser.add_argument("--min-box-width", type=float, default=MIN_BOX_WIDTH_PX)

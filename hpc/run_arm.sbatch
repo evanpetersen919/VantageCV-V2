@@ -39,7 +39,7 @@ if [ -n "$LOCAL" ] && [ -d "$LOCAL" ]; then
   [[ "$DATA" == *_big || "$DATA" == *_notb || "$DATA" == *_rand || "$DATA" == *_poor || "$DATA" == *_rich ]] && copy_required train2000_v5b
   [[ "$DATA" == *_realism ]] && copy_required train2000_v5_realism
   [[ "$DATA" == *_modal ]] && copy_required train2000_v5_modal
-  [[ "$DATA" == *_v7[acp] || "$DATA" == *_v8[ab] ]] && copy_required "train_${DATA##*_}"
+  [[ "$DATA" == *_v7[acp] || "$DATA" == *_v8[ab] || "$DATA" == *_v9a ]] && copy_required "train_${DATA##*_}"
   python bin/hpc_make_data.py --root "$SCRATCH/data" --out "$SCRATCH/yaml"
   YAML="$SCRATCH/yaml/$DATA.yaml"
 else

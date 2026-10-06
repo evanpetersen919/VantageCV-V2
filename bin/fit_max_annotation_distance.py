@@ -58,12 +58,14 @@ def _image_records(
 
 
 def _collect(
-    dataset_dir: Path, config_path: Path, num_scenarios: int
+    dataset_dir: Path, config_path: Path, num_scenarios: int, parking_lot_fraction: float
 ) -> Dict[str, List[Tuple[float, ...]]]:
     """(distance_m, height_px, width_px) per class, from ``num_scenarios`` regenerated scenarios."""
     manifest = json.loads((dataset_dir / "manifest.json").read_text(encoding="utf-8"))
     bounds = tuple(manifest["bounds"])
-    config = load_scenario_config(config_path).model_copy(update={"parking_lot_fraction": 0.3})
+    config = load_scenario_config(config_path).model_copy(
+        update={"parking_lot_fraction": parking_lot_fraction}
+    )
     records: Dict[str, List[Tuple[float, ...]]] = {name: [] for name in COCO_NAMES.values()}
     for index in range(num_scenarios):
         part_path = dataset_dir / "parts" / f"scenario_{index:04d}.json"
@@ -149,10 +151,16 @@ def main() -> None:
         "--config", type=Path, default=Path("configs/scenario_templates/urban_dense.yaml")
     )
     parser.add_argument("--num-scenarios", type=int, default=150)
+    parser.add_argument(
+        "--parking-lot-fraction",
+        type=float,
+        default=0.3,
+        help="the dataset's lot share (v6 profile 0.3, the default; v7 profile 0.1)",
+    )
     parser.add_argument("--image-height", type=int, default=1080)
     args = parser.parse_args()
 
-    records = _collect(args.dataset, args.config, args.num_scenarios)
+    records = _collect(args.dataset, args.config, args.num_scenarios, args.parking_lot_fraction)
     for name, recs in records.items():
         cutoff = _best_cutoff(recs, REAL_TARGET_HEIGHT_FRACTION[name], args.image_height)
         print(f"{name:8s} n={len(recs):6d}  fitted_max_distance_m={cutoff:5.1f}  (median fit)")
