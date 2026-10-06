@@ -1585,3 +1585,13 @@ labels. Trucks per image 0.64 (v7p 0.42), buses 0.17 (0.11). The truck small sha
 5-point tolerance (20 against 18); the bus small share is 6 points under (11 against 17) on only 85
 boxes, about the sampling noise of that count, so the batch is accepted without re-rendering. The
 large-truck share is lower than real (28 against 39) because the added boxes are all distant.
+
+### v9a result: labelling trucks and buses out to 80 m and 60 m did not raise truck AP (rule 1: no)
+
+`hpc_v9a25` (3 seeds) against `hpc_v7p25`, BDD100K val: truck AP 15.74 against 16.12 (-0.38,
+p = 0.48); bus 12.59 against 13.51 (-0.92); overall AP 20.65 against 20.99 (-0.34, p = 0.32); car 38.11
+(0.00); person 16.16 (-0.07); night AP 17.71 (-0.18). Cityscapes: truck 15.36 against 14.41 (+0.95,
+p = 0.67, seed spread 2.7), bus +1.5, AP +0.41, person -0.45 (p = 0.10), car -0.37 (p = 0.12); nothing
+there is distinguishable from noise. Rule 1 (truck AP +1.0 on BDD100K): not met; guardrails hold.
+Rule 3 (small-truck misses must fall, the per-box check) is read when the per-box files for v9a are in;
+until then the cause is not settled, since AP is a mix of small and larger boxes.
