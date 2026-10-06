@@ -1531,3 +1531,24 @@ small at the same distance. Not yet done: the cutoff that reproduces the real sm
 whether the unlabelled distant trucks (still drawn in the frame, no box) act as background noise.
 Both are testable with `bin/fit_max_annotation_distance.py` fitted to the size shares instead of
 the median, then a re-render of one batch and a v7p-versus-new comparison.
+
+#### Refit of the distance cutoffs to the size shares (`bin/fit_max_annotation_distance.py`)
+
+The script now also reports, per class, the cutoff whose small / medium / large shares are closest to
+the real BDD100K val shares (areas at 720 px height; 1 m steps, 15-150 m). 150 regenerated `train_v7p`
+scenarios (config `urban_dense_v7_peds.yaml`; the script forces `parking_lot_fraction` 0.3, so this is
+a close regeneration, not an exact replay: at the current 54 m it gives 30% small cars where the
+dataset itself has 41%). Small / medium / large, percent:
+
+| class | real | at the current cutoff | share fit |
+|---|---|---|---|
+| truck (n 363) | 18 / 43 / 39 | 0 / 47 / 53 (53 m) | 18 / 51 / 31 at 96 m |
+| bus (n 114) | 17 / 41 / 42 | 0 / 29 / 71 (41 m) | 13 / 51 / 37 at 72 m |
+| car (n 5707) | 44 / 38 / 19 | 30 / 51 / 19 (54 m) | 44 / 41 / 15 at 71 m |
+
+Trucks and buses are the clear case: at the current cutoffs there are no small boxes at all, and the
+share fit asks for about 96 m (truck) and 72 m (bus). Counts are small (363 and 114 boxes), so
+the exact metres carry that uncertainty; the direction does not. Cars would also gain small boxes
+(the regeneration under-counts them), so cars are left alone in a first test. Median fit (the old
+method) gives person 28, car 43, bus 47, truck 64 m with this config: the old 53 m for trucks was
+not even the median fit for this camera.
