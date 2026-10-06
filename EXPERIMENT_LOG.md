@@ -1507,3 +1507,27 @@ Together with the per-box result (truck mislabelling the same 28-30% in the real
 of it pickups and vans that BDD calls truck), the reading is: changing what the synthetic fleet
 contains does not move truck AP with the models we own. The remaining levers are small trucks (63%
 missed in every arm) and the truck models' appearance. v7p25 stays the best synthetic arm.
+
+### Small trucks: the synthetic data has almost none (box sizes against BDD100K val)
+
+Share of boxes by COCO size, in 1280x720 equivalent (synthetic 1920x1080 scaled by 2/3), real
+BDD100K val against `train_v7p` and `train_v8a`:
+
+| class | real small / medium / large | v7p | v8a |
+|---|---|---|---|
+| truck | 18 / 43 / 39 % (4,247 boxes) | 3 / 55 / 42 (214) | 3 / 58 / 39 (157) |
+| bus | 17 / 41 / 42 % (1,597) | 0 / 44 / 56 (55) | 4 / 46 / 50 (82) |
+| car | 44 / 38 / 19 % (102,540) | 41 / 40 / 19 (4,076) | 41 / 40 / 19 (4,120) |
+
+Cars match the real shape; trucks and buses do not: real trucks are small 18% of the time, synthetic
+3%, and per-box outcomes show 63-67% of small real trucks missed in every arm. Cause, from the
+annotation policy (`src/export/annotation_policy.py`) and the manifest: labels are dropped beyond
+`max_distance_m` (truck 53 m, bus 41 m, car 54 m), and these cutoffs were fit so the *median* box
+height matches the real benchmarks. Camera: vertical FOV 73.74 deg, so at 1280x720 equivalent a
+truck (about 3 m effective size) falls under 32 px beyond roughly 45 m; a 53 m cutoff leaves a
+sliver of distances that can be small, while real trucks are seen far past that. A median fit
+matches the middle of the distribution and cuts its tail. Cars look right only because they are
+small at the same distance. Not yet done: the cutoff that reproduces the real small share, and
+whether the unlabelled distant trucks (still drawn in the frame, no box) act as background noise.
+Both are testable with `bin/fit_max_annotation_distance.py` fitted to the size shares instead of
+the median, then a re-render of one batch and a v7p-versus-new comparison.
