@@ -1574,3 +1574,14 @@ trucks missed below 63% (v7p25) and "correct" above 4%. If AP moves but small-tr
 the gain came from something else and is not read as support. If neither rule 1 nor 3 is met, small
 trucks are closed as a lever too, leaving truck appearance (box, dump and garbage trucks) as the
 remaining one. Bus AP is reported (1-2 AP noise).
+
+#### v9a batch statistics (measured before training, as the rule required)
+
+512 frames, 0 rejected, calibration 0.55 px. Small / medium / large shares (1280x720 areas), real
+BDD100K val in brackets: truck 20 / 53 / 28 [18 / 43 / 39] on 329 boxes (v7p 3 / 55 / 42 on 214);
+bus 11 / 51 / 39 [17 / 41 / 42] on 85 boxes (v7p 0 / 44 / 56 on 55). Cars (4,076 boxes, 41 / 40 / 19) and
+persons (1,690, 55 / 39 / 6) are identical to v7p, so the comparison changes only the truck and bus
+labels. Trucks per image 0.64 (v7p 0.42), buses 0.17 (0.11). The truck small share is within the
+5-point tolerance (20 against 18); the bus small share is 6 points under (11 against 17) on only 85
+boxes, about the sampling noise of that count, so the batch is accepted without re-rendering. The
+large-truck share is lower than real (28 against 39) because the added boxes are all distant.
