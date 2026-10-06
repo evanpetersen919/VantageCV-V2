@@ -1479,3 +1479,31 @@ and vans "truck" where the detector says car, which a car-versus-truck appearanc
 another third are real trucks (box, dump, garbage) that the detector does call car. Not done: a
 counted audit of more boxes, or asking how many pickups the synthetic fleet contains (v8b adds
 10% pickup and 10% van).
+
+### v8b result: labelling pickups and vans as truck lowered truck AP; the truck/bus mix is closed as a lever
+
+`train_v8b` (v8a plus 10% pickup and 5% + 5% vans labelled truck; 256 scenarios, 3 seeds) against
+`hpc_v8a25` and `hpc_v7p25`. Batch statistics matched v8a (8.07 cars, 0.30 trucks, 0.16 buses, 3.32
+persons per image; the truck rate is under the 0.39 target for the same rig reason).
+
+| BDD100K val (n = 3) | v7p25 | v8a25 | v8b25 |
+|---|---|---|---|
+| AP | 20.99 | 20.65 | 20.44 |
+| truck AP | 16.12 | 15.62 | 15.42 |
+| bus AP | 13.51 | 12.34 | 11.93 |
+| car AP | 38.11 | 38.24 | 38.20 |
+| person AP | 16.24 | 16.42 | 16.18 |
+| night AP | 17.88 | 17.27 | 17.22 |
+
+Cityscapes truck AP: 14.41 / 13.09 / 12.55; AP 21.34 / 21.40 / 20.78.
+
+Rules as logged: rule 2 (adopt v8b only if truck AP +0.5 over v8a, car AP not down 0.5): truck is
+-0.20 against v8a, so no. Rule 3 (stop tuning the mix if neither beats v7p25 by +1.0 on truck AP):
+v8a is -0.50 and v8b -0.69 (p = 0.062), so the mix is closed as a lever. Guardrails: overall AP -0.56
+(p = 0.12), car and person within 0.1; night AP -0.66; none decisive, all within noise except the
+truck direction, which is consistently negative.
+
+Together with the per-box result (truck mislabelling the same 28-30% in the real-only arm, and a third
+of it pickups and vans that BDD calls truck), the reading is: changing what the synthetic fleet
+contains does not move truck AP with the models we own. The remaining levers are small trucks (63%
+missed in every arm) and the truck models' appearance. v7p25 stays the best synthetic arm.
