@@ -315,3 +315,6 @@ this repository; the vehicle meshes used for occlusion tests are generated local
 City Sample (`bin/dump_vehicle_meshes.py`), and those tests are skipped where the file is absent.
 
 Unreal Engine and City Sample are the property of Epic Games, Inc.
+
+**Status of the pedestrian assets.** The use of City Sample's crowd characters (adapted from Epic's
+MetaHumans) for training is under review with Epic; no datasets or trained weights are published.
