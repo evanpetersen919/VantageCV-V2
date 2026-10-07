@@ -1800,3 +1800,13 @@ published claims narrow to vehicles, and the person results would need a replace
 (Rocketbox pilot, with a realism check) to be reproduced. The +0.86 person gain remaining without any
 synthetic persons is inside the roughly 0.4 seed spread of two arms plus whatever the road, lots and
 vehicles teach the person class; it is not explained here.
+
+#### v11 batch statistics (measured before training)
+
+512 frames, 0 rejected, calibration 0.51 px; the tar is 1.44 GB. Against `train_v8a` (same scenes and seeds):
+cars 4,127 against 4,120, persons 1,689 against 1,689 (identical), buses 83 against 82, trucks 167 against
+157 (0.33 per image, 0.31 in v8a; the 0.39 target is still missed for the rig reason logged under v8a).
+Truck size shares (small / medium / large, 1280x720 areas): 13 / 55 / 32 against 3 / 58 / 39 in v8a: the
+box truck is a smaller vehicle than the garbage truck and the rig, so the batch also has more small
+trucks. That is a second change riding on the first: the v9a test showed that small trucks alone do not
+move truck AP, so it is not expected to matter, but a positive result is read with it in mind.
