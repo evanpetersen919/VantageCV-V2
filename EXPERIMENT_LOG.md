@@ -1894,3 +1894,41 @@ After seeing the car jerk in the server window, a count of hard-brake events was
 still collisions per kilometre, with the rule above unchanged. The spectator camera now follows every
 step (it jumped every half second, which made the car look jerky on screen; it has no effect on results).
 The three episodes run before this change were discarded and are re-run.
+
+### CARLA step 2 result: with the detector as the car's eyes, collisions rise from 3 to 10-14 over 20 routes; the two detectors cannot be told apart
+
+20 routes (Town10HD, 40 other vehicles, 30 km/h target, 150 s cap), each driven by the ground-truth agent and
+with each detector (`hpc_real25r` seed 0 and `hpc_v7p25` seed 0, one weights file each) as the agent's only view
+of other vehicles (`results/carla/driving.json`, `carla_loop/compare.py`). Same agent, routes, seeds and traffic
+seeds in all three arms.
+
+| arm | reached | stuck | collisions | per km | routes with a collision | hard-brake events per km |
+|---|---|---|---|---|---|---|
+| ground truth | 18 | 2 | 3 | 0.46 | 3 | 264 |
+| real-only detector | 17 | 3 | 14 | 2.21 | 7 | 177 |
+| v7p detector | 18 | 2 | 10 | 1.54 | 7 | 208 |
+
+Total distance 6.3-6.5 km per arm. Every collision in every arm is with another vehicle.
+
+Rule as logged before the run: a difference between the detectors is read as an effect only if collision counts
+differ by a factor of two or more and by at least 5 events. They are 14 and 10 (a factor of 1.4, a difference
+of 4), and 7 routes each: the rule is not met, so the result is "no detectable effect between the detectors at
+this sample size". The difference is also one route: seed 11 holds 5 of the real-only arm's 14 collisions (and
+a stuck run) against 1 for v7p; without it the two arms have 9 and 9. The same is true on routes: they share
+7 of the same routes with a collision or close to it (6, 9, 10, 11, 14, 17 in both).
+
+What the run does show, outside the rule, since it is a comparison with the ceiling: replacing exact knowledge
+of other vehicles with either detector raises collisions from 3 to 10 or 14, a factor of 3 to 5 and a
+difference of 7 to 11 events, all with vehicles. So perception errors are what the agent crashes on, and a
+detector with several AP points more on real photos (v7p25 against real-only) does not, on these routes, change
+that. The hard-brake count does not support the flicker explanation for the jerky motion: the detector arms
+brake less than ground truth (177 and 208 against 264 per km), probably because ground truth reacts to every
+vehicle, including ones the camera cannot see. Two routes (3, 16) are stuck in all three arms, so they are route
+or agent problems, not perception.
+
+Caveats: one weights file per detector; 20 routes in a single town; the detectors were never trained on CARLA
+frames (a different look from the training data); collisions cluster on a few routes; the agent assumes every
+detected vehicle is heading the way the ego is and has no tracking, so a missed vehicle in one frame is a
+missed vehicle for that step. What would settle it: more routes and detector seeds (the v7p25 and real25r seeds
+1 and 2), and a collision breakdown by what kind of vehicle was hit (truck, van, car) to connect it back to the
+truck and bus findings. Neither is done.
