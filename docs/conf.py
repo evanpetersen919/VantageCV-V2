@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.abspath(".."))
 project = "Synthetic AV Dataset Generator"
 copyright = "2026, Evan Petersen"  # pylint: disable=redefined-builtin
 author = "Evan Petersen"
-release = "1.0.0"
+release = "1.1.0"
 
 extensions = [
     "sphinx.ext.autodoc",

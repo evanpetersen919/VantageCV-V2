@@ -1,6 +1,52 @@
 Release Notes
 ==============
 
+1.1 -- 2026-10-07
+-----------------
+
+Where the truck and bus gap comes from, measured. Five generator levers for trucks and buses were tested
+with the question and the reading rule written in ``EXPERIMENT_LOG.md`` before each result; none raised
+truck AP. What 1.1 adds is the measurement that explains why.
+
+**Tools**
+
+- Per-box outcomes (``bin/box_outcomes.py``, ``bin/summarise_box_outcomes.py``, a cluster job): for every
+  real BDD100K val box, whether a trained detector found it, called it another class, found it only at
+  low confidence or missed it, by box size and time of day.
+- A per-scene benchmark (``bdd100k_scene``) in the statistics tools.
+- ``--max-distance CLASS=METRES`` on ``generate_live_dataset.py``; ``bin/fit_max_annotation_distance.py``
+  can fit the labelling cutoffs to the real size shares as well as the median box height.
+- ``night_vehicle_scale`` in the scenario config; fleets ``v8a``, ``v8b`` and ``v11`` (a box truck from a
+  third-party pack) and a pedestrian-free config, all behind new names so older configs draw exactly what
+  they did.
+- ``IMGSZ`` and ``BATCH`` switches in the cluster job (train and score at 1280 px instead of 960); the
+  shared inference loop is its own module.
+- Geometry extracted from City Sample vehicles is no longer in the repository or its history; the
+  occlusion tests that need it skip where it is absent. The README states that the use of City Sample's
+  crowd characters for training is under review with Epic.
+
+**Findings (three seeds, BDD100K val, 25% real)**
+
+- No generator lever moved truck AP: the vehicle mix (-0.50 against v7), pickups and vans labelled truck
+  (-0.69), labelling trucks and buses farther out to match the real box sizes (-0.38), a real box-truck
+  model for 30% of trucks (-0.81 against v7, -0.31 against v8a).
+- Per box, the gap has two parts: small boxes are missed in every class (63-67% of small trucks and buses,
+  in every arm), and about 30% of medium and large trucks are called cars, at the same rate in the
+  real-only arm.
+- At 1280 px instead of 960, person AP rises 1.6 and car AP 1.3; truck AP does not move. About a quarter
+  of the synthetic gain at 960 is resolution the detector lacked (overall +2.77 over real-only at 960,
+  +2.11 at 1280).
+- Scene coverage is not where the models fail; highway and residential trail city street as much in the
+  real-only arm as in the synthetic arms.
+- With no synthetic pedestrians, car AP (+0.08) and truck AP (-0.09) are unchanged; person AP falls by 3.0.
+
+**Known limits**
+
+- The truck and bus gap is not closed; a larger, more varied truck population has not been tested.
+- The use of City Sample's crowd characters for training is under review with Epic; no datasets or trained
+  weights are published, and results that rely on synthetic pedestrians are provisional.
+- Results are three seeds per arm, so differences under about 0.5 AP are not interpreted.
+
 1.0 -- 2026-10-05
 -----------------
 

@@ -7,6 +7,7 @@ from src.ground_truth.bbox_3d import BoundingBox3D
 from src.ground_truth.categories import SEDAN
 from src.ground_truth.occlusion import visible_fraction
 from src.procedural.actor_placement import Vehicle, vehicle_box
+from src.procedural.city_sample_assets import BOXTRUCK_FOLDER
 from src.procedural.vehicle_bounds import VEHICLE_MODEL_BOUNDS
 from src.procedural.vehicle_meshes import MESH_FILE, model_folder, model_mesh, world_triangles
 from src.sensors.camera_model import Camera, CameraExtrinsics, CameraIntrinsics
@@ -34,6 +35,8 @@ def _vehicle(heading: float = 0.0, x: float = 0.0, y: float = 0.0) -> Vehicle:
 def test_every_measured_model_has_a_mesh() -> None:
     """The mesh file covers every model in the bounds table."""
     for folder in VEHICLE_MODEL_BOUNDS:
+        if folder == BOXTRUCK_FOLDER:  # third-party box truck: measured box, no render mesh
+            continue
         assert model_mesh(folder) is not None, folder
 
 
@@ -45,6 +48,8 @@ def test_mesh_length_and_ground_contact_match_the_measured_box() -> None:
     (the police car's light bar), hence the height tolerance.
     """
     for folder, (length, _, height, center_x, _, z_min) in VEHICLE_MODEL_BOUNDS.items():
+        if folder == BOXTRUCK_FOLDER:
+            continue
         vertices, _ = model_mesh(folder)  # type: ignore[misc]
         low, high = vertices.min(axis=0), vertices.max(axis=0)
         assert high[0] - low[0] == pytest.approx(length, abs=0.3), folder
