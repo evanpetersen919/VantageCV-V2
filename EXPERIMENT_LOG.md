@@ -1614,3 +1614,25 @@ small trucks 2%), so the small-truck miss rate looks like a resolution and visib
 detector at 960 px, not a gap in what the synthetic data shows. Not tested: a higher training image
 size (this changes the detector, not the generator), and truck appearance (box, dump and garbage
 trucks), which needs models City Sample does not have.
+
+### v10n: the same batch with no synthetic pedestrians (insurance against the Epic ruling)
+
+Why: Epic's EULA restricts training or testing AI on MetaHuman characters or renders of them, and City
+Sample's crowd is adapted from MetaHumans (see the README status note). If Epic rules that the crowd
+cannot be used, every result that depends on synthetic pedestrians is in question. This batch asks how
+much of the vehicle results needs the crowd at all.
+
+`train_v10n` is `train_v7p` with `pedestrian_density_fraction` 0 (`urban_dense_v7_nopeds.yaml`; the
+test checks that this is the only config difference), 256 scenarios, seeds 70000-70255, same labelling
+cutoffs. Checked before rendering: for seeds 70000-70003 all 1,468 vehicles are identical to the v7p
+scenarios (position, model, heading), and pedestrians are 0 against about 300 per scenario, so the
+only change in the scene is the missing crowd. Arm `hpc_v10n25` (25% real, AdamW, 3 seeds) against
+`hpc_v7p25`.
+
+Reading rules, fixed first: (1) vehicle results stand without the crowd if car and truck AP on BDD100K
+val are each within 0.5 of v7p25 (bus is reported, noise 1-2 AP); (2) person AP is expected to fall
+(the supply test showed person AP follows the number of synthetic persons), and is reported as the size
+of the crowd's contribution, not a failure; (3) overall AP is reported with the person drop explained,
+not read as a vehicle effect. If rule 1 holds, the vehicle findings of 1.1 (the closed levers) and the
+car gain from synthetic data stay publishable without the pedestrians. If a car gain over real-only
+disappears, the crowd was helping vehicles too, and that is a finding on its own.

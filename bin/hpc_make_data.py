@@ -23,8 +23,8 @@ below. Every file validates on the same 199 real images, so scores are comparabl
 * ``mixed_modal.yaml`` / ``mixed_25pct_modal.yaml`` -- the same v5 images with visible-part labels
   (``train2000_v5_modal``: boxes cover only what can be seen of a partly hidden object), at 100%
   and 25% real; written only if that folder is present
-* ``mixed_25pct_v7a.yaml`` (and ``_v7c``, ``_v7p``, ``_v8a``, ``_v8b``, ``_v9a``) -- 25% real + a
-  512-image v7, v8 or v9 batch
+* ``mixed_25pct_v7a.yaml`` (and ``_v7c``, ``_v7p``, ``_v8a``, ``_v8b``, ``_v9a``, ``_v10n``) --
+  25% real + a 512-image v7 to v10 batch
   (``train_v7a``: train and val frames together, 972 images in all, the size of
   ``mixed_25pct_rand``); each is written only if its folder is present
 * ``mixed_25pct_realism.yaml`` -- 25% real + the v5 synthetic images after the calibrated realism
@@ -52,7 +52,15 @@ EXTRA_DIR = "bdd100k_control_extra"
 SYNTH_B_DIR = "train2000_v5b"
 REALISM_DIR = "train2000_v5_realism"
 MODAL_DIR = "train2000_v5_modal"
-BATCHES = ("v7a", "v7c", "v7p", "v8a", "v8b", "v9a")  # train_<name> folders (v7 and v8 log entries)
+BATCHES = (
+    "v7a",
+    "v7c",
+    "v7p",
+    "v8a",
+    "v8b",
+    "v9a",
+    "v10n",
+)  # train_<name> folders (v7 and v8 log entries)
 FRACTIONS = (25, 50)
 TRUCK_BUS = {2, 3}  # class ids of bus and truck in this project's four classes
 PERSON, BUS, TRUCK = 0, 2, 3
