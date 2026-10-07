@@ -1914,13 +1914,13 @@ Rule as logged before the run: a difference between the detectors is read as an 
 differ by a factor of two or more and by at least 5 events. They are 14 and 10 (a factor of 1.4, a difference
 of 4), and 7 routes each: the rule is not met, so the result is "no detectable effect between the detectors at
 this sample size". The difference is also one route: seed 11 holds 5 of the real-only arm's 14 collisions (and
-a stuck run) against 1 for v7p; without it the two arms have 9 and 9. The same is true on routes: they share
-7 of the same routes with a collision or close to it (6, 9, 10, 11, 14, 17 in both).
+a stuck run) against 1 for v7p; without it the two arms have 9 and 9. On routes the two arms agree too: each has a collision on 7 routes, 6 of them the same (6, 9, 10, 11, 14, 17);
+routes 2 and 7 differ.
 
 What the run does show, outside the rule, since it is a comparison with the ceiling: replacing exact knowledge
 of other vehicles with either detector raises collisions from 3 to 10 or 14, a factor of 3 to 5 and a
 difference of 7 to 11 events, all with vehicles. So perception errors are what the agent crashes on, and a
-detector with several AP points more on real photos (v7p25 against real-only) does not, on these routes, change
+detector with about 3 AP points more on real photos (v7p25 against real-only, +2.8) does not, on these routes, change
 that. The hard-brake count does not support the flicker explanation for the jerky motion: the detector arms
 brake less than ground truth (177 and 208 against 264 per km), probably because ground truth reacts to every
 vehicle, including ones the camera cannot see. Two routes (3, 16) are stuck in all three arms, so they are route
