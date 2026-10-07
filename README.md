@@ -1,9 +1,9 @@
 # VantageCV Remastered
 
-### Synthetic AV Dataset Generator V1.0
+### Synthetic AV Dataset Generator V1.1
 
 [![Lint and Test](https://github.com/evanpetersen919/VantageCV-V2/actions/workflows/lint_and_test.yml/badge.svg)](https://github.com/evanpetersen919/VantageCV-V2/actions/workflows/lint_and_test.yml)
-![Version 1.0](https://img.shields.io/badge/version-1.0-1baf7a.svg)
+![Version 1.1](https://img.shields.io/badge/version-1.1-1baf7a.svg)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
 ![Unreal Engine 5.4](https://img.shields.io/badge/Unreal%20Engine-5.4-black.svg)
@@ -113,7 +113,9 @@ three seeds each, p < 0.01 throughout). It is not a substitute: the same number 
 **What the experiments say so far**
 
 - **Pedestrian count drives person AP.** 550 / 1,256 / about 2,000 persons in a 510-image supplement gave 14.8 / 15.5 / 16.4 person AP.
-- **Truck and bus counts do not drive truck or bus AP.** Those classes look limited by how the vehicles look, not how many there are.
+- **Truck and bus counts do not drive truck or bus AP, and neither does anything else the generator controls (1.1).** Five levers were tested, each with its reading rule written first: the vehicle mix, pickups and vans labelled truck, the box-size distribution, the input size (1280 px) and an added real box-truck model. None raised truck AP. Per box, small boxes are missed in every class and about 30% of medium and large trucks are called cars, at the same rate when training on real images only.
+- **A larger input helps people and cars, not trucks (1.1).** At 1280 px instead of 960, person AP rises 1.6 and car AP 1.3; about a quarter of the synthetic gain at 960 is resolution the detector lacked (overall +2.77 over real-only at 960, +2.11 at 1280).
+- **The vehicle results do not depend on the pedestrian crowd (1.1).** With the same scenes and no synthetic pedestrians, car and truck AP are unchanged and person AP falls by 3.0.
 - **Generator v7 reaches parity with the older generator, not a gain.** With the older, higher pedestrian density it scores 20.99 against 20.84 (BDD100K AP at 25% real); with a real-frequency pedestrian density it stays 0.7 behind (20.18).
 - **Synthetic-only transfer is still far below real-data baselines.** Grad-CAM shows the detector keys on background texture like foliage and curbs rather than object shape.
 
@@ -155,7 +157,7 @@ Open problems the project is working on (evidence in [`EXPERIMENT_LOG.md`](EXPER
 - **Texture/shape bias:** randomize backgrounds so detectors learn object shape
   (started in `bin/stylize_backgrounds.py`; renderer-side randomization next).
 - **Camera realism:** roll, field of view and post-process effects need a small RPC/engine change.
-- **Scale and variance:** doubling the synthetic set to 3,691 images added little (about +0.9 AP at best). More pedestrians per scene helps person AP; more trucks and buses did not help truck or bus AP, so those are an appearance problem, not a count problem.
+- **Scale and variance:** doubling the synthetic set to 3,691 images added little (about +0.9 AP at best). More pedestrians per scene helps person AP; more trucks and buses, a different mix, other box sizes, a larger input and one added box-truck model did not help truck or bus AP (1.1). What is left untested is a larger, more varied truck population (box, dump, utility and delivery trucks of several makes).
 - **3D labels and LiDAR:** computed but not exported (see
   [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)).
 
