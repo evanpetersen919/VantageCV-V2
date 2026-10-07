@@ -1663,3 +1663,30 @@ size is closed too, and the remaining explanation is the appearance of the objec
 (identical to v7p), 4,123 cars (v7p 4,076; the 47 extra are cars that pedestrians stood in front of
 in v7p and that now pass the visibility threshold). The YOLO label files hold no class-0 lines. The
 batch is the v7p scenes minus the crowd, as intended.
+
+### Resolution test result (imgsz 1280 against 960): AP side, per-box side still to come
+
+12 new result files (`hpc_real25r_i1280`, `hpc_v7p25_i1280`, 3 seeds, BDD100K and Cityscapes). All six jobs
+completed without memory problems (real-only 1 h 14 min, v7p 2 h 13 min each). Baselines are the 960 arms
+`hpc_real25` (identical to the retrained `real25r`) and `hpc_v7p25`. BDD100K val, mean of 3 seeds:
+
+| AP | real 960 | real 1280 | v7p 960 | v7p 1280 | synthetic gain at 960 / 1280 |
+|---|---|---|---|---|---|
+| overall | 18.23 | 19.27 | 20.99 | 21.38 | +2.77 / +2.11 |
+| person | 12.41 | 14.43 | 16.24 | 17.82 | +3.83 / +3.39 |
+| car | 36.35 | 38.11 | 38.11 | 39.45 | +1.76 / +1.34 |
+| bus | 10.13 | 10.84 | 13.51 | 12.04 | +3.38 / +1.20 |
+| truck | 14.02 | 13.72 | 16.12 | 16.21 | +2.10 / +2.49 |
+
+For v7p, 1280 against 960: person +1.58 (p = 0.039), car +1.34 (p = 0.014), truck +0.10 (p = 0.80),
+bus -1.47 (p = 0.15), overall +0.38 (p = 0.24), night AP -0.40. Cityscapes shows the same direction:
+person +1.71 (p = 0.009), car +1.10 (p = 0.003), truck -1.90 (p = 0.27, seed spread 0.6 to 2.2).
+
+Reading, AP only (rule 1 needs the per-box small-truck numbers, not yet in): larger input size raises
+person and car AP by 1-2 points in both arms, so small persons and cars were resolution-limited at 960.
+Truck AP does not move (real-only 14.02 to 13.72, v7p 16.12 to 16.21) and bus does not improve, so
+resolution is not what limits trucks at the AP level. Rule 3: the synthetic gain shrinks at 1280 for
+overall AP (+2.77 to +2.11), car (+1.76 to +1.34) and bus (+3.38 to +1.20, noisy), and holds for person
+(+3.83 to +3.39) and truck (+2.10 to +2.49). So about a quarter of what synthetic data adds overall at
+960 is resolution that a larger input recovers for free; the README's synthetic gain should be stated at
+both sizes. Cost: 1280 takes about 1.8x the time of 960.
