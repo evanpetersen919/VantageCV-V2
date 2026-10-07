@@ -1885,3 +1885,12 @@ counts differ by a factor of two or more and by at least 5 events over the 20 ro
 reported as "no detectable effect at this sample size". Known approximations: the agent only brakes for
 vehicles (no pedestrians are spawned), and the detections replace the simulator's list but the agent keeps
 reading true traffic lights.
+
+#### CARLA step 2: secondary metric added before any result
+
+After seeing the car jerk in the server window, a count of hard-brake events was added to each episode
+(`hard_brake_events`: the agent's emergency stop, a brake of 0.5 or more, counted when it starts, and
+`hard_brake_seconds`), as a secondary metric of how steady the detector's view is. The primary metric is
+still collisions per kilometre, with the rule above unchanged. The spectator camera now follows every
+step (it jumped every half second, which made the car look jerky on screen; it has no effect on results).
+The three episodes run before this change were discarded and are re-run.

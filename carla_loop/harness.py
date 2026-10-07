@@ -29,6 +29,7 @@ Vision = Callable[[Any, Any], Sequence[Any]]  # (world, ego) -> vehicles the age
 STEP_SECONDS = 0.05
 COLLISION_DEBOUNCE_S = 1.0
 STUCK_SECONDS = 40.0
+HARD_BRAKE = 0.5  # BasicAgent's emergency stop brakes at its max_brake (0.5)
 
 
 @dataclass(frozen=True)
@@ -105,8 +106,33 @@ def summarise(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
         "collisions": crashes,
         "collisions_per_km": round(crashes / km, 2) if km else None,
         "lane_invasions": sum(r["lane_invasions"] for r in rows),
+        "hard_brake_events": sum(r.get("hard_brake_events", 0) for r in rows),
+        "hard_brake_events_per_km": round(sum(r.get("hard_brake_events", 0) for r in rows) / km, 1) if km else None,
         "km": round(km, 2),
     }
+
+
+def restart_server(wait_s: float = 240.0) -> None:
+    """Kill CARLA and start it again, then wait until its port answers (a hung server cannot be reset)."""
+    import socket  # pylint: disable=import-outside-toplevel
+    import subprocess  # pylint: disable=import-outside-toplevel
+    import time  # pylint: disable=import-outside-toplevel
+
+    subprocess.run(["taskkill", "/F", "/IM", "CarlaUE4-Win64-Shipping.exe"], check=False, capture_output=True)
+    subprocess.run(["taskkill", "/F", "/IM", "CarlaUE4.exe"], check=False, capture_output=True)
+    time.sleep(5.0)
+    subprocess.Popen(  # pylint: disable=consider-using-with
+        [str(CARLA_ROOT / "CarlaUE4.exe"), "-quality-level=Low"], cwd=str(CARLA_ROOT)
+    )
+    deadline = time.time() + wait_s
+    while time.time() < deadline:
+        with socket.socket() as probe:
+            probe.settimeout(3.0)
+            if probe.connect_ex(("localhost", 2000)) == 0:
+                time.sleep(25.0)  # the port opens before the world is ready
+                return
+        time.sleep(5.0)
+    raise RuntimeError("CARLA did not come back")
 
 
 def connect(host: str = "localhost", port: int = 2000) -> Any:
@@ -199,6 +225,7 @@ def run_episode(  # pylint: disable=too-many-locals
         total = max(len(agent.get_local_planner().get_plan()), 1)
 
         outcome, stopped_for, distance_m, ticks = "timeout", 0.0, 0.0, 0
+        braking, brake_events, brake_ticks = False, 0, 0
         last = ego.get_location()
         while clock["t"] < episode.max_seconds:
             frame = world.tick()
@@ -206,15 +233,19 @@ def run_episode(  # pylint: disable=too-many-locals
             ticks += 1
             if rig is not None:
                 rig.step(world, ego, frame)
-            ego.apply_control(agent.run_step())
+            control = agent.run_step()
+            ego.apply_control(control)
+            hard = control.brake >= HARD_BRAKE  # the agent's emergency stop applies its max_brake
+            brake_events += int(hard and not braking)
+            brake_ticks += int(hard)
+            braking = hard
             here = ego.get_location()
             distance_m += here.distance(last)
             last = here
             v = ego.get_velocity()
             moving = math.sqrt(v.x**2 + v.y**2 + v.z**2) > 0.1
             stopped_for = 0.0 if moving else stopped_for + STEP_SECONDS
-            if ticks % 10 == 0:
-                _follow(world, ego)
+            _follow(world, ego)
             if agent.done():
                 outcome = "reached"
                 break
@@ -232,15 +263,16 @@ def run_episode(  # pylint: disable=too-many-locals
             "mean_speed_kmh": round(3.6 * distance_m / max(clock["t"], 1e-6), 1),
             "collisions": debounce(collisions),
             "lane_invasions": len(lane_invasions),
+            "hard_brake_events": brake_events,
+            "hard_brake_seconds": round(brake_ticks * STEP_SECONDS, 1),
             "npcs": len(traffic),
             **({"rig": rig.report()} if rig is not None else {}),
         }
     finally:
         sensors = [a for a in actors if hasattr(a, "stop")]
-        for sensor in sensors:  # sensors go first, while the world still ticks in lockstep
+        for sensor in sensors:  # sensors go first, one by one (a batch with a tick hung the server)
             sensor.stop()
-        client.apply_batch_sync([carla.command.DestroyActor(a) for a in sensors], True)
-        world.tick()
+            sensor.destroy()
         manager.set_synchronous_mode(False)
         world.apply_settings(original)
         client.apply_batch([carla.command.DestroyActor(a) for a in reversed(actors) if a not in sensors])
