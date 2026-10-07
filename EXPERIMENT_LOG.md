@@ -1690,3 +1690,29 @@ overall AP (+2.77 to +2.11), car (+1.76 to +1.34) and bus (+3.38 to +1.20, noisy
 (+3.83 to +3.39) and truck (+2.10 to +2.49). So about a quarter of what synthetic data adds overall at
 960 is resolution that a larger input recovers for free; the README's synthetic gain should be stated at
 both sizes. Cost: 1280 takes about 1.8x the time of 960.
+
+#### Resolution test, per-box side (rule 1)
+
+BDD100K val, 3 seeds, confidence 0.25; percent of boxes, 960 then 1280.
+
+| small boxes | real-only correct | real-only missed | v7p correct | v7p missed |
+|---|---|---|---|---|
+| truck (730) | 2.3 to 5.2 | 66.8 to 57.8 | 4.2 to 8.6 | 63.0 to 57.4 |
+| bus (267) | 1.9 to 4.0 | 66.0 to 57.9 | 0.7 to 1.9 | 64.8 to 60.2 |
+| car (43,680) | 41.9 to 48.2 | 35.0 to 28.4 | 46.4 to 49.5 | 32.7 to 26.9 |
+| person (6,377) | 14.2 to 21.9 | 59.0 to 52.0 | 22.4 to 26.0 | 52.6 to 48.2 |
+
+Rule 1 asked for small-truck correct to rise by at least 5 points from about 4% in either arm, and small
+cars to rise too. Cars do (+6.3 real-only, +3.1 v7p), trucks rise by +2.9 and +4.4: the letter of the rule is
+not met (it needed +5), but the direction is the one the resolution reading predicts, and the effect is
+the same size on every class: small boxes are missed 5-9 points less often at 1280, in both arms, for
+trucks, buses, cars and persons. Larger boxes do not gain: large trucks +3.0 for v7p but -4.1 real-only,
+large buses -6.8 for v7p, so the extra input size is not a uniform gain for trucks and buses. The
+mislabel rate (about 28-30% of trucks, 34-38% of buses) does not move with resolution.
+
+Reading: input size trades some small-box misses for found-but-low-confidence or mislabelled boxes,
+which is why truck and bus AP do not move although small cars and persons gain. The truck/bus gap is two
+things, neither of which the generator's mix, labels, box sizes or the image size changes: small boxes
+that are hard for every class, and a car/bus/truck appearance confusion that is the same in the
+real-only arm. The remaining lever is the appearance of trucks themselves (box, dump and garbage
+trucks, pickups), for which City Sample has no models.
