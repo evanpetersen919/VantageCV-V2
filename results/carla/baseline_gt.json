@@ -1,0 +1,65 @@
+{
+ "summary": {
+  "episodes": 3,
+  "reached": 3,
+  "stuck": 0,
+  "mean_completion": 1.0,
+  "collisions": 0,
+  "collisions_per_km": 0.0,
+  "lane_invasions": 10,
+  "km": 1.24
+ },
+ "episodes": [
+  {
+   "seed": 0,
+   "town": "Town10HD_Opt",
+   "traffic": 40,
+   "target_kmh": 30.0,
+   "max_seconds": 180.0,
+   "min_route_m": 150.0,
+   "max_route_m": 450.0,
+   "outcome": "reached",
+   "route_completion": 1.0,
+   "seconds": 125.7,
+   "distance_m": 572.8,
+   "mean_speed_kmh": 16.4,
+   "collisions": [],
+   "lane_invasions": 2,
+   "npcs": 40
+  },
+  {
+   "seed": 1,
+   "town": "Town10HD_Opt",
+   "traffic": 40,
+   "target_kmh": 30.0,
+   "max_seconds": 180.0,
+   "min_route_m": 150.0,
+   "max_route_m": 450.0,
+   "outcome": "reached",
+   "route_completion": 1.0,
+   "seconds": 68.8,
+   "distance_m": 292.3,
+   "mean_speed_kmh": 15.3,
+   "collisions": [],
+   "lane_invasions": 1,
+   "npcs": 40
+  },
+  {
+   "seed": 2,
+   "town": "Town10HD_Opt",
+   "traffic": 40,
+   "target_kmh": 30.0,
+   "max_seconds": 180.0,
+   "min_route_m": 150.0,
+   "max_route_m": 450.0,
+   "outcome": "reached",
+   "route_completion": 1.0,
+   "seconds": 96.9,
+   "distance_m": 370.7,
+   "mean_speed_kmh": 13.8,
+   "collisions": [],
+   "lane_invasions": 7,
+   "npcs": 40
+  }
+ ]
+}
