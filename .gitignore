@@ -71,3 +71,6 @@ weights/
 
 # cluster-specific settings (see hpc/README.md)
 hpc/config.local.env
+
+# Geometry extracted from Epic City Sample vehicles by bin/dump_vehicle_meshes.py: never commit
+src/procedural/vehicle_meshes.npz

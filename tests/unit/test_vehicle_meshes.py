@@ -8,7 +8,7 @@ from src.ground_truth.categories import SEDAN
 from src.ground_truth.occlusion import visible_fraction
 from src.procedural.actor_placement import Vehicle, vehicle_box
 from src.procedural.vehicle_bounds import VEHICLE_MODEL_BOUNDS
-from src.procedural.vehicle_meshes import model_folder, model_mesh, world_triangles
+from src.procedural.vehicle_meshes import MESH_FILE, model_folder, model_mesh, world_triangles
 from src.sensors.camera_model import Camera, CameraExtrinsics, CameraIntrinsics
 
 CAR_PATH = "/Game/Vehicle/vehCar_vehicle02/Mesh/SM_Frame_vehCar_vehicle02"
@@ -30,12 +30,14 @@ def _vehicle(heading: float = 0.0, x: float = 0.0, y: float = 0.0) -> Vehicle:
     )
 
 
+@pytest.mark.skipif(not MESH_FILE.exists(), reason="vehicle_meshes.npz not generated")
 def test_every_measured_model_has_a_mesh() -> None:
     """The mesh file covers every model in the bounds table."""
     for folder in VEHICLE_MODEL_BOUNDS:
         assert model_mesh(folder) is not None, folder
 
 
+@pytest.mark.skipif(not MESH_FILE.exists(), reason="vehicle_meshes.npz not generated")
 def test_mesh_length_and_ground_contact_match_the_measured_box() -> None:
     """The mesh agrees with the measured bounds along the vehicle.
 
@@ -57,6 +59,7 @@ def test_unknown_model_has_no_mesh() -> None:
     assert model_folder(CAR_PATH) == "vehCar_vehicle02"
 
 
+@pytest.mark.skipif(not MESH_FILE.exists(), reason="vehicle_meshes.npz not generated")
 def test_world_triangles_apply_heading_and_position() -> None:
     """A quarter turn swaps the extents; the placement point translates the mesh."""
     straight = world_triangles(_vehicle(0.0, 10.0, -4.0))

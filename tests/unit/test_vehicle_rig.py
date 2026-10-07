@@ -4,6 +4,7 @@ import dataclasses
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from src.orchestration.scenario_serializer import trailer_asset_json
 from src.procedural.actor_placement import ActorPlacementGenerator, Vehicle, vehicle_box
@@ -17,7 +18,7 @@ from src.procedural.city_sample_assets import (
 )
 from src.procedural.night_lights import vehicle_lights
 from src.procedural.vehicle_bounds import VEHICLE_MODEL_BOUNDS
-from src.procedural.vehicle_meshes import model_mesh, world_triangles
+from src.procedural.vehicle_meshes import MESH_FILE, model_mesh, world_triangles
 from src.procedural.vehicle_rig import RIG_BOUNDS, rig_bounds
 from src.utils.config_loader import load_scenario_config
 
@@ -44,6 +45,7 @@ def test_rig_box_holds_both_parts_and_is_longer_than_either() -> None:
     assert rig_bounds(cab, trailer, 0.0)[0] > rig_bounds(cab, trailer, 1.0)[0]
 
 
+@pytest.mark.skipif(not MESH_FILE.exists(), reason="vehicle_meshes.npz not generated")
 def test_rig_mesh_is_the_cab_plus_the_trailer_at_the_hitch() -> None:
     """The world mesh has both parts' triangles; the trailer reaches back past the cab's rear."""
     cab_mesh, trailer_mesh = model_mesh(TRACTOR_FOLDER), model_mesh(TRAILER_FOLDER)

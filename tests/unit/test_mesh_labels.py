@@ -14,7 +14,7 @@ from src.ground_truth.mesh_labels import (
 )
 from src.orchestration.live_render import ue_camera
 from src.procedural.actor_placement import Vehicle, vehicle_box
-from src.procedural.vehicle_meshes import world_triangles
+from src.procedural.vehicle_meshes import MESH_FILE, world_triangles
 from src.sensors.camera_model import Camera
 
 CAR_PATH = "/Game/Vehicle/vehCar_vehicle02/Mesh/SM_Frame_vehCar_vehicle02"
@@ -52,6 +52,9 @@ def _corner_box(camera: Camera, car: Vehicle) -> BoundingBox2D:
     return box
 
 
+# The mesh file holds geometry extracted from Epic's City Sample (bin/dump_vehicle_meshes.py); it is
+# not part of the repository, so this test runs only where it has been generated.
+@pytest.mark.skipif(not MESH_FILE.exists(), reason="vehicle_meshes.npz not generated")
 def test_mesh_box_is_tighter_than_the_corner_box_for_an_oblique_car() -> None:
     """The extent of the projected mesh is smaller than the hull of the 3D box's corners."""
     camera = _oblique_camera()

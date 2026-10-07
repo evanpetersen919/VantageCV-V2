@@ -310,6 +310,8 @@ poetry run sphinx-build -b html docs docs/_build/html
 The code is released under the [MIT license](LICENSE). The rendered images and videos in this
 repository were made with Epic Games' City Sample content in Unreal Engine; under Epic's Content
 License Agreement (section 3b, linear media), rendered images and video created with the licensed
-content may be distributed. No Epic asset files are included in this repository.
+content may be distributed. No Epic asset files, and no geometry extracted from them, are included in
+this repository; the vehicle meshes used for occlusion tests are generated locally from your own copy of
+City Sample (`bin/dump_vehicle_meshes.py`), and those tests are skipped where the file is absent.
 
 Unreal Engine and City Sample are the property of Epic Games, Inc.
