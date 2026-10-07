@@ -1841,3 +1841,47 @@ what is left: about 30% of medium and large trucks are called cars in every arm 
 one, and small boxes are missed by every class. The pedestrian-free arm (v10n) shows that none of this
 depends on the MetaHuman-derived crowd. What remains open is a larger and more varied truck population
 (dump, utility and delivery trucks of several makes), which needs more than one added model.
+
+### CARLA side project, step 1: how a detector trained on VantageCV data sees CARLA's vehicles
+
+Context: CARLA 0.9.16 (UE4.26, Town10HD, 40 other vehicles) is being set up as a closed-loop test of whether a
+perception gain changes driving (`carla_loop/`, separate from the generator, no VantageCV code touched). Step 0
+is the ground-truth baseline: CARLA's BasicAgent with exact knowledge of every vehicle drove 3 routes (1.24 km)
+with 0 collisions, all 3 reached the goal (`results/carla/baseline_gt.json`). Anything that goes wrong later
+is therefore perception.
+
+Step 1 (this entry) asks how well the two trained detectors find CARLA's vehicles from a front camera
+(1280x720, 90 degree field of view, depth-checked for visibility), with the agent still driving on ground truth.
+Weights: `hpc_real25r` seed 0 and `hpc_v7p25` seed 0, one weights file each; 3 routes of 60 s, 3,603 frames per
+detector, same routes. A true vehicle within 50 m and visible counts as found if a vehicle box overlaps it at
+IoU 0.5. Nothing is tuned to CARLA.
+
+| kind, distance | true | found, real-only | found, v7p | called, real-only | called, v7p |
+|---|---|---|---|---|---|
+| car 0-15 m | 2,804 | 91% | 97% | car 80%, truck 20% | car 100% |
+| car 15-30 m | 1,727 | 82% | 93% | car 98% | car 100% |
+| car 30-50 m | 1,907 | 75% | 84% | car 100% | car 100% |
+| truck 0-15 m | 84 | 81% | 43% | truck 60%, car 29% | truck 58%, car 25% |
+| truck 15-30 m | 83 | 75% | 86% | truck 74%, car 15% | truck 46%, car 45% |
+| truck 30-50 m | 124 | 76% | 82% | car 62%, truck 21% | car 78%, truck 19% |
+| van 0-15 m | 64 | 84% | 73% | truck 63%, car 35% | truck 43%, car 34% |
+| van 30-50 m | 232 | 52% | 62% | car 96% | car 99% |
+
+Reading: on CARLA's cars the synthetic supplement finds 6-9 points more vehicles at every distance (97 / 93 /
+84% against 91 / 82 / 75%), the same direction as the real-photo AP gain, in a third visual domain. Trucks
+are where the detectors disagree and where each is weak: at 30-50 m most trucks are called cars by both
+(62% and 78%), and at 15-30 m the synthetic arm calls 45% of trucks cars against 15% for the real-only arm,
+the same medium-range truck-as-car confusion the per-box check found on real photos. Counts for trucks are
+small (84, 83 and 124 true trucks) and each row is one weights file on 3 routes, so differences of 10
+points or so between the two detectors are not interpreted; the car rows (about 2,000 per row) are.
+Unmatched vehicle boxes are not reported: Town10's parked cars are static map props, not vehicles in the
+simulator's list, so the detector finds objects that have no ground truth.
+
+Step 2 (next, rules fixed first): put each detector in the driving loop (detections plus depth become the
+agent's only view of other vehicles; heading assumed to be the ego's own, sizes fixed per class) and compare
+collisions per kilometre and route completion on the same 20 routes and seeds. The ground-truth agent is
+the ceiling (0 collisions). A difference between the detectors is read as an effect only if the collision
+counts differ by a factor of two or more and by at least 5 events over the 20 routes; anything less is
+reported as "no detectable effect at this sample size". Known approximations: the agent only brakes for
+vehicles (no pedestrians are spawned), and the detections replace the simulator's list but the agent keeps
+reading true traffic lights.

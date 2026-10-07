@@ -153,7 +153,7 @@ def _follow(world: Any, ego: Any) -> None:
 
 
 def run_episode(  # pylint: disable=too-many-locals
-    client: Any, episode: Episode, vision: Vision = true_vehicles
+    client: Any, episode: Episode, vision: Vision = true_vehicles, rig: Any = None
 ) -> Dict[str, Any]:
     """Run ``episode`` and return its metrics. Restores the server's settings afterwards."""
     world = client.get_world()
@@ -190,6 +190,8 @@ def run_episode(  # pylint: disable=too-many-locals
         sensor_collision.listen(lambda e: collisions.append((clock["t"], e.other_actor.type_id)))
         sensor_lane.listen(lambda e: lane_invasions.append(clock["t"]))
         actors += [sensor_collision, sensor_lane]
+        if rig is not None:
+            actors += rig.attach(world, ego)
 
         world.tick()  # in synchronous mode a spawned actor's transform is only valid after a tick
         agent = VisionAgent(ego, vision, target_speed=episode.target_kmh)
@@ -199,9 +201,11 @@ def run_episode(  # pylint: disable=too-many-locals
         outcome, stopped_for, distance_m, ticks = "timeout", 0.0, 0.0, 0
         last = ego.get_location()
         while clock["t"] < episode.max_seconds:
-            world.tick()
+            frame = world.tick()
             clock["t"] += STEP_SECONDS
             ticks += 1
+            if rig is not None:
+                rig.step(world, ego, frame)
             ego.apply_control(agent.run_step())
             here = ego.get_location()
             distance_m += here.distance(last)
@@ -229,11 +233,14 @@ def run_episode(  # pylint: disable=too-many-locals
             "collisions": debounce(collisions),
             "lane_invasions": len(lane_invasions),
             "npcs": len(traffic),
+            **({"rig": rig.report()} if rig is not None else {}),
         }
     finally:
-        for actor in actors:  # sensors stop listening before anything is destroyed
-            if hasattr(actor, "stop"):
-                actor.stop()
+        sensors = [a for a in actors if hasattr(a, "stop")]
+        for sensor in sensors:  # sensors go first, while the world still ticks in lockstep
+            sensor.stop()
+        client.apply_batch_sync([carla.command.DestroyActor(a) for a in sensors], True)
+        world.tick()
         manager.set_synchronous_mode(False)
         world.apply_settings(original)
-        client.apply_batch([carla.command.DestroyActor(a) for a in reversed(actors)])
+        client.apply_batch([carla.command.DestroyActor(a) for a in reversed(actors) if a not in sensors])
