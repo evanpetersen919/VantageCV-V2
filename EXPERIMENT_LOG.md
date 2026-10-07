@@ -1636,3 +1636,23 @@ of the crowd's contribution, not a failure; (3) overall AP is reported with the 
 not read as a vehicle effect. If rule 1 holds, the vehicle findings of 1.1 (the closed levers) and the
 car gain from synthetic data stay publishable without the pedestrians. If a car gain over real-only
 disappears, the crowd was helping vehicles too, and that is a finding on its own.
+
+### Resolution test (imgsz 1280 against 960), rules fixed before the jobs
+
+Why: the per-box check shows 63-67% of small real trucks and buses missed in every arm, and v9a showed
+that adding small synthetic trucks does not change that. If the limit is the detector's input size,
+small real boxes (a COCO-small box is under 32 px at the 1280-wide source; at imgsz 960 it is shrunk
+to 24 px or less) should be found more often at 1280 for every class, with or without synthetic data.
+
+Arms: `hpc_real25r_i1280` (460 real images, `real_25pct`) and `hpc_v7p25_i1280` (`mixed_25pct_v7p`),
+imgsz 1280 for training and evaluation, AdamW, 200 epochs, seeds 0-2, otherwise the recipe of the 960
+arms `hpc_real25r` and `hpc_v7p25`. BDD100K val and Cityscapes val, then the per-box check at 1280.
+
+Rules: (1) imgsz is a lever for small boxes if small-truck "correct" rises from 4% by at least 5 points
+in either arm, and small-car correct (42% real-only) rises too, so the cause is the input size and not
+something truck-specific; (2) overall, truck and bus AP are read for the same pair of arms, in each arm
+against its own 960 run, so the size effect is separated from the synthetic effect; (3) the synthetic
+gain (v7p25 over real25r) is compared between 960 and 1280: if it shrinks at 1280, part of what
+synthetic data adds at 960 is resolution the detector lacks, and that is a finding for the README's
+claims about it. The cost (about 1.8x memory and time per job) is reported. If nothing moves, input
+size is closed too, and the remaining explanation is the appearance of the objects, not their pixels.

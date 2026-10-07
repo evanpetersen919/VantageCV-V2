@@ -9,6 +9,7 @@ EPOCHS="${EPOCHS:-200}"
 WEIGHTS="${WEIGHTS:-yolov10m.yaml}"
 # OPTIMIZER=AdamW fixes the optimizer (same settings ultralytics' "auto" uses for short runs);
 # otherwise "auto" picks MuSGD or AdamW from the run length, which differs between arms.
+IMGSZ="${IMGSZ:-960}"   # training and evaluation image size (960 for every arm before the resolution test)
 OPT_ARGS=""
 [ -n "${OPTIMIZER:-}" ] && OPT_ARGS="--optimizer $OPTIMIZER --lr0 0.00125 --momentum 0.9 --warmup-bias-lr 0.0"
 
@@ -48,20 +49,20 @@ fi
 
 echo "=== $NAME: training (seed $SEED, mosaic $MOSAIC, close-mosaic $CLOSE, $EPOCHS epochs) ==="
 python bin/train_detector.py --data "$YAML" --weights "$WEIGHTS" --name "$NAME" \
-  --project "$HPC_ROOT/runs" --epochs "$EPOCHS" --imgsz 960 --batch 8 --seed "$SEED" \
+  --project "$HPC_ROOT/runs" --epochs "$EPOCHS" --imgsz "$IMGSZ" --batch "${BATCH:-8}" --seed "$SEED" \
   --workers 4 --mosaic "$MOSAIC" --close-mosaic "$CLOSE" $OPT_ARGS
 
 echo "=== $NAME: BDD100K ==="
 python bin/evaluate_detector.py --weights "$HPC_ROOT/runs/$NAME/weights/best.pt" \
   --class-space ours --benchmark bdd100k \
   --labels "$HPC_ROOT/data/bdd100k/labels/100k/val" --images "$HPC_ROOT/data/bdd100k/images/100k/val" \
-  --imgsz 960 --conf 0.001 --iou 0.6 --max-det 100 --device 0 \
+  --imgsz "$IMGSZ" --conf 0.001 --iou 0.6 --max-det 100 --device 0 \
   --out "$HPC_ROOT/results/${NAME}_bdd100k.json"
 
 echo "=== $NAME: Cityscapes ==="
 python bin/evaluate_detector.py --weights "$HPC_ROOT/runs/$NAME/weights/best.pt" \
   --class-space ours --benchmark cityscapes --cityscapes-root "$HPC_ROOT/data/cityscapes" \
-  --imgsz 960 --conf 0.001 --iou 0.6 --max-det 100 --device 0 \
+  --imgsz "$IMGSZ" --conf 0.001 --iou 0.6 --max-det 100 --device 0 \
   --out "$HPC_ROOT/results/${NAME}_cityscapes.json"
 
 echo "=== $NAME: ALL DONE ==="
