@@ -24,4 +24,8 @@ VEHICLE_MODEL_BOUNDS: Dict[str, Tuple[float, float, float, float, float, float]]
     "vehTruck_vehicle11": (10.426, 3.471, 4.231, 0.008, -0.0, 0.008),
     "vehTruck_trailer01": (11.177, 2.589, 4.001, -6.152, -0.003, -0.004),
     "vehBus_vehicle10": (11.269, 2.811, 2.666, -0.035, 0.0, 0.002),
+    # Vehicle Variety Pack Volume 2 box truck, keyed "Meshes" (the 4th part of its asset path,
+    # which is how every lookup keys a model); measured with bin/measure_vehicle_bounds.py
+    # (EXTRA_MODEL_PATHS).
+    "Meshes": (5.47, 2.71, 2.874, -0.431, 0.0, -0.007),
 }

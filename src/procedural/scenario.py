@@ -127,7 +127,7 @@ class ScenarioTypeConfig(BaseModel):
     @field_validator("fleet")
     @classmethod
     def _validate_fleet(cls, value: str) -> str:
-        if value not in ("v5", "v7", "v8a", "v8b"):
+        if value not in ("v5", "v7", "v8a", "v8b", "v11"):
             raise ValueError(f"fleet must be 'v5', 'v7', 'v8a' or 'v8b', got {value!r}")
         return value
 

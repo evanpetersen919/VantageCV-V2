@@ -218,6 +218,30 @@ FLEET_MODEL_WEIGHTS["v8b"] = {
 }
 
 
+# The box truck of "Vehicle Variety Pack Volume 2" (Fab, free; its page says "Allows usage with
+# AI: No", the same class as City Sample's vehicles; the pack is copied into the project as a new
+# content folder, no existing asset touched). It is one static mesh with its wheels as part of the
+# body, so it has no part list and no occlusion mesh: its box comes from ``VEHICLE_MODEL_BOUNDS``
+# (measured live with ``bin/measure_vehicle_bounds.py``), its lamps are the generic ones.
+BOXTRUCK_FOLDER = "Meshes"  # the 4th part of the path: the key every model lookup uses
+BOXTRUCK_BODY = "/Game/VehicleVarietyVol2/Meshes/SM_BoxTruck_01a"
+# Models outside City Sample, measured by the same script.
+EXTRA_MODEL_PATHS: List[str] = [BOXTRUCK_BODY]
+
+# v11: "v8a" with 30% of the trucks drawn from the box truck, taken from the 3-axle truck's share.
+# 30% is the share of box and delivery trucks among real BDD100K trucks (about 100 crops judged by
+# eye, 30% of crops unclassifiable: see the v8 entry in EXPERIMENT_LOG.md). The rig stays at v8a's
+# 10%, so v11 against v8a differs only in the box truck.
+FLEET_MODEL_WEIGHTS["v11"] = {
+    **FLEET_MODEL_WEIGHTS["v8a"],
+    "truck": {
+        _body(TRACTOR_FOLDER) + RIG_SUFFIX: 0.10,
+        _body("vehTruck_vehicle11"): 0.60,
+        BOXTRUCK_BODY: 0.30,
+    },
+}
+
+
 def fleet_models(fleet: str, vehicle_type: str) -> Tuple[List[str], List[float]]:
     """Asset paths and sampling weights of ``vehicle_type`` in ``fleet``.
 

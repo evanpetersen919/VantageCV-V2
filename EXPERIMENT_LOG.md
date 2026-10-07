@@ -1743,3 +1743,27 @@ car and person AP not down by more than 0.5; (2) the per-box check must show tru
 every arm) falling, not only AP rising; (3) if neither holds, appearance of one added model is not enough
 and the truck work for 1.1 ends with the closed levers recorded above. One model is a thin test: a null
 result is read as "one box truck does not do it", not as "appearance does not matter".
+
+#### Box-truck pilot: integration checked, comparison arm fixed
+
+Done: the pack's box truck (meshes, skeleton, materials and textures of the truck only, 44 files, 427 MB) is
+copied into `Content/VehicleVarietyVol2` of `VantageCV_UE5` with the editor closed; a before/after listing of
+all 7,299 existing Content files (size and modified time) is identical, so no existing asset changed. It
+loads in the game; measured live: 5.47 m long, 2.71 m wide, 2.87 m high, wheels on the ground. Rendered on
+the road from four sides it looks like a white delivery step-van, correct way round and at a believable
+scale (frames in `demo/boxtruck/`, not committed). A 10-scenario probe with the v11 config rendered through
+the full pipeline (20 frames, none rejected, calibration 0.51 px) with box trucks labelled truck. Real
+sizes against what is in the data: the 3-axle City Sample truck (vehicle11) is a refuse (garbage) truck, so
+the box and delivery trucks that are about 30% of real BDD100K trucks have, until now, been represented by
+a garbage truck and tractor-trailers.
+
+Fleet `v11` (config `urban_dense_v11.yaml`, which is `urban_dense_v8a.yaml` with the fleet changed): trucks
+10% rig, 60% garbage truck, 30% box truck. It differs from `v8a` only in the box truck, so the comparison is
+`hpc_v11_25` against `hpc_v8a25` (same scenes, seeds 70000-70255, mix and pedestrians); `hpc_v7p25` is
+the second comparison. This replaces "everything else as v7p" in the plan above, which would have mixed
+the box truck with the v8a mix change.
+
+Caveats known before the result: the box truck's labels are the projected measured box (it has no
+occlusion mesh, unlike the City Sample vehicles, whose labels are refined against their meshes), so
+they are a little looser; its wheels are part of the body; and only the pack's default paint is used (white),
+the pack's other two exterior colours are not wired. Rules as above, now against `hpc_v8a25` first.

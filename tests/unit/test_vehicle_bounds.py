@@ -7,7 +7,7 @@ import pytest
 from src.ground_truth.bbox_3d import extract_bbox_3d_vehicle
 from src.orchestration.dataset_generator import generate_scenario
 from src.procedural.actor_placement import VEHICLE_DIMENSIONS, Vehicle, vehicle_box
-from src.procedural.city_sample_assets import VEHICLE_ASSET_PATHS
+from src.procedural.city_sample_assets import BOXTRUCK_FOLDER, VEHICLE_ASSET_PATHS
 from src.procedural.vehicle_bounds import VEHICLE_MODEL_BOUNDS
 
 SEDAN = "/Game/Vehicle/vehCar_vehicle03/Mesh/SM_Frame_vehCar_vehicle03"
@@ -15,13 +15,14 @@ SEDAN = "/Game/Vehicle/vehCar_vehicle03/Mesh/SM_Frame_vehCar_vehicle03"
 
 def test_every_real_model_has_a_measured_box() -> None:
     """Every model in the asset pools has an entry. VEHICLE_MODEL_BOUNDS carries
-    exactly one deliberate extra beyond that: vehTruck_trailer01, kept measured
+    two deliberate extras beyond that: the pack box truck (BOXTRUCK_FOLDER) and
+    vehTruck_trailer01, kept measured
     for a possible future coupled tractor-trailer feature even though it's not
     driveable on its own (see VEHICLE_ASSET_PATHS' own comment -- spawned solo it
     looked like a cab-less trailer driving itself down the road)."""
     folders = {path.split("/")[3] for paths in VEHICLE_ASSET_PATHS.values() for path in paths}
     assert len(folders) == 13
-    assert set(VEHICLE_MODEL_BOUNDS) == folders | {"vehTruck_trailer01"}
+    assert set(VEHICLE_MODEL_BOUNDS) == folders | {"vehTruck_trailer01", BOXTRUCK_FOLDER}
 
 
 def test_measured_boxes_are_plausible() -> None:

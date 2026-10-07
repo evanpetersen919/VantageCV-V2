@@ -20,7 +20,11 @@ directly.
 import asyncio
 from typing import Dict, List, Tuple
 
-from src.procedural.city_sample_assets import VEHICLE_ASSET_PATHS, VEHICLE_PART_PATHS
+from src.procedural.city_sample_assets import (
+    EXTRA_MODEL_PATHS,
+    VEHICLE_ASSET_PATHS,
+    VEHICLE_PART_PATHS,
+)
 from src.ue5.backend import UE5Backend
 
 BOX_PART_PREFIXES = ("SM_Wheel_",)
@@ -51,7 +55,7 @@ async def measure() -> Dict[str, Tuple[float, ...]]:
     """Per model folder: (length, width, height, center_x, center_y, z_min) in metres."""
     backend = UE5Backend("ws://localhost:8765", timeout_seconds=120.0)
     table: Dict[str, Tuple[float, ...]] = {}
-    for paths in VEHICLE_ASSET_PATHS.values():
+    for paths in [*VEHICLE_ASSET_PATHS.values(), EXTRA_MODEL_PATHS]:
         for body in paths:
             folder = body.split("/")[3]
             boxes: List[Tuple[float, ...]] = [await _extents(backend, body)]
