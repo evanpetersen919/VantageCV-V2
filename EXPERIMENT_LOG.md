@@ -1810,3 +1810,34 @@ Truck size shares (small / medium / large, 1280x720 areas): 13 / 55 / 32 against
 box truck is a smaller vehicle than the garbage truck and the rig, so the batch also has more small
 trucks. That is a second change riding on the first: the v9a test showed that small trucks alone do not
 move truck AP, so it is not expected to matter, but a positive result is read with it in mind.
+
+### v11 result: adding a box truck (30% of trucks) did not raise truck AP (rule 1: no)
+
+`hpc_v11_25` (v8a scenes and mix, 30% of trucks drawn from the Vehicle Variety Pack box truck; 3 seeds,
+25% real, AdamW). BDD100K val, mean of 3 seeds, against `hpc_v8a25` (the comparison fixed in the plan) and
+`hpc_v7p25`:
+
+| AP | v8a25 | v11_25 | v11 minus v8a25 | v11 minus v7p25 |
+|---|---|---|---|---|
+| truck | 15.62 | 15.31 | -0.31 (p = 0.65) | -0.81 (p = 0.23) |
+| overall | 20.65 | 20.62 | -0.03 (p = 0.92) | -0.37 (p = 0.22) |
+| car | 38.24 | 38.15 | -0.09 (p = 0.59) | +0.04 (p = 0.83) |
+| person | 16.42 | 16.14 | -0.28 (p = 0.49) | -0.10 (p = 0.79) |
+| bus | 12.34 | 12.90 | +0.56 (p = 0.52) | -0.61 (p = 0.46) |
+| night AP | 17.27 | 17.57 | +0.30 (p = 0.36) | -0.31 (p = 0.34) |
+
+Cityscapes: truck 12.06 against 13.09 (v8a25), -1.03 (p = 0.39, seed spread 1.3), overall AP -0.44.
+
+Rule 1 (truck AP +1.0 over the comparison, guardrails within 0.5): not met, the truck difference is
+-0.31 against v8a25 and -0.81 against v7p25, and every guardrail is within 0.3 of v8a25. Rule 2 (the
+per-box check must show mislabelling falling) only applies when AP rises, so it is not read. Rule 3
+applies: one box truck is not enough, and it is not a proof that appearance does not matter. The batch
+also carried more small trucks (13% against 3%), which v9a had already shown not to matter.
+
+Summary of the truck and bus work of 1.1: five generator levers tested with rules written first, none
+raised truck AP: the vehicle mix (v8a), pickups and vans labelled truck (v8b), the box-size
+distribution (v9a), the input size (1280), and a real box-truck model (v11). The per-box outcomes explain
+what is left: about 30% of medium and large trucks are called cars in every arm including the real-only
+one, and small boxes are missed by every class. The pedestrian-free arm (v10n) shows that none of this
+depends on the MetaHuman-derived crowd. What remains open is a larger and more varied truck population
+(dump, utility and delivery trucks of several makes), which needs more than one added model.
