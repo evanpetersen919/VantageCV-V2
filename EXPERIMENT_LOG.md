@@ -1767,3 +1767,36 @@ Caveats known before the result: the box truck's labels are the projected measur
 occlusion mesh, unlike the City Sample vehicles, whose labels are refined against their meshes), so
 they are a little looser; its wheels are part of the body; and only the pack's default paint is used (white),
 the pack's other two exterior colours are not wired. Rules as above, now against `hpc_v8a25` first.
+
+### v10n result: the vehicle results stand without the crowd; the crowd is where the person gain comes from
+
+`hpc_v10n25` (v7p scenes and vehicles, no synthetic pedestrians; 3 seeds, 25% real, AdamW) against
+`hpc_v7p25` and the real-only arm `hpc_real25`, BDD100K val, mean of 3 seeds:
+
+| AP | real-only | v7p25 | v10n25 | v10n minus v7p25 | gain over real-only: v7p / v10n |
+|---|---|---|---|---|---|
+| overall | 18.23 | 20.99 | 19.80 | -1.19 (p = 0.022) | +2.77 / +1.58 |
+| person | 12.41 | 16.24 | 13.27 | -2.97 (p = 0.002) | +3.83 / +0.86 |
+| car | 36.35 | 38.11 | 38.19 | +0.08 (p = 0.52) | +1.76 / +1.84 |
+| truck | 14.02 | 16.12 | 16.02 | -0.09 (p = 0.77) | +2.10 / +2.01 |
+| bus | 10.13 | 13.51 | 11.74 | -1.77 (p = 0.12) | +3.38 / +1.61 |
+| night AP | 15.34 | 17.88 | 16.93 | -0.95 (p = 0.023) | |
+
+Cityscapes: person -2.93 (p = 0.007), car -0.02, truck -0.41 (seed spread up to 2.2), bus +1.07, overall AP
+-0.57 (p = 0.12).
+
+Rules as logged before the render: (1) car and truck AP within 0.5 of v7p25: car +0.08 and truck -0.09,
+met; (2) person AP expected to fall, reported as the crowd's contribution: -2.97, of the +3.83 the
+v7p batch added over real-only about three quarters; (3) overall AP is read with the person drop
+explained: the -1.19 overall is mostly the person class (a quarter of the classes at -3 AP) with night AP
+following. Bus is reported only: -1.77 (p = 0.12) is inside its 1-2 AP noise, and its gain over real-only
+is smaller without pedestrians (+1.61 against +3.38), which is not read as a crowd effect.
+
+Reading: every vehicle finding of 1.1 (the closed levers for trucks and buses, the car gain from
+synthetic data, the 1280 comparison) stands without the MetaHuman-derived crowd; the car gain over real-only
+is identical with and without it (+1.84 against +1.76), and so is the truck gain (+2.01 against +2.10). What
+the crowd contributes is the person gain (+3.83 to +0.86). If Epic rules the crowd cannot be used, the
+published claims narrow to vehicles, and the person results would need a replacement pedestrian source
+(Rocketbox pilot, with a realism check) to be reproduced. The +0.86 person gain remaining without any
+synthetic persons is inside the roughly 0.4 seed spread of two arms plus whatever the road, lots and
+vehicles teach the person class; it is not explained here.
