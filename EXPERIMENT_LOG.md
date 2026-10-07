@@ -1656,3 +1656,10 @@ gain (v7p25 over real25r) is compared between 960 and 1280: if it shrinks at 128
 synthetic data adds at 960 is resolution the detector lacks, and that is a finding for the README's
 claims about it. The cost (about 1.8x memory and time per job) is reported. If nothing moves, input
 size is closed too, and the remaining explanation is the appearance of the objects, not their pixels.
+
+#### v10n batch statistics (measured before training)
+
+512 frames, 0 rejected, calibration 0.54 px. Boxes: 0 persons (v7p 1,690), 214 trucks and 55 buses
+(identical to v7p), 4,123 cars (v7p 4,076; the 47 extra are cars that pedestrians stood in front of
+in v7p and that now pass the visibility threshold). The YOLO label files hold no class-0 lines. The
+batch is the v7p scenes minus the crowd, as intended.
