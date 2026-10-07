@@ -1716,3 +1716,30 @@ things, neither of which the generator's mix, labels, box sizes or the image siz
 that are hard for every class, and a car/bus/truck appearance confusion that is the same in the
 real-only arm. The remaining lever is the appearance of trucks themselves (box, dump and garbage
 trucks, pickups), for which City Sample has no models.
+
+### Box-truck pilot (Vehicle Variety Pack Volume 2), plan and rules fixed first
+
+Why: every generator lever for trucks and buses is closed (mix v8a/v8b, size distribution v9a, input size at
+1280), and the per-box check shows about 30% of medium and large trucks called cars with the same rate in
+the real-only arm. The one lever left is what trucks look like: the real truck population is box, dump and
+garbage trucks, and City Sample has one 3-axle truck (vehicle11) and a tractor-trailer cab.
+
+Source: the Delivery box truck of Vehicle Variety Pack Volume 2 (Fab, free; "Allows usage with AI: No", the
+same class as City Sample's vehicles; evidence in demo/LICENSING_EVIDENCE.md, not committed). Structure read
+from the files: one static mesh `SM_BoxTruck_01a` (4 MB) with exterior, detailing, two interior and glass
+sections, three exterior colour variants, and a skeletal version whose wheels are bones. Integrated as one
+piece (wheels part of the body), unlike the City Sample vehicles, whose wheels and doors are separate meshes.
+
+Steps, each checked before the next: (1) import into a new folder of a copy of the project and verify no
+existing asset changed (hash the existing Content tree before and after); (2) measure its size and ground
+contact and add a bounds entry; (3) render a handful of frames to check it looks like a box truck on the
+road, at the right scale and orientation; (4) a fleet option `v11` that adds it to the truck pool (weight
+chosen from the evidence for the box-truck share of real trucks, not guessed; none exists yet), everything
+else as v7p, 256 scenarios, seeds 70000-70255; (5) `hpc_v11_25`, 25% real, AdamW, 3 seeds, against
+`hpc_v7p25`.
+
+Rules: (1) the box truck is a lever if truck AP rises by at least +1.0 on BDD100K val (p < 0.1) with overall,
+car and person AP not down by more than 0.5; (2) the per-box check must show truck mislabelling (28-30% in
+every arm) falling, not only AP rising; (3) if neither holds, appearance of one added model is not enough
+and the truck work for 1.1 ends with the closed levers recorded above. One model is a thin test: a null
+result is read as "one box truck does not do it", not as "appearance does not matter".
