@@ -1932,3 +1932,16 @@ detected vehicle is heading the way the ego is and has no tracking, so a missed 
 missed vehicle for that step. What would settle it: more routes and detector seeds (the v7p25 and real25r seeds
 1 and 2), and a collision breakdown by what kind of vehicle was hit (truck, van, car) to connect it back to the
 truck and bus findings. Neither is done.
+
+#### CARLA step 2, extension: the other two weights seeds of each detector (plan, before the run)
+
+Why: the first run used seed 0 of each detector, so one training seed could be luck (the AP spread between
+seeds of one arm is 0.3-0.5, comparable to the effect being looked for). Same 20 routes, agent and traffic
+seeds; `real25r` and `v7p25` seeds 1 and 2 are added to the same results file, so each detector has 3 weights
+x 20 routes = 60 route-runs and the ground-truth arm stays as it is (20 routes).
+
+Rule, unchanged from above and applied to the pooled totals per detector: the detectors differ if their collision
+counts differ by a factor of two or more and by at least 5 events; otherwise no detectable effect at this sample
+size. Also reported, as descriptive and not as a rule: per-weights-seed collisions (to see whether any one
+seed drives a total), the share of routes with a collision, and what kind of vehicle was hit (car, van, truck,
+bus, by the simulator's own vehicle type), to connect the result back to the truck and bus findings.
