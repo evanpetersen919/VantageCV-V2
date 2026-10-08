@@ -2106,3 +2106,14 @@ Arms (each 25% real BDD100K + 512 RealDriveSim images, AdamW, 200 epochs, imgsz 
  * random (reported only): 512 frames at random, the same bus exclusion, with the raw counts reported.
 Bus AP is not compared (the RealDriveSim arm has no bus labels). The rule is as logged above; it compares
 `hpc_v7p25` with the matched arm.
+
+#### Matched comparison: boxes only from the official RealDriveSim annotations (decision, 2026-10-07)
+
+Decision: no annotation from another study's pipeline is used. The 7,539-frame COCO made in the other study (its
+three classes, its visibility filters, no buses) is dropped from this experiment. The labels will be built only from
+the dataset's own official 2D detection annotations (download from the RealDriveSim project page, to be placed in
+`Sensor_Fusion_Study/data/realDriveSim/`), together with its frames and its per-frame segmentation images, which
+are used only to find frames containing a bus. This also gives bus labels, so a bus class and a bus AP can be part
+of the comparison if the official annotations carry it. The arms, the matching rule and the reading rule above are
+otherwise unchanged. A draft frame selection run on the old COCO was stopped and its output deleted before any
+use. The selection script (`bin/select_realdrivesim.py`) is not committed until it reads the official format.
