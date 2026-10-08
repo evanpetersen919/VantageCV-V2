@@ -2170,3 +2170,25 @@ Not measured: label accuracy against a render-pass ground truth (Unreal stencil 
 footprints were checked against the engine (`bin/verify_vehicle_boxes.py`, seven models, from above), and the
 camera against known squares (about 0.5 px), but no dataset-level, pixel-exact audit of the ego-view boxes has
 been run. That needs the capture pass of the roadmap's depth spike, and it would also give true masks.
+
+#### Matched comparison: the batches as built (before any training)
+
+`bin/select_realdrivesim.py` (29 tests) builds both arms from the official annotations under the rules fixed above. The
+pool is 6,691 frames (one per scene, 6,343 + 258 + 90 scenes); 21% of it is night by the brightness rule. The night
+rule is the mean luma of the top 70% of the frame below 66.0, which labels 97.5% of `train_v7p`'s 512 ego frames
+correctly (day against night, by their recorded time of day).
+
+| | person | car | bus | truck | night share | adverse frames |
+|---|---|---|---|---|---|---|
+| `train_v7p` (target) | 1,690 | 4,076 | 55 | 214 | 0.39 | n/a |
+| `train_rdsm` (matched) | 1,690 | 4,076 | 55 | 214 | 0.391 | 35 of 512 |
+| `train_rdsr` (random) | 4,374 | 2,918 | 159 | 447 | 0.225 | 28 of 512 |
+
+The matched arm reaches every count exactly (error 0.0) and the night share to 0.1 point; the random arm has 2.6 times
+the persons, 2.9 times the buses and 2.1 times the trucks, which is why only the matched arm decides the rule. Both
+batches are 512 frames (461 train, 51 val lists, as for the other batches), RGB PNG at 2048x1024 (about 0.9 GB each).
+Labels drawn on six frames and looked at: boxes sit on the cars, pedestrians, a bus and a truck; riders and
+motorcycles are unlabelled by design. Not yet known: how many of the matched frames contain unlabelled classes
+(motorcycles, bicycles), which are background for the detector as they are in `train_v7p`'s scenes (which have none).
+Arms to train: `hpc_rdsm25` and `hpc_rdsr25` (25% real, AdamW, 200 epochs, imgsz 960, seeds 0-2), compared with
+`hpc_v7p25` by the rule above.
