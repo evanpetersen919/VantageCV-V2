@@ -1,0 +1,3985 @@
+[
+ {
+  "scenario": 0,
+  "view": 0,
+  "object": 127,
+  "category": 4,
+  "visible_share": 0.8294204181218007,
+  "iou_full_box": 0.9886666117938275,
+  "iou_visible_box": 0.8871796167183482,
+  "iou_polygon": 0.7582203324484198
+ },
+ {
+  "scenario": 0,
+  "view": 0,
+  "object": 133,
+  "category": 6,
+  "note": "no actor or nothing rendered"
+ },
+ {
+  "scenario": 0,
+  "view": 0,
+  "object": 154,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.4916364170555423,
+  "iou_visible_box": 0.4916364170555423,
+  "iou_polygon": 0.3632237248355338
+ },
+ {
+  "scenario": 0,
+  "view": 0,
+  "object": 155,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8763033553391483,
+  "iou_visible_box": 0.8763033553391483,
+  "iou_polygon": 0.6078782042463429
+ },
+ {
+  "scenario": 0,
+  "view": 0,
+  "object": 156,
+  "category": 6,
+  "visible_share": 0.7302685109845403,
+  "iou_full_box": 0.8919317229616132,
+  "iou_visible_box": 0.47599275651952994,
+  "iou_polygon": 0.35281462889924703
+ },
+ {
+  "scenario": 0,
+  "view": 0,
+  "object": 180,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.829459879938848,
+  "iou_visible_box": 0.829459879938848,
+  "iou_polygon": 0.515625
+ },
+ {
+  "scenario": 0,
+  "view": 0,
+  "object": 181,
+  "category": 6,
+  "visible_share": 0.1111111111111111,
+  "iou_full_box": 0.6957980328362731,
+  "iou_visible_box": 0.616093912501558,
+  "iou_polygon": 0.04331450094161959
+ },
+ {
+  "scenario": 0,
+  "view": 1,
+  "object": 117,
+  "category": 2,
+  "visible_share": 0.18923076923076923,
+  "iou_full_box": 0.9698480034285945,
+  "iou_visible_box": 6.546780835388567e-15,
+  "iou_polygon": 0.08130081300813008
+ },
+ {
+  "scenario": 0,
+  "view": 1,
+  "object": 118,
+  "category": 2,
+  "visible_share": 0.13593126725989568,
+  "iou_full_box": 0.9754341074747068,
+  "iou_visible_box": 0.7744459440209377,
+  "iou_polygon": 0.6527050610820244
+ },
+ {
+  "scenario": 0,
+  "view": 1,
+  "object": 124,
+  "category": 2,
+  "visible_share": 0.2782152230971129,
+  "iou_full_box": 0.9778146469676557,
+  "iou_visible_box": 0.35891819689378157,
+  "iou_polygon": 0.2315405651777575
+ },
+ {
+  "scenario": 0,
+  "view": 1,
+  "object": 126,
+  "category": 3,
+  "visible_share": 0.6952721120406054,
+  "iou_full_box": 0.9598843217499611,
+  "iou_visible_box": 0.8696363732930168,
+  "iou_polygon": 0.7166063114330057
+ },
+ {
+  "scenario": 0,
+  "view": 1,
+  "object": 127,
+  "category": 4,
+  "visible_share": 0.8224823695345557,
+  "iou_full_box": 0.9749767925295535,
+  "iou_visible_box": 0.9028927449996409,
+  "iou_polygon": 0.7658554572271387
+ },
+ {
+  "scenario": 0,
+  "view": 1,
+  "object": 128,
+  "category": 2,
+  "visible_share": 0.12149102623101703,
+  "iou_full_box": 0.9625877815830979,
+  "iou_visible_box": 0.15705379594250546,
+  "iou_polygon": 0.10252427184466019
+ },
+ {
+  "scenario": 0,
+  "view": 1,
+  "object": 136,
+  "category": 3,
+  "visible_share": 0.21443736730360935,
+  "iou_full_box": 0.9713191819979325,
+  "iou_visible_box": 0.9206172239793223,
+  "iou_polygon": 0.18617511520737326
+ },
+ {
+  "scenario": 0,
+  "view": 1,
+  "object": 150,
+  "category": 6,
+  "visible_share": 0.3681592039800995,
+  "iou_full_box": 0.8389737088656566,
+  "iou_visible_box": 3.780769413139346e-14,
+  "iou_polygon": 0.15584415584415584
+ },
+ {
+  "scenario": 0,
+  "view": 1,
+  "object": 151,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.875510399380806,
+  "iou_visible_box": 0.875510399380806,
+  "iou_polygon": 0.5027522935779817
+ },
+ {
+  "scenario": 0,
+  "view": 1,
+  "object": 154,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8303431527039772,
+  "iou_visible_box": 0.8303431527039772,
+  "iou_polygon": 0.4926891290527654
+ },
+ {
+  "scenario": 0,
+  "view": 1,
+  "object": 155,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9264038795722189,
+  "iou_visible_box": 0.9264038795722189,
+  "iou_polygon": 0.6103729104157737
+ },
+ {
+  "scenario": 0,
+  "view": 1,
+  "object": 156,
+  "category": 6,
+  "visible_share": 0.9883177570093458,
+  "iou_full_box": 0.943949267081582,
+  "iou_visible_box": 0.9324503013961016,
+  "iou_polygon": 0.5479166666666667
+ },
+ {
+  "scenario": 0,
+  "view": 2,
+  "object": 117,
+  "category": 2,
+  "visible_share": 0.2876997915218902,
+  "iou_full_box": 0.9800818784563574,
+  "iou_visible_box": 0.6947091760554532,
+  "iou_polygon": 0.39648682559598497
+ },
+ {
+  "scenario": 0,
+  "view": 2,
+  "object": 118,
+  "category": 2,
+  "visible_share": 0.8472592896735783,
+  "iou_full_box": 0.9613644349255263,
+  "iou_visible_box": 0.8782440902144777,
+  "iou_polygon": 0.7625
+ },
+ {
+  "scenario": 0,
+  "view": 2,
+  "object": 124,
+  "category": 2,
+  "visible_share": 0.8812233285917497,
+  "iou_full_box": 0.9696132691472628,
+  "iou_visible_box": 0.9467988392849742,
+  "iou_polygon": 0.7552897884084636
+ },
+ {
+  "scenario": 0,
+  "view": 2,
+  "object": 125,
+  "category": 2,
+  "visible_share": 0.6678043230944255,
+  "iou_full_box": 0.9797818250147954,
+  "iou_visible_box": 0.9771204900570114,
+  "iou_polygon": 0.5742516141655254
+ },
+ {
+  "scenario": 0,
+  "view": 2,
+  "object": 126,
+  "category": 3,
+  "visible_share": 0.9421007685738685,
+  "iou_full_box": 0.9778717931693424,
+  "iou_visible_box": 0.9778717931693424,
+  "iou_polygon": 0.7837133241693132
+ },
+ {
+  "scenario": 0,
+  "view": 2,
+  "object": 127,
+  "category": 4,
+  "visible_share": 0.7704280155642024,
+  "iou_full_box": 0.9839195853074199,
+  "iou_visible_box": 0.8120195327432553,
+  "iou_polygon": 0.8507505773672055
+ },
+ {
+  "scenario": 0,
+  "view": 2,
+  "object": 128,
+  "category": 2,
+  "visible_share": 0.10587382160986222,
+  "iou_full_box": 0.9674712175912151,
+  "iou_visible_box": 0.5162246551925234,
+  "iou_polygon": 0.6789297658862876
+ },
+ {
+  "scenario": 0,
+  "view": 2,
+  "object": 136,
+  "category": 3,
+  "visible_share": 0.6868898186889819,
+  "iou_full_box": 0.9728467121198332,
+  "iou_visible_box": 0.9601488833636872,
+  "iou_polygon": 0.5816568047337278
+ },
+ {
+  "scenario": 0,
+  "view": 2,
+  "object": 150,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8076518329663293
+ },
+ {
+  "scenario": 0,
+  "view": 2,
+  "object": 156,
+  "category": 6,
+  "visible_share": 0.9968152866242038,
+  "iou_full_box": 0.8492869224637263,
+  "iou_visible_box": 0.8520393625799157,
+  "iou_polygon": 0.47424242424242424
+ },
+ {
+  "scenario": 0,
+  "view": 2,
+  "object": 160,
+  "category": 6,
+  "visible_share": 0.9728260869565217,
+  "iou_full_box": 0.6994540710737666,
+  "iou_visible_box": 0.6994540710737666,
+  "iou_polygon": 0.4408866995073892
+ },
+ {
+  "scenario": 0,
+  "view": 2,
+  "object": 161,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.7789762149592137,
+  "iou_visible_box": 0.7789762149592137,
+  "iou_polygon": 0.43243243243243246
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 96,
+  "category": 2,
+  "visible_share": 0.9978738175822268,
+  "iou_full_box": 0.383071524927099,
+  "iou_visible_box": 0.377997729894952,
+  "iou_polygon": 0.7539463299131808
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 97,
+  "category": 4,
+  "visible_share": 0.9290783414391052,
+  "iou_full_box": 0.9809132623879478,
+  "iou_visible_box": 0.9809132623879478,
+  "iou_polygon": 0.8592898685115784
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 98,
+  "category": 2,
+  "visible_share": 0.2881686841077704,
+  "iou_full_box": 0.9529667884234958,
+  "iou_visible_box": 0.6636061310764573,
+  "iou_polygon": 0.6610576923076923
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 101,
+  "category": 2,
+  "visible_share": 0.6161467889908256,
+  "iou_full_box": 0.9858447972166341,
+  "iou_visible_box": 0.9858447972166341,
+  "iou_polygon": 0.5286573780873971
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 102,
+  "category": 2,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9798491441988627,
+  "iou_visible_box": 0.9798491441988627,
+  "iou_polygon": 0.8562023562023562
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 106,
+  "category": 3,
+  "visible_share": 0.8142076502732241,
+  "iou_full_box": 0.9748491045623736,
+  "iou_visible_box": 0.8754739527624724,
+  "iou_polygon": 0.8319132455460883
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 108,
+  "category": 2,
+  "visible_share": 0.2787403233450945,
+  "iou_full_box": 0.9724136853967119,
+  "iou_visible_box": 0.8309201914911666,
+  "iou_polygon": 0.7667502687208886
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 128,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8312462361030091,
+  "iou_visible_box": 0.8312462361030091,
+  "iou_polygon": 0.4780114722753346
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 129,
+  "category": 6,
+  "visible_share": 0.8745644599303136,
+  "iou_full_box": 0.8660166737223801,
+  "iou_visible_box": 0.8262409813274398,
+  "iou_polygon": 0.4365217391304348
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 130,
+  "category": 6,
+  "visible_share": 0.9911678115799804,
+  "iou_full_box": 0.8559849208172166,
+  "iou_visible_box": 0.8559849208172166,
+  "iou_polygon": 0.5145185939887926
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 135,
+  "category": 6,
+  "visible_share": 0.7978552278820376,
+  "iou_full_box": 0.6341363641769361,
+  "iou_visible_box": 0.4984497703927022,
+  "iou_polygon": 0.3808209727492239
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 136,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.5995124447368528,
+  "iou_visible_box": 0.5995124447368528,
+  "iou_polygon": 0.3763663220088626
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 138,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8104933099985361
+ },
+ {
+  "scenario": 1,
+  "view": 0,
+  "object": 413,
+  "category": 6,
+  "visible_share": 0.9961240310077519,
+  "iou_full_box": 0.7440064057638052,
+  "iou_visible_box": 0.7440064057638052,
+  "iou_polygon": 0.4532627865961199
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 92,
+  "category": 2,
+  "visible_share": 0.18403547671840353,
+  "iou_full_box": 0.9519993040576253,
+  "iou_visible_box": 0.607602235667689,
+  "iou_polygon": 0.625
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 96,
+  "category": 2,
+  "visible_share": 0.8415503945080908,
+  "iou_full_box": 0.9868600625873525,
+  "iou_visible_box": 0.8843141686706709,
+  "iou_polygon": 0.690217181653358
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 97,
+  "category": 4,
+  "visible_share": 0.7583403390407679,
+  "iou_full_box": 0.9895647151819315,
+  "iou_visible_box": 0.8523502497281215,
+  "iou_polygon": 0.8327330824013648
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 98,
+  "category": 2,
+  "visible_share": 0.9865215137376879,
+  "iou_full_box": 0.9573281290743084,
+  "iou_visible_box": 0.7689766734675664,
+  "iou_polygon": 0.8129123468426013
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 101,
+  "category": 2,
+  "visible_share": 0.9751021924934968,
+  "iou_full_box": 0.9793228985882345,
+  "iou_visible_box": 0.9621553952100576,
+  "iou_polygon": 0.8349856092101056
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 102,
+  "category": 2,
+  "visible_share": 0.6003303055326177,
+  "iou_full_box": 0.9893232572696802,
+  "iou_visible_box": 0.8823495631568951,
+  "iou_polygon": 0.6137357830271216
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 103,
+  "category": 2,
+  "visible_share": 1.0,
+  "iou_full_box": 0.12861473954822678,
+  "iou_visible_box": 0.12861473954822678,
+  "iou_polygon": 0.6012104909213181
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 107,
+  "category": 2,
+  "visible_share": 0.6961959353830119,
+  "iou_full_box": 0.980261341169404,
+  "iou_visible_box": 0.5177759294635028,
+  "iou_polygon": 0.618936877076412
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 108,
+  "category": 2,
+  "visible_share": 0.8319343601796282,
+  "iou_full_box": 0.974957622713496,
+  "iou_visible_box": 0.8411328007836307,
+  "iou_polygon": 0.6760757691886565
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 392,
+  "category": 2,
+  "visible_share": 0.9161692187905528,
+  "iou_full_box": 0.6749801533840882,
+  "iou_visible_box": 0.8632268131095505,
+  "iou_polygon": 0.8662280701754386
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 393,
+  "category": 3,
+  "visible_share": 0.32215515314106863,
+  "iou_full_box": 0.7949693555191416,
+  "iou_visible_box": 0.5516096148107347,
+  "iou_polygon": 0.8691099476439791
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 394,
+  "category": 2,
+  "visible_share": 0.39168665067945646,
+  "iou_full_box": 0.8808348583518321,
+  "iou_visible_box": 0.8594943721660983,
+  "iou_polygon": 0.7856640899508082
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 395,
+  "category": 3,
+  "visible_share": 0.5028647568287808,
+  "iou_full_box": 0.9956969346583803,
+  "iou_visible_box": 0.8031266595079896,
+  "iou_polygon": 0.7372713791398913
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 397,
+  "category": 3,
+  "visible_share": 0.20011841326228538,
+  "iou_full_box": 0.9912083649196439,
+  "iou_visible_box": 0.8101192796364943,
+  "iou_polygon": 0.5141732283464567
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 398,
+  "category": 2,
+  "visible_share": 0.128698224852071,
+  "iou_full_box": 0.9785131720849839,
+  "iou_visible_box": 0.670277404796014,
+  "iou_polygon": 0.48940269749518306
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 128,
+  "category": 6,
+  "visible_share": 0.6026490066225165,
+  "iou_full_box": 0.8306970641121285,
+  "iou_visible_box": 0.6195997558313255,
+  "iou_polygon": 0.3375
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 129,
+  "category": 6,
+  "visible_share": 0.9738219895287958,
+  "iou_full_box": 0.8707180011927879,
+  "iou_visible_box": 0.8707180011927879,
+  "iou_polygon": 0.43457943925233644
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 131,
+  "category": 6,
+  "visible_share": 0.3428827215756491,
+  "iou_full_box": 0.4773002038495491,
+  "iou_visible_box": 0.29681022733888296,
+  "iou_polygon": 0.2768060836501901
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 136,
+  "category": 6,
+  "visible_share": 0.9943941778127459,
+  "iou_full_box": 0.598953914970248,
+  "iou_visible_box": 0.5668670980968419,
+  "iou_polygon": 0.3740243406207228
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 137,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.6923831991360618,
+  "iou_visible_box": 0.6923831991360618,
+  "iou_polygon": 0.45238797169811323
+ },
+ {
+  "scenario": 1,
+  "view": 1,
+  "object": 138,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.7798797805802486,
+  "iou_visible_box": 0.7798797805802486,
+  "iou_polygon": 0.4738095238095238
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 95,
+  "category": 3,
+  "visible_share": 0.6243050039714059,
+  "iou_full_box": 0.9638666045310215,
+  "iou_visible_box": 0.6174109940173277,
+  "iou_polygon": 0.7237635705669482
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 96,
+  "category": 2,
+  "visible_share": 0.3653941497273178,
+  "iou_full_box": 0.9558140665423507,
+  "iou_visible_box": 0.44530966346373574,
+  "iou_polygon": 0.5046001415428167
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 97,
+  "category": 4,
+  "visible_share": 0.9410035114439227,
+  "iou_full_box": 0.990859420823323,
+  "iou_visible_box": 0.8857949861902406,
+  "iou_polygon": 0.9006284208392459
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 103,
+  "category": 2,
+  "visible_share": 0.6470219435736677,
+  "iou_full_box": 0.9540785345398825,
+  "iou_visible_box": 0.9255096050459948,
+  "iou_polygon": 0.7853014037985137
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 105,
+  "category": 2,
+  "visible_share": 0.05563480741797432,
+  "iou_full_box": 0.96908717047445,
+  "iou_visible_box": 0.3265767601622045,
+  "iou_polygon": 0.3010752688172043
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 107,
+  "category": 2,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8124810868050635,
+  "iou_visible_box": 0.8124810868050635,
+  "iou_polygon": 0.8821874421570038
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 108,
+  "category": 2,
+  "visible_share": 0.866421568627451,
+  "iou_full_box": 0.9930394927094621,
+  "iou_visible_box": 0.942439487977711,
+  "iou_polygon": 0.7436642027455121
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 109,
+  "category": 2,
+  "visible_share": 0.6157517899761337,
+  "iou_full_box": 0.972030002665883,
+  "iou_visible_box": 0.44736458132736157,
+  "iou_polygon": 0.5348101265822784
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 395,
+  "category": 3,
+  "visible_share": 0.7375730994152047,
+  "iou_full_box": 0.951218541995871,
+  "iou_visible_box": 0.7359485701026426,
+  "iou_polygon": 0.8095238095238095
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 396,
+  "category": 2,
+  "visible_share": 0.3799421407907425,
+  "iou_full_box": 0.9327679931076314,
+  "iou_visible_box": 0.8168903176932855,
+  "iou_polygon": 0.7334801762114538
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 397,
+  "category": 3,
+  "visible_share": 0.2298483639265762,
+  "iou_full_box": 0.9438875761653788,
+  "iou_visible_box": 0.34531735116640333,
+  "iou_polygon": 0.24273664479850046
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 132,
+  "category": 6,
+  "visible_share": 0.11607142857142858,
+  "iou_full_box": 0.9375272672661763,
+  "iou_visible_box": 0.1746945218508403,
+  "iou_polygon": 0.20634920634920634
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 135,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.7980956900500839,
+  "iou_visible_box": 0.8318718262865548,
+  "iou_polygon": 0.5547045951859956
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 136,
+  "category": 6,
+  "visible_share": 0.9977876106194691,
+  "iou_full_box": 0.7572252250479872,
+  "iou_visible_box": 0.7572252250479872,
+  "iou_polygon": 0.4114963503649635
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 137,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.7111966976627444,
+  "iou_visible_box": 0.7111966976627444,
+  "iou_polygon": 0.45507246376811594
+ },
+ {
+  "scenario": 1,
+  "view": 2,
+  "object": 202,
+  "category": 6,
+  "visible_share": 0.17647058823529413,
+  "iou_full_box": 0.4639117568163121,
+  "iou_visible_box": 0.054936918570352745,
+  "iou_polygon": 0.04838709677419355
+ },
+ {
+  "scenario": 2,
+  "view": 0,
+  "object": 113,
+  "category": 4,
+  "visible_share": 0.9728910381232754,
+  "iou_full_box": 0.9809132623879478,
+  "iou_visible_box": 0.9809132623879478,
+  "iou_polygon": 0.8998645374402277
+ },
+ {
+  "scenario": 2,
+  "view": 0,
+  "object": 117,
+  "category": 3,
+  "visible_share": 0.3155737704918033,
+  "iou_full_box": 0.9522280978248244,
+  "iou_visible_box": 0.5700442297441654,
+  "iou_polygon": 0.6928191489361702
+ },
+ {
+  "scenario": 2,
+  "view": 0,
+  "object": 119,
+  "category": 2,
+  "visible_share": 0.589749311909544,
+  "iou_full_box": 0.9764674058507101,
+  "iou_visible_box": 0.6387718963330725,
+  "iou_polygon": 0.8520992366412213
+ },
+ {
+  "scenario": 2,
+  "view": 0,
+  "object": 431,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.811170178963559,
+  "iou_visible_box": 0.811170178963559,
+  "iou_polygon": 0.46804123711340206
+ },
+ {
+  "scenario": 2,
+  "view": 0,
+  "object": 432,
+  "category": 6,
+  "visible_share": 0.5040650406504065,
+  "iou_full_box": 0.8749104652136245,
+  "iou_visible_box": 0.31802227869589283,
+  "iou_polygon": 0.24170616113744076
+ },
+ {
+  "scenario": 2,
+  "view": 1,
+  "object": 99,
+  "category": 2,
+  "visible_share": 0.20955882352941177,
+  "iou_full_box": 0.9031046296202138,
+  "iou_visible_box": 0.6871570335823397,
+  "iou_polygon": 0.5105633802816901
+ },
+ {
+  "scenario": 2,
+  "view": 1,
+  "object": 113,
+  "category": 4,
+  "visible_share": 0.8239350437901054,
+  "iou_full_box": 0.9895647151819315,
+  "iou_visible_box": 0.8196548799650619,
+  "iou_polygon": 0.8487705938867737
+ },
+ {
+  "scenario": 2,
+  "view": 1,
+  "object": 116,
+  "category": 2,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8208505110903297,
+  "iou_visible_box": 0.8208505110903297,
+  "iou_polygon": 0.9068461758808365
+ },
+ {
+  "scenario": 2,
+  "view": 1,
+  "object": 117,
+  "category": 3,
+  "visible_share": 0.2223264540337711,
+  "iou_full_box": 0.9766687894752,
+  "iou_visible_box": 0.3292476575867278,
+  "iou_polygon": 0.08736985061113627
+ },
+ {
+  "scenario": 2,
+  "view": 1,
+  "object": 118,
+  "category": 2,
+  "visible_share": 0.8845880176462217,
+  "iou_full_box": 0.9797535243338422,
+  "iou_visible_box": 0.9797535243338422,
+  "iou_polygon": 0.6020830719036265
+ },
+ {
+  "scenario": 2,
+  "view": 1,
+  "object": 119,
+  "category": 2,
+  "visible_share": 0.9999175529722154,
+  "iou_full_box": 0.9755395408161001,
+  "iou_visible_box": 0.9755395408161001,
+  "iou_polygon": 0.8645271838075179
+ },
+ {
+  "scenario": 2,
+  "view": 1,
+  "object": 123,
+  "category": 6,
+  "visible_share": 0.3698630136986301,
+  "iou_full_box": 0.8297732694270062,
+  "iou_visible_box": 0.3884349581559194,
+  "iou_polygon": 0.43661971830985913
+ },
+ {
+  "scenario": 2,
+  "view": 1,
+  "object": 133,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.7457048413470243,
+  "iou_visible_box": 0.7457048413470243,
+  "iou_polygon": 0.4164719155451688
+ },
+ {
+  "scenario": 2,
+  "view": 1,
+  "object": 134,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.7312234745051678,
+  "iou_visible_box": 0.7312234745051678,
+  "iou_polygon": 0.42263995042346625
+ },
+ {
+  "scenario": 2,
+  "view": 1,
+  "object": 135,
+  "category": 6,
+  "visible_share": 0.9986263736263736,
+  "iou_full_box": 0.8804269101558976,
+  "iou_visible_box": 0.8804269101558976,
+  "iou_polygon": 0.5249097472924188
+ },
+ {
+  "scenario": 2,
+  "view": 2,
+  "object": 111,
+  "category": 2,
+  "visible_share": 0.14990859232175502,
+  "iou_full_box": 0.966096341830457,
+  "iou_visible_box": 0.49451483796029644,
+  "iou_polygon": 0.3177570093457944
+ },
+ {
+  "scenario": 2,
+  "view": 2,
+  "object": 112,
+  "category": 2,
+  "visible_share": 0.003952569169960474,
+  "iou_full_box": 0.9738752984630995,
+  "iou_visible_box": 0.0,
+  "iou_polygon": 0.0
+ },
+ {
+  "scenario": 2,
+  "view": 2,
+  "object": 113,
+  "category": 4,
+  "visible_share": 0.5883360832592969,
+  "iou_full_box": 0.990859420823323,
+  "iou_visible_box": 0.6927508218591152,
+  "iou_polygon": 0.6297088936987767
+ },
+ {
+  "scenario": 2,
+  "view": 2,
+  "object": 114,
+  "category": 2,
+  "visible_share": 0.2026359143327842,
+  "iou_full_box": 0.9806611925519221,
+  "iou_visible_box": 0.47688664027801875,
+  "iou_polygon": 0.5843373493975904
+ },
+ {
+  "scenario": 2,
+  "view": 2,
+  "object": 115,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9716279914831716
+ },
+ {
+  "scenario": 2,
+  "view": 2,
+  "object": 117,
+  "category": 3,
+  "visible_share": 0.4868566932513143,
+  "iou_full_box": 0.9596696559653803,
+  "iou_visible_box": 0.7108487952536346,
+  "iou_polygon": 0.38360658819990223
+ },
+ {
+  "scenario": 2,
+  "view": 2,
+  "object": 118,
+  "category": 2,
+  "visible_share": 0.10393423370522607,
+  "iou_full_box": 0.9751307019749573,
+  "iou_visible_box": 0.23434466670489615,
+  "iou_polygon": 0.09093250901597115
+ },
+ {
+  "scenario": 2,
+  "view": 2,
+  "object": 119,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9761455691575704
+ },
+ {
+  "scenario": 2,
+  "view": 2,
+  "object": 120,
+  "category": 2,
+  "visible_share": 0.8203017832647462,
+  "iou_full_box": 0.9750807994821895,
+  "iou_visible_box": 0.9750807994821895,
+  "iou_polygon": 0.6862745098039216
+ },
+ {
+  "scenario": 2,
+  "view": 2,
+  "object": 130,
+  "category": 6,
+  "visible_share": 0.9642857142857143,
+  "iou_full_box": 0.9336560928774102,
+  "iou_visible_box": 0.9336560928774102,
+  "iou_polygon": 0.5225806451612903
+ },
+ {
+  "scenario": 2,
+  "view": 2,
+  "object": 131,
+  "category": 6,
+  "visible_share": 0.6455696202531646,
+  "iou_full_box": 0.9604080900682939,
+  "iou_visible_box": 0.8531347794326135,
+  "iou_polygon": 0.3063063063063063
+ },
+ {
+  "scenario": 2,
+  "view": 2,
+  "object": 132,
+  "category": 6,
+  "visible_share": 0.21768707482993196,
+  "iou_full_box": 0.8833488742418434,
+  "iou_visible_box": 0.8833488742418434,
+  "iou_polygon": 0.10158730158730159
+ },
+ {
+  "scenario": 2,
+  "view": 2,
+  "object": 134,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.7477849833261669,
+  "iou_visible_box": 0.7477849833261669,
+  "iou_polygon": 0.42775229357798167
+ },
+ {
+  "scenario": 3,
+  "view": 0,
+  "object": 151,
+  "category": 2,
+  "visible_share": 0.9695218076720967,
+  "iou_full_box": 0.9821630956864525,
+  "iou_visible_box": 0.9323211626082936,
+  "iou_polygon": 0.8284103720405862
+ },
+ {
+  "scenario": 3,
+  "view": 0,
+  "object": 152,
+  "category": 4,
+  "visible_share": 0.9384777304693106,
+  "iou_full_box": 0.9886666117938275,
+  "iou_visible_box": 0.9886666117938275,
+  "iou_polygon": 0.8588496452650597
+ },
+ {
+  "scenario": 3,
+  "view": 0,
+  "object": 154,
+  "category": 2,
+  "visible_share": 0.7167697063369397,
+  "iou_full_box": 0.9845557227102113,
+  "iou_visible_box": 0.8333082535051064,
+  "iou_polygon": 0.6175099866844208
+ },
+ {
+  "scenario": 3,
+  "view": 0,
+  "object": 155,
+  "category": 3,
+  "visible_share": 1.0,
+  "iou_full_box": 0.4448417349893142,
+  "iou_visible_box": 0.4448417349893142,
+  "iou_polygon": 0.8262249158606773
+ },
+ {
+  "scenario": 3,
+  "view": 0,
+  "object": 148,
+  "category": 6,
+  "visible_share": 0.9923566878980892,
+  "iou_full_box": 0.828161303502946,
+  "iou_visible_box": 0.828161303502946,
+  "iou_polygon": 0.4823529411764706
+ },
+ {
+  "scenario": 3,
+  "view": 1,
+  "object": 151,
+  "category": 2,
+  "visible_share": 1.0,
+  "iou_full_box": 0.3553477737216848,
+  "iou_visible_box": 0.3553477737216848,
+  "iou_polygon": 0.7783106267029972
+ },
+ {
+  "scenario": 3,
+  "view": 1,
+  "object": 152,
+  "category": 4,
+  "visible_share": 0.931904090267983,
+  "iou_full_box": 0.9749767925295535,
+  "iou_visible_box": 0.9749767925295535,
+  "iou_polygon": 0.8322704242393688
+ },
+ {
+  "scenario": 3,
+  "view": 1,
+  "object": 155,
+  "category": 3,
+  "visible_share": 0.7351560905937564,
+  "iou_full_box": 0.9745157159529627,
+  "iou_visible_box": 0.9700470903098313,
+  "iou_polygon": 0.6306669000525118
+ },
+ {
+  "scenario": 3,
+  "view": 1,
+  "object": 178,
+  "category": 4,
+  "visible_share": 0.6905416716489298,
+  "iou_full_box": 0.6665498764104079,
+  "iou_visible_box": 0.5858911020745515,
+  "iou_polygon": 0.6547120012420432
+ },
+ {
+  "scenario": 3,
+  "view": 1,
+  "object": 162,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.5144522911296755,
+  "iou_visible_box": 0.5144522911296755,
+  "iou_polygon": 0.3259109311740891
+ },
+ {
+  "scenario": 3,
+  "view": 1,
+  "object": 163,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8670964999646156,
+  "iou_visible_box": 0.8670964999646156,
+  "iou_polygon": 0.5294117647058824
+ },
+ {
+  "scenario": 3,
+  "view": 1,
+  "object": 171,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.922479745013225
+ },
+ {
+  "scenario": 3,
+  "view": 1,
+  "object": 172,
+  "category": 6,
+  "visible_share": 0.996996996996997,
+  "iou_full_box": 0.45824491391644223,
+  "iou_visible_box": 0.4555587054542365,
+  "iou_polygon": 0.2719082719082719
+ },
+ {
+  "scenario": 3,
+  "view": 2,
+  "object": 151,
+  "category": 2,
+  "visible_share": 0.4022413448068841,
+  "iou_full_box": 0.99195416657797,
+  "iou_visible_box": 0.5323386572134073,
+  "iou_polygon": 0.33618628067967277
+ },
+ {
+  "scenario": 3,
+  "view": 2,
+  "object": 152,
+  "category": 4,
+  "visible_share": 0.8894509295287505,
+  "iou_full_box": 0.9839195853074199,
+  "iou_visible_box": 0.9839195853074199,
+  "iou_polygon": 0.7909715407262021
+ },
+ {
+  "scenario": 3,
+  "view": 2,
+  "object": 154,
+  "category": 2,
+  "visible_share": 0.4771226227421023,
+  "iou_full_box": 0.9797958060010812,
+  "iou_visible_box": 0.9384180074587989,
+  "iou_polygon": 0.7552002264044149
+ },
+ {
+  "scenario": 3,
+  "view": 2,
+  "object": 155,
+  "category": 3,
+  "visible_share": 0.5073260073260073,
+  "iou_full_box": 0.9835500432030457,
+  "iou_visible_box": 0.7144769857935839,
+  "iou_polygon": 0.37506160670280925
+ },
+ {
+  "scenario": 3,
+  "view": 2,
+  "object": 178,
+  "category": 4,
+  "visible_share": 0.24119907763259033,
+  "iou_full_box": 0.9885074184417123,
+  "iou_visible_box": 0.8749775984259545,
+  "iou_polygon": 0.5630901287553648
+ },
+ {
+  "scenario": 3,
+  "view": 2,
+  "object": 148,
+  "category": 6,
+  "visible_share": 0.3442399454669393,
+  "iou_full_box": 0.5804451598001814,
+  "iou_visible_box": 0.3513171209178636,
+  "iou_polygon": 0.3299933199732799
+ },
+ {
+  "scenario": 3,
+  "view": 2,
+  "object": 162,
+  "category": 6,
+  "visible_share": 0.4,
+  "iou_full_box": 0.7164914584570857,
+  "iou_visible_box": 0.23871515083660352,
+  "iou_polygon": 0.16783216783216784
+ },
+ {
+  "scenario": 3,
+  "view": 2,
+  "object": 163,
+  "category": 6,
+  "visible_share": 0.31,
+  "iou_full_box": 0.8837575192823001,
+  "iou_visible_box": 0.35623698649106245,
+  "iou_polygon": 0.155
+ },
+ {
+  "scenario": 3,
+  "view": 2,
+  "object": 171,
+  "category": 6,
+  "visible_share": 0.06086956521739131,
+  "iou_full_box": 0.9677411296000126,
+  "iou_visible_box": 0.06759918899714962,
+  "iou_polygon": 0.0
+ },
+ {
+  "scenario": 3,
+  "view": 2,
+  "object": 172,
+  "category": 6,
+  "visible_share": 0.017241379310344827,
+  "iou_full_box": 0.7461793243992287,
+  "iou_visible_box": 0.007357710178304335,
+  "iou_polygon": 0.006696428571428571
+ },
+ {
+  "scenario": 4,
+  "view": 0,
+  "object": 122,
+  "category": 3,
+  "visible_share": 1.0,
+  "iou_full_box": 0.7878273811470391,
+  "iou_visible_box": 0.7878273811470391,
+  "iou_polygon": 0.7496998467510241
+ },
+ {
+  "scenario": 4,
+  "view": 0,
+  "object": 123,
+  "category": 2,
+  "visible_share": 0.831924213099725,
+  "iou_full_box": 0.9826790498375357,
+  "iou_visible_box": 0.8191874575546269,
+  "iou_polygon": 0.8273993808049536
+ },
+ {
+  "scenario": 4,
+  "view": 0,
+  "object": 128,
+  "category": 4,
+  "visible_share": 0.9145180915786103,
+  "iou_full_box": 0.9787803860499248,
+  "iou_visible_box": 0.8583232469434195,
+  "iou_polygon": 0.9012687802187105
+ },
+ {
+  "scenario": 4,
+  "view": 0,
+  "object": 129,
+  "category": 2,
+  "visible_share": 0.4921286789869952,
+  "iou_full_box": 0.9629080051518459,
+  "iou_visible_box": 0.49877079620365083,
+  "iou_polygon": 0.624484181568088
+ },
+ {
+  "scenario": 4,
+  "view": 0,
+  "object": 130,
+  "category": 2,
+  "visible_share": 0.8632727272727273,
+  "iou_full_box": 0.9727160762942157,
+  "iou_visible_box": 0.7668751629832273,
+  "iou_polygon": 0.7776904948939513
+ },
+ {
+  "scenario": 4,
+  "view": 0,
+  "object": 131,
+  "category": 2,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9384470172287621,
+  "iou_visible_box": 0.9384470172287621,
+  "iou_polygon": 0.938411207341243
+ },
+ {
+  "scenario": 4,
+  "view": 0,
+  "object": 156,
+  "category": 6,
+  "visible_share": 0.5376766091051806,
+  "iou_full_box": 0.774491017794799,
+  "iou_visible_box": 0.7619992271852054,
+  "iou_polygon": 0.293236301369863
+ },
+ {
+  "scenario": 4,
+  "view": 0,
+  "object": 158,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.779399416364295
+ },
+ {
+  "scenario": 4,
+  "view": 0,
+  "object": 159,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.6001337437649471
+ },
+ {
+  "scenario": 4,
+  "view": 1,
+  "object": 122,
+  "category": 3,
+  "visible_share": 0.7624676763945327,
+  "iou_full_box": 0.9818111882324311,
+  "iou_visible_box": 0.7740913280957856,
+  "iou_polygon": 0.8444345105051408
+ },
+ {
+  "scenario": 4,
+  "view": 1,
+  "object": 123,
+  "category": 2,
+  "visible_share": 0.9999044342507645,
+  "iou_full_box": 0.9855781529756075,
+  "iou_visible_box": 0.9855781529756075,
+  "iou_polygon": 0.8608085808580858
+ },
+ {
+  "scenario": 4,
+  "view": 1,
+  "object": 127,
+  "category": 2,
+  "visible_share": 0.3354330708661417,
+  "iou_full_box": 0.9721711573953133,
+  "iou_visible_box": 0.7791610932988567,
+  "iou_polygon": 0.7457627118644068
+ },
+ {
+  "scenario": 4,
+  "view": 1,
+  "object": 128,
+  "category": 4,
+  "visible_share": 0.9390814100044723,
+  "iou_full_box": 0.9702888563679292,
+  "iou_visible_box": 0.8805434019136027,
+  "iou_polygon": 0.9138634115941636
+ },
+ {
+  "scenario": 4,
+  "view": 1,
+  "object": 131,
+  "category": 2,
+  "visible_share": 0.9983271597562433,
+  "iou_full_box": 0.9597462273676887,
+  "iou_visible_box": 0.9597462273676887,
+  "iou_polygon": 0.85877274128893
+ },
+ {
+  "scenario": 4,
+  "view": 1,
+  "object": 132,
+  "category": 3,
+  "visible_share": 0.8774232031017,
+  "iou_full_box": 0.9737708776335657,
+  "iou_visible_box": 0.8925840644727996,
+  "iou_polygon": 0.8215322112594312
+ },
+ {
+  "scenario": 4,
+  "view": 1,
+  "object": 151,
+  "category": 6,
+  "visible_share": 0.08450704225352113,
+  "iou_full_box": 0.7817227238060023,
+  "iou_visible_box": 0.0,
+  "iou_polygon": 0.0
+ },
+ {
+  "scenario": 4,
+  "view": 1,
+  "object": 152,
+  "category": 6,
+  "visible_share": 0.3392330383480826,
+  "iou_full_box": 0.8918883245700024,
+  "iou_visible_box": 0.4355822633877117,
+  "iou_polygon": 0.18661971830985916
+ },
+ {
+  "scenario": 4,
+  "view": 1,
+  "object": 153,
+  "category": 6,
+  "visible_share": 0.5477178423236515,
+  "iou_full_box": 0.9073729719154227,
+  "iou_visible_box": 0.6752409602320435,
+  "iou_polygon": 0.2799575821845175
+ },
+ {
+  "scenario": 4,
+  "view": 1,
+  "object": 154,
+  "category": 6,
+  "visible_share": 0.7047511312217195,
+  "iou_full_box": 0.9142299068763362,
+  "iou_visible_box": 0.8994842632170404,
+  "iou_polygon": 0.37780473013947846
+ },
+ {
+  "scenario": 4,
+  "view": 1,
+  "object": 155,
+  "category": 6,
+  "visible_share": 0.9949229691876751,
+  "iou_full_box": 0.9127588865043098,
+  "iou_visible_box": 0.9127588865043098,
+  "iou_polygon": 0.5696094650824686
+ },
+ {
+  "scenario": 4,
+  "view": 2,
+  "object": 121,
+  "category": 2,
+  "visible_share": 0.5740859525336754,
+  "iou_full_box": 0.9581617477807923,
+  "iou_visible_box": 0.8432698500910543,
+  "iou_polygon": 0.7641681901279708
+ },
+ {
+  "scenario": 4,
+  "view": 2,
+  "object": 122,
+  "category": 3,
+  "visible_share": 0.5563292713255409,
+  "iou_full_box": 0.9775644509013832,
+  "iou_visible_box": 0.8214806351827122,
+  "iou_polygon": 0.6724076067456046
+ },
+ {
+  "scenario": 4,
+  "view": 2,
+  "object": 126,
+  "category": 2,
+  "visible_share": 0.8676548438327157,
+  "iou_full_box": 0.9680875800232076,
+  "iou_visible_box": 0.8849103376947791,
+  "iou_polygon": 0.7466970387243735
+ },
+ {
+  "scenario": 4,
+  "view": 2,
+  "object": 127,
+  "category": 2,
+  "visible_share": 0.8238492207321493,
+  "iou_full_box": 0.9712973272698839,
+  "iou_visible_box": 0.8190787544210557,
+  "iou_polygon": 0.7388910735351947
+ },
+ {
+  "scenario": 4,
+  "view": 2,
+  "object": 128,
+  "category": 4,
+  "visible_share": 0.9564665566696281,
+  "iou_full_box": 0.9839941018075583,
+  "iou_visible_box": 0.9671872738663971,
+  "iou_polygon": 0.8638359894904397
+ },
+ {
+  "scenario": 4,
+  "view": 2,
+  "object": 132,
+  "category": 3,
+  "visible_share": 0.285996835443038,
+  "iou_full_box": 0.9675039045306012,
+  "iou_visible_box": 0.6265931661221885,
+  "iou_polygon": 0.6135593220338983
+ },
+ {
+  "scenario": 4,
+  "view": 2,
+  "object": 142,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8295716477112436,
+  "iou_visible_box": 0.8295716477112436,
+  "iou_polygon": 0.4894433781190019
+ },
+ {
+  "scenario": 4,
+  "view": 2,
+  "object": 143,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.7643499018739451,
+  "iou_visible_box": 0.7643499018739451,
+  "iou_polygon": 0.44765342960288806
+ },
+ {
+  "scenario": 4,
+  "view": 2,
+  "object": 151,
+  "category": 6,
+  "visible_share": 0.041666666666666664,
+  "iou_full_box": 0.6075038310771882,
+  "iou_visible_box": 0.008362853062682047,
+  "iou_polygon": 0.008849557522123894
+ },
+ {
+  "scenario": 4,
+  "view": 2,
+  "object": 152,
+  "category": 6,
+  "visible_share": 0.5491803278688525,
+  "iou_full_box": 0.8996955951715601,
+  "iou_visible_box": 0.6397704670473013,
+  "iou_polygon": 0.5172413793103449
+ },
+ {
+  "scenario": 4,
+  "view": 2,
+  "object": 155,
+  "category": 6,
+  "visible_share": 0.9942857142857143,
+  "iou_full_box": 0.8724903060286149,
+  "iou_visible_box": 0.8724903060286149,
+  "iou_polygon": 0.4767123287671233
+ },
+ {
+  "scenario": 4,
+  "view": 2,
+  "object": 156,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8980903408734792,
+  "iou_visible_box": 0.8980903408734792,
+  "iou_polygon": 0.5783664459161147
+ },
+ {
+  "scenario": 5,
+  "view": 0,
+  "object": 113,
+  "category": 2,
+  "visible_share": 0.5005843396961434,
+  "iou_full_box": 0.9827387685568226,
+  "iou_visible_box": 0.8491839782098789,
+  "iou_polygon": 0.4791318864774624
+ },
+ {
+  "scenario": 5,
+  "view": 0,
+  "object": 121,
+  "category": 4,
+  "visible_share": 0.9163468887172737,
+  "iou_full_box": 0.9917896386347397,
+  "iou_visible_box": 0.978180056875093,
+  "iou_polygon": 0.8657861535139068
+ },
+ {
+  "scenario": 5,
+  "view": 0,
+  "object": 126,
+  "category": 2,
+  "visible_share": 0.318348623853211,
+  "iou_full_box": 0.9789008346703817,
+  "iou_visible_box": 0.5043320529551732,
+  "iou_polygon": 0.49443207126948774
+ },
+ {
+  "scenario": 5,
+  "view": 0,
+  "object": 127,
+  "category": 2,
+  "visible_share": 0.2478021978021978,
+  "iou_full_box": 0.9605847620260125,
+  "iou_visible_box": 0.6848637862268492,
+  "iou_polygon": 0.3502879078694818
+ },
+ {
+  "scenario": 5,
+  "view": 0,
+  "object": 128,
+  "category": 2,
+  "visible_share": 0.5787387387387387,
+  "iou_full_box": 0.9827170034568599,
+  "iou_visible_box": 0.40674224968180656,
+  "iou_polygon": 0.4931362196409715
+ },
+ {
+  "scenario": 5,
+  "view": 0,
+  "object": 137,
+  "category": 6,
+  "visible_share": 0.9896704377766847,
+  "iou_full_box": 0.6511027381415257,
+  "iou_visible_box": 0.6449602594798133,
+  "iou_polygon": 0.43203779257032426
+ },
+ {
+  "scenario": 5,
+  "view": 0,
+  "object": 148,
+  "category": 6,
+  "visible_share": 0.9993362831858407,
+  "iou_full_box": 0.8126168526985682,
+  "iou_visible_box": 0.8126168526985682,
+  "iou_polygon": 0.5432351172579676
+ },
+ {
+  "scenario": 5,
+  "view": 0,
+  "object": 150,
+  "category": 6,
+  "visible_share": 0.9992360580595875,
+  "iou_full_box": 0.7040389314387625,
+  "iou_visible_box": 0.7040389314387625,
+  "iou_polygon": 0.4823008849557522
+ },
+ {
+  "scenario": 5,
+  "view": 0,
+  "object": 151,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8870182266125717,
+  "iou_visible_box": 0.790992455893385,
+  "iou_polygon": 0.5882926829268292
+ },
+ {
+  "scenario": 5,
+  "view": 0,
+  "object": 152,
+  "category": 6,
+  "visible_share": 0.9840848806366048,
+  "iou_full_box": 0.6971873678778036,
+  "iou_visible_box": 0.6788403318810192,
+  "iou_polygon": 0.5103163686382394
+ },
+ {
+  "scenario": 5,
+  "view": 0,
+  "object": 154,
+  "category": 6,
+  "visible_share": 0.11974110032362459,
+  "iou_full_box": 0.7757603719207851,
+  "iou_visible_box": 0.8262561651129775,
+  "iou_polygon": 0.0
+ },
+ {
+  "scenario": 5,
+  "view": 1,
+  "object": 112,
+  "category": 2,
+  "visible_share": 0.9182832201745877,
+  "iou_full_box": 0.985598609543924,
+  "iou_visible_box": 0.985598609543924,
+  "iou_polygon": 0.7936217448697948
+ },
+ {
+  "scenario": 5,
+  "view": 1,
+  "object": 115,
+  "category": 2,
+  "visible_share": 0.22733612273361228,
+  "iou_full_box": 0.9514092315994825,
+  "iou_visible_box": 0.41967010673281185,
+  "iou_polygon": 0.4375
+ },
+ {
+  "scenario": 5,
+  "view": 1,
+  "object": 116,
+  "category": 2,
+  "visible_share": 0.14540270848182466,
+  "iou_full_box": 0.9685029710762961,
+  "iou_visible_box": 1.4370952407095774e-14,
+  "iou_polygon": 0.0
+ },
+ {
+  "scenario": 5,
+  "view": 1,
+  "object": 121,
+  "category": 4,
+  "visible_share": 0.9474042167309,
+  "iou_full_box": 0.984102400903115,
+  "iou_visible_box": 0.9821581214023926,
+  "iou_polygon": 0.8906261665297939
+ },
+ {
+  "scenario": 5,
+  "view": 1,
+  "object": 122,
+  "category": 2,
+  "visible_share": 0.8117806364251862,
+  "iou_full_box": 0.9853934691570632,
+  "iou_visible_box": 0.9853934691570632,
+  "iou_polygon": 0.7077922077922078
+ },
+ {
+  "scenario": 5,
+  "view": 1,
+  "object": 123,
+  "category": 2,
+  "visible_share": 0.23588342440801457,
+  "iou_full_box": 0.9714014046120314,
+  "iou_visible_box": 0.39308375181983546,
+  "iou_polygon": 0.390625
+ },
+ {
+  "scenario": 5,
+  "view": 1,
+  "object": 124,
+  "category": 2,
+  "visible_share": 0.15891032917139614,
+  "iou_full_box": 0.9797883283782844,
+  "iou_visible_box": 0.4686718271176842,
+  "iou_polygon": 0.15564738292011018
+ },
+ {
+  "scenario": 5,
+  "view": 1,
+  "object": 135,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.6465388261783012,
+  "iou_visible_box": 0.6465388261783012,
+  "iou_polygon": 0.3910429816651638
+ },
+ {
+  "scenario": 5,
+  "view": 1,
+  "object": 145,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.7139435425152624,
+  "iou_visible_box": 0.7139435425152624,
+  "iou_polygon": 0.39012345679012345
+ },
+ {
+  "scenario": 5,
+  "view": 1,
+  "object": 146,
+  "category": 6,
+  "visible_share": 0.3225806451612903,
+  "iou_full_box": 0.8847765287851961,
+  "iou_visible_box": 4.632684547539154e-14,
+  "iou_polygon": 0.0784313725490196
+ },
+ {
+  "scenario": 5,
+  "view": 1,
+  "object": 147,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8933023110669268,
+  "iou_visible_box": 0.8933023110669268,
+  "iou_polygon": 0.6023506366307542
+ },
+ {
+  "scenario": 5,
+  "view": 1,
+  "object": 148,
+  "category": 6,
+  "visible_share": 0.9975124378109452,
+  "iou_full_box": 0.8596620632490145,
+  "iou_visible_box": 0.8596620632490145,
+  "iou_polygon": 0.5663841807909604
+ },
+ {
+  "scenario": 5,
+  "view": 1,
+  "object": 149,
+  "category": 6,
+  "visible_share": 0.9901212393354288,
+  "iou_full_box": 0.9006115206495527,
+  "iou_visible_box": 0.883933529526413,
+  "iou_polygon": 0.5149462867818776
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 111,
+  "category": 2,
+  "visible_share": 0.7688950149322307,
+  "iou_full_box": 0.9809115694516598,
+  "iou_visible_box": 0.8773930243726298,
+  "iou_polygon": 0.7338671691003297
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 112,
+  "category": 2,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9869762455666002,
+  "iou_visible_box": 0.9869762455666002,
+  "iou_polygon": 0.8519141169124358
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 115,
+  "category": 2,
+  "visible_share": 0.7351206434316354,
+  "iou_full_box": 0.978676561944363,
+  "iou_visible_box": 0.730740773455993,
+  "iou_polygon": 0.621507643647865
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 116,
+  "category": 2,
+  "visible_share": 0.7378900445765231,
+  "iou_full_box": 0.9816821396733502,
+  "iou_visible_box": 0.9401233489621617,
+  "iou_polygon": 0.6281855249745159
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 117,
+  "category": 2,
+  "visible_share": 0.9018560179977503,
+  "iou_full_box": 0.9636695519654781,
+  "iou_visible_box": 0.9636695519654781,
+  "iou_polygon": 0.7866961217476681
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 118,
+  "category": 2,
+  "visible_share": 0.9576107899807321,
+  "iou_full_box": 0.9604153249305585,
+  "iou_visible_box": 0.9466951060029791,
+  "iou_polygon": 0.8095755271970314
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 119,
+  "category": 2,
+  "visible_share": 1.0,
+  "iou_full_box": 0.25057609973091377,
+  "iou_visible_box": 0.8049549980842301,
+  "iou_polygon": 0.8731475992886781
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 121,
+  "category": 4,
+  "visible_share": 0.8860472991035626,
+  "iou_full_box": 0.98744086588571,
+  "iou_visible_box": 0.7919581986198447,
+  "iou_polygon": 0.804312118866464
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 123,
+  "category": 2,
+  "visible_share": 0.18007425742574257,
+  "iou_full_box": 0.9761963204575319,
+  "iou_visible_box": 0.39101421150641985,
+  "iou_polygon": 0.6595092024539877
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 128,
+  "category": 2,
+  "visible_share": 0.9017611447440836,
+  "iou_full_box": 0.8983002194553391,
+  "iou_visible_box": 0.6468191952689062,
+  "iou_polygon": 0.7327141382868937
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 135,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.6966379010319355,
+  "iou_visible_box": 0.6966379010319355,
+  "iou_polygon": 0.4380482456140351
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 136,
+  "category": 6,
+  "visible_share": 0.9996461429582448,
+  "iou_full_box": 0.5498367757460367,
+  "iou_visible_box": 0.5498367757460367,
+  "iou_polygon": 0.32113220416050925
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 137,
+  "category": 6,
+  "visible_share": 0.9939622641509434,
+  "iou_full_box": 0.7652381062348225,
+  "iou_visible_box": 0.7552999490109936,
+  "iou_polygon": 0.48153564899451556
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 138,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.768045073845153,
+  "iou_visible_box": 0.768045073845153,
+  "iou_polygon": 0.44556596971881757
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 145,
+  "category": 6,
+  "visible_share": 0.01680672268907563,
+  "iou_full_box": 0.6711701976316777,
+  "iou_visible_box": 0.006804751961450652,
+  "iou_polygon": 0.017094017094017096
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 147,
+  "category": 6,
+  "visible_share": 0.10087719298245613,
+  "iou_full_box": 0.9338807209324185,
+  "iou_visible_box": 0.20225758929285,
+  "iou_polygon": 0.13333333333333333
+ },
+ {
+  "scenario": 5,
+  "view": 2,
+  "object": 150,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.5517594802050024,
+  "iou_visible_box": 0.5517594802050024,
+  "iou_polygon": 0.3755085435313263
+ },
+ {
+  "scenario": 6,
+  "view": 0,
+  "object": 89,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9706388403518041
+ },
+ {
+  "scenario": 6,
+  "view": 0,
+  "object": 90,
+  "category": 2,
+  "visible_share": 0.5590717299578059,
+  "iou_full_box": 0.972709591455582,
+  "iou_visible_box": 0.8250710167020595,
+  "iou_polygon": 0.5903049257232212
+ },
+ {
+  "scenario": 6,
+  "view": 0,
+  "object": 92,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.960987316471035
+ },
+ {
+  "scenario": 6,
+  "view": 0,
+  "object": 98,
+  "category": 2,
+  "visible_share": 0.26358063834284506,
+  "iou_full_box": 0.9818423323338303,
+  "iou_visible_box": 0.7501195607386101,
+  "iou_polygon": 0.5686813186813187
+ },
+ {
+  "scenario": 6,
+  "view": 0,
+  "object": 131,
+  "category": 2,
+  "visible_share": 1.0,
+  "iou_full_box": 0.6960148051355322,
+  "iou_visible_box": 0.6960148051355322,
+  "iou_polygon": 0.9775261789645036
+ },
+ {
+  "scenario": 6,
+  "view": 0,
+  "object": 132,
+  "category": 2,
+  "visible_share": 0.999968234471951,
+  "iou_full_box": 0.9428815710899107,
+  "iou_visible_box": 0.9428815710899107,
+  "iou_polygon": 0.9129480473018052
+ },
+ {
+  "scenario": 6,
+  "view": 0,
+  "object": 134,
+  "category": 4,
+  "visible_share": 0.9984919143407346,
+  "iou_full_box": 0.978046040380736,
+  "iou_visible_box": 0.978046040380736,
+  "iou_polygon": 0.8980686076679159
+ },
+ {
+  "scenario": 6,
+  "view": 0,
+  "object": 146,
+  "category": 6,
+  "visible_share": 0.08486550131328684,
+  "iou_full_box": 0.870809473035585,
+  "iou_visible_box": 0.6982527571806073,
+  "iou_polygon": 0.050585758246504346
+ },
+ {
+  "scenario": 6,
+  "view": 0,
+  "object": 152,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9249463994425765,
+  "iou_visible_box": 0.9249463994425765,
+  "iou_polygon": 0.6654170571696345
+ },
+ {
+  "scenario": 6,
+  "view": 1,
+  "object": 90,
+  "category": 2,
+  "visible_share": 0.31018449077546123,
+  "iou_full_box": 0.9863669668085631,
+  "iou_visible_box": 0.8246730672191258,
+  "iou_polygon": 0.7395929694727105
+ },
+ {
+  "scenario": 6,
+  "view": 1,
+  "object": 92,
+  "category": 2,
+  "visible_share": 0.3562363238512035,
+  "iou_full_box": 0.9607096520069989,
+  "iou_visible_box": 0.7825952477685902,
+  "iou_polygon": 0.7625383828045036
+ },
+ {
+  "scenario": 6,
+  "view": 1,
+  "object": 98,
+  "category": 2,
+  "visible_share": 0.22401614530776992,
+  "iou_full_box": 0.9731088220460492,
+  "iou_visible_box": 0.8923193180991891,
+  "iou_polygon": 0.4577742699289661
+ },
+ {
+  "scenario": 6,
+  "view": 1,
+  "object": 103,
+  "category": 2,
+  "visible_share": 0.9395689846700733,
+  "iou_full_box": 0.9789977309487026,
+  "iou_visible_box": 0.8872695248079635,
+  "iou_polygon": 0.7791212848440096
+ },
+ {
+  "scenario": 6,
+  "view": 1,
+  "object": 104,
+  "category": 2,
+  "visible_share": 0.4333602584814216,
+  "iou_full_box": 0.9550639837855334,
+  "iou_visible_box": 0.9122427842884467,
+  "iou_polygon": 0.3701276302173163
+ },
+ {
+  "scenario": 6,
+  "view": 1,
+  "object": 130,
+  "category": 2,
+  "visible_share": 0.9993308798929408,
+  "iou_full_box": 0.7773241790393517,
+  "iou_visible_box": 0.7674477358114509,
+  "iou_polygon": 0.9143688725490197
+ },
+ {
+  "scenario": 6,
+  "view": 1,
+  "object": 131,
+  "category": 2,
+  "visible_share": 0.9993692178301093,
+  "iou_full_box": 0.9953590571999227,
+  "iou_visible_box": 0.9874499996122236,
+  "iou_polygon": 0.8253627394080093
+ },
+ {
+  "scenario": 6,
+  "view": 1,
+  "object": 132,
+  "category": 2,
+  "visible_share": 0.3437869822485207,
+  "iou_full_box": 0.9657325426206591,
+  "iou_visible_box": 0.890255022653463,
+  "iou_polygon": 0.39961941008563273
+ },
+ {
+  "scenario": 6,
+  "view": 1,
+  "object": 134,
+  "category": 4,
+  "visible_share": 0.8831251189041791,
+  "iou_full_box": 0.9882755016140092,
+  "iou_visible_box": 0.8755389296731889,
+  "iou_polygon": 0.7988449490994518
+ },
+ {
+  "scenario": 6,
+  "view": 1,
+  "object": 152,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8876398940259714,
+  "iou_visible_box": 0.8876398940259714,
+  "iou_polygon": 0.5558091286307054
+ },
+ {
+  "scenario": 6,
+  "view": 2,
+  "object": 125,
+  "category": 2,
+  "visible_share": 0.41280353200883,
+  "iou_full_box": 0.9625797395476289,
+  "iou_visible_box": 0.8364902566966965,
+  "iou_polygon": 0.6887755102040817
+ },
+ {
+  "scenario": 6,
+  "view": 2,
+  "object": 126,
+  "category": 2,
+  "visible_share": 0.748995983935743,
+  "iou_full_box": 0.9455080162177326,
+  "iou_visible_box": 0.8320170091289558,
+  "iou_polygon": 0.6134868421052632
+ },
+ {
+  "scenario": 6,
+  "view": 2,
+  "object": 128,
+  "category": 2,
+  "visible_share": 0.20675105485232068,
+  "iou_full_box": 0.9634446495585636,
+  "iou_visible_box": 0.24037149017079093,
+  "iou_polygon": 0.17583732057416268
+ },
+ {
+  "scenario": 6,
+  "view": 2,
+  "object": 129,
+  "category": 3,
+  "visible_share": 0.15933232169954475,
+  "iou_full_box": 0.969257271578845,
+  "iou_visible_box": 0.4065376564273573,
+  "iou_polygon": 0.4131455399061033
+ },
+ {
+  "scenario": 6,
+  "view": 2,
+  "object": 132,
+  "category": 2,
+  "visible_share": 0.45614035087719296,
+  "iou_full_box": 0.9418874871119564,
+  "iou_visible_box": 0.6744039928531802,
+  "iou_polygon": 0.6371900826446281
+ },
+ {
+  "scenario": 6,
+  "view": 2,
+  "object": 134,
+  "category": 4,
+  "visible_share": 0.8662998091972458,
+  "iou_full_box": 0.9739778517688503,
+  "iou_visible_box": 0.9662919650354048,
+  "iou_polygon": 0.7724301255642992
+ },
+ {
+  "scenario": 6,
+  "view": 2,
+  "object": 135,
+  "category": 2,
+  "visible_share": 0.6831210191082803,
+  "iou_full_box": 0.9460712208079051,
+  "iou_visible_box": 0.8874941806674507,
+  "iou_polygon": 0.7479591836734694
+ },
+ {
+  "scenario": 6,
+  "view": 2,
+  "object": 136,
+  "category": 2,
+  "visible_share": 0.37572254335260113,
+  "iou_full_box": 0.9572058347616968,
+  "iou_visible_box": 0.6024035080234023,
+  "iou_polygon": 0.5530864197530864
+ },
+ {
+  "scenario": 6,
+  "view": 2,
+  "object": 145,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9666911724268841
+ },
+ {
+  "scenario": 6,
+  "view": 2,
+  "object": 146,
+  "category": 6,
+  "visible_share": 0.5735294117647058,
+  "iou_full_box": 0.7154825203551173,
+  "iou_visible_box": 0.40499010586138706,
+  "iou_polygon": 0.23726235741444868
+ },
+ {
+  "scenario": 6,
+  "view": 2,
+  "object": 151,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8626856551814517
+ },
+ {
+  "scenario": 6,
+  "view": 2,
+  "object": 152,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9144753408371961,
+  "iou_visible_box": 0.9144753408371961,
+  "iou_polygon": 0.5131164742917104
+ },
+ {
+  "scenario": 7,
+  "view": 0,
+  "object": 107,
+  "category": 2,
+  "visible_share": 0.6523391796804192,
+  "iou_full_box": 0.9848623579911316,
+  "iou_visible_box": 0.890169998406171,
+  "iou_polygon": 0.8269567899230594
+ },
+ {
+  "scenario": 7,
+  "view": 0,
+  "object": 112,
+  "category": 3,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9855340069590177,
+  "iou_visible_box": 0.9855340069590177,
+  "iou_polygon": 0.9364846265690021
+ },
+ {
+  "scenario": 7,
+  "view": 0,
+  "object": 113,
+  "category": 2,
+  "visible_share": 0.2496591683708248,
+  "iou_full_box": 0.9458012102070249,
+  "iou_visible_box": 0.7256460038810144,
+  "iou_polygon": 0.0
+ },
+ {
+  "scenario": 7,
+  "view": 0,
+  "object": 114,
+  "category": 4,
+  "visible_share": 0.5896672931022482,
+  "iou_full_box": 0.978046040380736,
+  "iou_visible_box": 0.699313744786127,
+  "iou_polygon": 0.8815979464142467
+ },
+ {
+  "scenario": 7,
+  "view": 0,
+  "object": 104,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.596912630483778
+ },
+ {
+  "scenario": 7,
+  "view": 0,
+  "object": 122,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.7847958897901988,
+  "iou_visible_box": 0.7847958897901988,
+  "iou_polygon": 0.47977306364084854
+ },
+ {
+  "scenario": 7,
+  "view": 0,
+  "object": 438,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.49167863541807316,
+  "iou_visible_box": 0.49167863541807316,
+  "iou_polygon": 0.3057553956834532
+ },
+ {
+  "scenario": 7,
+  "view": 1,
+  "object": 107,
+  "category": 2,
+  "visible_share": 0.895275961992048,
+  "iou_full_box": 0.9840354110290865,
+  "iou_visible_box": 0.9840354110290865,
+  "iou_polygon": 0.7468882005068994
+ },
+ {
+  "scenario": 7,
+  "view": 1,
+  "object": 112,
+  "category": 3,
+  "visible_share": 0.17670134743305474,
+  "iou_full_box": 0.9781182132330694,
+  "iou_visible_box": 0.8281427363470475,
+  "iou_polygon": 0.528957528957529
+ },
+ {
+  "scenario": 7,
+  "view": 1,
+  "object": 113,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9602287146968114
+ },
+ {
+  "scenario": 7,
+  "view": 1,
+  "object": 114,
+  "category": 4,
+  "visible_share": 0.9912993848690469,
+  "iou_full_box": 0.9882755016140092,
+  "iou_visible_box": 0.9882755016140092,
+  "iou_polygon": 0.9035080593689438
+ },
+ {
+  "scenario": 7,
+  "view": 1,
+  "object": 104,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.61657368682031
+ },
+ {
+  "scenario": 7,
+  "view": 1,
+  "object": 105,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9420160754255403
+ },
+ {
+  "scenario": 7,
+  "view": 1,
+  "object": 121,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8873625182866355
+ },
+ {
+  "scenario": 7,
+  "view": 1,
+  "object": 133,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.782490955849537,
+  "iou_visible_box": 0.782490955849537,
+  "iou_polygon": 0.5284666792007794
+ },
+ {
+  "scenario": 7,
+  "view": 1,
+  "object": 134,
+  "category": 6,
+  "visible_share": 0.9991546914623838,
+  "iou_full_box": 0.7874824790632733,
+  "iou_visible_box": 0.7874824790632733,
+  "iou_polygon": 0.5077319587628866
+ },
+ {
+  "scenario": 7,
+  "view": 1,
+  "object": 135,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8943599426112054,
+  "iou_visible_box": 0.8943599426112054,
+  "iou_polygon": 0.4986376021798365
+ },
+ {
+  "scenario": 7,
+  "view": 1,
+  "object": 437,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8627123671511712
+ },
+ {
+  "scenario": 7,
+  "view": 1,
+  "object": 438,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.6648568173551663
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 110,
+  "category": 2,
+  "visible_share": 0.9260628465804066,
+  "iou_full_box": 0.9678330630819874,
+  "iou_visible_box": 0.8755909573840326,
+  "iou_polygon": 0.7719568567026194
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 111,
+  "category": 3,
+  "visible_share": 0.05319148936170213,
+  "iou_full_box": 0.9630452317333856,
+  "iou_visible_box": 0.23716915695738203,
+  "iou_polygon": 0.11981566820276497
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 113,
+  "category": 2,
+  "visible_share": 0.21442273303638196,
+  "iou_full_box": 0.9640018647485804,
+  "iou_visible_box": 0.16652108390550013,
+  "iou_polygon": 0.18130810275592718
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 114,
+  "category": 4,
+  "visible_share": 0.2157177225340818,
+  "iou_full_box": 0.9739778517688491,
+  "iou_visible_box": 0.8062118023002005,
+  "iou_polygon": 0.2280846024801816
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 115,
+  "category": 2,
+  "visible_share": 0.8982412060301508,
+  "iou_full_box": 0.9373054967219352,
+  "iou_visible_box": 0.9373054967219352,
+  "iou_polygon": 0.749475890985325
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 116,
+  "category": 2,
+  "visible_share": 0.9067796610169492,
+  "iou_full_box": 0.9528386531682727,
+  "iou_visible_box": 0.9528386531682727,
+  "iou_polygon": 0.7588652482269503
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 122,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.899082129961826
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 125,
+  "category": 6,
+  "visible_share": 0.3013698630136986,
+  "iou_full_box": 0.6271130524863368,
+  "iou_visible_box": 0.18813391574590105,
+  "iou_polygon": 0.24242424242424243
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 129,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8552445714814716,
+  "iou_visible_box": 0.8552445714814716,
+  "iou_polygon": 0.4782608695652174
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 130,
+  "category": 6,
+  "visible_share": 0.7433628318584071,
+  "iou_full_box": 0.9547419338059376,
+  "iou_visible_box": 0.7213783925055047,
+  "iou_polygon": 0.4117647058823529
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 131,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8661458076798987,
+  "iou_visible_box": 0.8661458076798987,
+  "iou_polygon": 0.4897360703812317
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 132,
+  "category": 6,
+  "visible_share": 0.9971264367816092,
+  "iou_full_box": 0.9704544281689298,
+  "iou_visible_box": 0.6196737079857048,
+  "iou_polygon": 0.6574712643678161
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 133,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8916651543826563,
+  "iou_visible_box": 0.8916651543826563,
+  "iou_polygon": 0.5670391061452514
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 134,
+  "category": 6,
+  "visible_share": 0.9973418394471026,
+  "iou_full_box": 0.7762137836983343,
+  "iou_visible_box": 0.7714517359455838,
+  "iou_polygon": 0.5050251256281407
+ },
+ {
+  "scenario": 7,
+  "view": 2,
+  "object": 135,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9303982287659645,
+  "iou_visible_box": 0.9303982287659645,
+  "iou_polygon": 0.5782242384964356
+ },
+ {
+  "scenario": 8,
+  "view": 0,
+  "object": 145,
+  "category": 2,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9754366314630413,
+  "iou_visible_box": 0.9754366314630413,
+  "iou_polygon": 0.8504467083236352
+ },
+ {
+  "scenario": 8,
+  "view": 0,
+  "object": 152,
+  "category": 2,
+  "visible_share": 0.941713687394567,
+  "iou_full_box": 0.9800663104139401,
+  "iou_visible_box": 0.9698653276531132,
+  "iou_polygon": 0.8259094851778152
+ },
+ {
+  "scenario": 8,
+  "view": 0,
+  "object": 153,
+  "category": 2,
+  "visible_share": 0.6450800915331808,
+  "iou_full_box": 0.9552350378310669,
+  "iou_visible_box": 0.8585188894394135,
+  "iou_polygon": 0.854071661237785
+ },
+ {
+  "scenario": 8,
+  "view": 0,
+  "object": 154,
+  "category": 2,
+  "visible_share": 0.35934016941596075,
+  "iou_full_box": 0.9772615435556047,
+  "iou_visible_box": 0.7130209269693025,
+  "iou_polygon": 0.7833523375142531
+ },
+ {
+  "scenario": 8,
+  "view": 0,
+  "object": 158,
+  "category": 2,
+  "visible_share": 0.2537688442211055,
+  "iou_full_box": 0.9760671609709297,
+  "iou_visible_box": 0.6721223955136938,
+  "iou_polygon": 0.38311688311688313
+ },
+ {
+  "scenario": 8,
+  "view": 0,
+  "object": 159,
+  "category": 4,
+  "visible_share": 0.7714879482012933,
+  "iou_full_box": 0.9864188235021137,
+  "iou_visible_box": 0.8292209645736087,
+  "iou_polygon": 0.8787581258597902
+ },
+ {
+  "scenario": 8,
+  "view": 0,
+  "object": 163,
+  "category": 6,
+  "visible_share": 0.3739130434782609,
+  "iou_full_box": 0.7317653722880855,
+  "iou_visible_box": 0.5862074029877511,
+  "iou_polygon": 0.16475095785440613
+ },
+ {
+  "scenario": 8,
+  "view": 0,
+  "object": 177,
+  "category": 6,
+  "visible_share": 0.39275766016713093,
+  "iou_full_box": 0.8383750064719822,
+  "iou_visible_box": 0.40667048064393624,
+  "iou_polygon": 0.2073529411764706
+ },
+ {
+  "scenario": 8,
+  "view": 0,
+  "object": 178,
+  "category": 6,
+  "visible_share": 0.875,
+  "iou_full_box": 0.8981789920264358,
+  "iou_visible_box": 0.8090339917616188,
+  "iou_polygon": 0.44545454545454544
+ },
+ {
+  "scenario": 8,
+  "view": 0,
+  "object": 179,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.6976372828481588,
+  "iou_visible_box": 0.6976372828481588,
+  "iou_polygon": 0.4658753709198813
+ },
+ {
+  "scenario": 8,
+  "view": 0,
+  "object": 180,
+  "category": 6,
+  "visible_share": 0.5026178010471204,
+  "iou_full_box": 0.8174466757723655,
+  "iou_visible_box": 0.5449644505149104,
+  "iou_polygon": 0.2553191489361702
+ },
+ {
+  "scenario": 8,
+  "view": 1,
+  "object": 145,
+  "category": 2,
+  "visible_share": 0.14554213061675747,
+  "iou_full_box": 0.9712233345159843,
+  "iou_visible_box": 0.5443457289050402,
+  "iou_polygon": 0.7619548081975828
+ },
+ {
+  "scenario": 8,
+  "view": 1,
+  "object": 146,
+  "category": 3,
+  "visible_share": 0.42487046632124353,
+  "iou_full_box": 0.971889456748427,
+  "iou_visible_box": 0.7363906102550659,
+  "iou_polygon": 0.390549662487946
+ },
+ {
+  "scenario": 8,
+  "view": 1,
+  "object": 153,
+  "category": 2,
+  "visible_share": 0.880675203725262,
+  "iou_full_box": 0.9670986125204226,
+  "iou_visible_box": 0.9670986125204226,
+  "iou_polygon": 0.7288053949903661
+ },
+ {
+  "scenario": 8,
+  "view": 1,
+  "object": 154,
+  "category": 2,
+  "visible_share": 0.17791411042944785,
+  "iou_full_box": 0.9859783230488368,
+  "iou_visible_box": 0.3166096585036581,
+  "iou_polygon": 0.14909638554216867
+ },
+ {
+  "scenario": 8,
+  "view": 1,
+  "object": 158,
+  "category": 2,
+  "visible_share": 0.03046218487394958,
+  "iou_full_box": 0.9754374075494118,
+  "iou_visible_box": 0.0,
+  "iou_polygon": 0.0
+ },
+ {
+  "scenario": 8,
+  "view": 1,
+  "object": 159,
+  "category": 4,
+  "visible_share": 0.9471186373224022,
+  "iou_full_box": 0.9933369910174281,
+  "iou_visible_box": 0.9933369910174281,
+  "iou_polygon": 0.8915549723497985
+ },
+ {
+  "scenario": 8,
+  "view": 1,
+  "object": 163,
+  "category": 6,
+  "visible_share": 0.35,
+  "iou_full_box": 0.6795926478722231,
+  "iou_visible_box": 0.26092202645597534,
+  "iou_polygon": 0.25
+ },
+ {
+  "scenario": 8,
+  "view": 1,
+  "object": 169,
+  "category": 6,
+  "visible_share": 0.6267217630853994,
+  "iou_full_box": 0.8137438760817446,
+  "iou_visible_box": 0.6911410538033788,
+  "iou_polygon": 0.3319552529182879
+ },
+ {
+  "scenario": 8,
+  "view": 1,
+  "object": 176,
+  "category": 6,
+  "visible_share": 0.9988465974625144,
+  "iou_full_box": 0.69768487143907,
+  "iou_visible_box": 0.69768487143907,
+  "iou_polygon": 0.41734939759036144
+ },
+ {
+  "scenario": 8,
+  "view": 1,
+  "object": 177,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8413850943219763,
+  "iou_visible_box": 0.8413850943219763,
+  "iou_polygon": 0.5114200595829196
+ },
+ {
+  "scenario": 8,
+  "view": 1,
+  "object": 178,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8820264457869881,
+  "iou_visible_box": 0.8820264457869881,
+  "iou_polygon": 0.5105042016806722
+ },
+ {
+  "scenario": 8,
+  "view": 1,
+  "object": 179,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.7305484070397894,
+  "iou_visible_box": 0.7305484070397894,
+  "iou_polygon": 0.47794117647058826
+ },
+ {
+  "scenario": 8,
+  "view": 1,
+  "object": 180,
+  "category": 6,
+  "visible_share": 0.7746478873239436,
+  "iou_full_box": 0.7811037707077931,
+  "iou_visible_box": 0.7175065868982002,
+  "iou_polygon": 0.4276094276094276
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 143,
+  "category": 2,
+  "visible_share": 0.6968973747016707,
+  "iou_full_box": 0.9553854411957573,
+  "iou_visible_box": 0.773539973133232,
+  "iou_polygon": 0.5793650793650794
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 144,
+  "category": 2,
+  "visible_share": 0.8800448430493274,
+  "iou_full_box": 0.9632820766165927,
+  "iou_visible_box": 0.9260365266969092,
+  "iou_polygon": 0.7519157088122606
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 149,
+  "category": 3,
+  "visible_share": 0.652073732718894,
+  "iou_full_box": 0.9441490119703392,
+  "iou_visible_box": 0.7036695452232519,
+  "iou_polygon": 0.7138364779874213
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 150,
+  "category": 2,
+  "visible_share": 0.2135306553911205,
+  "iou_full_box": 0.9332761827432335,
+  "iou_visible_box": 0.2290172157932758,
+  "iou_polygon": 0.4074074074074074
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 152,
+  "category": 2,
+  "visible_share": 0.8758336258336258,
+  "iou_full_box": 0.9818307608782498,
+  "iou_visible_box": 0.7134143736187002,
+  "iou_polygon": 0.6612214743063536
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 159,
+  "category": 4,
+  "visible_share": 0.7404164915721156,
+  "iou_full_box": 0.9822012850611883,
+  "iou_visible_box": 0.9502513906994972,
+  "iou_polygon": 0.6992932862190813
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 160,
+  "category": 2,
+  "visible_share": 0.21462264150943397,
+  "iou_full_box": 0.9428708143060945,
+  "iou_visible_box": 0.48759623781307465,
+  "iou_polygon": 0.1780821917808219
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 277,
+  "category": 2,
+  "visible_share": 0.003003003003003003,
+  "iou_full_box": 0.9247691718083905,
+  "iou_visible_box": 0.0030548847800071425,
+  "iou_polygon": 0.007751937984496124
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 281,
+  "category": 2,
+  "visible_share": 0.28964059196617337,
+  "iou_full_box": 0.923472491137436,
+  "iou_visible_box": 1.0823398883109614e-14,
+  "iou_polygon": 0.09420289855072464
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 173,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8585366445727957,
+  "iou_visible_box": 0.8585366445727957,
+  "iou_polygon": 0.5132530120481927
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 174,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9432025586282586,
+  "iou_visible_box": 0.9432025586282586,
+  "iou_polygon": 0.4900398406374502
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 175,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8942737582011392,
+  "iou_visible_box": 0.8942737582011392,
+  "iou_polygon": 0.5030800821355236
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 176,
+  "category": 6,
+  "visible_share": 0.9998606854276957,
+  "iou_full_box": 0.6836571327310899,
+  "iou_visible_box": 0.6836571327310899,
+  "iou_polygon": 0.4144841327134648
+ },
+ {
+  "scenario": 8,
+  "view": 2,
+  "object": 456,
+  "category": 6,
+  "visible_share": 0.10843373493975904,
+  "iou_full_box": 0.880109590670397,
+  "iou_visible_box": 0.0,
+  "iou_polygon": 0.0
+ },
+ {
+  "scenario": 9,
+  "view": 0,
+  "object": 135,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.94762954954316
+ },
+ {
+  "scenario": 9,
+  "view": 0,
+  "object": 136,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9667360888515737
+ },
+ {
+  "scenario": 9,
+  "view": 0,
+  "object": 139,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9507268117214824
+ },
+ {
+  "scenario": 9,
+  "view": 0,
+  "object": 140,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9643988990065809
+ },
+ {
+  "scenario": 9,
+  "view": 0,
+  "object": 166,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.7735364340577007
+ },
+ {
+  "scenario": 9,
+  "view": 0,
+  "object": 167,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9018889766445408
+ },
+ {
+  "scenario": 9,
+  "view": 0,
+  "object": 169,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8268416303254568
+ },
+ {
+  "scenario": 9,
+  "view": 0,
+  "object": 170,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.953890904207817
+ },
+ {
+  "scenario": 9,
+  "view": 1,
+  "object": 140,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.7320695075017323
+ },
+ {
+  "scenario": 9,
+  "view": 1,
+  "object": 164,
+  "category": 6,
+  "visible_share": 0.008746355685131196,
+  "iou_full_box": 0.6581943880712292,
+  "iou_visible_box": 0.0,
+  "iou_polygon": 0.0
+ },
+ {
+  "scenario": 9,
+  "view": 1,
+  "object": 165,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8483911400208144
+ },
+ {
+  "scenario": 9,
+  "view": 1,
+  "object": 166,
+  "category": 6,
+  "visible_share": 0.7841530054644809,
+  "iou_full_box": 0.8118824911721433,
+  "iou_visible_box": 0.7642548498477675,
+  "iou_polygon": 0.3684210526315789
+ },
+ {
+  "scenario": 9,
+  "view": 1,
+  "object": 167,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8583700209224948
+ },
+ {
+  "scenario": 9,
+  "view": 2,
+  "object": 246,
+  "category": 2,
+  "visible_share": 0.4662852472415202,
+  "iou_full_box": 0.9558674375165731,
+  "iou_visible_box": 0.49450442135817424,
+  "iou_polygon": 0.4037508846426044
+ },
+ {
+  "scenario": 9,
+  "view": 2,
+  "object": 248,
+  "category": 2,
+  "visible_share": 0.9943232745742456,
+  "iou_full_box": 0.969517412235682,
+  "iou_visible_box": 0.947482925593962,
+  "iou_polygon": 0.8382871536523929
+ },
+ {
+  "scenario": 9,
+  "view": 2,
+  "object": 250,
+  "category": 5,
+  "visible_share": 0.11603315232923693,
+  "iou_full_box": 0.9870864215582253,
+  "iou_visible_box": 0.7085053551174534,
+  "iou_polygon": 0.2746294681778553
+ },
+ {
+  "scenario": 9,
+  "view": 2,
+  "object": 251,
+  "category": 4,
+  "visible_share": 0.7474329501915709,
+  "iou_full_box": 0.9722950029203261,
+  "iou_visible_box": 0.9722950029203261,
+  "iou_polygon": 0.6806205884408414
+ },
+ {
+  "scenario": 9,
+  "view": 2,
+  "object": 252,
+  "category": 3,
+  "visible_share": 0.9998253580160671,
+  "iou_full_box": 0.9767252358628212,
+  "iou_visible_box": 0.9767252358628212,
+  "iou_polygon": 0.8753827311696265
+ },
+ {
+  "scenario": 9,
+  "view": 2,
+  "object": 253,
+  "category": 2,
+  "visible_share": 0.3127789046653144,
+  "iou_full_box": 0.9831797271666656,
+  "iou_visible_box": 0.7696366871711481,
+  "iou_polygon": 0.754813863928113
+ },
+ {
+  "scenario": 9,
+  "view": 2,
+  "object": 254,
+  "category": 4,
+  "visible_share": 0.6234069916988191,
+  "iou_full_box": 0.9859193855519728,
+  "iou_visible_box": 0.7108454339565398,
+  "iou_polygon": 0.7997089321448062
+ },
+ {
+  "scenario": 9,
+  "view": 2,
+  "object": 255,
+  "category": 2,
+  "visible_share": 0.13522012578616352,
+  "iou_full_box": 0.9823809489064312,
+  "iou_visible_box": 0.6596327737530338,
+  "iou_polygon": 0.48859934853420195
+ },
+ {
+  "scenario": 9,
+  "view": 2,
+  "object": 235,
+  "category": 6,
+  "visible_share": 0.0954356846473029,
+  "iou_full_box": 0.6326743562686424,
+  "iou_visible_box": 0.15196099227459034,
+  "iou_polygon": 0.03650793650793651
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 125,
+  "category": 4,
+  "visible_share": 0.0001436209149115573,
+  "iou_full_box": 0.987898134068312,
+  "iou_visible_box": 0.00017693770505116562,
+  "iou_polygon": 0.00013489815189531904
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 126,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9697363592719951
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 127,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9685954936589207
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 132,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9731894031345844
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 134,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9533409002933602
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 135,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9756513410019287
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 141,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.7818560842917213
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 139,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8161113288142627
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 141,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.7818560842917213
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 145,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9615531350597691
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 160,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.4642738427676496
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 161,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8702902168115887
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 162,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8781785101599022
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 163,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8197850838835372
+ },
+ {
+  "scenario": 10,
+  "view": 0,
+  "object": 164,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8521448712091723
+ },
+ {
+  "scenario": 10,
+  "view": 1,
+  "object": 122,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9762727995732178
+ },
+ {
+  "scenario": 10,
+  "view": 1,
+  "object": 123,
+  "category": 3,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9705777040522041
+ },
+ {
+  "scenario": 10,
+  "view": 1,
+  "object": 124,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.953881258295593
+ },
+ {
+  "scenario": 10,
+  "view": 1,
+  "object": 125,
+  "category": 4,
+  "visible_share": 0.8154411689205147,
+  "iou_full_box": 0.9884660051919205,
+  "iou_visible_box": 0.7990562828824879,
+  "iou_polygon": 0.8573301186769973
+ },
+ {
+  "scenario": 10,
+  "view": 1,
+  "object": 128,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9618208693062685
+ },
+ {
+  "scenario": 10,
+  "view": 1,
+  "object": 130,
+  "category": 3,
+  "visible_share": 0.0,
+  "iou_full_box": 0.9783997048182347
+ },
+ {
+  "scenario": 10,
+  "view": 1,
+  "object": 135,
+  "category": 2,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9689007626836633,
+  "iou_visible_box": 0.9689007626836633,
+  "iou_polygon": 0.8866797471114017
+ },
+ {
+  "scenario": 10,
+  "view": 1,
+  "object": 136,
+  "category": 3,
+  "visible_share": 0.0035610950367237926,
+  "iou_full_box": 0.9679069135713607,
+  "iou_visible_box": 0.002654200195619437,
+  "iou_polygon": 0.003054017942355411
+ },
+ {
+  "scenario": 10,
+  "view": 1,
+  "object": 137,
+  "category": 2,
+  "visible_share": 0.0,
+  "iou_full_box": 0.969947740841624
+ },
+ {
+  "scenario": 10,
+  "view": 1,
+  "object": 147,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8836393094979467
+ },
+ {
+  "scenario": 10,
+  "view": 1,
+  "object": 157,
+  "category": 6,
+  "visible_share": 0.5176336746302617,
+  "iou_full_box": 0.9430045771788486,
+  "iou_visible_box": 0.42702810881692227,
+  "iou_polygon": 0.0803921568627451
+ },
+ {
+  "scenario": 10,
+  "view": 1,
+  "object": 160,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8035322182148966,
+  "iou_visible_box": 0.8035322182148966,
+  "iou_polygon": 0.5006565988181221
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 122,
+  "category": 2,
+  "visible_share": 0.21858339680121858,
+  "iou_full_box": 0.9669110436806067,
+  "iou_visible_box": 0.5836096748144799,
+  "iou_polygon": 0.49191685912240185
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 123,
+  "category": 3,
+  "visible_share": 0.4250525683388405,
+  "iou_full_box": 0.9791437861570462,
+  "iou_visible_box": 0.877833436861715,
+  "iou_polygon": 0.6153846153846154
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 124,
+  "category": 2,
+  "visible_share": 0.7288235294117648,
+  "iou_full_box": 0.9718481224779144,
+  "iou_visible_box": 0.8390985242112791,
+  "iou_polygon": 0.608817137534927
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 125,
+  "category": 4,
+  "visible_share": 0.7983122362869198,
+  "iou_full_box": 0.9942215738557252,
+  "iou_visible_box": 0.8229552252398464,
+  "iou_polygon": 0.7703639854249109
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 126,
+  "category": 2,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9763555331955405,
+  "iou_visible_box": 0.9763555331955405,
+  "iou_polygon": 0.8653775260565032
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 128,
+  "category": 2,
+  "visible_share": 0.6333798882681564,
+  "iou_full_box": 0.9753453817385404,
+  "iou_visible_box": 0.8034951284587522,
+  "iou_polygon": 0.5678571428571428
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 129,
+  "category": 2,
+  "visible_share": 0.6537656903765691,
+  "iou_full_box": 0.9723022929292946,
+  "iou_visible_box": 0.5319062647907492,
+  "iou_polygon": 0.6348314606741573
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 130,
+  "category": 3,
+  "visible_share": 0.7681922196796339,
+  "iou_full_box": 0.987629498364867,
+  "iou_visible_box": 0.8320063169089413,
+  "iou_polygon": 0.6665068328937904
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 131,
+  "category": 2,
+  "visible_share": 0.9277366784603839,
+  "iou_full_box": 0.9589878069263092,
+  "iou_visible_box": 0.9318074962101296,
+  "iou_polygon": 0.7862859221535103
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 135,
+  "category": 2,
+  "visible_share": 0.29274158285964147,
+  "iou_full_box": 0.9662969334372215,
+  "iou_visible_box": 0.6969007500315498,
+  "iou_polygon": 0.8197548666186013
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 136,
+  "category": 3,
+  "visible_share": 0.37854030501089325,
+  "iou_full_box": 0.9861711650087881,
+  "iou_visible_box": 0.602513489228786,
+  "iou_polygon": 0.7889447236180904
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 137,
+  "category": 2,
+  "visible_share": 0.11216617210682493,
+  "iou_full_box": 0.9656372121239264,
+  "iou_visible_box": 0.4883542051312596,
+  "iou_polygon": 0.6195121951219512
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 143,
+  "category": 6,
+  "visible_share": 0.9981617647058824,
+  "iou_full_box": 0.6106172390990351,
+  "iou_visible_box": 0.6106172390990351,
+  "iou_polygon": 0.39490909090909093
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 144,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.6896434066415563,
+  "iou_visible_box": 0.6896434066415563,
+  "iou_polygon": 0.4059511158342189
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 145,
+  "category": 6,
+  "visible_share": 0.9979695431472081,
+  "iou_full_box": 0.9107069353583438,
+  "iou_visible_box": 0.9107069353583438,
+  "iou_polygon": 0.6090458488228006
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 146,
+  "category": 6,
+  "visible_share": 0.9803149606299213,
+  "iou_full_box": 0.7221788369171145,
+  "iou_visible_box": 0.7068080156019401,
+  "iou_polygon": 0.4830261881668283
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 147,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8464447571366677,
+  "iou_visible_box": 0.8464447571366677,
+  "iou_polygon": 0.478476821192053
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 148,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8251344287492369,
+  "iou_visible_box": 0.8251344287492369,
+  "iou_polygon": 0.48676639815880324
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 149,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9086181227123125,
+  "iou_visible_box": 0.9086181227123125,
+  "iou_polygon": 0.5175600739371534
+ },
+ {
+  "scenario": 10,
+  "view": 2,
+  "object": 161,
+  "category": 6,
+  "visible_share": 0.5922619047619048,
+  "iou_full_box": 0.9325533878929505,
+  "iou_visible_box": 0.84855117219358,
+  "iou_polygon": 0.6078431372549019
+ },
+ {
+  "scenario": 11,
+  "view": 0,
+  "object": 93,
+  "category": 2,
+  "visible_share": 0.20550077841203945,
+  "iou_full_box": 0.9764245044078269,
+  "iou_visible_box": 0.6551531074257504,
+  "iou_polygon": 0.30892678034102306
+ },
+ {
+  "scenario": 11,
+  "view": 0,
+  "object": 94,
+  "category": 3,
+  "visible_share": 0.9993441189331002,
+  "iou_full_box": 0.985378633894613,
+  "iou_visible_box": 0.9688103126662534,
+  "iou_polygon": 0.8421149594694178
+ },
+ {
+  "scenario": 11,
+  "view": 0,
+  "object": 95,
+  "category": 4,
+  "visible_share": 0.8638686262819462,
+  "iou_full_box": 0.9917896386347397,
+  "iou_visible_box": 0.8206638078840899,
+  "iou_polygon": 0.8858113416622388
+ },
+ {
+  "scenario": 11,
+  "view": 0,
+  "object": 98,
+  "category": 2,
+  "visible_share": 0.8663619252487228,
+  "iou_full_box": 0.9545018979090857,
+  "iou_visible_box": 0.877642873005463,
+  "iou_polygon": 0.7219359175442528
+ },
+ {
+  "scenario": 11,
+  "view": 0,
+  "object": 99,
+  "category": 2,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9867106984296828,
+  "iou_visible_box": 0.9867106984296828,
+  "iou_polygon": 0.8776025325064593
+ },
+ {
+  "scenario": 11,
+  "view": 0,
+  "object": 109,
+  "category": 6,
+  "visible_share": 0.00016265452179570593,
+  "iou_full_box": 0.8732095281927121,
+  "iou_visible_box": 7.501800070384123e-05,
+  "iou_polygon": 8.384806730204869e-05
+ },
+ {
+  "scenario": 11,
+  "view": 0,
+  "object": 110,
+  "category": 6,
+  "visible_share": 0.7420634920634921,
+  "iou_full_box": 0.7597192597050546,
+  "iou_visible_box": 0.7597192597050546,
+  "iou_polygon": 0.3214162942591956
+ },
+ {
+  "scenario": 11,
+  "view": 0,
+  "object": 111,
+  "category": 6,
+  "visible_share": 0.0,
+  "iou_full_box": 0.8912712963894027
+ },
+ {
+  "scenario": 11,
+  "view": 1,
+  "object": 94,
+  "category": 3,
+  "visible_share": 1.0,
+  "iou_full_box": 0.25417297486113166,
+  "iou_visible_box": 0.25417297486113166,
+  "iou_polygon": 0.665796131559618
+ },
+ {
+  "scenario": 11,
+  "view": 1,
+  "object": 95,
+  "category": 4,
+  "visible_share": 0.9361029245069146,
+  "iou_full_box": 0.984102400903115,
+  "iou_visible_box": 0.9821581214023926,
+  "iou_polygon": 0.8799927475176246
+ },
+ {
+  "scenario": 11,
+  "view": 1,
+  "object": 96,
+  "category": 2,
+  "visible_share": 0.10732451678535096,
+  "iou_full_box": 0.9686752559994413,
+  "iou_visible_box": 0.5496738099200685,
+  "iou_polygon": 0.3274021352313167
+ },
+ {
+  "scenario": 11,
+  "view": 1,
+  "object": 97,
+  "category": 3,
+  "visible_share": 0.5079365079365079,
+  "iou_full_box": 0.9640588817918454,
+  "iou_visible_box": 0.8901663552862591,
+  "iou_polygon": 0.8190045248868778
+ },
+ {
+  "scenario": 11,
+  "view": 1,
+  "object": 99,
+  "category": 2,
+  "visible_share": 0.8621026894865526,
+  "iou_full_box": 0.9744830621405425,
+  "iou_visible_box": 0.9744830621405425,
+  "iou_polygon": 0.7564900236000858
+ },
+ {
+  "scenario": 11,
+  "view": 1,
+  "object": 105,
+  "category": 6,
+  "visible_share": 0.8706896551724138,
+  "iou_full_box": 0.9343270769972035,
+  "iou_visible_box": 0.9343270769972035,
+  "iou_polygon": 0.45701357466063347
+ },
+ {
+  "scenario": 11,
+  "view": 1,
+  "object": 106,
+  "category": 6,
+  "visible_share": 0.04395604395604396,
+  "iou_full_box": 0.9416167546675396,
+  "iou_visible_box": 0.08599711630093873,
+  "iou_polygon": 0.07142857142857142
+ },
+ {
+  "scenario": 11,
+  "view": 1,
+  "object": 107,
+  "category": 6,
+  "visible_share": 0.39325842696629215,
+  "iou_full_box": 0.7596911743114109,
+  "iou_visible_box": 0.49750514286205866,
+  "iou_polygon": 0.37681159420289856
+ },
+ {
+  "scenario": 11,
+  "view": 1,
+  "object": 109,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9591508142127272,
+  "iou_visible_box": 0.9591508142127272,
+  "iou_polygon": 0.5112985839108165
+ },
+ {
+  "scenario": 11,
+  "view": 1,
+  "object": 110,
+  "category": 6,
+  "visible_share": 0.9922773837667455,
+  "iou_full_box": 0.7772354734819192,
+  "iou_visible_box": 0.7700829997995703,
+  "iou_polygon": 0.4795490898012034
+ },
+ {
+  "scenario": 11,
+  "view": 2,
+  "object": 92,
+  "category": 2,
+  "visible_share": 0.3061141854501282,
+  "iou_full_box": 0.42507973442761715,
+  "iou_visible_box": 0.4215076358189817,
+  "iou_polygon": 0.23876197494473103
+ },
+ {
+  "scenario": 11,
+  "view": 2,
+  "object": 94,
+  "category": 3,
+  "visible_share": 0.8491565743944637,
+  "iou_full_box": 0.969721125420977,
+  "iou_visible_box": 0.8334893670838217,
+  "iou_polygon": 0.7891943194600675
+ },
+ {
+  "scenario": 11,
+  "view": 2,
+  "object": 95,
+  "category": 4,
+  "visible_share": 0.8836948191976618,
+  "iou_full_box": 0.98744086588571,
+  "iou_visible_box": 0.98744086588571,
+  "iou_polygon": 0.8302474824483504
+ },
+ {
+  "scenario": 11,
+  "view": 2,
+  "object": 96,
+  "category": 2,
+  "visible_share": 0.997789566755084,
+  "iou_full_box": 0.9575132365844932,
+  "iou_visible_box": 0.9575132365844932,
+  "iou_polygon": 0.8749514563106796
+ },
+ {
+  "scenario": 11,
+  "view": 2,
+  "object": 97,
+  "category": 3,
+  "visible_share": 0.942369607211848,
+  "iou_full_box": 0.9888815599412694,
+  "iou_visible_box": 0.9888815599412694,
+  "iou_polygon": 0.8
+ },
+ {
+  "scenario": 11,
+  "view": 2,
+  "object": 101,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.6983413281178392,
+  "iou_visible_box": 0.6983413281178392,
+  "iou_polygon": 0.45658396946564883
+ },
+ {
+  "scenario": 11,
+  "view": 2,
+  "object": 102,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8493310044135292,
+  "iou_visible_box": 0.8493310044135292,
+  "iou_polygon": 0.4856382978723404
+ },
+ {
+  "scenario": 11,
+  "view": 2,
+  "object": 103,
+  "category": 6,
+  "visible_share": 0.9973992197659298,
+  "iou_full_box": 0.8562091838175926,
+  "iou_visible_box": 0.8114720498233557,
+  "iou_polygon": 0.6602914389799636
+ },
+ {
+  "scenario": 11,
+  "view": 2,
+  "object": 104,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.8837864035823108,
+  "iou_visible_box": 0.8837864035823108,
+  "iou_polygon": 0.5195989061075661
+ },
+ {
+  "scenario": 11,
+  "view": 2,
+  "object": 105,
+  "category": 6,
+  "visible_share": 0.6343115124153499,
+  "iou_full_box": 0.876163137337419,
+  "iou_visible_box": 0.3835111315975625,
+  "iou_polygon": 0.3393316195372751
+ },
+ {
+  "scenario": 11,
+  "view": 2,
+  "object": 106,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.9196579375072486,
+  "iou_visible_box": 0.9196579375072486,
+  "iou_polygon": 0.5123367198838897
+ },
+ {
+  "scenario": 11,
+  "view": 2,
+  "object": 107,
+  "category": 6,
+  "visible_share": 0.5674846625766872,
+  "iou_full_box": 0.7239941038962724,
+  "iou_visible_box": 0.10986581178848927,
+  "iou_polygon": 0.028070175438596492
+ },
+ {
+  "scenario": 11,
+  "view": 2,
+  "object": 110,
+  "category": 6,
+  "visible_share": 1.0,
+  "iou_full_box": 0.7516391577856689,
+  "iou_visible_box": 0.7516391577856689,
+  "iou_polygon": 0.42294159042927515
+ }
+]

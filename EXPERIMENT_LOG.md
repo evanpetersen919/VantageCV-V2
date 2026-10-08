@@ -2301,3 +2301,23 @@ unlabelled motorcycles and bicycles are background to the detector here.
 Consequence: claims about the data's value should rest on what AP can show (a gain over real-only, which holds for
 both sources) and on the label and structure features that a mixed-source supplement does not have (3D boxes, exact
 masks, per-object truncation), not on a claim of better detection AP than another synthetic source.
+
+
+### Label audit on trucks and buses (`bin/audit_labels.py`, 2026-10-07)
+
+The first audit had one truck and four buses. The probe is now a tool (`bin/audit_labels.py`, a hero vehicle of the focus type
+in each scenario, three ego-height views at 12-22 m, the scene cut to 50 m around it, day, `urban_dense_v7_peds.yaml`, seeds
+70010 onward); rows are in `results/label_audit_truck.json` and `results/label_audit_bus.json`. Mean IoU of this project's
+label against the game's render (the rows also contain the other classes in view):
+
+| class | n | full box vs full extent | visible-part box vs visible extent | polygon vs visible mask |
+|---|---|---|---|---|
+| truck (truck run / bus run) | 37 / 12 | 0.976 / 0.871 | 0.861 / 0.710 | 0.782 / 0.705 |
+| bus (bus run) | 34 | 0.989 | 0.880 | 0.837 |
+| sedan (both runs) | 156 / 179 | 0.938 / 0.952 | 0.71 / 0.72 | 0.61 / 0.65 |
+| person (both runs) | 174 / 224 | 0.800 / 0.791 | 0.65 / 0.64 | 0.39 / 0.40 |
+
+Reading: the truck and bus labels are as accurate as the car labels (full box 0.97-0.99 where they are the hero), so the
+earlier truck and bus findings do not rest on bad boxes. The 12 trucks seen in the bus run score lower (0.871), which is a
+small sample of trucks at varied distance, not read further. Pedestrians reproduce the first audit (0.79-0.80, 0.64-0.65).
+Caveats as before: day, ego-like views near the hero, one config.
