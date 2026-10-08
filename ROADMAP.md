@@ -17,8 +17,10 @@ marked as such in the log entries that use them.
   depend on the City Sample crowd, which is where the person gain comes from.
 - In CARLA (`carla_loop/`), exact perception gives 0.46 collisions per km and either trained detector 1.5 to 1.8.
   The two detectors are not separable at 20 routes x 3 weights seeds. The test is underpowered, not negative.
-- Waiting on Epic: whether City Sample's crowd characters (adapted from MetaHumans) may be used for training.
-  Asked 2026-10-05. No datasets or weights are published until there is an answer.
+- Epic answered on 2026-10-08 without an answer: it does not give EULA interpretations for a specific distribution
+  model and refers to the developer's own legal counsel. Whether City Sample's crowd characters (adapted from
+  MetaHumans) may be used for training stays unresolved. No datasets or weights are published; the options are
+  legal advice or the clean-room path below.
 
 ## What this project is for
 
@@ -32,11 +34,10 @@ tracking, optical flow, vehicle physics) belongs to CARLA and is not rebuilt her
 
 ## Next steps, in order
 
-1. **Housekeeping and the Epic answer.** Publish the 1.1 release page, decide on making the repository public,
-   and put the Epic check-in dates in a calendar: a follow-up on 2026-10-19 if there is no reply, and a decision
-   deadline of 2026-12-04 (60 days), after which silence is treated as "no".
-   *If Epic says yes in writing:* release renders and weights with their wording. *If no or silence:* code and
-   metrics only, and the clean-room path below is the only way to release data.
+1. **Housekeeping and the Epic answer.** Publish the 1.2 release page and decide on making the repository public.
+   Epic has declined to interpret (2026-10-08), so there will be no written yes from them: either take legal advice
+   on the EULA's AI-training wording for the crowd characters, or release code and metrics only and take the
+   clean-room path below for any released data. No datasets or weights go out in the meantime.
 2. **1.2: more labels from what already exists (done on 2026-10-07, see the log).** KITTI-format 3D boxes (level
    camera frame, exact round trip) and polygon instance masks and object-class masks (not full-scene semantic segmentation: road, building and
    sky pixels are unlabelled). nuScenes- and Waymo-style files were

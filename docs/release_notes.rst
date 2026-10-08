@@ -41,8 +41,9 @@ does not separate.
 
 - Without ``--exact-labels``, pedestrian boxes are loose (0.79 IoU) and polygons are hulls.
 - No full-scene semantic segmentation or depth export yet.
-- The use of City Sample's crowd characters for training is under review with Epic; no datasets or trained
-  weights are published.
+- Whether City Sample's crowd characters may be used for training is not settled: Epic declined to
+  interpret the EULA for this use (2026-10-08) and referred to the developer's own legal counsel. No
+  datasets or trained weights are published.
 - Results are three seeds per arm, so differences under about 0.5 AP are not interpreted.
 
 1.1 -- 2026-10-07

@@ -346,5 +346,7 @@ City Sample (`bin/dump_vehicle_meshes.py`), and those tests are skipped where th
 
 Unreal Engine and City Sample are the property of Epic Games, Inc.
 
-**Status of the pedestrian assets.** The use of City Sample's crowd characters (adapted from Epic's
-MetaHumans) for training is under review with Epic; no datasets or trained weights are published.
+**Status of the pedestrian assets.** Whether City Sample's crowd characters (adapted from Epic's
+MetaHumans) may be used to train models is not settled: Epic was asked (2026-10-05) and replied (2026-10-08) that it
+cannot give legal or EULA interpretations for a specific distribution model and recommended the developer's own legal
+counsel. No datasets or trained weights are published, and results that rely on synthetic pedestrians are provisional.
