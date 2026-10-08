@@ -61,7 +61,9 @@ BATCHES = (
     "v9a",
     "v10n",
     "v11",
-)  # train_<name> folders (v7 and v8 log entries)
+    "rdsm",
+    "rdsr",
+)  # train_<name> folders (v7 and v8 log entries, RealDriveSim arms)
 FRACTIONS = (25, 50)
 TRUCK_BUS = {2, 3}  # class ids of bus and truck in this project's four classes
 PERSON, BUS, TRUCK = 0, 2, 3
