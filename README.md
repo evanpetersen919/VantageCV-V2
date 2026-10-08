@@ -150,6 +150,21 @@ and curbs rather than object shape) and the experiments aimed at it are in the l
 
 </details>
 
+## Export formats
+
+A rendered dataset's `annotations.json` is COCO (2D boxes, polygons, occlusion and truncation). Forward-looking
+frames also carry a `box3d` per object (a KITTI-convention 3D box in the level camera frame) and a `kitti_P2`
+projection matrix per image. Two scripts turn that into other layouts:
+
+```bash
+PYTHONPATH=. python bin/export_kitti.py --dataset live_dataset/NAME --out kitti_out --images copy   # label_2, calib, image_2
+PYTHONPATH=. python bin/export_masks.py --dataset live_dataset/NAME --out masks_out                 # instance, semantic PNGs
+```
+
+The 3D boxes round-trip exactly through the exported calibration (checked in the tests, also for pitched
+cameras). Buses are written as `Misc` (KITTI has no bus class). Masks are rasterised from the annotation
+polygons, not from a render pass. Datasets rendered before 1.2 have no `box3d` and need re-rendering.
+
 ## Roadmap
 
 The plan after 1.1, with what each step is meant to answer and what is deliberately not being done, is in
