@@ -118,6 +118,7 @@ three seeds each, p < 0.01 throughout). It is not a substitute: the same number 
 - **The vehicle results do not depend on the pedestrian crowd (1.1).** With the same scenes and no synthetic pedestrians, car and truck AP are unchanged and person AP falls by 3.0.
 - **Another synthetic source gives the same AP (1.2).** 512 RealDriveSim frames with person, car and truck counts matched to this pipeline's batch score 20.92 against 20.99 on BDD100K val (three seeds); AP at this size does not separate the two sources.
 - **Tight engine-exact labels did not move AP by a resolvable amount (1.2).** Person AP +0.72 (p=0.13) against the registered +1.0 threshold; overall unchanged.
+- **MIT-licensed pedestrians keep the person gain (after 1.2, not yet released).** With `pedestrian_source: rocketbox` (38 adult Microsoft Rocketbox avatars, 342 baked poses) in place of City Sample's crowd, in the same scenes with the same exact labels, person AP is 16.95 against 16.96 on BDD100K val (three seeds), 99.8% of the +4.5 gain over real-only. This does not clear publication by itself: Rocketbox's MIT text does not name ML training, and the scenes still use other City Sample assets.
 - **Generator v7 reaches parity with the older generator, not a gain.** With the older, higher pedestrian density it scores 20.99 against 20.84 (BDD100K AP at 25% real); with a real-frequency pedestrian density it stays 0.7 behind (20.18).
 - **Synthetic-only transfer is still far below real-data baselines.** Grad-CAM shows the detector keys on background texture like foliage and curbs rather than object shape.
 
@@ -347,6 +348,6 @@ City Sample (`bin/dump_vehicle_meshes.py`), and those tests are skipped where th
 Unreal Engine and City Sample are the property of Epic Games, Inc.
 
 **Status of the pedestrian assets.** Whether City Sample's crowd characters (adapted from Epic's
-MetaHumans) may be used to train models is not settled: Epic was asked (2026-10-05) and replied (2026-10-08) that it
+MetaHumans) may be used to train models is not settled (a Rocketbox replacement exists, see the findings): Epic was asked (2026-10-05) and replied (2026-10-08) that it
 cannot give legal or EULA interpretations for a specific distribution model and recommended the developer's own legal
 counsel. No datasets or trained weights are published, and results that rely on synthetic pedestrians are provisional.
