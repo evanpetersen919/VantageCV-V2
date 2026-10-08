@@ -1,6 +1,49 @@
 Release Notes
 ==============
 
+1.2 -- 2026-10-08
+-----------------
+
+Labels and exports a perception stack can use (3D boxes, masks, labels from the engine's own render), a
+closed-loop driving harness, and two matched comparisons that show what detection AP at this size does and
+does not separate.
+
+**Exports**
+
+- KITTI 3D boxes in a gravity-aligned camera frame (``box3d`` per annotation, ``kitti_P2`` per image; the
+  round trip through the calibration is exact, also for pitched cameras); ``bin/export_kitti.py``.
+- Instance and object-class masks (``bin/export_masks.py``); only labelled objects are painted, so these
+  are not full-scene semantic segmentation. Segmentation polygons are convex hulls of the projected mesh.
+- ``--exact-labels`` on ``generate_live_dataset.py``: boxes, visible fractions and masks (``mask_rle``) of
+  every vehicle and pedestrian from the game's depth and per-object renders (plugin RPCs ``CaptureDepth`` and
+  ``CaptureObjectMasks``, D3D11), about 1.5 s per frame.
+- ``bin/audit_labels.py``: the geometric labels measured against the engine's render. Full boxes of vehicles
+  score 0.94 to 0.99 IoU, pedestrians 0.79; polygons 0.39 to 0.84.
+
+**Driving**
+
+- ``carla_loop/``: a CARLA 0.9.16 harness (a BasicAgent whose view of other vehicles goes through one
+  function; ground truth or a camera, depth and YOLO rig), seeded routes, collision and hard-brake metrics.
+
+**Findings (three seeds, BDD100K val, 25% real)**
+
+- A count-matched 512-image RealDriveSim supplement (official annotations) scores the same as this
+  pipeline's data: 20.92 against 20.99 overall (-0.07, p=0.79). The unmatched random draw is 1.04 higher
+  and is confounded by its person and truck counts.
+- Tight engine-exact labels: person AP +0.72 (p=0.128), below the registered +1.0; overall +0.09; car +0.47
+  (p=0.03, not a registered question).
+- Closed loop (20 CARLA routes, three weights seeds per detector): the agent with ground-truth vehicles
+  had 3 collisions, with either detector 35 and 29 (pooled); the two detectors are not separated by the
+  registered rule (see the log).
+
+**Known limits**
+
+- Without ``--exact-labels``, pedestrian boxes are loose (0.79 IoU) and polygons are hulls.
+- No full-scene semantic segmentation or depth export yet.
+- The use of City Sample's crowd characters for training is under review with Epic; no datasets or trained
+  weights are published.
+- Results are three seeds per arm, so differences under about 0.5 AP are not interpreted.
+
 1.1 -- 2026-10-07
 -----------------
 

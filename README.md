@@ -1,9 +1,9 @@
 # VantageCV Remastered
 
-### Synthetic AV Dataset Generator V1.1
+### Synthetic AV Dataset Generator V1.2
 
 [![Lint and Test](https://github.com/evanpetersen919/VantageCV-V2/actions/workflows/lint_and_test.yml/badge.svg)](https://github.com/evanpetersen919/VantageCV-V2/actions/workflows/lint_and_test.yml)
-![Version 1.1](https://img.shields.io/badge/version-1.1-1baf7a.svg)
+![Version 1.2](https://img.shields.io/badge/version-1.2-1baf7a.svg)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
 ![Unreal Engine 5.4](https://img.shields.io/badge/Unreal%20Engine-5.4-black.svg)
@@ -116,6 +116,8 @@ three seeds each, p < 0.01 throughout). It is not a substitute: the same number 
 - **Truck and bus counts do not drive truck or bus AP, and neither does anything else the generator controls (1.1).** Five levers were tested, each with its reading rule written first: the vehicle mix, pickups and vans labelled truck, the box-size distribution, the input size (1280 px) and an added real box-truck model. None raised truck AP. Per box, small boxes are missed in every class and about 30% of medium and large trucks are called cars, at the same rate when training on real images only.
 - **A larger input helps people and cars, not trucks (1.1).** At 1280 px instead of 960, person AP rises 1.6 and car AP 1.3; about a quarter of the synthetic gain at 960 is resolution the detector lacked (overall +2.77 over real-only at 960, +2.11 at 1280).
 - **The vehicle results do not depend on the pedestrian crowd (1.1).** With the same scenes and no synthetic pedestrians, car and truck AP are unchanged and person AP falls by 3.0.
+- **Another synthetic source gives the same AP (1.2).** 512 RealDriveSim frames with person, car and truck counts matched to this pipeline's batch score 20.92 against 20.99 on BDD100K val (three seeds); AP at this size does not separate the two sources.
+- **Tight engine-exact labels did not move AP by a resolvable amount (1.2).** Person AP +0.72 (p=0.13) against the registered +1.0 threshold; overall unchanged.
 - **Generator v7 reaches parity with the older generator, not a gain.** With the older, higher pedestrian density it scores 20.99 against 20.84 (BDD100K AP at 25% real); with a real-frequency pedestrian density it stays 0.7 behind (20.18).
 - **Synthetic-only transfer is still far below real-data baselines.** Grad-CAM shows the detector keys on background texture like foliage and curbs rather than object shape.
 
@@ -167,6 +169,13 @@ polygons (the convex hull of the projected mesh, which is 6 to 16% larger than t
 wheel arches or the gap between a pedestrian's legs), not from a render pass, and only the labelled objects (person, car, bus, truck) are painted; the road,
 buildings, vegetation and sky are 0, so this is not full-scene semantic segmentation. Datasets rendered before 1.2
 have no `box3d` and need re-rendering.
+
+With `--exact-labels` (about 1.5 s more per frame, game required) every vehicle and pedestrian box, visible fraction
+and mask comes from what the game itself renders instead of from proxy shapes: an object's pixels are where its own
+depth equals the scene's depth. Those annotations carry a `mask_rle` (COCO run-length, the visible pixels), and
+`bin/export_masks.py` paints it in place of the polygon. `bin/audit_labels.py` measures the geometric labels against
+the game's render: full boxes of vehicles score 0.94 to 0.99 IoU, pedestrians 0.79, visible-part boxes 0.65 to 0.88 and
+polygons 0.39 to 0.84 (`EXPERIMENT_LOG.md`).
 
 ## Roadmap
 
