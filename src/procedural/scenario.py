@@ -65,6 +65,10 @@ class ScenarioTypeConfig(BaseModel):
         Exponent of that draw: 1 is uniform, larger values give many sparse scenes and a few
         crowded ones (real street footage clumps; BDD100K has 3 or more people in 15-23% of
         frames but one in 32-44%).
+    pedestrian_source : str
+        ``"city_sample"`` (the project's original crowd characters) or ``"rocketbox"``
+        (Microsoft Rocketbox avatars swapped in after generation; see
+        ``rocketbox_pedestrians.py``).
     road_setback_meters : float
         Minimum clearance (meters) a building must keep from every road,
         beyond the road's own half-width -- read by
@@ -92,6 +96,7 @@ class ScenarioTypeConfig(BaseModel):
     night_vehicle_scale: Dict[str, float] = {}
     pedestrian_density_fraction: Tuple[float, float] = (0.3, 0.3)
     pedestrian_density_skew: float = 1.0
+    pedestrian_source: str = "city_sample"
 
     @field_validator("avg_block_size", "building_heights", "traffic_density")
     @classmethod
@@ -129,6 +134,15 @@ class ScenarioTypeConfig(BaseModel):
     def _validate_fleet(cls, value: str) -> str:
         if value not in ("v5", "v7", "v8a", "v8b", "v11"):
             raise ValueError(f"fleet must be 'v5', 'v7', 'v8a' or 'v8b', got {value!r}")
+        return value
+
+    @field_validator("pedestrian_source")
+    @classmethod
+    def _validate_pedestrian_source(cls, value: str) -> str:
+        if value not in ("city_sample", "rocketbox"):
+            raise ValueError(
+                f"pedestrian_source must be 'city_sample' or 'rocketbox', got {value!r}"
+            )
         return value
 
     @field_validator("night_vehicle_scale")

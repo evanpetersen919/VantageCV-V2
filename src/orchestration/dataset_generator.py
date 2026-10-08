@@ -50,6 +50,7 @@ from src.procedural.parking_lots import (
 )
 from src.procedural.road_edge_kit import DEFAULT_ROAD_EDGE_KIT, Rect, generate_road_edge_pieces
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadNode
+from src.procedural.rocketbox_pedestrians import swap_pedestrians
 from src.procedural.scenario import ScenarioTypeConfig
 from src.procedural.street_furniture import (
     LAMP_STYLES,
@@ -166,6 +167,8 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     vehicles, pedestrians = ActorPlacementGenerator(
         seed, config, night=time_of_day == TimeOfDay.NIGHT
     ).generate(edges, traffic)
+    if config.pedestrian_source == "rocketbox":
+        pedestrians = swap_pedestrians(pedestrians, seed)
     vehicles += parked_vehicles(
         parking_lots, config, seed, max((v.vehicle_id for v in vehicles), default=-1) + 1
     )

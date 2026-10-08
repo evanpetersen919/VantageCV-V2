@@ -41,6 +41,7 @@ from src.procedural.environment import EnvironmentConfig, TimeOfDay, build_groun
 from src.procedural.intersection_pavement import build_intersection_pavement_meshes
 from src.procedural.mesh_factory import Mesh
 from src.procedural.night_lights import vehicle_glows, vehicle_lights
+from src.procedural.rocketbox_pedestrians import ROCKETBOX_FORWARD_OFFSET_RAD, is_rocketbox
 from src.procedural.roofs import build_roof_meshes, generate_roof_prop_pieces
 from src.procedural.street_furniture import LAMP_ASSET_PATHS, STREET_LAMP_OFF_OVERRIDES
 from src.procedural.vehicle_colors import (
@@ -201,6 +202,16 @@ def _pedestrian_to_asset_json(
     disabled, matching every other optional field in this schema.
     """
     x, y = pedestrian.center
+    if is_rocketbox(pedestrian.asset_path):
+        # a baked static mesh: no part meshes and no animation frame to freeze
+        return {
+            "category": "static_asset",
+            "asset_path": pedestrian.asset_path,
+            "part_paths": [],
+            "position": [float(x), float(y), pedestrian.surface_z],
+            "rotation_rad": float(pedestrian.heading_rad) + ROCKETBOX_FORWARD_OFFSET_RAD,
+            "id": piece_id,
+        }
     asset: Dict[str, Any] = {
         "category": "static_asset",
         "asset_path": pedestrian.asset_path,

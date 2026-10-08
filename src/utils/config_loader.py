@@ -106,6 +106,8 @@ def load_scenario_config(path: Union[str, Path]) -> ScenarioTypeConfig:
         kwargs["fleet"] = traffic["fleet"]
     if "pedestrian_density_skew" in traffic:
         kwargs["pedestrian_density_skew"] = traffic["pedestrian_density_skew"]
+    if "pedestrian_source" in traffic:
+        kwargs["pedestrian_source"] = traffic["pedestrian_source"]
     if "night_vehicle_scale" in traffic:
         kwargs["night_vehicle_scale"] = traffic["night_vehicle_scale"]
     if "pedestrian_density_fraction" in traffic:
