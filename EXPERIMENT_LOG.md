@@ -2146,3 +2146,27 @@ buses are each within 10% of `train_v7p` (1,690 / 4,076 / 214 / 55), and whose n
 threshold chosen to best separate `train_v7p`'s own day and night frames (the threshold and the resulting accuracy on
 `train_v7p` are reported). `random` (reported only): 512 random frames from the same pool.
 The reading rule is unchanged. Bus AP is now part of the per-class report.
+
+#### Segmentation polygons are convex hulls: measured (2026-10-07)
+
+Observation (the owner's): the segmentation outline of a vehicle has sharp corners and does not wrap the vehicle.
+Cause, from the code (`src/ground_truth/mesh_labels.py`, `segmentation.py`): each polygon is the convex hull of the
+object's projected mesh vertices (or of its eight box corners where there is no mesh), so it is straight-edged and
+cannot be concave. Measured against the true outline (the union of the projected mesh triangles, rasterised) on 20
+views per model (two distances, five directions, two headings), camera 1920x1080:
+
+| model | IoU of hull with true outline, mean (min) | hull area / true area |
+|---|---|---|
+| sedan | 0.887 (0.866) | 1.12 |
+| pickup | 0.857 (0.823) | 1.16 |
+| 3-axle (garbage) truck | 0.894 (0.860) | 1.12 |
+| bus | 0.941 (0.909) | 1.06 |
+
+The 2D boxes are not affected (a box is the extent of the projected mesh, which the hull does not change), so no
+detection result in this log changes. Masks, and any claim about segmentation, are approximate by this much. The
+polygons are also full silhouettes: they are not cut where another object stands in front (the 1.2 mask exporter
+resolves overlaps by painting far to near, but the COCO polygons themselves keep the hidden part).
+Not measured: label accuracy against a render-pass ground truth (Unreal stencil or object-id capture). The vehicle
+footprints were checked against the engine (`bin/verify_vehicle_boxes.py`, seven models, from above), and the
+camera against known squares (about 0.5 px), but no dataset-level, pixel-exact audit of the ego-view boxes has
+been run. That needs the capture pass of the roadmap's depth spike, and it would also give true masks.

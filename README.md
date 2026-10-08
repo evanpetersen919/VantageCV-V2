@@ -163,7 +163,8 @@ PYTHONPATH=. python bin/export_masks.py --dataset live_dataset/NAME --out masks_
 
 The 3D boxes round-trip exactly through the exported calibration (checked in the tests, also for pitched
 cameras). Buses are written as `Misc` (KITTI has no bus class). Masks are rasterised from the annotation
-polygons, not from a render pass, and only the labelled objects (person, car, bus, truck) are painted; the road,
+polygons (the convex hull of the projected mesh, which is 6 to 16% larger than the true outline: it cannot follow
+wheel arches or the gap between a pedestrian's legs), not from a render pass, and only the labelled objects (person, car, bus, truck) are painted; the road,
 buildings, vegetation and sky are 0, so this is not full-scene semantic segmentation. Datasets rendered before 1.2
 have no `box3d` and need re-rendering.
 
