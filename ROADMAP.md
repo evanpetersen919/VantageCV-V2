@@ -38,7 +38,8 @@ tracking, optical flow, vehicle physics) belongs to CARLA and is not rebuilt her
    *If Epic says yes in writing:* release renders and weights with their wording. *If no or silence:* code and
    metrics only, and the clean-room path below is the only way to release data.
 2. **1.2: more labels from what already exists (done on 2026-10-07, see the log).** KITTI-format 3D boxes (level
-   camera frame, exact round trip) and polygon instance and semantic masks. nuScenes- and Waymo-style files were
+   camera frame, exact round trip) and polygon instance masks and object-class masks (not full-scene semantic segmentation: road, building and
+   sky pixels are unlabelled). nuScenes- and Waymo-style files were
    left out: they need ego poses and sequence tables the generator does not have. Pixel-exact masks need a UE
    capture pass and remain a later step.
    *Question:* are the exports valid in the standard devkits, and do they convert correctly (checked with the

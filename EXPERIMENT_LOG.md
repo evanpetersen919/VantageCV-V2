@@ -2040,3 +2040,12 @@ Not claimed: nothing about detector accuracy, and the masks are polygon-based, n
 KITTI's bus class does not exist, so buses are written as `Misc`. nuScenes- and Waymo-style files are not written
 (they need ego poses and sequence tables the generator does not have). Overview (top-down) cameras get no 3D
 labels, since KITTI has no frame for them.
+
+#### 1.2 correction: the "semantic" mask is an object-class mask, not full-scene segmentation
+
+The 1.2 mask export paints only the labelled objects (person, car, bus, truck); everything else, including road,
+sidewalk, buildings, vegetation and sky, is 0. Full semantic segmentation (Cityscapes style) labels every pixel, so
+the name overclaimed. It is now described as an object-class mask in the README, the code and the roadmap. Full-scene
+labels need either a Unreal custom-stencil capture pass (pixel-exact; needs the same untested D3D11 capture spike as
+depth, estimated 4 to 6 days) or rasterising the generator's own road and building geometry (approximate, and
+vegetation and sky have no geometry in the labels). Neither is built.

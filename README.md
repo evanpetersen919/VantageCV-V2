@@ -158,12 +158,14 @@ projection matrix per image. Two scripts turn that into other layouts:
 
 ```bash
 PYTHONPATH=. python bin/export_kitti.py --dataset live_dataset/NAME --out kitti_out --images copy   # label_2, calib, image_2
-PYTHONPATH=. python bin/export_masks.py --dataset live_dataset/NAME --out masks_out                 # instance, semantic PNGs
+PYTHONPATH=. python bin/export_masks.py --dataset live_dataset/NAME --out masks_out                 # instance, object-class PNGs
 ```
 
 The 3D boxes round-trip exactly through the exported calibration (checked in the tests, also for pitched
 cameras). Buses are written as `Misc` (KITTI has no bus class). Masks are rasterised from the annotation
-polygons, not from a render pass. Datasets rendered before 1.2 have no `box3d` and need re-rendering.
+polygons, not from a render pass, and only the labelled objects (person, car, bus, truck) are painted; the road,
+buildings, vegetation and sky are 0, so this is not full-scene semantic segmentation. Datasets rendered before 1.2
+have no `box3d` and need re-rendering.
 
 ## Roadmap
 

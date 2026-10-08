@@ -3,7 +3,8 @@
     PYTHONPATH=. python bin/export_masks.py --dataset live_dataset/train_v8a --out masks_out
 
 ``instance/<id>.png`` is 16-bit (0 background, 1.. per annotation in file order),
-``semantic/<id>.png`` is 8-bit (COCO category ids, 0 background) and
+``semantic/<id>.png`` is 8-bit (COCO category ids of the labelled objects only; 0 is everything
+else, including road, buildings and sky) and
 ``instance_table/<id>.json`` maps instance values to annotation and category ids. Objects are
 painted far to near; see ``src/export/masks.py`` for what the polygons are.
 """

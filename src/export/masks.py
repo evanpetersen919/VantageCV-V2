@@ -3,7 +3,9 @@
 Objects are painted far to near (by the forward distance in their ``box3d``; an annotation without
 one counts as the farthest), so a nearer object covers a farther one. The polygons are mesh
 silhouettes where an object has a real mesh and projected box hulls otherwise, so these masks are
-polygon-accurate, not render-pass pixel-exact.
+polygon-accurate, not render-pass pixel-exact. Only labelled objects are painted: the "semantic"
+mask holds object classes with 0 for everything else (road, buildings, vegetation, sky), so it is
+not full-scene semantic segmentation.
 """
 
 from typing import Any, Dict, List, Sequence, Tuple
