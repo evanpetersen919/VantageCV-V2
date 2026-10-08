@@ -26,6 +26,12 @@
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "UnrealClient.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Components/SceneCaptureComponent2D.h"
+#include "Engine/SceneCapture2D.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "RenderingThread.h"
+#include "TextureResource.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSyntheticDataGenRpc, Log, All);
 
@@ -331,6 +337,323 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 		const FString Filename = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("rpc_debug_screenshot.png"));
 		FScreenshotRequest::RequestScreenshot(Filename, /*bInShowUI=*/false, /*bAddFilenameSuffix=*/false);
 		return BuildResultResponse(RequestId, MakeShared<FJsonValueString>(Filename));
+	}
+
+	if (Method == TEXT("CaptureDepth"))
+	{
+		// Ground-truth spike: renders the scene's depth (Unreal units, cm along the camera's forward axis)
+		// from exactly the pose and field of view of the player's camera, into a float render target, and
+		// writes it as raw little-endian float32 (width * height values, row-major, top row first) next to a
+		// JSON description in the result. Used to check what the engine really draws against the labels
+		// computed from geometry. The capture component renders once on request; nothing runs per frame.
+		const TSharedPtr<FJsonObject>* Params = nullptr;
+		FString OutPath;
+		double Width = 1920.0;
+		double Height = 1080.0;
+		if (!Root->TryGetObjectField(TEXT("params"), Params) || !(*Params)->TryGetStringField(TEXT("out_path"), OutPath))
+		{
+			return BuildErrorResponse(RequestId, -32602, TEXT("Invalid params: expected a string 'out_path'"));
+		}
+		(*Params)->TryGetNumberField(TEXT("width"), Width);
+		(*Params)->TryGetNumberField(TEXT("height"), Height);
+		// This project's camera keeps a fixed vertical field of view (Unreal defines its 90 degree default at a
+		// 4:3 aspect and holds the vertical angle when the window has another aspect), so the capture is told
+		// the vertical angle and works out the horizontal one for its own aspect.
+		double VerticalFovDeg = 0.0;
+		(*Params)->TryGetNumberField(TEXT("vertical_fov_deg"), VerticalFovDeg);
+
+		UGameInstance* Instance = GetGameInstance();
+		UWorld* World = Instance != nullptr ? Instance->GetWorld() : nullptr;
+		APlayerController* PlayerController = World != nullptr ? UGameplayStatics::GetPlayerController(World, 0) : nullptr;
+		APlayerCameraManager* CameraManager = PlayerController != nullptr ? PlayerController->PlayerCameraManager : nullptr;
+		if (CameraManager == nullptr)
+		{
+			return BuildErrorResponse(RequestId, -32000, TEXT("No player camera available to capture from"));
+		}
+
+		const FVector CameraLocation = CameraManager->GetCameraLocation();
+		const FRotator CameraRotation = CameraManager->GetCameraRotation();
+		const int32 W = FMath::Max(16, static_cast<int32>(Width));
+		const int32 H = FMath::Max(16, static_cast<int32>(Height));
+		float Fov = CameraManager->GetFOVAngle();
+		if (VerticalFovDeg > 0.0)
+		{
+			const double HalfVertical = FMath::DegreesToRadians(VerticalFovDeg) / 2.0;
+			Fov = static_cast<float>(FMath::RadiansToDegrees(2.0 * FMath::Atan(FMath::Tan(HalfVertical) * W / H)));
+		}
+		UTextureRenderTarget2D* Target = NewObject<UTextureRenderTarget2D>();
+		Target->InitCustomFormat(W, H, PF_A32B32G32R32F, /*bInForceLinearGamma=*/true);
+		Target->UpdateResourceImmediate(true);
+
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		ASceneCapture2D* CaptureActor = World->SpawnActor<ASceneCapture2D>(CameraLocation, CameraRotation, SpawnParams);
+		if (CaptureActor == nullptr || CaptureActor->GetCaptureComponent2D() == nullptr)
+		{
+			return BuildErrorResponse(RequestId, -32000, TEXT("Could not spawn a scene capture actor"));
+		}
+		USceneCaptureComponent2D* Capture = CaptureActor->GetCaptureComponent2D();
+		Capture->bCaptureEveryFrame = false;
+		Capture->bCaptureOnMovement = false;
+		Capture->CaptureSource = ESceneCaptureSource::SCS_SceneDepth;
+		Capture->ProjectionType = ECameraProjectionMode::Perspective;
+		Capture->FOVAngle = Fov;
+		Capture->TextureTarget = Target;
+		if (PlayerController->GetPawn() != nullptr)
+		{
+			Capture->HiddenActors.Add(PlayerController->GetPawn());
+		}
+		Capture->CaptureScene();
+		FlushRenderingCommands();
+
+		TArray<FLinearColor> Pixels;
+		FTextureRenderTargetResource* Resource = Target->GameThread_GetRenderTargetResource();
+		const bool bRead = Resource != nullptr && Resource->ReadLinearColorPixels(Pixels);
+		CaptureActor->Destroy();
+		if (!bRead || Pixels.Num() != W * H)
+		{
+			return BuildErrorResponse(RequestId, -32000, TEXT("Could not read back the depth render target"));
+		}
+
+		TArray<uint8> Bytes;
+		Bytes.SetNumUninitialized(W * H * static_cast<int32>(sizeof(float)));
+		float* Out = reinterpret_cast<float*>(Bytes.GetData());
+		float MinDepth = TNumericLimits<float>::Max();
+		float MaxDepth = 0.0f;
+		for (int32 Index = 0; Index < Pixels.Num(); ++Index)
+		{
+			Out[Index] = Pixels[Index].R;
+			MinDepth = FMath::Min(MinDepth, Pixels[Index].R);
+			MaxDepth = FMath::Max(MaxDepth, Pixels[Index].R);
+		}
+		if (!FFileHelper::SaveArrayToFile(Bytes, *OutPath))
+		{
+			return BuildErrorResponse(RequestId, -32000, FString::Printf(TEXT("Could not write %s"), *OutPath));
+		}
+
+		const TSharedRef<FJsonObject> ResultObject = MakeShared<FJsonObject>();
+		ResultObject->SetStringField(TEXT("path"), OutPath);
+		ResultObject->SetNumberField(TEXT("width"), W);
+		ResultObject->SetNumberField(TEXT("height"), H);
+		ResultObject->SetNumberField(TEXT("fov_deg"), Fov);
+		ResultObject->SetNumberField(TEXT("min_depth_cm"), MinDepth);
+		ResultObject->SetNumberField(TEXT("max_depth_cm"), MaxDepth);
+		ResultObject->SetNumberField(TEXT("cam_x"), CameraLocation.X);
+		ResultObject->SetNumberField(TEXT("cam_y"), CameraLocation.Y);
+		ResultObject->SetNumberField(TEXT("cam_z"), CameraLocation.Z);
+		ResultObject->SetNumberField(TEXT("pitch"), CameraRotation.Pitch);
+		ResultObject->SetNumberField(TEXT("yaw"), CameraRotation.Yaw);
+		ResultObject->SetNumberField(TEXT("roll"), CameraRotation.Roll);
+		return BuildResultResponse(RequestId, MakeShared<FJsonValueObject>(ResultObject));
+	}
+
+	if (Method == TEXT("CaptureObjectMasks"))
+	{
+		// Ground-truth spike, part 2: exact per-object pixel masks from the engine's own depth. The scene is
+		// rendered once (depth of everything), then once per object with a "show only this object" list. A
+		// pixel belongs to an object's visible mask where its own depth equals the full-scene depth (nothing
+		// nearer hides it), and to its full (amodal) mask wherever it renders at all. Objects are given as lists
+		// of asset indices (the position in the scenario's "assets" array, stored on each spawned actor as the tag
+		// "vcv_asset_<index>"); a tractor-trailer is one object made of two assets. The visible masks are written
+		// as one uint16 map (0 = none, k + 1 = object k), little-endian, row-major, to out_path.
+		const TSharedPtr<FJsonObject>* Params = nullptr;
+		FString OutPath;
+		double Width = 1920.0;
+		double Height = 1080.0;
+		double VerticalFovDeg = 0.0;
+		const TArray<TSharedPtr<FJsonValue>>* ObjectsJson = nullptr;
+		if (!Root->TryGetObjectField(TEXT("params"), Params) || !(*Params)->TryGetStringField(TEXT("out_path"), OutPath)
+			|| !(*Params)->TryGetArrayField(TEXT("objects"), ObjectsJson))
+		{
+			return BuildErrorResponse(RequestId, -32602, TEXT("Invalid params: expected 'out_path' and 'objects'"));
+		}
+		(*Params)->TryGetNumberField(TEXT("width"), Width);
+		(*Params)->TryGetNumberField(TEXT("height"), Height);
+		(*Params)->TryGetNumberField(TEXT("vertical_fov_deg"), VerticalFovDeg);
+
+		UGameInstance* Instance = GetGameInstance();
+		UWorld* World = Instance != nullptr ? Instance->GetWorld() : nullptr;
+		APlayerController* PlayerController = World != nullptr ? UGameplayStatics::GetPlayerController(World, 0) : nullptr;
+		APlayerCameraManager* CameraManager = PlayerController != nullptr ? PlayerController->PlayerCameraManager : nullptr;
+		if (CameraManager == nullptr)
+		{
+			return BuildErrorResponse(RequestId, -32000, TEXT("No player camera available to capture from"));
+		}
+
+		// asset index -> actor, from the tags the loader set
+		TMap<int32, AActor*> ActorByIndex;
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			for (const FName& Tag : It->Tags)
+			{
+				const FString TagText = Tag.ToString();
+				if (TagText.StartsWith(TEXT("vcv_asset_")))
+				{
+					ActorByIndex.Add(FCString::Atoi(*TagText.RightChop(10)), *It);
+				}
+			}
+		}
+
+		const int32 W = FMath::Max(16, static_cast<int32>(Width));
+		const int32 H = FMath::Max(16, static_cast<int32>(Height));
+		float Fov = CameraManager->GetFOVAngle();
+		if (VerticalFovDeg > 0.0)
+		{
+			const double HalfVertical = FMath::DegreesToRadians(VerticalFovDeg) / 2.0;
+			Fov = static_cast<float>(FMath::RadiansToDegrees(2.0 * FMath::Atan(FMath::Tan(HalfVertical) * W / H)));
+		}
+		UTextureRenderTarget2D* Target = NewObject<UTextureRenderTarget2D>();
+		Target->InitCustomFormat(W, H, PF_A32B32G32R32F, /*bInForceLinearGamma=*/true);
+		Target->UpdateResourceImmediate(true);
+
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		ASceneCapture2D* CaptureActor = World->SpawnActor<ASceneCapture2D>(
+			CameraManager->GetCameraLocation(), CameraManager->GetCameraRotation(), SpawnParams);
+		if (CaptureActor == nullptr || CaptureActor->GetCaptureComponent2D() == nullptr)
+		{
+			return BuildErrorResponse(RequestId, -32000, TEXT("Could not spawn a scene capture actor"));
+		}
+		USceneCaptureComponent2D* Capture = CaptureActor->GetCaptureComponent2D();
+		Capture->bCaptureEveryFrame = false;
+		Capture->bCaptureOnMovement = false;
+		Capture->CaptureSource = ESceneCaptureSource::SCS_SceneDepth;
+		Capture->ProjectionType = ECameraProjectionMode::Perspective;
+		Capture->FOVAngle = Fov;
+		Capture->TextureTarget = Target;
+		if (PlayerController->GetPawn() != nullptr)
+		{
+			Capture->HiddenActors.Add(PlayerController->GetPawn());
+		}
+
+		FTextureRenderTargetResource* Resource = Target->GameThread_GetRenderTargetResource();
+		auto RenderDepth = [&](TArray<float>& OutDepth) -> bool
+		{
+			Capture->CaptureScene();
+			FlushRenderingCommands();
+			TArray<FLinearColor> Pixels;
+			if (Resource == nullptr || !Resource->ReadLinearColorPixels(Pixels) || Pixels.Num() != W * H)
+			{
+				return false;
+			}
+			OutDepth.SetNumUninitialized(W * H);
+			for (int32 Index = 0; Index < Pixels.Num(); ++Index)
+			{
+				OutDepth[Index] = Pixels[Index].R;
+			}
+			return true;
+		};
+
+		TArray<float> FullDepth;
+		Capture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_RenderScenePrimitives;
+		if (!RenderDepth(FullDepth))
+		{
+			CaptureActor->Destroy();
+			return BuildErrorResponse(RequestId, -32000, TEXT("Could not read back the scene depth"));
+		}
+
+		constexpr float NoSurface = 1.0e7f; // anything farther than 100 km is the sky / nothing
+		TArray<uint16> Visible;
+		Visible.Init(0, W * H);
+		TArray<TSharedPtr<FJsonValue>> Reports;
+		TArray<float> ObjectDepth;
+		for (int32 ObjectIndex = 0; ObjectIndex < ObjectsJson->Num(); ++ObjectIndex)
+		{
+			const TArray<TSharedPtr<FJsonValue>>* Members = nullptr;
+			if (!(*ObjectsJson)[ObjectIndex]->TryGetArray(Members))
+			{
+				continue;
+			}
+			Capture->ShowOnlyActors.Reset();
+			for (const TSharedPtr<FJsonValue>& Member : *Members)
+			{
+				if (AActor** Found = ActorByIndex.Find(static_cast<int32>(Member->AsNumber())))
+				{
+					Capture->ShowOnlyActors.Add(*Found);
+				}
+			}
+			const TSharedRef<FJsonObject> Report = MakeShared<FJsonObject>();
+			Report->SetNumberField(TEXT("object"), ObjectIndex);
+			Report->SetNumberField(TEXT("actors_found"), Capture->ShowOnlyActors.Num());
+			if (Capture->ShowOnlyActors.Num() == 0)
+			{
+				Reports.Add(MakeShared<FJsonValueObject>(Report));
+				continue;
+			}
+			Capture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
+			if (!RenderDepth(ObjectDepth))
+			{
+				continue;
+			}
+			int32 AmodalPx = 0;
+			int32 VisiblePx = 0;
+			int32 AX0 = W;
+			int32 AY0 = H;
+			int32 AX1 = -1;
+			int32 AY1 = -1;
+			int32 VX0 = W;
+			int32 VY0 = H;
+			int32 VX1 = -1;
+			int32 VY1 = -1;
+			for (int32 Y = 0; Y < H; ++Y)
+			{
+				for (int32 X = 0; X < W; ++X)
+				{
+					const int32 Index = Y * W + X;
+					const float Own = ObjectDepth[Index];
+					if (Own >= NoSurface)
+					{
+						continue;
+					}
+					++AmodalPx;
+					AX0 = FMath::Min(AX0, X);
+					AY0 = FMath::Min(AY0, Y);
+					AX1 = FMath::Max(AX1, X);
+					AY1 = FMath::Max(AY1, Y);
+					if (FMath::Abs(Own - FullDepth[Index]) <= FMath::Max(2.0f, 0.002f * Own))
+					{
+						++VisiblePx;
+						Visible[Index] = static_cast<uint16>(ObjectIndex + 1);
+						VX0 = FMath::Min(VX0, X);
+						VY0 = FMath::Min(VY0, Y);
+						VX1 = FMath::Max(VX1, X);
+						VY1 = FMath::Max(VY1, Y);
+					}
+				}
+			}
+			Report->SetNumberField(TEXT("amodal_px"), AmodalPx);
+			Report->SetNumberField(TEXT("visible_px"), VisiblePx);
+			TArray<TSharedPtr<FJsonValue>> AmodalBox;
+			TArray<TSharedPtr<FJsonValue>> VisibleBox;
+			for (const int32 Value : {AX0, AY0, AX1, AY1})
+			{
+				AmodalBox.Add(MakeShared<FJsonValueNumber>(Value));
+			}
+			for (const int32 Value : {VX0, VY0, VX1, VY1})
+			{
+				VisibleBox.Add(MakeShared<FJsonValueNumber>(Value));
+			}
+			Report->SetArrayField(TEXT("amodal_bbox"), AmodalBox);
+			Report->SetArrayField(TEXT("visible_bbox"), VisibleBox);
+			Reports.Add(MakeShared<FJsonValueObject>(Report));
+		}
+		CaptureActor->Destroy();
+
+		TArray<uint8> Bytes;
+		Bytes.SetNumUninitialized(W * H * static_cast<int32>(sizeof(uint16)));
+		FMemory::Memcpy(Bytes.GetData(), Visible.GetData(), Bytes.Num());
+		if (!FFileHelper::SaveArrayToFile(Bytes, *OutPath))
+		{
+			return BuildErrorResponse(RequestId, -32000, FString::Printf(TEXT("Could not write %s"), *OutPath));
+		}
+		const TSharedRef<FJsonObject> ResultObject = MakeShared<FJsonObject>();
+		ResultObject->SetStringField(TEXT("path"), OutPath);
+		ResultObject->SetNumberField(TEXT("width"), W);
+		ResultObject->SetNumberField(TEXT("height"), H);
+		ResultObject->SetNumberField(TEXT("fov_deg"), Fov);
+		ResultObject->SetNumberField(TEXT("actors_tagged"), ActorByIndex.Num());
+		ResultObject->SetArrayField(TEXT("objects"), Reports);
+		return BuildResultResponse(RequestId, MakeShared<FJsonValueObject>(ResultObject));
 	}
 
 	if (Method == TEXT("DebugMoveCameraTo"))

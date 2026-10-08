@@ -2192,3 +2192,46 @@ motorcycles are unlabelled by design. Not yet known: how many of the matched fra
 (motorcycles, bicycles), which are background for the detector as they are in `train_v7p`'s scenes (which have none).
 Arms to train: `hpc_rdsm25` and `hpc_rdsr25` (25% real, AdamW, 200 epochs, imgsz 960, seeds 0-2), compared with
 `hpc_v7p25` by the rule above.
+
+### Ground-truth spike: engine-exact depth and object masks under D3D11, and the first label-accuracy audit (2026-10-07)
+
+Question: can this project capture exact per-pixel ground truth from Unreal on this machine (D3D11 `-game`, since D3D12
+crashes), and how accurate are the labels computed from geometry when measured against it?
+
+Built (plugin, `unreal_plugin/SyntheticDataGen`, rebuilt in under 30 s with the pinned 14.38 compiler): `CaptureDepth` (a
+scene-capture camera at the player camera's pose renders scene depth into a float render target, read back to a file);
+`CaptureObjectMasks` (renders the full-scene depth once and each object alone with a show-only list: an object's pixels are
+visible where its own depth equals the full-scene depth within 2 cm or 0.2%, and its full extent is wherever it renders at all;
+output: one uint16 visible-instance map and per-object visible and full extents and pixel counts); every spawned asset
+actor is tagged `vcv_asset_<index>` (its position in the payload's `assets`) so an object can be found. No material, stencil
+or project setting is needed, and occlusion is handled by the engine.
+
+Checkpoint 1 (depth at all under D3D11): passed. The capture works; the field of view needs this project's fixed vertical
+FOV passed explicitly (the first version used the camera manager's 90 degrees and looked zoomed in), after which depth
+discontinuities trace the outlines in the screenshot (a blue car's wheel arches, poles, pedestrians) to the pixel by eye.
+
+Audit (8 scenarios x 3 camera views, `urban_dense_v7_peds.yaml`, ego-like camera at 1.6 m 10-18 m from a sedan, 404
+objects in the frames; one pedestrian rendered nothing). IoU of this project's label against the engine, mean (median):
+
+| class | n | full box vs full extent | visible-part box vs visible extent | polygon vs visible mask (unoccluded only) |
+|---|---|---|---|---|
+| sedan | 182 | 0.958 (0.971) | 0.765 (0.809) | 0.723 (0.794) (0.853, n=55) |
+| pickup / van | 40 | 0.954 (0.978) | 0.790 (0.834) | 0.747 (0.797) (0.834, n=16) |
+| bus | 4 | 0.822 (0.986) | 0.700 (0.814) | 0.813 (0.831) |
+| truck | 1 | 0.990 | 0.969 | 0.604 |
+| person | 176 | **0.782 (0.801)** | **0.588 (0.639)** | **0.365 (0.390)** (0.459, n=67) |
+
+Reading: (1) vehicles' standard 2D boxes are accurate (median 0.97), so every vehicle result in this log rests on good boxes.
+(2) The visible-part (modal) boxes and the polygons are materially looser (0.77-0.79 and 0.72-0.85), as the convex-hull
+measurement predicted. (3) Pedestrian labels are the weak class: on an image (green = ours, magenta = engine) the label box
+is about twice as wide as the person and slightly taller; the full-box IoU is 0.78. This matters because the person class is
+where the synthetic supplement helps most (+3.8 AP over real-only, and it vanishes with the crowd removed), and BDD100K
+boxes are tight. Not yet shown: that tight pedestrian boxes would raise person AP; that is a hypothesis, to be tested with a
+pre-registered rule, not a finding. Bus (4) and truck (1) are too few to read; the audit needs trucks and buses in view.
+Caveats: one town layout style, day only, ego-like views from near a sedan; the engine masks come from the depth of
+the whole actor (so a vehicle's wheels and glass count); the plain pedestrian meshes use vertex animation, which renders
+in the single-object pass (the extents agree with the screenshot overlay).
+
+Decision: go. Depth and exact masks work here. Next: (a) a measured fix for the pedestrian box (take extents from the engine
+per frame, or a tighter proxy), then a batch with tight pedestrian boxes against `train_v7p`; (b) exact masks and depth in the
+export. The label-accuracy audit becomes a tool (`bin/audit_labels.py`) so any batch can be audited.

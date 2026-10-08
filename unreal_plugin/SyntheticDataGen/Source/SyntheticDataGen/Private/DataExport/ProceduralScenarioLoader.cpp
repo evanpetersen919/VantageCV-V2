@@ -1009,8 +1009,12 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 
 	if (Root->TryGetArrayField(TEXT("assets"), AssetsJson))
 	{
+		// Each spawned actor is tagged with its position in this array ("vcv_asset_<index>") so a later
+		// request (CaptureObjectMasks) can find the actor behind a scenario object.
+		int32 AssetIndex = -1;
 		for (const TSharedPtr<FJsonValue>& AssetValue : *AssetsJson)
 		{
+			++AssetIndex;
 			const TSharedPtr<FJsonObject>* AssetObject = nullptr;
 			FScenarioAssetData AssetData;
 			if (!AssetValue->TryGetObject(AssetObject) || !ParseAssetData(**AssetObject, AssetData))
@@ -1052,6 +1056,7 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 			ApplyAssetScalars(SpawnedVehicle);
 			if (SpawnedVehicle != nullptr)
 			{
+				SpawnedVehicle->Tags.Add(FName(*FString::Printf(TEXT("vcv_asset_%d"), AssetIndex)));
 				SpawnedAssetActors.Add(SpawnedVehicle);
 				++SpawnedCount;
 			}
