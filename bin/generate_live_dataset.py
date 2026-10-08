@@ -78,6 +78,7 @@ async def _run(args: argparse.Namespace) -> None:
             tuple(args.views),
             _policy(args),
             args.profile,
+            args.exact_labels,
         )
     print(
         f"{result.frames} frames in {result.elapsed_seconds:.0f} s -> {output_dir} "
@@ -124,6 +125,12 @@ def main() -> None:
     )
     parser.add_argument("--min-box-height", type=float, default=MIN_BOX_HEIGHT_PX)
     parser.add_argument("--min-box-width", type=float, default=MIN_BOX_WIDTH_PX)
+    parser.add_argument(
+        "--exact-labels",
+        action="store_true",
+        help="take every vehicle and pedestrian box, visible fraction and mask from what the game "
+        "renders (CaptureObjectMasks) instead of from proxy shapes; costs about 1.5 s a frame",
+    )
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--ue5-uri", default="ws://localhost:8765")
     try:

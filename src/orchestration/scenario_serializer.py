@@ -20,7 +20,7 @@ populate ``"assets"``.
 """
 
 import dataclasses
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -258,6 +258,42 @@ def _street_lamp_overrides(piece: FacadePiece) -> Optional[Dict[str, float]]:
     """The daytime "lamp off" override for a regular street lamp, else
     ``None`` (trees, hydrants, signs etc. are untouched)."""
     return STREET_LAMP_OFF_OVERRIDES if piece.asset_path in LAMP_ASSET_PATHS else None
+
+
+def object_asset_indices(result: ScenarioResult, payload: Dict[str, Any]) -> Dict[int, List[int]]:
+    """Label object id (as ``render_frame`` numbers them) -> the indices in
+    ``payload["assets"]`` of the
+    actors that make the object: a vehicle (and its trailer, for a rig) or a pedestrian.
+
+    Vehicles are the first entries and their trailers follow them; pedestrians sit in the
+    middle of the list
+    (more asset groups follow them), so each is found by its asset path and position.
+    """
+    n_buildings, n_vehicles = len(result.buildings), len(result.vehicles)
+    indices: Dict[int, List[int]] = {}
+    trailers = 0
+    for index, vehicle in enumerate(result.vehicles):
+        members = [index]
+        if vehicle.trailer:
+            members.append(n_vehicles + trailers)
+            trailers += 1
+        indices[vehicle.vehicle_id + n_buildings] = members
+    by_key = {
+        _asset_key(entry): index
+        for index, entry in enumerate(payload["assets"])
+        if index >= n_vehicles
+    }
+    for pedestrian in result.pedestrians:
+        found = by_key.get(_asset_key(_pedestrian_to_asset_json(pedestrian, 0)))
+        if found is not None:
+            indices[pedestrian.pedestrian_id + n_buildings + n_vehicles] = [found]
+    return indices
+
+
+def _asset_key(entry: Dict[str, Any]) -> Tuple[str, float, float, float]:
+    """An asset entry's identity for matching: its path and position, rounded to a millimetre."""
+    x, y, z = (round(float(v), 3) for v in entry["position"])
+    return (entry["asset_path"], x, y, z)
 
 
 def serialize_scenario(

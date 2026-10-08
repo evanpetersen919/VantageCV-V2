@@ -113,6 +113,11 @@ class LiveRenderer:
         self._settle_seconds = settle_seconds
         self._load_seconds = load_seconds
 
+    @property
+    def backend(self) -> UE5Backend:
+        """The connection to the game, for requests this class has no method for."""
+        return self._backend
+
     async def load(self, payload: Dict[str, Any]) -> None:
         """Replace the scene with ``payload`` and wait for it to finish streaming in.
 

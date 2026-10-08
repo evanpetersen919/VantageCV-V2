@@ -33,6 +33,7 @@ from src.orchestration.camera_sampling import (
 )
 from src.orchestration.dataset_generator import Bounds, generate_scenario, render_frame
 from src.orchestration.dataset_store import DatasetStore
+from src.orchestration.exact_labels import apply_exact, capture_exact
 from src.orchestration.hood import clip_to_hood, hood_top_row, paint_hood
 from src.orchestration.live_render import (
     RECOVERABLE_ERRORS,
@@ -41,7 +42,7 @@ from src.orchestration.live_render import (
     ue_camera,
     vertical_fov_deg,
 )
-from src.orchestration.scenario_serializer import serialize_scenario
+from src.orchestration.scenario_serializer import object_asset_indices, serialize_scenario
 from src.procedural.environment import TimeOfDay, Weather, draw_weather, scenario_environment
 from src.procedural.scenario import ScenarioTypeConfig
 
@@ -159,6 +160,7 @@ def _settings(  # pylint: disable=too-many-arguments
     base_seed: int,
     policy: AnnotationPolicy,
     profile: str = "v6",
+    exact_labels: bool = False,
 ) -> Dict[str, Any]:
     """The settings a run is identified by; a resume must match them."""
     settings: Dict[str, Any] = {
@@ -173,6 +175,8 @@ def _settings(  # pylint: disable=too-many-arguments
     }
     if profile != "v6":
         settings["profile"] = profile
+    if exact_labels:
+        settings["exact_labels"] = True
     return settings
 
 
@@ -186,6 +190,7 @@ async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-local
     seed: int,
     policy: AnnotationPolicy,
     profile: str = "v6",
+    exact_labels: bool = False,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Generate, load and photograph one scenario; return its COCO images and annotations.
 
@@ -199,7 +204,9 @@ async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-local
     except ValueError:
         return [], []
     environment = scenario_environment(scenario.season, conditions[0], conditions[1], seed, profile)
-    await renderer.load(serialize_scenario(scenario, environment))
+    payload = serialize_scenario(scenario, environment)
+    await renderer.load(payload)
+    members = object_asset_indices(scenario, payload) if exact_labels else {}
     frames: List[CocoFrame] = []
     for view_index, pose in enumerate(_views_for(scenario, views, bounds, seed, profile)):
         name = f"{scenario.scenario_id}_{view_index}_{pose.kind}"
@@ -211,6 +218,16 @@ async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-local
         frame = render_frame(
             scenario, camera, image_id, f"images/{name}.png", modal=profile == "v7"
         )
+        if exact_labels:
+            exact = await capture_exact(
+                renderer.backend,
+                members,
+                frame,
+                (width, height),
+                output_dir / "exact_tmp" / f"{name}.u16",
+            )
+            if exact is not None:
+                frame = apply_exact(frame, exact)
         frame, dropped = apply_policy(frame, policy)
         if hood_row is not None:
             frame = clip_to_hood(frame, hood_row, policy.min_box_height_px)
@@ -259,6 +276,7 @@ async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arg
     views: Tuple[str, ...] = DEFAULT_VIEWS,
     policy: Optional[AnnotationPolicy] = None,
     profile: str = "v6",
+    exact_labels: bool = False,
 ) -> LiveDatasetResult:
     """Render ``num_scenarios`` scenarios x ``views``, resuming any earlier run in ``output_dir``.
 
@@ -269,7 +287,7 @@ async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arg
     started = time.perf_counter()
     policy = policy or AnnotationPolicy()
     store = DatasetStore(output_dir, export_coco([], policy.profile)["categories"])
-    store.check_manifest(_settings(config, bounds, views, base_seed, policy, profile))
+    store.check_manifest(_settings(config, bounds, views, base_seed, policy, profile, exact_labels))
     result = LiveDatasetResult()
     if any(store.load_part(index) is None for index in range(num_scenarios)):
         result.calibration_error_px = await _with_recovery(
@@ -303,6 +321,7 @@ async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arg
                     base_seed + index,
                     policy,
                     profile,
+                    exact_labels,
                 ),
             )
             store.save_part(index, images, annotations)

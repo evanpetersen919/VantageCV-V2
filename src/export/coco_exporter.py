@@ -30,7 +30,7 @@ BUILDING_CATEGORY_ID = BUILDING
 
 
 @dataclass
-class CocoFrame:
+class CocoFrame:  # pylint: disable=too-many-instance-attributes
     """One camera frame's worth of data to export."""
 
     image_id: int
@@ -44,6 +44,9 @@ class CocoFrame:
     # Segmentation polygons (pixels) that replace the box-corner hull for objects with a
     # real mesh.
     silhouettes_by_id: Dict[int, Any] = field(default_factory=dict)
+    # Exact visible masks (COCO run-length encoding) from the engine, where ``exact_labels``
+    # has run.
+    masks_by_id: Dict[int, Any] = field(default_factory=dict)
 
 
 def _bbox_2d_to_coco_annotation(  # pylint: disable=too-many-arguments
@@ -54,6 +57,7 @@ def _bbox_2d_to_coco_annotation(  # pylint: disable=too-many-arguments
     silhouette: Any,
     fine_category_id: int,
     box3d: Optional[Dict[str, Any]] = None,
+    mask_rle: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build one COCO annotation dict from a projected 2D box and
     (optionally) its polygon silhouette."""
@@ -78,6 +82,8 @@ def _bbox_2d_to_coco_annotation(  # pylint: disable=too-many-arguments
     }
     if box3d is not None:
         annotation["box3d"] = box3d
+    if mask_rle is not None:
+        annotation["mask_rle"] = mask_rle
     return annotation
 
 
@@ -143,6 +149,7 @@ def export_coco(frames: List[CocoFrame], profile: CategoryProfile = FINE_PROFILE
                     silhouette,
                     category_id,
                     box3d,
+                    frame.masks_by_id.get(bbox_2d.object_id),
                 )
             )
             annotation_id_counter += 1

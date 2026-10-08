@@ -1,4 +1,8 @@
-"""Instance and semantic masks rasterised from a frame's annotation polygons.
+"""Instance and semantic masks rasterised from a frame's annotations.
+
+An annotation carrying ``mask_rle`` (rendered with ``--exact-labels``) contributes the engine's
+exact visible
+pixels, painted after all polygons; the rest are painted from polygons as follows.
 
 Objects are painted far to near (by the forward distance in their ``box3d``; an annotation without
 one counts as the farthest), so a nearer object covers a farther one. The polygons are mesh
@@ -13,6 +17,7 @@ from typing import Any, Dict, List, Sequence, Tuple
 import numpy as np
 import numpy.typing as npt
 from PIL import Image, ImageDraw
+from pycocotools import mask as mask_utils
 
 FAR = float("inf")
 
@@ -22,7 +27,7 @@ def _depth(annotation: Dict[str, Any]) -> float:
     return float(box["location"][2]) if box else FAR
 
 
-def rasterise(
+def rasterise(  # pylint: disable=too-many-locals
     annotations: Sequence[Dict[str, Any]], size: Tuple[int, int]
 ) -> Tuple[npt.NDArray[np.uint16], npt.NDArray[np.uint8], List[Dict[str, int]]]:
     """(instance mask, semantic mask, instance table) for one image of ``size`` = (width, height).
@@ -43,11 +48,23 @@ def rasterise(
         }
         for index, annotation in enumerate(annotations)
     ]
+    exact = [i for i, annotation in enumerate(annotations) if annotation.get("mask_rle")]
     for index in sorted(range(len(annotations)), key=lambda i: -_depth(annotations[i])):
         annotation = annotations[index]
+        if annotation.get("mask_rle"):
+            continue
         for polygon in annotation.get("segmentation", []):
             points = [(polygon[i], polygon[i + 1]) for i in range(0, len(polygon) - 1, 2)]
             if len(points) >= 3:
                 draw_instance.polygon(points, fill=index + 1)
                 draw_semantic.polygon(points, fill=int(annotation["category_id"]))
-    return np.asarray(instance, dtype=np.uint16), np.asarray(semantic, dtype=np.uint8), table
+    instance_array = np.array(instance, dtype=np.uint16)
+    semantic_array = np.array(semantic, dtype=np.uint8)
+    for index in exact:
+        rle = annotations[index]["mask_rle"]
+        visible = (
+            mask_utils.decode({"size": rle["size"], "counts": rle["counts"].encode("ascii")}) > 0
+        )
+        instance_array[visible] = index + 1
+        semantic_array[visible] = int(annotations[index]["category_id"])
+    return instance_array, semantic_array, table

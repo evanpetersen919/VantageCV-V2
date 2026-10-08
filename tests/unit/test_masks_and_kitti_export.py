@@ -111,3 +111,20 @@ def test_overview_frames_are_skipped_not_exported_wrongly(tmp_path: Path) -> Non
     )
     counts = _load("export_kitti").export_kitti(dataset, tmp_path / "out")
     assert counts["images"] == 0 and counts["skipped_images"] == 1
+
+
+def test_exact_mask_is_painted_over_polygons() -> None:
+    from pycocotools import mask as mask_utils  # pylint: disable=import-outside-toplevel
+
+    block = np.zeros((20, 30), dtype=np.uint8)
+    block[5:9, 10:14] = 1
+    encoded = mask_utils.encode(np.asfortranarray(block))
+    rle = {"size": [20, 30], "counts": encoded["counts"].decode("ascii")}
+    big = [0.0, 0.0, 30.0, 0.0, 30.0, 20.0, 0.0, 20.0]
+    annotations = [
+        {"id": 1, "category_id": 3, "segmentation": [big]},
+        {"id": 2, "category_id": 1, "segmentation": [big], "mask_rle": rle},
+    ]
+    instance, semantic, _ = rasterise(annotations, (30, 20))
+    assert (instance[5:9, 10:14] == 2).all() and int((instance == 2).sum()) == 16
+    assert instance[0, 0] == 1 and semantic[6, 11] == 1 and semantic[0, 0] == 3
