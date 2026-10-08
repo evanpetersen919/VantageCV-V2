@@ -1945,3 +1945,40 @@ counts differ by a factor of two or more and by at least 5 events; otherwise no 
 size. Also reported, as descriptive and not as a rule: per-weights-seed collisions (to see whether any one
 seed drives a total), the share of routes with a collision, and what kind of vehicle was hit (car, van, truck,
 bus, by the simulator's own vehicle type), to connect the result back to the truck and bus findings.
+
+### CARLA step 2, extended result: three weights seeds per detector, 20 routes each (rule applied to the pooled totals)
+
+`results/carla/driving.json` now holds 140 episodes: ground truth (20 routes) and `real25r` and `v7p25` weights
+seeds 0, 1 and 2, each on the same 20 routes (60 route-runs per detector). The CARLA server crashed twice during the
+run (a restart loop resumed it each time; every finished episode was kept, none lost or repeated).
+
+| arm | route-runs | reached | stuck | km | collisions | per km | with a collision | hard brakes per km |
+|---|---|---|---|---|---|---|---|---|
+| ground truth | 20 | 18 | 2 | 6.5 | 3 | 0.46 | 3 | 264 |
+| real-only, 3 weights seeds | 60 | 53 | 7 | 19.3 | 35 | 1.81 | 21 | 175 |
+| v7p, 3 weights seeds | 60 | 53 | 7 | 19.3 | 29 | 1.50 | 20 | 170 |
+
+Per weights seed (collisions): real-only 14 / 10 / 11, v7p 10 / 9 / 10. The v7p detector has the same or fewer
+collisions than the real-only one at each seed, by 0 to 4.
+
+Rule (set above, before the extension): the detectors differ if collision counts differ by a factor of two or
+more and by at least 5 events. Pooled they are 35 and 29: a factor of 1.2 and a difference of 6. The factor is
+not met, so there is no detectable effect between the detectors at this sample size. The gap lies on two
+routes: routes 11 (8 against 3) and 2 (2 against 0) hold 10 of the real-only arm's 35 collisions and 3 of v7p's
+29; on the other 18 routes the totals are 25 and 26.
+
+Against the ceiling: either detector raises collisions from 3 (0.46 per km) to 29-35 (1.5-1.8 per km), a factor of
+3 to 4 even after the pooling, and 20-21 of 60 route-runs have a collision against 3 of 20 for ground truth.
+What was hit (by the simulator's own vehicle type): real-only car 12, truck 8, van 4, no type recorded 11;
+v7p car 11, truck 5, van 4, no type recorded 9; trucks and vans together are 12 of the 35 and 9 of the 29
+(about a third), which this entry does not compare with their share of the traffic, so it is not read as
+trucks being over-hit. The 11 and 9 untyped collisions (a vehicle model with no base type in the blueprint
+library) are not classified.
+
+Reading: in this setup the gains that show on real photos (about 3 AP overall, 6-9 points of car recall in CARLA
+frames) do not show as a detectable change in driving; both detectors drive about 3 to 4 times worse than the
+agent with exact knowledge, and what separates them from it is a handful of routes where a vehicle is missed or
+placed wrongly. Not established: whether more routes would separate them (the sign is in v7p's favour on
+every weights seed, and the sample is too small for the rule); whether a detector trained on CARLA frames, with
+tracking, or with a better heading estimate would close the gap to ground truth (that is the next obvious
+change, and a different experiment).
