@@ -2076,3 +2076,10 @@ time-of-day mix and its object counts per image differ from `train_v7p`. The cou
 images is reported next to the result, since the person and truck counts moved AP in the supply test. If the
 class counts differ a lot, a second arm with the SHIFT images chosen to match the v7p person and truck counts is
 worth running before reading the result.
+
+#### SHIFT is not downloadable (2026-10-07)
+
+The SHIFT file server (`dl.cv.ethz.ch`) and project page (`www.vis.xyz`) do not resolve, from this PC or from the
+cluster. SysCV/shift-dev has open issues about it from 2025-02 to 2026-03 ("Project page is down", "download page and
+file server return 502", "dataset download website not reachable"), with no mirror or answer. The matched comparison
+above therefore cannot use SHIFT; the question and the rule stand, and the comparison dataset must change.
