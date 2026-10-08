@@ -14,8 +14,9 @@ buildings/vehicles/pedestrians all export correctly as long as
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
+from src.export.box3d_formats import camera_box, has_level_frame, projection_matrix
 from src.ground_truth.bbox_2d import BoundingBox2D
 from src.ground_truth.bbox_3d import BoundingBox3D
 from src.ground_truth.categories import BUILDING, FINE_PROFILE, CategoryProfile
@@ -52,6 +53,7 @@ def _bbox_2d_to_coco_annotation(  # pylint: disable=too-many-arguments
     category_id: int,
     silhouette: Any,
     fine_category_id: int,
+    box3d: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build one COCO annotation dict from a projected 2D box and
     (optionally) its polygon silhouette."""
@@ -62,7 +64,7 @@ def _bbox_2d_to_coco_annotation(  # pylint: disable=too-many-arguments
     if silhouette is not None and len(silhouette) >= 3:
         segmentation = [silhouette.flatten().tolist()]
 
-    return {
+    annotation = {
         "id": annotation_id,
         "image_id": image_id,
         "category_id": category_id,
@@ -74,6 +76,9 @@ def _bbox_2d_to_coco_annotation(  # pylint: disable=too-many-arguments
         "truncation": round(bbox_2d.truncation, 3),
         "fine_category_id": fine_category_id,
     }
+    if box3d is not None:
+        annotation["box3d"] = box3d
+    return annotation
 
 
 def export_coco(frames: List[CocoFrame], profile: CategoryProfile = FINE_PROFILE) -> Dict[str, Any]:
@@ -101,21 +106,27 @@ def export_coco(frames: List[CocoFrame], profile: CategoryProfile = FINE_PROFILE
     annotation_id_counter = 1
 
     for frame in frames:
-        images.append(
-            {
-                **frame.metadata,
-                "id": frame.image_id,
-                "file_name": frame.file_name,
-                "width": frame.camera.intrinsics.width,
-                "height": frame.camera.intrinsics.height,
-            }
-        )
+        level = has_level_frame(frame.camera)  # an overview camera has no KITTI-style frame
+        image = {
+            **frame.metadata,
+            "id": frame.image_id,
+            "file_name": frame.file_name,
+            "width": frame.camera.intrinsics.width,
+            "height": frame.camera.intrinsics.height,
+        }
+        if level:
+            # KITTI projection matrix for the label frame of box3d (row-major 3x4), see
+            # box3d_formats
+            image["kitti_P2"] = projection_matrix(frame.camera).reshape(-1).tolist()
+        images.append(image)
 
         for bbox_2d in frame.bboxes_2d:
             silhouette = None
+            box3d = None
             category_id = BUILDING_CATEGORY_ID
             bbox_3d = frame.bboxes_3d_by_id.get(bbox_2d.object_id)
             if bbox_3d is not None:
+                box3d = camera_box(frame.camera, bbox_3d).to_dict() if level else None
                 silhouette = frame.silhouettes_by_id.get(bbox_2d.object_id)
                 if silhouette is None:
                     silhouette = compute_silhouette(frame.camera, bbox_3d)
@@ -131,6 +142,7 @@ def export_coco(frames: List[CocoFrame], profile: CategoryProfile = FINE_PROFILE
                     profile.mapping[category_id],
                     silhouette,
                     category_id,
+                    box3d,
                 )
             )
             annotation_id_counter += 1
