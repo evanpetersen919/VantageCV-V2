@@ -2426,3 +2426,25 @@ Limits stated now: AP with a different crowd does not by itself clear publicatio
 not name ML training (a counsel question, see above), the scenes still use other City Sample assets (buildings, vehicles, props;
 analysed earlier under the project licence, not re-checked today), and the avatars were not checked against a realism measure beyond
 the renders. Only adults are used, so children are absent from this crowd.
+
+
+### Person-crop realism: City Sample against Rocketbox (`scripts/person_crop_realism.py`, 2026-10-08)
+
+Before the v13r arms report, how far are the two sources' person crops from real ones? Method: clearly visible persons (visible
+fraction at least 0.7, not truncated) 40 to 140 px tall at 1280 x 720 (the synthetic frames scaled to that size), cropped as a
+square 1.3 x the longer box side, embedded with an ImageNet ResNet-50 (2048-d), Frechet distance (the FID formula with this network)
+to real BDD100K val person crops (not occluded or truncated, same size range, matched to each dataset's day/night mix), five real
+resamples; the noise floor is real against real at the same sample size.
+
+| | crops (night) | Frechet distance to real, mean +- sd over resamples |
+|---|---|---|
+| `train_v12e` (City Sample crowd) | 681 (293) | 163.6 +- 1.8 |
+| `train_v13r` (Rocketbox) | 673 (288) | 165.7 +- 1.2 |
+| real against real (two disjoint samples of 673) | | 34.3 +- 0.3 |
+
+Reading: both sources are about five times farther from real person crops than real is from itself, and they are close to each
+other (Rocketbox 2.1 farther, about 1%, in all five resamples; the sd covers only the real resampling, not the variation of the
+synthetic crops themselves, so a 1% gap is not resolved). So by this measure the swap neither closes nor widens the gap to real
+people. Caveats: ImageNet features, crops include 30% context so scene, lighting and rendering style enter the distance as much as the
+person; squashed square crops; one number does not say what a detector needs. It is a context for the v13r AP result, not a
+substitute for it.
