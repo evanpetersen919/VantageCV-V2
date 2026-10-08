@@ -2083,3 +2083,26 @@ The SHIFT file server (`dl.cv.ethz.ch`) and project page (`www.vis.xyz`) do not 
 cluster. SysCV/shift-dev has open issues about it from 2025-02 to 2026-03 ("Project page is down", "download page and
 file server return 502", "dataset download website not reachable"), with no mirror or answer. The matched comparison
 above therefore cannot use SHIFT; the question and the rule stand, and the comparison dataset must change.
+
+#### Matched comparison: RealDriveSim replaces SHIFT (amendment before any result)
+
+RealDriveSim (Jadon et al., 2025; project page states CC BY 4.0, to be re-checked on the page itself) is already on this
+PC: 133,820 front-camera frames at 2048x1024 with LiDAR, from another study. A COCO file with 7,539 of its images and
+2D boxes exists (`F:\realdrivesim\train_coco.json`, made in that study from the raw label JSONs), and all 7,539
+images are present under `Sensor_Fusion_Study/data/realDriveSim/raw/`. It replaces SHIFT; the question and the
+reading rule above are unchanged.
+
+What the labels are, stated before use: three classes only (car, pedestrian, truck); the dataset has buses (class
+ids 4 and 47) that the COCO leaves out, and that study found 467 unlabelled buses in 454 of the 7,539 frames for
+large buses near the frame edge alone, so the real number of frames with an unlabelled bus is larger. Boxes include
+heavily occluded objects (median car visibility 0.57; 22% of cars under 20% visible), unlike this project's rule of
+at least 10% visible. Density differs sharply from `train_v7p`: 9.1 pedestrians, 6.7 cars and 1.76 trucks per
+image against 3.3, 8.0 and 0.4. Since person and truck counts moved AP in the supply test, a random 512-image
+sample would not be a fair match.
+
+Arms (each 25% real BDD100K + 512 RealDriveSim images, AdamW, 200 epochs, imgsz 960, three seeds):
+ * matched (decides the rule): 512 frames chosen so the counts of persons, cars and trucks are within 10% of
+   `train_v7p` (1,690 / 4,076 / 214), excluding every frame in which the raw labels contain a bus;
+ * random (reported only): 512 frames at random, the same bus exclusion, with the raw counts reported.
+Bus AP is not compared (the RealDriveSim arm has no bus labels). The rule is as logged above; it compares
+`hpc_v7p25` with the matched arm.
