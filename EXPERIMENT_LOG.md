@@ -2359,3 +2359,35 @@ the standard EULA. Nothing is settled: there is no yes and no no. Standing posit
 published; results that rely on synthetic pedestrians stay provisional; options are legal advice on the EULA wording, or code and
 metrics only with a clean-room pedestrian source (Rocketbox pilot) for any released data. The 2026-10-19 follow-up and the
 2026-12-04 deadline no longer apply as a wait for Epic.
+
+
+### Pedestrian replacement spike: Microsoft Rocketbox in the pipeline (2026-10-08)
+
+Why: Epic would not interpret the EULA (see above), so the City Sample crowd cannot be cleared for publication of datasets or
+weights. A replacement source is needed whose licence text is clear. What was checked, and what was not:
+
+* Rocketbox (`microsoft/Microsoft-Rocketbox`, 115 rigged avatars, 40 adults in `Assets/Avatars/Adults`): `LICENSE.md` is the plain MIT
+  licence (Copyright 2020 Microsoft), no added terms and no mention of machine learning; the README says "The library of avatars is now
+  released under MIT License" (12/2020). The repository was archived on 2026-10-02 (read-only, still downloadable; last push 2022).
+  MIT places no field-of-use restriction, but it also does not name ML training, so this is a reading of permissive text, not an
+  explicit grant; whether that is enough is a question for counsel, as for City Sample.
+* CARLA walkers: the catalogue page (48 blueprints) states no origin or licence for them; the CARLA README states its own assets are
+  CC-BY but not who made the walkers. Unverified; also they live in a packaged UE4 build and would have to be extracted. Not pursued.
+* Not checked: RenderPeople, Daz, Fab, Quixel, SMPL-family (licence text not read).
+
+Pipeline spike (Blender 5.2.2 installed with scoop, user scope; Rocketbox cloned sparse into the git-ignored `external_data/rocketbox`):
+
+1. Posing: Blender imports the avatar and a walking clip. Applying the clip's curves directly is wrong (the two files' rest poses
+   differ: the body leaned back 21 degrees against 4 degrees in the clip's own skeleton). Copying the clip's bone orientations onto
+   the avatar's bones matches the clip's skeleton to 0.5 degrees mean bone-direction error (26 degrees for direct curves, 28 for
+   rest-pose-relative), measured on 12 bone pairs. Result: an upright, textured walking pose, 1.725 m tall, feet on z=0, facing +Y.
+2. Import: Unreal's `ImportAssets` commandlet (absolute `.uproject` path required) brought the posed mesh, materials and textures into
+   our own `Content/VantageCV/Pedestrians/Rocketbox`; no Epic asset was touched.
+3. Render: a Rocketbox pedestrian is a plain `static_asset` entry (path, position, rotation), the same as a City Sample pedestrian;
+   no plugin change. Rendered in a real scene next to cars and next to a City Sample pedestrian at the same distance: lit by the scene,
+   correct scale and ground contact. Comparable realism at 4.5 m by eye; the Rocketbox cloth is somewhat glossier. One avatar and one
+   frame only, a feasibility result, not a realism measurement.
+
+Not done: poses for many avatars, a pedestrian type in the generator (clothing/gender/pose variety, standing and walking), exact
+labels for the new pedestrians (`object_asset_indices` finds pedestrians by their City Sample asset key), a realism check, and the
+person-AP comparison against `train_v7p`. That experiment needs its rule written before any render.
