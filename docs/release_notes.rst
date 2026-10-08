@@ -32,9 +32,10 @@ does not separate.
   and is confounded by its person and truck counts.
 - Tight engine-exact labels: person AP +0.72 (p=0.128), below the registered +1.0; overall +0.09; car +0.47
   (p=0.03, not a registered question).
-- Closed loop (20 CARLA routes, three weights seeds per detector): the agent with ground-truth vehicles
-  had 3 collisions, with either detector 35 and 29 (pooled); the two detectors are not separated by the
-  registered rule (see the log).
+- Closed loop (the same 20 CARLA routes, three weights seeds per detector): collisions per km are 0.46 with
+  ground-truth vehicles, 1.81 with the real-only detector and 1.50 with the one trained with synthetic data
+  (35 and 29 collisions over 60 route-runs each). The two detectors are not separated by the registered rule
+  (a factor of 1.2 against the factor of 2 required).
 
 **Known limits**
 
