@@ -2235,3 +2235,30 @@ in the single-object pass (the extents agree with the screenshot overlay).
 Decision: go. Depth and exact masks work here. Next: (a) a measured fix for the pedestrian box (take extents from the engine
 per frame, or a tighter proxy), then a batch with tight pedestrian boxes against `train_v7p`; (b) exact masks and depth in the
 export. The label-accuracy audit becomes a tool (`bin/audit_labels.py`) so any batch can be audited.
+
+
+### v12e: every label from the engine (`--exact-labels`), rules fixed before the render
+
+Question: do tight, engine-exact labels raise person AP (and not hurt the rest)? The audit above found person boxes loose
+(full-box IoU 0.78, against 0.96 for vehicles) while BDD100K person boxes are tight, and the person class is where the
+synthetic supplement helps most. `train_v12e` is `train_v7p` exactly (config `urban_dense_v7_peds.yaml`, profile v7,
+256 scenarios, seeds 70000-70255, same fleet, same cutoffs) rendered with `--exact-labels`: for every vehicle and pedestrian the
+box is the extent of the pixels the game draws for it (visible part, the modal convention of the other batches), the
+visible fraction is visible over full in-frame pixels, an object with no visible pixel is dropped, and the visible mask is
+saved. Objects the game cannot find keep their geometric label. Arms: `hpc_v12e25` (25% real, AdamW, 3 seeds) against `hpc_v7p25`.
+
+What this does and does not test: the change is for vehicles too (their modal box was 0.77 IoU, now exact), so a result is
+"engine labels versus proxy labels", read per class; person AP is the primary question, but a gain cannot be attributed to
+persons alone without a persons-only arm (not planned unless the primary rule is met and the cause is worth isolating).
+Truncation stays geometric, 3D boxes are unchanged, `segmentation` stays the convex hull (masks are in `mask_rle`);
+YOLO training uses boxes only, so masks do not enter this test.
+
+Checks before training: (a) the rendered pixels must equal `train_v7p`'s (same seeds; the labels are the only intended
+difference), tested on the first frames; (b) the batch's person box width-to-height should fall toward the real
+BDD100K's (measured, reported with the result).
+
+Rules: (1) person AP on BDD100K val up by at least +1.0 over v7p25 at p < 0.1 (Welch, 3 seeds) is a lever; (2) guardrails:
+overall and car AP not down by more than 0.5; (3) bus and truck, Cityscapes val per class and the per-box outcomes are
+reported, not part of the rule. Person AP down by 1.0 or more at p < 0.1 would be a finding too (the looseness helps, for
+instance by covering the person's context) and would be reported as such. Between those, tight labels do not matter at
+this scale and are closed as a lever (the exact labels stay as a feature for the mask and 3D exports).
