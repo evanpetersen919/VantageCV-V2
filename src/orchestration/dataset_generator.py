@@ -9,6 +9,7 @@ test at all.
 """
 
 import json
+import logging
 import time
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -125,6 +126,20 @@ def _draw_season(style_rng: np.random.Generator) -> Season:
     return seasons[int(style_rng.integers(len(seasons)))]
 
 
+_CROWD_WARNED = False
+
+
+def _warn_city_sample_crowd() -> None:
+    """Say once per process that the City Sample crowd is only for reproducing earlier batches."""
+    global _CROWD_WARNED  # pylint: disable=global-statement
+    if not _CROWD_WARNED:
+        _CROWD_WARNED = True
+        logging.getLogger(__name__).warning(
+            "pedestrian_source is 'city_sample': the MetaHuman-derived crowd is kept only to "
+            "reproduce earlier batches; new datasets use pedestrian_source: rocketbox."
+        )
+
+
 def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     seed: int,
     config: ScenarioTypeConfig,
@@ -169,6 +184,8 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     ).generate(edges, traffic)
     if config.pedestrian_source == "rocketbox":
         pedestrians = swap_pedestrians(pedestrians, seed)
+    else:
+        _warn_city_sample_crowd()
     vehicles += parked_vehicles(
         parking_lots, config, seed, max((v.vehicle_id for v in vehicles), default=-1) + 1
     )

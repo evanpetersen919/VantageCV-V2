@@ -21,7 +21,7 @@ marked as such in the log entries that use them.
   model and refers to the developer's own legal counsel. Whether City Sample's crowd characters (adapted from
   MetaHumans) may be used for training stays unresolved. No datasets or weights are published; the options are
   legal advice or the clean-room path below. The clean-room pedestrian swap (Microsoft Rocketbox, MIT) is built and
-  keeps person AP (v13r, 2026-10-08); what remains is counsel's reading of the MIT text and of the other City Sample
+  keeps person AP (v13r, 2026-10-08), and new work uses it (no more MetaHuman-derived pedestrians, decided 2026-10-08); what remains is counsel's reading of the MIT text and of the other City Sample
   assets in the scenes.
 
 ## What this project is for

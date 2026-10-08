@@ -2494,3 +2494,17 @@ the avatars are adults only; three seeds resolve differences of about 0.5 AP or 
   grant it, whether it reaches every texture and mesh, whether the earlier framing matters) is a counsel question, together with
   the earlier one that MIT does not name ML training. The local clone (`external_data/rocketbox`, commit `0943055`) is of the MIT
   version; the history above is in its git log (`git log --follow -- LICENSE.md`).
+
+
+### Decision (2026-10-08): no more MetaHuman-derived pedestrians in new work; Rocketbox only
+
+* Published prior use of Rocketbox in synthetic-data pipelines: Kerim et al., "Leveraging Synthetic Data to Learn Video Stabilization Under
+  Adverse Conditions" (WACV 2024, arXiv 2208.12763) states (Section 4, "Dynamic Elements") that "The Microsoft Rocketbox Avatar
+  Library" defines its character avatars, with character animations from Mixamo, in a Unity simulator, and says the simulator and the
+  datasets are available on GitHub; the model is trained only on that synthetic data. It states no licence terms for any asset, so it is
+  evidence of use and release by others, not of permission, and its Mixamo animations carry their own terms.
+* Given Epic's non-answer (above), the MetaHuman-derived City Sample crowd is no longer used for new datasets, experiments or
+  releases. New batches use `pedestrian_source: rocketbox`. The option `city_sample` stays in the code, only so that earlier batches
+  (`train_v7p`, `train_v12e` and the arms trained on them) can be reproduced; it logs a warning when used, and the results that rest on
+  it stay in this log as history. Datasets and weights remain unpublished; the first candidates for release would be Rocketbox
+  batches, still subject to counsel (Rocketbox's licence history and the other City Sample assets in the scenes).
