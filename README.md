@@ -152,7 +152,8 @@ and curbs rather than object shape) and the experiments aimed at it are in the l
 
 ## Roadmap
 
-Open problems the project is working on (evidence in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md)):
+The plan after 1.1, with what each step is meant to answer and what is deliberately not being done, is in
+[`ROADMAP.md`](ROADMAP.md). Open problems the project is working on (evidence in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md)):
 
 - **Texture/shape bias:** randomize backgrounds so detectors learn object shape
   (started in `bin/stylize_backgrounds.py`; renderer-side randomization next).
