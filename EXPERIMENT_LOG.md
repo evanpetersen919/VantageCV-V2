@@ -2476,3 +2476,21 @@ and the person gain over real-only (+4.5 AP) is intact. With the Frechet distanc
 times the real-against-real floor) the two crowds are indistinguishable to this pipeline by both measures. What this does not settle:
 publication. Rocketbox's MIT text does not name ML training and the scenes still use other City Sample assets (see the limits above);
 the avatars are adults only; three seeds resolve differences of about 0.5 AP or more.
+
+
+### Rocketbox licence provenance (checked 2026-10-08, from the paper and the repository's own history)
+
+* The library's paper (Gonzalez-Franco et al., Frontiers in Virtual Reality, published 2020-11-03, DOI 10.3389/frvir.2020.561558) states in
+  its data availability statement and its Table 1 that the library is "publicly available for research and academic use" and "free for
+  research and academic use". It does not mention commercial use or machine learning, and it predates the licence change below.
+* The repository (`microsoft/Microsoft-Rocketbox`, created 2020-03-13) first carried the **Microsoft Research License Terms**: use
+  "for non-commercial, non-revenue generating, research purposes", analysis and testing, publishing results, no distribution of the
+  Dataset. On **2020-11-16** (13 days after the paper), commit `1eeb280` / `accbe42` by the paper's first author (Microsoft Research)
+  replaced it with the **MIT License** (Copyright 2020 Microsoft); the README records the change ("Updated license to MIT"; the page
+  shows it as 12/2020, the commits are dated 2020-11-16/17). The repository was archived on 2026-10-02 (read-only, last content
+  push 2022).
+* What this means: the current licence text is MIT with no added terms, but the avatars were first released under a non-commercial
+  research licence and described as research-only in the paper. Whether the later MIT grant is effective for this use (who could
+  grant it, whether it reaches every texture and mesh, whether the earlier framing matters) is a counsel question, together with
+  the earlier one that MIT does not name ML training. The local clone (`external_data/rocketbox`, commit `0943055`) is of the MIT
+  version; the history above is in its git log (`git log --follow -- LICENSE.md`).
