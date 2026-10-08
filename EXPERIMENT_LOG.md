@@ -2321,3 +2321,31 @@ Reading: the truck and bus labels are as accurate as the car labels (full box 0.
 earlier truck and bus findings do not rest on bad boxes. The 12 trucks seen in the bus run score lower (0.871), which is a
 small sample of trucks at varied distance, not read further. Pedestrians reproduce the first audit (0.79-0.80, 0.64-0.65).
 Caveats as before: day, ego-like views near the hero, one config.
+
+
+### v12e result: engine-exact labels (2026-10-08)
+
+`hpc_v12e25` against `hpc_v7p25` (25% real, 512 images of the same scenes, AdamW, 200 epochs, imgsz 960, seeds 0-2; mean ± sd,
+Welch p). The batch: person, car, bus and truck counts within 2% of `train_v7p`; person box width/height 0.414 -> 0.339, truck
+box height 107 -> 120 px (median).
+
+| BDD100K val | v7p25 | v12e25 | difference (p) |
+|---|---|---|---|
+| overall | 20.99 ± 0.38 | 21.09 ± 0.16 | +0.09 (0.73) |
+| **person** | 16.24 ± 0.17 | 16.96 ± 0.52 | **+0.72 (0.128)** |
+| car | 38.11 ± 0.07 | 38.59 ± 0.18 | +0.47 (0.032) |
+| bus | 13.51 ± 1.11 | 12.33 ± 0.47 | -1.18 (0.20) |
+| truck | 16.12 ± 0.36 | 16.47 ± 0.42 | +0.35 (0.33) |
+
+Cityscapes val (reported): overall 21.34 -> 21.71 (+0.37, p=0.64); person +0.66 (0.135); car +0.77 (0.010); bus +1.25; truck -1.20 (sd 2-3).
+
+Rules as registered: (1) person AP up at least +1.0 at p<0.1: **not met** (+0.72, p=0.128). (2) Guardrails (overall and car
+not down by more than 0.5): met. Person AP down by 1.0 or more: no. So the result falls in the registered middle band: tight
+labels do not move person AP by a resolvable amount at this scale, and by the rule they are closed as a lever (the exact labels
+stay as a feature for the mask and 3D exports).
+
+What the data allow beyond that, stated without upgrading it: the person difference points the right way on both benchmarks
+(+0.72, +0.66) but with sd 0.5 and three seeds a true effect of about 0.7 could not be told from zero, and the registered
+threshold was +1.0. Car AP is up 0.47 (BDD p=0.03, Cityscapes +0.77, p=0.01); it was not the primary question and several
+classes were examined, so it is a lead, not a finding. Bus and truck move within their noise (bus sd 1.1 and 0.5). Overall AP
+is unchanged. Not tested: a persons-only change, more seeds, or a larger supplement, where tighter labels might matter more.
