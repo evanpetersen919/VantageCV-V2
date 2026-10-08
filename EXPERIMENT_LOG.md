@@ -2049,3 +2049,30 @@ the name overclaimed. It is now described as an object-class mask in the README,
 labels need either a Unreal custom-stencil capture pass (pixel-exact; needs the same untested D3D11 capture spike as
 depth, estimated 4 to 6 days) or rasterising the generator's own road and building geometry (approximate, and
 vegetation and sky have no geometry in the labels). Neither is built.
+
+### Matched comparison with another synthetic dataset (SHIFT), plan and rule fixed before any data
+
+Question (roadmap step 3, first control): does this pipeline matter, or does any 512-image synthetic supplement
+add the same AP? `hpc_v7p25` (25% real BDD100K + the 512 `train_v7p` images, AdamW, 200 epochs, imgsz 960, three
+seeds) is compared with the same recipe on 25% real + 512 images of SHIFT (Sun et al., CVPR 2022), a
+CARLA-rendered driving dataset with 2D boxes, chosen because it has pedestrians, cars, trucks and buses (Virtual
+KITTI 2 has no pedestrians or buses) and a 1 fps image release.
+
+Data: the `front` camera, `img` and `det_2d` groups, discrete-shift images (1 fps), from the SHIFT file server
+(`download.py` in SysCV/shift-dev). 512 images are sampled with a fixed seed from the downloaded split; classes are
+mapped to this project's four (pedestrian to person, car, bus, truck; other classes such as bicycle and motorcycle
+are dropped, as in this project's own labels). The licence is CC BY-NC-SA 4.0 for the data (the MIT licence in
+the repository is for its code): research use only, nothing built from it is released.
+
+Rule: the pipeline is credited with a difference if `hpc_v7p25` exceeds the SHIFT arm by 0.5 AP or more on
+BDD100K val overall (p below 0.1 over three seeds); if SHIFT is ahead by 0.5 or more, SHIFT's data is better for
+this task and the generator has something to learn from it; if the two are within 0.5, the AP gain is not specific
+to this generator at this size, and what the City Sample renders add is not shown by AP. Per class (person, car,
+truck, bus) and Cityscapes are reported but do not decide.
+
+Known confounds, stated before the result: SHIFT's images are CARLA's UE4 render at a different resolution and
+camera; its label conventions (what counts as truck, how occluded boxes are drawn) are its own; its weather and
+time-of-day mix and its object counts per image differ from `train_v7p`. The count of boxes per class in the 512
+images is reported next to the result, since the person and truck counts moved AP in the supply test. If the
+class counts differ a lot, a second arm with the SHIFT images chosen to match the v7p person and truck counts is
+worth running before reading the result.
