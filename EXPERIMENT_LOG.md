@@ -2391,3 +2391,38 @@ Pipeline spike (Blender 5.2.2 installed with scoop, user scope; Rocketbox cloned
 Not done: poses for many avatars, a pedestrian type in the generator (clothing/gender/pose variety, standing and walking), exact
 labels for the new pedestrians (`object_asset_indices` finds pedestrians by their City Sample asset key), a realism check, and the
 person-AP comparison against `train_v7p`. That experiment needs its rule written before any render.
+
+
+### v13r: Rocketbox pedestrians in place of City Sample's crowd, rules fixed before the render (2026-10-08)
+
+Question: if the City Sample crowd characters cannot be cleared for publication, does an MIT-licensed replacement keep what the
+synthetic pedestrians give (person AP, where the supplement's gain lives: about +3.8 over real-only, and -3.0 with the crowd removed)?
+
+Built: 38 adult Rocketbox avatars (the two party-dress avatars left out), each baked into 6 walking poses (3 neutral walk clips at
+15% and 60% of their frames) and 3 standing poses (3 neutral idle clips at their midpoint): 342 static meshes, imported into our own
+`Content/VantageCV/Pedestrians/Rocketbox` (`bin/bake_rocketbox.py`, `scripts/rocketbox_bake_poses.py`, measured extents in
+`configs/rocketbox_catalog.json`: heights women 1.71-1.78 m standing, men 1.78-1.86 m, no outliers). `pedestrian_source: rocketbox`
+(`urban_dense_v13r.yaml`) swaps each placed pedestrian after the scenario is generated, with its own random stream: placement,
+heading, gender and walking-or-standing are those of the City Sample scenario with the same seed (tested), so the scenes of
+`train_v13r` are those of `train_v12e`; only avatar and pose differ. Orientation was checked in the game: `rotation_rad =
+heading - pi/2` makes an avatar face its heading (toward, away from and across the camera). A 4-scenario probe rendered with
+exact labels showed varied, naturally posed pedestrians with tight boxes and masks.
+
+Batch: `train_v13r` = `urban_dense_v13r.yaml`, profile v7, 256 scenarios, seeds 70000-70255, `--exact-labels`, split by
+scenario as the others. Arms: `hpc_v13r25` (25% real, AdamW, 200 epochs, imgsz 960, seeds 0-2). Comparison: `hpc_v12e25`
+(same scenes and exact labels, City Sample crowd), so the swap is the only intended difference; `hpc_v7p25` and
+`hpc_real25r` (real only) are reported alongside.
+
+Rules, before any result:
+1. The swap keeps the person gain if person AP on BDD100K val is within 1.0 of `hpc_v12e25` (v13r25 not lower by 1.0 or more).
+   Reported with the share of the gain over real-only that is kept: (v13r25 - real25r) / (v12e25 - real25r).
+2. It loses it if person AP is lower by 1.0 or more at p < 0.1 (Welch, 3 seeds); the loss is then reported, and a larger,
+   more varied Rocketbox set (children, professions) or realism work is the next question, not a conclusion that the swap fails.
+3. It is better if person AP is higher by 1.0 or more at p < 0.1.
+4. Guardrails (all rules): overall and car AP not down by more than 0.5 against `hpc_v12e25`.
+5. Reported, not decisive: bus, truck, Cityscapes, per-box outcomes, and the batch's person counts and box shapes.
+
+Limits stated now: AP with a different crowd does not by itself clear publication. Even if rule 1 holds, Rocketbox's MIT text does
+not name ML training (a counsel question, see above), the scenes still use other City Sample assets (buildings, vehicles, props;
+analysed earlier under the project licence, not re-checked today), and the avatars were not checked against a realism measure beyond
+the renders. Only adults are used, so children are absent from this crowd.
