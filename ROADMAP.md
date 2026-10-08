@@ -37,8 +37,10 @@ tracking, optical flow, vehicle physics) belongs to CARLA and is not rebuilt her
    deadline of 2026-12-04 (60 days), after which silence is treated as "no".
    *If Epic says yes in writing:* release renders and weights with their wording. *If no or silence:* code and
    metrics only, and the clean-room path below is the only way to release data.
-2. **1.2: more labels from what already exists.** Export 3D boxes (KITTI, nuScenes and Waymo-style files; the
-   boxes are computed internally today) and pixel-exact instance and semantic masks. Estimated 2 to 5 days.
+2. **1.2: more labels from what already exists (done on 2026-10-07, see the log).** KITTI-format 3D boxes (level
+   camera frame, exact round trip) and polygon instance and semantic masks. nuScenes- and Waymo-style files were
+   left out: they need ego poses and sequence tables the generator does not have. Pixel-exact masks need a UE
+   capture pass and remain a later step.
    *Question:* are the exports valid in the standard devkits, and do they convert correctly (checked with the
    existing overlay tools)? Not a claim about detector accuracy.
 3. **Two controls that make the science credible.**

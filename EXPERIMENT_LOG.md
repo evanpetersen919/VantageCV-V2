@@ -2013,3 +2013,30 @@ Limits stated up front: KITTI's rotation_y assumes a level camera; for a pitched
 projection onto the camera's x-z plane. `occluded` is derived from visibility_fraction (0: above 0.9; 1: above
 0.6; 2: otherwise), a mapping this project chose. Bus maps to `Misc` (KITTI has no bus class). The
 `Tr_velo_to_cam` and `Tr_imu_to_velo` entries are identity placeholders (no LiDAR is generated).
+
+#### 1.2 result: the checks fixed above, all passed
+
+1. Round trip (rule: equal to within 1e-6 px): met. 15 hand-built level-camera cases (3 positions x 5 headings), 3
+   pitched cameras (3, 8 and 15 degrees), and more than 20 exported objects from generated scenarios viewed
+   from a camera tilted down about 4 degrees, all reproduce the original corner projection from the exported
+   `location`, `dimensions` and `rotation_y` alone, using the KITTI devkit's corner formula and the exported
+   projection matrix. A first version wrote the label in the camera's own frame, and measured against a pitched
+   camera it was off by up to 30 px (8 degrees, 10 m, 2D rectangle IoU 0.67); the level frame with
+   `P = K R R_level^T` removed that error, which is why the export is in the level frame.
+2. Hand-built cases: met (rotation_y = -pi/2 and alpha = -pi/2 for a car driving straight away, flipped by pi for
+   the opposite heading, alpha = rotation_y - atan2(x, z) off axis).
+3. Text formats: met (15 fields, 16 with a score; calibration with P0-P3, R0_rect, Tr_velo_to_cam, Tr_imu_to_velo of
+   12, 12, 12, 12, 9, 12, 12 numbers).
+4. Masks: met on a real frame. 11 of 11 instances present; for the three largest unoccluded objects the mask pixel
+   count is 1.003 to 1.006 times the polygon area (rule: within 2%); nearer objects cover farther ones.
+
+Real render: 6 scenarios from the game (12 images, calibration 0.54 px) exported to a KITTI folder: 131 boxes, 0
+skipped, labels such as `Car 0.00 2 1.96 ... 1.54 1.99 5.40 -9.21 1.63 16.04 1.44` (the box bottom 1.63 m below the
+camera, a 5.4 m long car 16 m ahead). Drawing the exported 3D boxes back onto the images with the exported
+calibration puts every box on its vehicle (cars, the semi-trailer, pedestrians), heading included (checked by eye
+on four images; the overlay is not committed).
+
+Not claimed: nothing about detector accuracy, and the masks are polygon-based, not render-pass pixel-exact.
+KITTI's bus class does not exist, so buses are written as `Misc`. nuScenes- and Waymo-style files are not written
+(they need ego poses and sequence tables the generator does not have). Overview (top-down) cameras get no 3D
+labels, since KITTI has no frame for them.
