@@ -2448,3 +2448,31 @@ synthetic crops themselves, so a 1% gap is not resolved). So by this measure the
 people. Caveats: ImageNet features, crops include 30% context so scene, lighting and rendering style enter the distance as much as the
 person; squashed square crops; one number does not say what a detector needs. It is a context for the v13r AP result, not a
 substitute for it.
+
+
+### v13r result: Rocketbox pedestrians keep the person gain (2026-10-08)
+
+`hpc_v13r25` against `hpc_v12e25` (same scenes and exact labels; only the crowd avatars differ), 25% real, AdamW, 200 epochs, imgsz 960,
+seeds 0-2, mean +- sd, Welch p. The batch: persons 1706 against 1694, vehicles within 0.2%, person box width/height 0.385 against 0.339.
+
+| BDD100K val | real-only (`hpc_real25`) | v12e25 (City Sample) | v13r25 (Rocketbox) | v13r25 - v12e25 (p) |
+|---|---|---|---|---|
+| overall | 18.23 | 21.09 +- 0.16 | 21.20 +- 0.22 | +0.12 (0.51) |
+| **person** | 12.41 | 16.96 +- 0.52 | 16.95 +- 0.42 | **-0.01 (0.98)** |
+| car | | 38.59 | 38.55 | -0.04 (0.76) |
+| bus | | 12.33 | 13.47 | +1.14 (0.037) |
+| truck | | 16.47 | 15.85 | -0.62 (0.18) |
+
+Cityscapes val: overall 21.71 -> 22.21 (+0.50, p=0.56); person 14.65 -> 15.40 (+0.75, p=0.24); car -0.47 (p=0.025); bus +0.86; truck +0.86.
+
+Rules as registered: (1) person AP within 1.0 of v12e25: **met** (-0.01); share of the gain over real-only kept (16.95 - 12.41) / (16.96 -
+12.41) = 99.8%. (2) not lower by 1.0 at p<0.1: no. (3) not higher by 1.0: no. (4) guardrails: overall +0.12, car -0.04, both met.
+(5) reported: bus +1.14 (p=0.037) is the one class that moved by more than its noise, with 55 bus boxes in the batch and sd 0.4-1.1 in the arms;
+not read as an effect (not a registered question, several classes examined). Cityscapes car is 0.47 lower (p=0.025) with the others
+flat, same caution.
+
+Reading: replacing City Sample's crowd characters with MIT-licensed Rocketbox avatars leaves person AP where it was, on both benchmarks,
+and the person gain over real-only (+4.5 AP) is intact. With the Frechet distance of person crops (163.6 against 165.7, both about five
+times the real-against-real floor) the two crowds are indistinguishable to this pipeline by both measures. What this does not settle:
+publication. Rocketbox's MIT text does not name ML training and the scenes still use other City Sample assets (see the limits above);
+the avatars are adults only; three seeds resolve differences of about 0.5 AP or more.
