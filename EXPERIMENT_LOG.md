@@ -1982,3 +1982,34 @@ placed wrongly. Not established: whether more routes would separate them (the si
 every weights seed, and the sample is too small for the rule); whether a detector trained on CARLA frames, with
 tracking, or with a better heading estimate would close the gap to ground truth (that is the next obvious
 change, and a different experiment).
+
+### 1.2 plan: 3D box export (KITTI format) and instance / semantic masks, with the checks fixed first
+
+Not an AP experiment: a feature whose correctness is checked geometrically, before it is written. Scope
+change from the roadmap: KITTI-format labels and calibration, and a camera-frame `box3d` field in every COCO
+annotation, are in 1.2; nuScenes- and Waymo-style files need ego poses and sequence tables the generator does
+not have (frames are single scenes), so they are left out and the roadmap is corrected rather than faked.
+
+Conventions: this project's camera frame (x right, y down, z forward, `p_cam = R (p_world - t)`) is KITTI's
+camera frame. KITTI's `location` is the bottom centre of the box, `dimensions` are height, width, length,
+`rotation_y` is the heading about the camera's down axis (an object that moves away from the camera along its
+line of sight has rotation_y of -pi/2), and `alpha` is rotation_y minus the viewing angle atan2(x, z).
+
+Checks, all automatic, none involving a detector:
+1. Round trip: from the exported `location`, `dimensions` and `rotation_y` alone, rebuild the 8 corners with the
+   KITTI devkit formula and project them with the exported calibration matrix; they must equal the projection of
+   the original `BoundingBox3D` corners to within 1e-6 px on every exported object of rendered scenarios (the
+   formula is written separately from the exporter, in the test).
+2. Hand-built cases: a vehicle straight ahead, heading away, gives rotation_y = -pi/2 and alpha = -pi/2; a vehicle
+   to the camera's left and right gives alpha different from rotation_y by the viewing angle; heading reversed
+   shifts both by pi.
+3. Each label line has exactly 15 fields (16 with a score), numeric where KITTI says so; calibration files
+   hold P0-P3, R0_rect and Tr matrices of the right shapes.
+4. Masks: instance and semantic PNGs, objects drawn far to near by camera depth, so a nearer object covers a
+   farther one; pixel count of an unoccluded instance within 2% of its polygon's area.
+Not claimed: anything about detector accuracy; masks are polygon-based (mesh silhouettes where a real mesh
+exists, box hulls otherwise), not render-pass pixel-exact masks (that needs a UE capture pass, a later step).
+Limits stated up front: KITTI's rotation_y assumes a level camera; for a pitched camera the heading is the
+projection onto the camera's x-z plane. `occluded` is derived from visibility_fraction (0: above 0.9; 1: above
+0.6; 2: otherwise), a mapping this project chose. Bus maps to `Misc` (KITTI has no bus class). The
+`Tr_velo_to_cam` and `Tr_imu_to_velo` entries are identity placeholders (no LiDAR is generated).
