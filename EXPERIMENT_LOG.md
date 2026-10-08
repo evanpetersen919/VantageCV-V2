@@ -2349,3 +2349,13 @@ What the data allow beyond that, stated without upgrading it: the person differe
 threshold was +1.0. Car AP is up 0.47 (BDD p=0.03, Cityscapes +0.77, p=0.01); it was not the primary question and several
 classes were examined, so it is a lead, not a finding. Bus and truck move within their noise (bus sd 1.1 and 0.5). Overall AP
 is unchanged. Not tested: a persons-only change, more seeds, or a larger supplement, where tighter labels might matter more.
+
+
+### Epic's reply (2026-10-08)
+
+Asked 2026-10-05 whether City Sample's crowd characters (adapted from MetaHumans) may be used to train models. Reply: Epic cannot
+give custom legal or EULA interpretations for specific distribution models and recommends the developer's own legal counsel and
+the standard EULA. Nothing is settled: there is no yes and no no. Standing position: no datasets or trained weights are
+published; results that rely on synthetic pedestrians stay provisional; options are legal advice on the EULA wording, or code and
+metrics only with a clean-room pedestrian source (Rocketbox pilot) for any released data. The 2026-10-19 follow-up and the
+2026-12-04 deadline no longer apply as a wait for Epic.
