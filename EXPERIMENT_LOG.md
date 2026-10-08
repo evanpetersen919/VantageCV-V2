@@ -2264,3 +2264,40 @@ overall and car AP not down by more than 0.5; (3) bus and truck, Cityscapes val 
 reported, not part of the rule. Person AP down by 1.0 or more at p < 0.1 would be a finding too (the looseness helps, for
 instance by covering the person's context) and would be reported as such. Between those, tight labels do not matter at
 this scale and are closed as a lever (the exact labels stay as a feature for the mask and 3D exports).
+
+
+### RealDriveSim matched comparison: result (2026-10-07)
+
+Arms (25% real BDD100K + 512 images, AdamW, 200 epochs, imgsz 960, seeds 0-2, mean ± sd, AP in points, Welch p against
+`hpc_v7p25`): `hpc_rdsm25` (RealDriveSim, official 2D annotations, counts matched to `train_v7p`) and `hpc_rdsr25` (512 random
+RealDriveSim frames; reported only). Scored with an unversioned helper (`demo/score_arms.py`, not tracked).
+
+BDD100K val:
+
+| | v7p25 | rdsm25 (matched) | rdsr25 (random) |
+|---|---|---|---|
+| overall | 20.99 ± 0.38 | 20.92 ± 0.23 (-0.07, p=0.79) | 22.03 ± 0.21 (+1.04, p=0.022) |
+| person | 16.24 | 15.61 (-0.63, p=0.21) | 17.15 (+0.91, p=0.005) |
+| car | 38.11 | 37.96 (-0.15, p=0.07) | 38.05 (-0.06) |
+| truck | 16.12 | 16.37 (+0.25) | 17.09 (+0.97, p=0.024) |
+| bus (not compared: RealDriveSim arms have no bus labels) | 13.51 | 13.74 | 15.85 |
+
+Cityscapes val (reported, does not decide): overall v7p25 21.34, rdsm25 22.72 (+1.38, p=0.060), rdsr25 24.18 (+2.84, p=0.001);
+person +1.32 / +3.05, car +1.18 / +1.20 for rdsm25 / rdsr25.
+
+Rule as logged (matched arm, BDD100K val overall): v7p25 minus rdsm25 = +0.07, within 0.5. Reading: the AP gain of
+this pipeline's data is **not specific to this generator at this size**; on BDD100K, a count-matched 512-image
+supplement from another synthetic dataset (a different engine, resolution and annotation style) gives the same AP, so
+BDD100K AP does not show what the City Sample renders add over another source. It does not show that they are equal in
+every respect: Cityscapes is ahead for RealDriveSim by 1.4 (p=0.06), person and car, which is a reason to look, not a
+rule outcome.
+
+What this does not support: the random arm's +1.04 over v7p25 is not a verdict that RealDriveSim is better (more
+persons per image, 9.1 against 3.3, and trucks, which moved AP before; objects are also much denser and the labels
+include heavily occluded ones); the matched arm exists to remove that, and it shows no difference. Caveats: three seeds,
+sd 0.2-0.4 on overall AP, so differences under about 0.5 are not resolved; bus is out of the comparison; RealDriveSim's
+unlabelled motorcycles and bicycles are background to the detector here.
+
+Consequence: claims about the data's value should rest on what AP can show (a gain over real-only, which holds for
+both sources) and on the label and structure features that a mixed-source supplement does not have (3D boxes, exact
+masks, per-object truncation), not on a claim of better detection AP than another synthetic source.
