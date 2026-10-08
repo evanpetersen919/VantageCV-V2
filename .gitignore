@@ -74,3 +74,6 @@ hpc/config.local.env
 
 # Geometry extracted from Epic City Sample vehicles by bin/dump_vehicle_meshes.py: never commit
 src/procedural/vehicle_meshes.npz
+
+# Third-party datasets kept next to the project (large; never committed)
+external_data/

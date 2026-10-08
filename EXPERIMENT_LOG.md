@@ -2117,3 +2117,32 @@ are used only to find frames containing a bus. This also gives bus labels, so a 
 of the comparison if the official annotations carry it. The arms, the matching rule and the reading rule above are
 otherwise unchanged. A draft frame selection run on the old COCO was stopped and its output deleted before any
 use. The selection script (`bin/select_realdrivesim.py`) is not committed until it reads the official format.
+
+#### Matched comparison: class mapping and frame selection rules, fixed before the frames are chosen
+
+Data (all inside this repository folder, git-ignored): the official RealDriveSim 2D annotations,
+`external_data/realdrivesim/annotations_2d/{normal,adverse_1,adverse_2}` (133,820 per-frame files, every one matched to
+a frame, none orphaned), and the official class table `external_data/realdrivesim/class_mapping.json` (83 ids). The
+frames stay in the dataset's own folder (about 410 GB of RGB for the normal set alone). Licence stated on the project
+page: CC BY 4.0.
+
+Class mapping, from the official table, into this project's four classes:
+ * person: Pedestrian (22);
+ * car: Car (5) and Van (103), since this project counts vans as cars and BDD100K annotators did;
+ * truck: Truck (36) and ConstructionVehicle(Truck) (104);
+ * bus: Bus (4) and SchoolBus (47).
+Everything else is dropped, as in this project's own labels: riders (2, 14, 18), motorcycle (13), bicycle (1), animals,
+Caravan/RV (6), ConstructionVehicle (7), TowedObject (32), WheeledSlow (39), Train (35), OtherMovable (17) and all
+non-object classes.
+
+Box rules, the same as this project's annotation policy: an object counts only if its box is at least 8 px high and 4 px
+wide and the dataset's own visibility attribute is at least 0.1; `iscrowd` boxes are skipped. This aligns the labels
+with `train_v7p` (which drops objects under 10% visible).
+
+Pool and selection: one frame per scene, chosen with a seeded draw from that scene's 20 frames, from the normal and the
+two adverse sets together. `matched` (decides the rule): the 512 frames whose counts of persons, cars, trucks and
+buses are each within 10% of `train_v7p` (1,690 / 4,076 / 214 / 55), and whose night share is within 5 points of
+`train_v7p`'s (39%). Night is not given for RealDriveSim, so it is measured: the mean luminance of each frame, with the
+threshold chosen to best separate `train_v7p`'s own day and night frames (the threshold and the resulting accuracy on
+`train_v7p` are reported). `random` (reported only): 512 random frames from the same pool.
+The reading rule is unchanged. Bus AP is now part of the per-class report.
