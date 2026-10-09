@@ -16,7 +16,7 @@ honest research log of how well a detector trained on them transfers to real pho
 
 *Every annotation type on one vehicle, from a full 360 degree orbit (Rocketbox pedestrians): exact engine instance masks, 2D and 3D boxes, heading, class / distance / visibility tags and a live attribute card, then the Cityscapes class map and metric depth of the whole scene. All of it is the dataset's own labels, and it follows the object as the viewpoint changes.*
 
-| **+4.7 AP** | **about 0.5 px** | **903 tests** |
+| **+4.7 AP** | **about 0.5 px** | **1,036 tests** |
 |:---:|:---:|:---:|
 | synthetic images added to 460 real BDD100K images ([results](#results)) | camera check: projected points against the engine's render | strict mypy, pylint 10/10, CI on every push |
 
