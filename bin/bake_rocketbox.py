@@ -13,16 +13,15 @@ folder). Rocketbox is MIT-licensed (Microsoft, 2020).
 
 import argparse
 import json
-import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
+from src.ue5.import_assets import import_group, report_import, run_import
+
 CATALOG = Path("configs/rocketbox_catalog.json")
-UE_EDITOR_CMD = Path("F:/UE_5.4/Engine/Binaries/Win64/UnrealEditor-Cmd.exe")
-UE_PROJECT = Path("F:/UE5Projects/VantageCV_UE5/VantageCV_UE5.uproject")
 UE_DESTINATION = "/Game/VantageCV/Pedestrians/Rocketbox"
 EXCLUDED_PREFIXES = ("Female_Party", "Male_Party")
 
@@ -82,36 +81,9 @@ def import_to_unreal(out: Path) -> None:
             (out / name / f"{name}_{pose['pose']}.fbx").resolve().as_posix()
             for pose in avatar["poses"]
         ]
-        groups.append(
-            {
-                "GroupName": name,
-                "Filenames": files,
-                "DestinationPath": f"{UE_DESTINATION}/{name}",
-                "bReplaceExisting": True,
-                "bSkipReadOnly": True,
-            }
-        )
-    settings = out / "import_settings.json"
-    settings.write_text(json.dumps({"ImportGroups": groups}, indent=1), encoding="utf-8")
-    environment = {k: v for k, v in os.environ.items() if k != "ELECTRON_RUN_AS_NODE"}
-    command = [
-        str(UE_EDITOR_CMD),
-        str(UE_PROJECT),
-        "-run=ImportAssets",
-        f"-importsettings={settings.resolve().as_posix()}",
-        "-unattended",
-        "-nosplash",
-        "-nullrhi",
-    ]
-    result = subprocess.run(command, env=environment, capture_output=True, text=True, check=False)
-    errors = [
-        line
-        for line in result.stdout.splitlines()
-        if "Error" in line and "revision control" not in line
-    ]
-    print(f"exit {result.returncode}; {len(errors)} error lines")
-    for line in errors[:10]:
-        print("  ", line[:200])
+        groups.append(import_group(name, files, f"{UE_DESTINATION}/{name}"))
+    code, errors = run_import(groups, out / "import_settings.json")
+    report_import(code, errors, sum(len(g["Filenames"]) for g in groups))
 
 
 def main() -> None:

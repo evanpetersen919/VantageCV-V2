@@ -77,4 +77,5 @@ that produced each result (`bin/<name>.py ...`), and those commands should keep 
 
 | Script | What it does |
 |---|---|
+| `bake_riders.py` | Bake Rocketbox riders and the bicycle into static meshes and import them into the Unreal project. |
 | `bake_rocketbox.py` | Bake Microsoft Rocketbox avatars into static posed meshes and import them into the Unreal project. |

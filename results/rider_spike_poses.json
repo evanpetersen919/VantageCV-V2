@@ -1,0 +1,188 @@
+{
+ "Female_Adult_01": {
+  "avatar": "Female_Adult_01",
+  "saddle_height_m": 0.5757,
+  "poses": {
+   "c0": {
+    "unreachable": [],
+    "R_wrist_error": 1.228781230931777e-07,
+    "R_elbow_angle": 147.71015681193947,
+    "R_ankle_error": 3.725290298461914e-08,
+    "R_knee_bend": 48.07556192584286,
+    "L_wrist_error": 8.429369702178807e-08,
+    "L_elbow_angle": 147.71060431657975,
+    "L_ankle_error": 1.2310379476739693e-07,
+    "L_knee_bend": 119.73859680925528,
+    "buttock_to_saddle_m": 2.294778823852539e-05,
+    "hip_height_m": 0.9748828411102295,
+    "hip_forward_m": -0.1635076403617859
+   },
+   "c90": {
+    "unreachable": [],
+    "R_wrist_error": 1.4901161193847656e-07,
+    "R_elbow_angle": 148.1822638098934,
+    "R_ankle_error": 1.2248219715635177e-07,
+    "R_knee_bend": 83.07164046238722,
+    "L_wrist_error": 1.0745380149674383e-07,
+    "L_elbow_angle": 148.18270995500305,
+    "L_ankle_error": 9.8843121241194e-08,
+    "L_knee_bend": 86.77035018372784,
+    "buttock_to_saddle_m": 8.940696716308594e-07,
+    "hip_height_m": 0.9756141901016235,
+    "hip_forward_m": -0.1635076403617859
+   },
+   "c180": {
+    "unreachable": [],
+    "R_wrist_error": 8.940696716308594e-08,
+    "R_elbow_angle": 147.27511994028444,
+    "R_ankle_error": 2.4268772415671244e-07,
+    "R_knee_bend": 119.84485950482139,
+    "L_wrist_error": 6.664001874625056e-08,
+    "L_elbow_angle": 147.27560103492104,
+    "L_ankle_error": 2.4268772415671244e-07,
+    "L_knee_bend": 48.3006670453986,
+    "buttock_to_saddle_m": 4.351139068603516e-06,
+    "hip_height_m": 0.974238395690918,
+    "hip_forward_m": -0.1635076403617859
+   },
+   "c270": {
+    "unreachable": [],
+    "R_wrist_error": 6.664001874625056e-08,
+    "R_elbow_angle": 148.86345268155623,
+    "R_ankle_error": 1.521451611568193e-07,
+    "R_knee_bend": 86.57258266198654,
+    "L_wrist_error": 1.3657139822709083e-07,
+    "L_elbow_angle": 148.86394245622884,
+    "L_ankle_error": 2.441699744488886e-07,
+    "L_knee_bend": 82.87260161329387,
+    "buttock_to_saddle_m": 1.2516975402832031e-06,
+    "hip_height_m": 0.9766184091567993,
+    "hip_forward_m": -0.1635076403617859
+   }
+  }
+ },
+ "Male_Adult_01": {
+  "avatar": "Male_Adult_01",
+  "saddle_height_m": 0.5757,
+  "poses": {
+   "c0": {
+    "unreachable": [],
+    "R_wrist_error": 1.6323404237781945e-07,
+    "R_elbow_angle": 123.5968674548953,
+    "R_ankle_error": 6.537857940340133e-08,
+    "R_knee_bend": 40.014251872727044,
+    "L_wrist_error": 9.424321830774485e-08,
+    "L_elbow_angle": 123.59705374848944,
+    "L_ankle_error": 1.60663266873716e-07,
+    "L_knee_bend": 118.27390862608422,
+    "buttock_to_saddle_m": 4.172325134277344e-07,
+    "hip_height_m": 0.9697275757789612,
+    "hip_forward_m": -0.1635076403617859
+   },
+   "c90": {
+    "unreachable": [],
+    "R_wrist_error": 2.421152116249788e-07,
+    "R_elbow_angle": 124.1170573486724,
+    "R_ankle_error": 1.0975390570354636e-07,
+    "R_knee_bend": 79.45183632756044,
+    "L_wrist_error": 1.1151007970493857e-07,
+    "L_elbow_angle": 124.11725483526398,
+    "L_ankle_error": 9.424321830774485e-08,
+    "L_knee_bend": 83.1528906893994,
+    "buttock_to_saddle_m": 1.1920928955078125e-07,
+    "hip_height_m": 0.9711093306541443,
+    "hip_forward_m": -0.1635076403617859
+   },
+   "c180": {
+    "unreachable": [],
+    "R_wrist_error": 2.1490760299348766e-07,
+    "R_elbow_angle": 123.5961432968233,
+    "R_ankle_error": 2.075491588888186e-07,
+    "R_knee_bend": 118.2742673777573,
+    "L_wrist_error": 2.0212918469683135e-07,
+    "L_elbow_angle": 123.59632433577127,
+    "L_ankle_error": 1.292627421982398e-07,
+    "L_knee_bend": 40.01501503373052,
+    "buttock_to_saddle_m": 4.172325134277344e-07,
+    "hip_height_m": 0.9697256684303284,
+    "hip_forward_m": -0.1635076403617859
+   },
+   "c270": {
+    "unreachable": [],
+    "R_wrist_error": 1.7881393432617188e-07,
+    "R_elbow_angle": 124.1168750735983,
+    "R_ankle_error": 2.3000462413479583e-07,
+    "R_knee_bend": 83.15303566426515,
+    "L_wrist_error": 1.3657139822709083e-07,
+    "L_elbow_angle": 124.11708325909318,
+    "L_ankle_error": 2.741570695187762e-07,
+    "L_knee_bend": 79.451900484242,
+    "buttock_to_saddle_m": 1.7881393432617188e-07,
+    "hip_height_m": 0.9711087942123413,
+    "hip_forward_m": -0.1635076403617859
+   }
+  }
+ },
+ "Male_Adult_05": {
+  "avatar": "Male_Adult_05",
+  "saddle_height_m": 0.5757,
+  "poses": {
+   "c0": {
+    "unreachable": [],
+    "R_wrist_error": 1.0745380149674383e-07,
+    "R_elbow_angle": 125.18289066052942,
+    "R_ankle_error": 6.365778852490731e-08,
+    "R_knee_bend": 38.221227722938096,
+    "L_wrist_error": 2.7957056521316944e-07,
+    "L_elbow_angle": 125.18307203032357,
+    "L_ankle_error": 1.2013700229374393e-07,
+    "L_knee_bend": 117.57462699061597,
+    "buttock_to_saddle_m": -2.980232238769531e-07,
+    "hip_height_m": 0.9738997220993042,
+    "hip_forward_m": -0.1635076403617859
+   },
+   "c90": {
+    "unreachable": [],
+    "R_wrist_error": 9.424321830774485e-08,
+    "R_elbow_angle": 125.1905363556511,
+    "R_ankle_error": 3.0610916888973323e-07,
+    "R_knee_bend": 78.85131359508777,
+    "L_wrist_error": 2.9950963321688443e-07,
+    "L_elbow_angle": 125.19068653192788,
+    "L_ankle_error": 4.2146848510894035e-08,
+    "L_knee_bend": 82.55852190854296,
+    "buttock_to_saddle_m": -1.1920928955078125e-07,
+    "hip_height_m": 0.9739193320274353,
+    "hip_forward_m": -0.1635076403617859
+   },
+   "c180": {
+    "unreachable": [],
+    "R_wrist_error": 1.1151007970493857e-07,
+    "R_elbow_angle": 125.18413231396528,
+    "R_ankle_error": 2.4027400458748785e-07,
+    "R_knee_bend": 117.57416845632396,
+    "L_wrist_error": 2.4027400458748785e-07,
+    "L_elbow_angle": 125.18426733137265,
+    "L_ankle_error": 1.812804499357408e-07,
+    "L_knee_bend": 38.21978633260861,
+    "buttock_to_saddle_m": -2.980232238769531e-07,
+    "hip_height_m": 0.9739028811454773,
+    "hip_forward_m": -0.1635076403617859
+   },
+   "c270": {
+    "unreachable": [],
+    "R_wrist_error": 8.429369702178807e-08,
+    "R_elbow_angle": 125.18963151681109,
+    "R_ankle_error": 9.685754776000977e-08,
+    "R_knee_bend": 82.55904151021295,
+    "L_wrist_error": 2.086162567138672e-07,
+    "L_elbow_angle": 125.18982347918083,
+    "L_ankle_error": 5.686408848491962e-08,
+    "L_knee_bend": 78.85174953543738,
+    "buttock_to_saddle_m": -1.1920928955078125e-07,
+    "hip_height_m": 0.9739170670509338,
+    "hip_forward_m": -0.1635076403617859
+   }
+  }
+ }
+}

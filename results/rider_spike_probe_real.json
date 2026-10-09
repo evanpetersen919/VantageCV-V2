@@ -1,0 +1,254 @@
+[
+ {
+  "variant": "real",
+  "distance": 6.0,
+  "crank": 0,
+  "avatar": "Male_Adult_01",
+  "rider": {
+   "amodal_px": 7499,
+   "visible_px": 7109,
+   "visible_bbox": [
+    1044,
+    512,
+    1145,
+    705
+   ]
+  },
+  "bike": {
+   "amodal_px": 4105,
+   "visible_px": 3643,
+   "visible_bbox": [
+    999,
+    605,
+    1209,
+    721
+   ]
+  },
+  "spokes": {
+   "amodal_px": 507,
+   "visible_px": 476,
+   "visible_bbox": [
+    1004,
+    647,
+    1205,
+    716
+   ]
+  },
+  "wheel_radius_px": 37.32,
+  "mask_pixels": {
+   "rider": 7109,
+   "bike": 3589,
+   "spokes": 471
+  }
+ },
+ {
+  "variant": "real",
+  "distance": 10.0,
+  "crank": 90,
+  "avatar": "Female_Adult_01",
+  "rider": {
+   "amodal_px": 2608,
+   "visible_px": 2210,
+   "visible_bbox": [
+    1011,
+    524,
+    1079,
+    625
+   ]
+  },
+  "bike": {
+   "amodal_px": 1400,
+   "visible_px": 961,
+   "visible_bbox": [
+    984,
+    576,
+    1106,
+    644
+   ]
+  },
+  "spokes": {
+   "amodal_px": 196,
+   "visible_px": 153,
+   "visible_bbox": [
+    986,
+    598,
+    1103,
+    642
+   ]
+  },
+  "wheel_radius_px": 22.392,
+  "mask_pixels": {
+   "rider": 2210,
+   "bike": 956,
+   "spokes": 153
+  }
+ },
+ {
+  "variant": "real",
+  "distance": 16.0,
+  "crank": 180,
+  "avatar": "Male_Adult_05",
+  "rider": {
+   "amodal_px": 1088,
+   "visible_px": 907,
+   "visible_bbox": [
+    992,
+    524,
+    1030,
+    597
+   ]
+  },
+  "bike": {
+   "amodal_px": 547,
+   "visible_px": 322,
+   "visible_bbox": [
+    975,
+    560,
+    1049,
+    601
+   ]
+  },
+  "spokes": {
+   "amodal_px": 67,
+   "visible_px": 46,
+   "visible_bbox": [
+    979,
+    574,
+    1045,
+    598
+   ]
+  },
+  "wheel_radius_px": 13.995,
+  "mask_pixels": {
+   "rider": 907,
+   "bike": 322,
+   "spokes": 46
+  }
+ },
+ {
+  "variant": "real",
+  "distance": 25.0,
+  "crank": 270,
+  "avatar": "Male_Adult_01",
+  "rider": {
+   "amodal_px": 422,
+   "visible_px": 365,
+   "visible_bbox": [
+    981,
+    526,
+    1007,
+    568
+   ]
+  },
+  "bike": {
+   "amodal_px": 217,
+   "visible_px": 147,
+   "visible_bbox": [
+    969,
+    549,
+    1015,
+    575
+   ]
+  },
+  "spokes": {
+   "amodal_px": 29,
+   "visible_px": 21,
+   "visible_bbox": [
+    971,
+    559,
+    1008,
+    573
+   ]
+  },
+  "wheel_radius_px": 8.9568,
+  "mask_pixels": {
+   "rider": 365,
+   "bike": 138,
+   "spokes": 21
+  }
+ },
+ {
+  "variant": "real",
+  "distance": 40.0,
+  "crank": 0,
+  "avatar": "Female_Adult_01",
+  "rider": {
+   "amodal_px": 146,
+   "visible_px": 125,
+   "visible_bbox": [
+    973,
+    529,
+    987,
+    556
+   ]
+  },
+  "bike": {
+   "amodal_px": 88,
+   "visible_px": 61,
+   "visible_bbox": [
+    966,
+    543,
+    995,
+    558
+   ]
+  },
+  "spokes": {
+   "amodal_px": 11,
+   "visible_px": 6,
+   "visible_bbox": [
+    968,
+    549,
+    975,
+    552
+   ]
+  },
+  "wheel_radius_px": 5.598,
+  "mask_pixels": {
+   "rider": 125,
+   "bike": 54,
+   "spokes": 6
+  }
+ },
+ {
+  "variant": "real",
+  "distance": 65.0,
+  "crank": 90,
+  "avatar": "Male_Adult_05",
+  "rider": {
+   "amodal_px": 66,
+   "visible_px": 58,
+   "visible_bbox": [
+    968,
+    529,
+    977,
+    544
+   ]
+  },
+  "bike": {
+   "amodal_px": 23,
+   "visible_px": 17,
+   "visible_bbox": [
+    964,
+    539,
+    981,
+    547
+   ]
+  },
+  "spokes": {
+   "amodal_px": 2,
+   "visible_px": 1,
+   "visible_bbox": [
+    977,
+    542,
+    977,
+    542
+   ]
+  },
+  "wheel_radius_px": 3.4449230769230765,
+  "mask_pixels": {
+   "rider": 58,
+   "bike": 14,
+   "spokes": 1
+  }
+ }
+]
