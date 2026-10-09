@@ -40,22 +40,23 @@ TAILLIGHT_LATERAL_FRACTION_OF_WIDTH = 0.38
 HEADLIGHT_COLOR = (1.0, 0.95, 0.82)
 TAILLIGHT_COLOR = (1.0, 0.04, 0.02)
 
-HEADLIGHT_INTENSITY = 6.0
+# Headlights are one wide, faint spot light each (60 degree outer cone, 10 degree inner, 0.25 x
+# the earlier intensity of 6). A narrow cone (16 degrees) put its lower edge on the road about
+# 2.5 m ahead of the bumper and drew two crisp white ovals there; narrowing it further, aiming it
+# above the horizon or dimming it only shrank or faded them (sweeps on identical night scenes,
+# EXPERIMENT_LOG.md, 2026-10-09). A cone this wide has no visible edge on the road: the pool is a
+# broad, soft glow, and the strong headlamp look comes from the glow discs and glare.
+HEADLIGHT_INTENSITY = 1.5
 HEADLIGHT_ATTENUATION_M = 40.0
-# Headlights use a flat (non-inverse-square) falloff: an inverse-square
-# light 0.7 m off the road is orders of magnitude brighter close in than
-# far out, so it blew the pavement just ahead of the bumper out to two
-# hard white ovals (found live); a flat falloff washes the road evenly
-# out to the attenuation radius instead. Intensity is then unitless.
+# Headlights use a flat (non-inverse-square) falloff: an inverse-square light 0.7 m off the road is
+# orders of magnitude brighter close in than far out, so it blew the pavement just ahead of the
+# bumper out to two hard white ovals (found live); a flat falloff washes the road evenly out to the
+# attenuation radius instead. Intensity is then unitless.
 HEADLIGHT_FALLOFF_EXPONENT = 2.0
-HEADLIGHT_INNER_CONE_DEG = 4.0
-HEADLIGHT_OUTER_CONE_DEG = 16.0
-# Real US low-beam cutoff is about 1 degree below level (FMVSS 108); a
-# little more than that so the beam reads on the road at this scale. The
-# cone is deliberately narrow: a wide cone's lower edge lands on the road
-# a couple of metres ahead and reads as two bright discs at the bumper
-# (found live), not a beam streaking down the road.
-HEADLIGHT_DIP = -0.01
+HEADLIGHT_INNER_CONE_DEG = 10.0
+HEADLIGHT_OUTER_CONE_DEG = 60.0
+# Real US low-beam cutoff is about 1 degree below level (FMVSS 108); a little more than that.
+HEADLIGHT_DIP = -0.02
 
 # Taillight point lights, 0.15 x the earlier 12 and 50 cd. At the earlier strength they washed the
 # vehicles' own bodies and the road pink (a white bus rear read pink): measured on identical night

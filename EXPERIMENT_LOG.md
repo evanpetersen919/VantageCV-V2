@@ -2644,3 +2644,18 @@ tail of lamp sizes is shorter (75th percentile 22 against 35); the share of cars
 layout (how many cars face away at night), not something the bloom controls. Headlamp glare is not fitted (peak 0.4, chosen conservative after a
 first value of 2.0 made a white haze over close cars). Day frames and labels are unaffected; `--lamp-bloom` (needs `--semantic-maps`) records
 `lamps_bloomed` per image, and the dataset card states that the glare is added in image space. 4 unit tests. The release render restarts with it.
+
+
+### Headlights: the white ovals on the road (2026-10-09)
+
+Observation (owner): two crisp white circles on the road directly in front of each car's headlights. Isolation on identical night frames (3 seeds): removing
+the headlight glow discs leaves the ovals; removing the headlight spot lights removes them; so they are the spot lights' ground pools, whose sharp edge is where the
+cone ends (a 16 degree outer cone aimed almost level from 0.7 m lands its lower edge about 2.5 m ahead). Not the lamp reflection, not the glow discs.
+
+Sweeps (same frames; judged on zoomed crops of the road in front of the cars; an automatic peak-to-median measure was tried and discarded, it picked up windows and lamps
+in the road band): narrower cones (10, 8, 6 degrees) shrank the ovals but did not remove them; soft cones with no flat inner cone (20-24 degrees, intensity 0.4-0.6)
+and the current cone at 0.35 x only faded them; cones aimed above the horizon (+2 to +4 degrees, outer 16-24) left them at the same place on the road; wide faint
+cones removed the edge: outer 45 (inner 0, x0.3) gave a broad soft pool, outer 35 (inner 5, x0.3) still showed two ovals, **outer 60, inner 10, x0.25** gave a
+smooth wide faint glow and no oval, in both test frames. Applied: `HEADLIGHT_OUTER_CONE_DEG` 60, `HEADLIGHT_INNER_CONE_DEG` 10, `HEADLIGHT_DIP` -0.02,
+`HEADLIGHT_INTENSITY` 1.5 (was 16, 4, -0.01, 6). The strong headlamp appearance comes from the glow discs and the (unfitted) headlamp glare, not from the road
+pool. Not measured against real road pools; judged by eye only. The release render restarts with it.
