@@ -2508,3 +2508,21 @@ the avatars are adults only; three seeds resolve differences of about 0.5 AP or 
   (`train_v7p`, `train_v12e` and the arms trained on them) can be reproduced; it logs a warning when used, and the results that rest on
   it stay in this log as history. Datasets and weights remain unpublished; the first candidates for release would be Rocketbox
   batches, still subject to counsel (Rocketbox's licence history and the other City Sample assets in the scenes).
+
+
+### Correction (2026-10-08): what the Rocketbox swap does and does not clear
+
+An earlier statement in this session called the City Sample vehicles and props the lower-risk part and implied the third-party
+"Allows usage with AI: No" tag applied only to the Vehicle Variety Pack. That was incomplete. The record shows:
+
+* City Sample's own Fab page carries "Allows usage with AI: No". The question put to Epic (what that tag means for training a
+  detection model on renders) was not answered; Epic's reply (2026-10-08) declined to interpret the EULA for this use. So the tag
+  question stands for all City Sample content in the scenes (vehicles, buildings, props, road kit), not only for the crowd.
+* The working reading, unconfirmed: the AI clause concerns generative AI (programs that create new content), and a detector is not one;
+  the Content License Agreement section on rendered output allows publishing renders. This is a reading of text, not Epic's answer
+  and not legal advice.
+* Megascans/Quixel content in the project (road curbs, street furniture) has no verified licence in this record.
+* The Rocketbox swap removes the MetaHuman-derived crowd (the EULA clause on training AI with MetaHuman content). It does not remove
+  the City Sample tag question or the Megascans question. A scene with no City Sample or Megascans assets would need its own
+  vehicles, buildings and props from permissively licensed sources; that has not been scoped.
+* Standing position unchanged: no datasets or weights published; code, metrics and this log are what is public.
