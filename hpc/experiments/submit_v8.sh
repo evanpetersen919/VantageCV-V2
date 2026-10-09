@@ -5,7 +5,7 @@
 #   b: a plus pickups and vans labelled truck for 20% of trucks (as BDD100K annotators did)
 # Pass a or b to submit only that batch.
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
 export OPTIMIZER=AdamW
 for L in ${@:-a b}; do
   for SEED in 0 1 2; do

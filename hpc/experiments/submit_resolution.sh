@@ -5,7 +5,7 @@
 # A 1280 run needs about 1.8x the GPU memory and time of a 960 run; if a job runs out of memory, rerun it
 # with BATCH=4 (ultralytics accumulates to the same nominal batch of 64).
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
 export OPTIMIZER=AdamW IMGSZ=1280
 for SEED in 0 1 2; do
   bash "$HERE/submit.sh" "hpc_real25r_i1280_s$SEED" "real_25pct" "$SEED" 1.0 10

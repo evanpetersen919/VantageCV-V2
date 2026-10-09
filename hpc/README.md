@@ -47,7 +47,7 @@ Compare the printed versions with the local runs (torch 2.14.0+cu126, ultralytic
 ```bash
 bash hpc/submit.sh smoke real_control 0 1.0 10 2     # 2 epochs: checks data, GPU and both evaluations
 squeue -u $USER                                       # then read ~/vantagecv/logs/smoke_*.log
-bash hpc/submit_planned.sh                            # 6 jobs: real-only and mixed, seeds 0-2
+bash hpc/experiments/submit_planned.sh                            # 6 jobs: real-only and mixed, seeds 0-2
 ```
 
 ## 5. Control and data-efficiency runs (second batch)
@@ -86,7 +86,7 @@ The check must end with every line `OK` and these counts (train / val):
 Then submit:
 
 ```bash
-bash hpc/submit_control.sh          # 3 jobs: hpc_real3676_s0-2
+bash hpc/experiments/submit_control.sh          # 3 jobs: hpc_real3676_s0-2
 bash hpc/submit_sweep.sh 25         # 6 jobs: hpc_real25_s*, hpc_mixed25_s*
 bash hpc/submit_sweep.sh 50         # 6 jobs: hpc_real50_s*, hpc_mixed50_s*
 ```
@@ -111,7 +111,7 @@ the real ones. Needs no new data, only `git pull`:
 
 ```bash
 cd ~/vantagecv/repo && git pull
-bash hpc/submit_pretrain.sh        # 12 jobs
+bash hpc/experiments/submit_pretrain.sh        # 12 jobs
 ```
 
 Three synthetic-only runs (`hpc_pretrain_s0-2`, 200 epochs, no mosaic) start at once. Each has
@@ -140,7 +140,7 @@ tar -xf ~/vantagecv/vantagecv_synth_b.tar -C ~/vantagecv/data
 source ~/vantagecv/venv/bin/activate
 PYTHONPATH=. python bin/hpc_make_data.py --root ~/vantagecv/data --out ~/vantagecv/yaml
 PYTHONPATH=. python bin/hpc_check_data.py --yaml-dir ~/vantagecv/yaml
-bash hpc/submit_scale.sh          # 6 jobs: hpc_mixed25big_s*, hpc_mixedbig_s*
+bash hpc/experiments/submit_scale.sh          # 6 jobs: hpc_mixed25big_s*, hpc_mixedbig_s*
 ```
 
 The check must list `mixed_25pct_big` (train 4151), `mixed_50pct_big` (4610) and `mixed_big` (5529),
@@ -158,7 +158,7 @@ number of optimizer steps as the 3,676-image arms (400 epochs):
 
 ```bash
 cd ~/vantagecv/repo && git pull
-bash hpc/submit_optimizer_control.sh      # 15 jobs, names hpc_adamw_*
+bash hpc/experiments/submit_optimizer_control.sh      # 15 jobs, names hpc_adamw_*
 ```
 
 A job started correctly if its log shows `optimizer: AdamW(lr=0.00125, momentum=0.9)` (grep for
@@ -180,7 +180,7 @@ cd ~/vantagecv/repo && git pull
 source ~/vantagecv/venv/bin/activate
 PYTHONPATH=. python bin/hpc_make_data.py --root ~/vantagecv/data --out ~/vantagecv/yaml
 PYTHONPATH=. python bin/hpc_check_data.py --yaml-dir ~/vantagecv/yaml   # mixed_25pct_notb and _rand: train 970
-bash hpc/submit_truckbus_test.sh      # 6 jobs: hpc_notb25_s*, hpc_rand25_s*
+bash hpc/experiments/submit_truckbus_test.sh      # 6 jobs: hpc_notb25_s*, hpc_rand25_s*
 ```
 
 Compare with `bin/analyze_runs.py --baseline hpc_rand25 --arms hpc_notb25` (and `hpc_real25` for the
@@ -206,7 +206,7 @@ cd ../repo && git pull
 source ../venv/bin/activate && export YOLO_CONFIG_DIR=/scratch/peter337/yolo_config
 PYTHONPATH=. python bin/hpc_make_data.py --root ../data --out ../yaml
 PYTHONPATH=. python bin/hpc_check_data.py --yaml-dir ../yaml   # mixed_modal 3676, mixed_25pct_modal 2298
-bash hpc/submit_modal_test.sh                             # 6 jobs: hpc_modal25_s*, hpc_adamw_modal_s*
+bash hpc/experiments/submit_modal_test.sh                             # 6 jobs: hpc_modal25_s*, hpc_adamw_modal_s*
 ```
 
 Compare `hpc_modal25` with `hpc_mixed25` and `hpc_adamw_modal` with `hpc_adamw_mixed`.
@@ -228,7 +228,7 @@ cd ../repo && git pull
 source ../venv/bin/activate && export YOLO_CONFIG_DIR=/scratch/peter337/yolo_config
 PYTHONPATH=. python bin/hpc_make_data.py --root ../data --out ../yaml
 PYTHONPATH=. python bin/hpc_check_data.py --yaml-dir ../yaml    # mixed_25pct_v7a: train 972
-bash hpc/submit_v7a.sh                                           # 3 jobs: hpc_v7a25_s*
+bash hpc/experiments/submit_v7a.sh                                           # 3 jobs: hpc_v7a25_s*
 ```
 
 ## 12. Does the supply of scarce-class instances decide a supplement's value?
@@ -251,7 +251,7 @@ cd /scratch/peter337/VantageCV/repo && git pull
 source ../venv/bin/activate && export YOLO_CONFIG_DIR=/scratch/peter337/yolo_config
 PYTHONPATH=. python bin/hpc_make_data.py --root ../data --out ../yaml
 PYTHONPATH=. python bin/hpc_check_data.py --yaml-dir ../yaml   # mixed_25pct_poor / _rich: train 970
-bash hpc/submit_supply_test.sh                                  # 6 jobs
+bash hpc/experiments/submit_supply_test.sh                                  # 6 jobs
 ```
 
 Read: if `hpc_poor25` scores like `hpc_v7a25` (and below `hpc_rand25`), supply alone explains the v7

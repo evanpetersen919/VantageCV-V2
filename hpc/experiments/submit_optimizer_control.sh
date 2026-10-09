@@ -4,7 +4,7 @@
 # real-only run with as many optimizer steps as the 3,676-image arms (400 epochs on 1,838 images).
 # 15 jobs, 3 seeds each. Names start hpc_adamw_.
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
 export OPTIMIZER=AdamW
 for SEED in 0 1 2; do
   bash "$HERE/submit.sh" "hpc_adamw_mixed_s$SEED"      mixed_real_v5   "$SEED" 1.0 10

@@ -4,7 +4,7 @@
 # (scratch, 200 epochs, mosaic on, close-mosaic 10). Six independent jobs; they run in parallel
 # if the cluster has the GPUs free.
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
 for SEED in 0 1 2; do
   bash "$HERE/submit.sh" "hpc_real_only_s$SEED"  real_control   "$SEED" 1.0 10
   bash "$HERE/submit.sh" "hpc_mixed_s$SEED"      mixed_real_v5  "$SEED" 1.0 10

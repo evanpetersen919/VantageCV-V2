@@ -4,7 +4,7 @@
 # number of randomly chosen synthetic images. Same real images, same count, optimizer fixed to
 # AdamW. 6 jobs. Needs train2000_v5b on the cluster (it is already there for the volume test).
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
 export OPTIMIZER=AdamW
 for SEED in 0 1 2; do
   bash "$HERE/submit.sh" "hpc_notb25_s$SEED"  mixed_25pct_notb  "$SEED" 1.0 10

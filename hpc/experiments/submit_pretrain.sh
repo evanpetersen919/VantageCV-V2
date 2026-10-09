@@ -7,7 +7,7 @@
 # into the comparison instead of hidden. Each fine-tune waits for its pre-train (Slurm dependency).
 # 12 jobs. Results: hpc_ft25_s*, hpc_ft50_s*, hpc_ft100_s*, and hpc_pretrain_s* (synthetic only).
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.env"
 [ -f "$HERE/config.local.env" ] && source "$HERE/config.local.env"
 for SEED in 0 1 2; do

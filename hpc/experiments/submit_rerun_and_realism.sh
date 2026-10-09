@@ -6,7 +6,7 @@
 #  2. hpc_realism25_s0-2: 25% real + the same v5 synthetic images after the calibrated realism
 #     post-process (blur, desaturation, JPEG). Compare with hpc_mixed25 (same recipe and optimizer).
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
 source "$HERE/config.env"
 [ -f "$HERE/config.local.env" ] && source "$HERE/config.local.env"
 OLD="$HPC_ROOT/runs/hpc_adamw_mixed_s1"

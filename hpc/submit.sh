@@ -11,7 +11,7 @@ NAME="$1"; DATA="$2"; SEED="$3"; MOSAIC="$4"; CLOSE="$5"; EPOCHS="${6:-200}"; WE
 ARGS=(--partition "$SLURM_PARTITION" --gres "$SLURM_GRES" --cpus-per-task "$SLURM_CPUS"
       --mem "$SLURM_MEM" --time "$SLURM_TIME" --job-name "$NAME" --chdir "$HPC_ROOT/logs")
 [ -n "$SLURM_ACCOUNT" ] && ARGS+=(--account "$SLURM_ACCOUNT")
-# AFTEROK=<job id> holds this job until that job has finished successfully (used by submit_pretrain.sh).
+# AFTEROK=<job id> holds this job until that job has finished successfully (used by experiments/submit_pretrain.sh).
 [ -n "${AFTEROK:-}" ] && ARGS+=(--dependency "afterok:$AFTEROK")
 sbatch "${ARGS[@]}" \
   --export=ALL,HPC_CONFIG="$HERE/config.env",NAME="$NAME",DATA="$DATA",SEED="$SEED",MOSAIC="$MOSAIC",CLOSE="$CLOSE",EPOCHS="$EPOCHS",WEIGHTS="$WEIGHTS" \

@@ -6,7 +6,7 @@
 #   p: v7 with the v6 pedestrian density (p vs c: what more pedestrians do)
 # Pass c or p to submit only that batch.
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
 export OPTIMIZER=AdamW
 for LETTER in "${@:-c p}"; do
   for L in $LETTER; do

@@ -5,7 +5,7 @@
 #   r: 512 random frames from the same pool (reported only)
 # Pass m or r to submit only that arm.
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
 export OPTIMIZER=AdamW
 for L in ${@:-m r}; do
   for SEED in 0 1 2; do

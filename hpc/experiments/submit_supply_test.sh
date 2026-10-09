@@ -5,7 +5,7 @@
 #   rich: chosen for many persons, trucks and buses (~2,000 persons, ~1,800 trucks, ~245 buses)
 # Compare with hpc_rand25 (random 510) and, for poor, hpc_v7a25. 6 jobs.
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
 export OPTIMIZER=AdamW
 for SEED in 0 1 2; do
   bash "$HERE/submit.sh" "hpc_poor25_s$SEED" mixed_25pct_poor "$SEED" 1.0 10

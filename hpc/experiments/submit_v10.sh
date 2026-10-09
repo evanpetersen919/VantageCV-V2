@@ -3,7 +3,7 @@
 # (70000-70255), fleet and labelling cutoffs as train_v7p, with no synthetic pedestrians, so v7p25 is the
 # comparison and the difference is what the crowd characters contribute.
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
 export OPTIMIZER=AdamW
 for SEED in 0 1 2; do
   bash "$HERE/submit.sh" "hpc_v10n25_s$SEED" "mixed_25pct_v10n" "$SEED" 1.0 10
