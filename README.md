@@ -212,8 +212,8 @@ The plan after 1.1, with what each step is meant to answer and what is deliberat
   (started in `bin/stylize_backgrounds.py`; renderer-side randomization next).
 - **Camera realism:** roll, field of view and post-process effects need a small RPC/engine change.
 - **Scale and variance:** doubling the synthetic set to 3,691 images added little (about +0.9 AP at best). More pedestrians per scene helps person AP; more trucks and buses, a different mix, other box sizes, a larger input and one added box-truck model did not help truck or bus AP (1.1). What is left untested is a larger, more varied truck population (box, dump, utility and delivery trucks of several makes).
-- **3D labels and LiDAR:** computed but not exported (see
-  [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)).
+- **LiDAR:** 3D boxes are exported (`box3d`), but the LiDAR sensor model is not wired into the pipeline, so no point clouds are
+  produced (see [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)).
 
 New here? See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
