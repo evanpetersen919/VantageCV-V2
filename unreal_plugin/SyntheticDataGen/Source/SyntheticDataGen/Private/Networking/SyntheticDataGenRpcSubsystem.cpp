@@ -590,6 +590,9 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 		constexpr float NoSurface = 1.0e7f; // anything farther than 100 km is the sky / nothing
 		TArray<uint16> Visible;
 		Visible.Init(0, W * H);
+		TArray<float> BestDepth;
+		BestDepth.Init(NoSurface, W * H);
+		const bool bNearestWins = !DepthPath.IsEmpty();
 		TArray<TSharedPtr<FJsonValue>> Reports;
 		TArray<float> ObjectDepth;
 		for (int32 ObjectIndex = 0; ObjectIndex < ObjectsJson->Num(); ++ObjectIndex)
@@ -683,8 +686,12 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 					if (FMath::Abs(Own - FullDepth[Index]) <= FMath::Max(2.0f, 0.002f * Own))
 					{
 						++VisiblePx;
-						if (Visible[Index] == 0) // first match wins where two groups coincide
+						// First match wins where two groups coincide. For the full-scene class map (a depth_path was given) a
+						// group clearly nearer than the earlier match (by more than 1 mm) wins instead: a road laid 1 cm above a
+						// sidewalk plate is inside the 2 cm tolerance above, and the plate must not take the road's pixels.
+						if (Visible[Index] == 0 || (bNearestWins && Own < BestDepth[Index] - 0.1f))
 						{
+							BestDepth[Index] = Own;
 							Visible[Index] = static_cast<uint16>(ObjectIndex + 1);
 						}
 						VX0 = FMath::Min(VX0, X);
