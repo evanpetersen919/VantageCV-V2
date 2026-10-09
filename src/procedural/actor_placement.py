@@ -47,6 +47,7 @@ from src.procedural.city_sample_assets import (
     fleet_models,
     pedestrian_face_and_hair,
 )
+from src.procedural.crosswalks import VEHICLE_STOP_SETBACK_M
 from src.procedural.lane_topology import compute_node_clearance
 from src.procedural.math_utils import compute_perpendicular
 from src.procedural.pedestrian_boxes import pedestrian_box
@@ -527,12 +528,13 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods,too-man
         start_flowing = self._axis_is_flowing(
             edge.start_node_id, axis, active_phases, traffic_controls, minor_axis_by_node
         )
-        end_required = node_clearance.get(edge.end_node_id, 0.0) + (
-            VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
+        setback = (
+            VEHICLE_STOP_SETBACK_M
+            if self.config.lane_markings
+            else VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
         )
-        start_required = node_clearance.get(edge.start_node_id, 0.0) + (
-            VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
-        )
+        end_required = node_clearance.get(edge.end_node_id, 0.0) + setback
+        start_required = node_clearance.get(edge.start_node_id, 0.0) + setback
 
         if end_flowing:
             walk_along = edge_length

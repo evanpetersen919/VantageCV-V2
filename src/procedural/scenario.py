@@ -69,6 +69,9 @@ class ScenarioTypeConfig(BaseModel):
         ``"city_sample"`` (the project's original crowd characters) or ``"rocketbox"``
         (Microsoft Rocketbox avatars swapped in after generation; see
         ``rocketbox_pedestrians.py``).
+    lane_markings : bool
+        Paint centre lines, lane lines and stop lines on the roads (``lane_markings.py``). Off by
+        default so seeds of earlier batches give the same scenes.
     road_setback_meters : float
         Minimum clearance (meters) a building must keep from every road,
         beyond the road's own half-width -- read by
@@ -97,6 +100,7 @@ class ScenarioTypeConfig(BaseModel):
     pedestrian_density_fraction: Tuple[float, float] = (0.3, 0.3)
     pedestrian_density_skew: float = 1.0
     pedestrian_source: str = "city_sample"
+    lane_markings: bool = False
 
     @field_validator("avg_block_size", "building_heights", "traffic_density")
     @classmethod

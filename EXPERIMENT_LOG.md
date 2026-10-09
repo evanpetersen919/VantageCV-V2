@@ -44,3 +44,4 @@ The entries are in order of when they were run, one file each under [`docs/exper
 | 27 | [Visible-part labels and the first v7 batch (cluster, 3 seeds each, AdamW)](docs/experiments/27_visible-part-labels-and-the-first-v7-batch-cluster-3-seeds-e.md) |
 | 28 | [Road gloss in clear weather: measured, and a dry road for v7](docs/experiments/28_road-gloss-in-clear-weather-measured-and-a-dry-road-for-v7.md) |
 | 29 | [Tractor-trailer rigs (the City Sample semi), built and checked by rendering](docs/experiments/29_tractor-trailer-rigs-the-city-sample-semi-built-and-checked.md) |
+| 30 | [Lane markings: double yellow centre lines, white lane lines and stop lines (2026-10-09)](docs/experiments/30_lane-markings-painted-centre-lines-lane-lines-and-stop-lines.md) |

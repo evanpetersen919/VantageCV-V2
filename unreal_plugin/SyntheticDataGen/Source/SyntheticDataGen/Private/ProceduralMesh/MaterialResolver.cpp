@@ -24,6 +24,7 @@ namespace
 			{TEXT("pavement_4"), TEXT("/Game/Road/Material/MI/M_Sidewalk_Master_Inst_5")},
 			{TEXT("pavement_5"), TEXT("/Game/Road/Material/MI/M_Sidewalk_Master_Inst_6")},
 			{TEXT("paint_white"), TEXT("/Game/VantageCV/M_PaintWhite")},
+			{TEXT("paint_yellow"), TEXT("/Game/VantageCV/M_PaintYellow")},
 			{TEXT("roof_0"), TEXT("/Game/Environment/RoofTop/Material/MI/MI_Rooftop_BitumenRoofing")},
 			{TEXT("roof_1"), TEXT("/Game/Environment/RoofTop/Material/MI/MI_Rooftop_DirtyConcreteTiles")},
 			{TEXT("roof_2"), TEXT("/Game/Environment/RoofTop/Material/MI/MI_Rooftop_PebbleDash")},

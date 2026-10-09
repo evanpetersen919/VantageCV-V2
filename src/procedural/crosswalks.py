@@ -122,6 +122,15 @@ STOP_LINE_WIDTH_M = STOP_LINE_REAL_SIZE_M * STOP_LINE_WIDTH_SCALE
 # between bars (FHWA MUTCD 3B.18 / NYC DOT Street Design Manual).
 BAR_PITCH_M = 2.0 * STOP_LINE_WIDTH_M
 
+# Measured, not assumed: the stripe mesh is a 5.12 m square decal and only part of it is painted.
+# Rendered alone from above at the scale used here (demo probe, docs/experiments/30_*.md) the
+# painted strip is 3.69 m long, 0.58 m wide, and centred 0.24 m beyond the mesh pivot in the
+# mesh's own +Y direction, which points away from the node. So along the road, measured from the
+# node's clearance, the paint spans CROSSWALK_PAINT_NEAR_M to CROSSWALK_PAINT_FAR_M, not the
+# whole CROSSWALK_DEPTH_M footprint.
+CROSSWALK_PAINT_LENGTH_M = 3.69
+CROSSWALK_PAINT_OFFSET_M = 0.24
+
 # A hair above the road surface so bars never z-fight with it.
 STOP_LINE_Z_LIFT_M = 0.01
 
@@ -129,6 +138,33 @@ STOP_LINE_Z_LIFT_M = 0.01
 # closer to the intersection than the flush-outside placement -- see
 # module docstring's "Small nudge toward the intersection" note.
 CROSSWALK_INTERSECTION_NUDGE_M = 1.5
+
+
+CROSSWALK_PAINT_CENTRE_M = (
+    CROSSWALK_DEPTH_M / 2.0 - CROSSWALK_INTERSECTION_NUDGE_M + CROSSWALK_PAINT_OFFSET_M
+)
+CROSSWALK_PAINT_NEAR_M = CROSSWALK_PAINT_CENTRE_M - CROSSWALK_PAINT_LENGTH_M / 2.0
+CROSSWALK_PAINT_FAR_M = CROSSWALK_PAINT_CENTRE_M + CROSSWALK_PAINT_LENGTH_M / 2.0
+
+
+# The painted stop line (src/procedural/lane_markings.py, MUTCD 3B.19: 12 to 24 in wide, at least
+# 4 ft ahead of the nearest crosswalk line) and where the first car of a queue stops behind it.
+# Kept here, not in lane_markings, so the traffic generators can use the queue position without
+# importing the mesh code.
+MARKED_STOP_LINE_WIDTH_M = 24.0 * 0.0254  # choice within the 12 to 24 in range
+MARKED_STOP_LINE_SETBACK_M = 4.0 * 0.3048
+MARKED_STOP_LINE_FROM_CLEARANCE_M = (
+    CROSSWALK_PAINT_FAR_M + MARKED_STOP_LINE_SETBACK_M + MARKED_STOP_LINE_WIDTH_M / 2.0
+)
+# The queue's front bumper stops this far behind the stop line's outer edge (choice).
+MARKED_QUEUE_GAP_M = 0.3
+# The queue's front bumper, measured from the node's clearance like the crosswalk. With lane
+# markings on, vehicles stop here, not at the far edge of the crosswalk's whole 15 m footprint
+# (``VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M`` in traffic_network.py), so a car never sits on the
+# stop line and the lines run close to the intersection.
+VEHICLE_STOP_SETBACK_M = (
+    MARKED_STOP_LINE_FROM_CLEARANCE_M + MARKED_STOP_LINE_WIDTH_M / 2.0 + MARKED_QUEUE_GAP_M
+)
 
 
 def _physical_road_pairs(edges: Dict[int, RoadEdge]) -> List[Tuple[RoadEdge, int]]:

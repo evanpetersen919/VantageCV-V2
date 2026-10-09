@@ -255,8 +255,11 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
     rest of the class is private implementation detail of that operation.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self, vehicle_stop_setback_m: float = VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
+    ) -> None:
         self._spawn_zone_counter = 0
+        self._vehicle_stop_setback_m = vehicle_stop_setback_m
 
     def generate(
         self, nodes: Dict[int, RoadNode], edges: Dict[int, RoadEdge], lanes: Dict[int, Lane]
@@ -405,7 +408,7 @@ class TrafficNetworkGenerator:  # pylint: disable=too-few-public-methods
             # edge from crosswalks.py).
             end_clearance = node_clearance.get(edge.end_node_id, 0.0)
             stop_line_distance_from_node = min(
-                end_clearance + VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M, edge_length
+                end_clearance + self._vehicle_stop_setback_m, edge_length
             )
             stop_line_position = (
                 edge.centerline[-1]

@@ -36,9 +36,10 @@ from src.procedural.building_facade import FacadePiece, generate_building_facade
 from src.procedural.building_lights import building_piece_room_ids, building_pieces_lit
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
 from src.procedural.city_sample_assets import BUILDING_STYLES
-from src.procedural.crosswalks import generate_crosswalk_pieces
+from src.procedural.crosswalks import VEHICLE_STOP_SETBACK_M, generate_crosswalk_pieces
 from src.procedural.environment import Season, TimeOfDay, season_has_trees
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
+from src.procedural.lane_markings import lane_marking_meshes
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
 from src.procedural.mesh_factory import Mesh, MeshFactory
 from src.procedural.parking_lots import (
@@ -60,7 +61,11 @@ from src.procedural.street_furniture import (
     generate_street_furniture_pieces,
 )
 from src.procedural.traffic_lights import generate_traffic_light_pieces
-from src.procedural.traffic_network import TrafficNetwork, TrafficNetworkGenerator
+from src.procedural.traffic_network import (
+    VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M,
+    TrafficNetwork,
+    TrafficNetworkGenerator,
+)
 from src.procedural.validator import ScenarioValidator, ValidationReport
 from src.procedural.vehicle_colors import assign_vehicle_paint
 from src.procedural.vehicle_meshes import world_triangles
@@ -177,7 +182,9 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         tuple(BUILDING_STYLES.values()),
         keep_out_aabbs=[lot.aabb for lot in parking_lots],
     ).generate(nodes, edges)
-    traffic = TrafficNetworkGenerator().generate(nodes, edges, lanes)
+    traffic = TrafficNetworkGenerator(
+        VEHICLE_STOP_SETBACK_M if config.lane_markings else VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
+    ).generate(nodes, edges, lanes)
     lane_connectivity = LaneConnectivityGenerator().generate(nodes, edges, lanes)
     vehicles, pedestrians = ActorPlacementGenerator(
         seed, config, night=time_of_day == TimeOfDay.NIGHT
@@ -251,6 +258,8 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         if lot.driveway is not None:
             lot.driveway = lot.driveway.widened(removed_curbs)
     meshes += parking_lot_meshes(parking_lots)
+    if config.lane_markings:
+        meshes += lane_marking_meshes(edges)
 
     # Drawn LAST from the style stream so every earlier style choice for a
     # given seed is unchanged by the season feature.

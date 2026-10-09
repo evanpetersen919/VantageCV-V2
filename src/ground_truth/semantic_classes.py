@@ -129,7 +129,7 @@ def asset_class(asset_path: str) -> int:
 
 def mesh_class(material: str) -> int:
     """The class of a procedural surface from its material name, ``UNLABELED`` when unknown."""
-    if material in ("asphalt", "paint_white"):
+    if material in ("asphalt", "paint_white", "paint_yellow"):
         return ROAD
     if material.startswith("pavement"):
         return SIDEWALK

@@ -129,7 +129,12 @@
     "paint_white": {
       "asset_path": "/Game/VantageCV/M_PaintWhite",
       "source": "Project-owned, created by unreal_plugin/tools/create_paint_material.py (not from CitySample): a plain matte white road-paint material",
-      "used_by": "parking_lots.py parking_lot_meshes -- the painted stall stripes of every surface parking lot"
+      "used_by": "parking_lots.py parking_lot_meshes -- the painted stall stripes of every surface parking lot; lane_markings.py -- lane lines and stop lines"
+    },
+    "paint_yellow": {
+      "asset_path": "/Game/VantageCV/M_PaintYellow",
+      "source": "Project-owned, created by unreal_plugin/tools/create_paint_material.py (not from CitySample): a plain matte traffic-yellow road-paint material",
+      "used_by": "lane_markings.py lane_marking_meshes -- the double solid yellow centre line of two-way roads"
     }
   }
 }

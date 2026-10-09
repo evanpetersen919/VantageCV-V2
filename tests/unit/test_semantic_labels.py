@@ -80,6 +80,7 @@ def test_rules_for_the_cases_that_need_a_decision() -> None:
     assert asset_class("/Game/Vehicle/vehTruck_trailer01/x") == TRUCK
     assert asset_class("/Game/Unknown/Thing") == 0
     assert (mesh_class("asphalt"), mesh_class("paint_white")) == (ROAD, ROAD)
+    assert mesh_class("paint_yellow") == ROAD
     assert (mesh_class("pavement_3"), mesh_class("ground"), mesh_class("roof_2")) == (
         SIDEWALK,
         TERRAIN,
