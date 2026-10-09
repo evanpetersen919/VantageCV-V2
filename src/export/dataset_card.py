@@ -209,6 +209,8 @@ segmentation copy `labels_seg/` over `labels/`).
 * **Polygons have no holes.** A gap enclosed by an arm and a torso is covered by the outer
   polygon; `mask_rle` and `instance/` keep it exact.
 * **Depth range.** 0 to about 256 m at 1/256 m resolution; farther surfaces read 255.99.
+* **Night lamp glare** (the red halo and glow around taillights and headlamps) is added in image space after
+  rendering, fitted to real BDD100K night frames; the engine's own picture has no such glare. Labels are unaffected.
 * **Weather and lighting** are the engine's presets (clear, overcast, rain, fog, sunset, golden hour,
   dawn haze, night), not measured distributions.
 

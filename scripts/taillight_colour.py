@@ -51,7 +51,13 @@ def measure(image: Image.Image, boxes: List[Tuple[float, float, float, float]]) 
         area += sub.size
         lit += int(sub.sum())
         saturations.append(sat[top : int(y1), int(x0) : int(x1)][sub])
-        hues.append(np.where(hue[top : int(y1), int(x0) : int(x1)][sub] > 180, hue[top : int(y1), int(x0) : int(x1)][sub] - 360, hue[top : int(y1), int(x0) : int(x1)][sub]))
+        hues.append(
+            np.where(
+                hue[top : int(y1), int(x0) : int(x1)][sub] > 180,
+                hue[top : int(y1), int(x0) : int(x1)][sub] - 360,
+                hue[top : int(y1), int(x0) : int(x1)][sub],
+            )
+        )
     mid = (val >= 0.10) & (val <= 0.50)
     total = rgb[mid].astype(np.float64).sum(-1, keepdims=True)
     chroma = (rgb[mid] / np.maximum(total, 1.0)).mean(0) if mid.any() else np.zeros(3)
@@ -113,10 +119,16 @@ def synthetic_rows(root: Path, count: int) -> List[Dict[str, Any]]:
             x, y, w, h = a["bbox"]
             scale = SIZE[0] / 1920.0
             if 20 <= h * scale <= 220:
-                by_image.setdefault(a["image_id"], []).append((x * scale, y * scale, (x + w) * scale, (y + h) * scale))
+                by_image.setdefault(a["image_id"], []).append(
+                    (x * scale, y * scale, (x + w) * scale, (y + h) * scale)
+                )
     rows = []
     for image in coco["images"]:
-        if image["time_of_day"] != "night" or image["id"] not in by_image:
+        if (
+            image["time_of_day"] != "night"
+            or image.get("view") != "ego"
+            or image["id"] not in by_image
+        ):
             continue
         rows.append(measure(Image.open(root / image["file_name"]), by_image[image["id"]]))
         if len(rows) >= count:

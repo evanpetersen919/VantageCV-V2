@@ -34,7 +34,14 @@ from src.orchestration.camera_sampling import (
 from src.orchestration.dataset_generator import Bounds, generate_scenario, render_frame
 from src.orchestration.dataset_store import DatasetStore
 from src.orchestration.exact_labels import apply_exact, capture_exact
-from src.orchestration.hood import clip_exact_to_hood, clip_to_hood, hood_top_row, paint_hood
+from src.orchestration.hood import (
+    clip_exact_to_hood,
+    clip_to_hood,
+    hood_mask,
+    hood_top_row,
+    paint_hood,
+)
+from src.orchestration.lamp_bloom import add_glare, visible_lamps
 from src.orchestration.live_render import (
     RECOVERABLE_ERRORS,
     GameUnavailableError,
@@ -169,6 +176,7 @@ def _settings(  # pylint: disable=too-many-arguments
     profile: str = "v6",
     exact_labels: bool = False,
     semantic_maps: bool = False,
+    lamp_bloom: bool = False,
 ) -> Dict[str, Any]:
     """The settings a run is identified by; a resume must match them."""
     settings: Dict[str, Any] = {
@@ -187,10 +195,12 @@ def _settings(  # pylint: disable=too-many-arguments
         settings["exact_labels"] = True
     if semantic_maps:
         settings["semantic_maps"] = True
+    if lamp_bloom:
+        settings["lamp_bloom"] = True
     return settings
 
 
-async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-locals
+async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-locals,too-many-statements
     renderer: LiveRenderer,
     config: ScenarioTypeConfig,
     bounds: Bounds,
@@ -202,6 +212,7 @@ async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-local
     profile: str = "v6",
     exact_labels: bool = False,
     semantic_maps: bool = False,
+    lamp_bloom: bool = False,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Generate, load and photograph one scenario; return its COCO images and annotations.
 
@@ -245,6 +256,7 @@ async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-local
             if hood_row is not None:
                 frame = clip_exact_to_hood(frame, hood_row)
         files: Dict[str, Any] = {}
+        bloomed = 0
         if semantic_maps:
             maps = await capture_semantic(
                 renderer.backend,
@@ -254,11 +266,19 @@ async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-local
                 hood_row,
             )
             semantic_file, depth_file = save_maps(maps, output_dir, name)
+            if lamp_bloom and conditions[0] == TimeOfDay.NIGHT:
+                lamps = visible_lamps(payload.get("glows", []), camera, maps.depth_m)
+                picture = np.array(Image.open(image_path).convert("RGB"))
+                covered = hood_mask(hood_row, (width, height)) if hood_row is not None else None
+                Image.fromarray(add_glare(picture, lamps, keep=covered)).save(image_path)
+                bloomed = len(lamps)
             files = {
                 "semantic_file": semantic_file,
                 "depth_file": depth_file,
                 "depth_scale": DEPTH_SCALE,
             }
+            if lamp_bloom:
+                files["lamps_bloomed"] = bloomed
         frame, dropped = apply_policy(frame, policy)
         if hood_row is not None:
             frame = clip_to_hood(frame, hood_row, policy.min_box_height_px)
@@ -310,6 +330,7 @@ async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arg
     profile: str = "v6",
     exact_labels: bool = False,
     semantic_maps: bool = False,
+    lamp_bloom: bool = False,
 ) -> LiveDatasetResult:
     """Render ``num_scenarios`` scenarios x ``views``, resuming any earlier run in ``output_dir``.
 
@@ -321,7 +342,17 @@ async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arg
     policy = policy or AnnotationPolicy()
     store = DatasetStore(output_dir, export_coco([], policy.profile)["categories"])
     store.check_manifest(
-        _settings(config, bounds, views, base_seed, policy, profile, exact_labels, semantic_maps)
+        _settings(
+            config,
+            bounds,
+            views,
+            base_seed,
+            policy,
+            profile,
+            exact_labels,
+            semantic_maps,
+            lamp_bloom,
+        )
     )
     result = LiveDatasetResult()
     if any(store.load_part(index) is None for index in range(num_scenarios)):
@@ -358,6 +389,7 @@ async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arg
                     profile,
                     exact_labels,
                     semantic_maps,
+                    lamp_bloom,
                 ),
             )
             store.save_part(index, images, annotations)

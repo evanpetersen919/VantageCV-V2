@@ -183,7 +183,7 @@ label ids: road, sidewalk, building, pole, traffic light and sign, vegetation, t
 static, ego vehicle) and a **depth map** (`depth/<frame>.png`, 16-bit, metres x 256 along the viewing axis, 0 = no
 surface), both from the engine's own depth passes, with no unlabeled pixel. On the probe frames the class map agreed
 with 100% of the instance-mask pixels of cars, persons and trucks, and depth agreed with independent 3D boxes for 95%
-of unoccluded vehicles. The painted hood is `ego vehicle` and the exact masks stop at it. `bin/package_dataset.py`
+of unoccluded vehicles. The painted hood is `ego vehicle` and the exact masks stop at it. With `--lamp-bloom`, night frames also get the camera glare of visible vehicle lamps (deep red halos around tail lamps, a soft glare around headlamps), added in image space and fitted to real BDD100K night frames: among cars with visible lamps the lamp area, blob radius and saturation match real to within a few percent. The engine's own night colour grading renders lamps as pale pink discs without it. `bin/package_dataset.py`
 then builds a self-contained release folder (COCO, YOLO detection and segmentation labels, KITTI, instance masks,
 class table, dataset card) and validates it. The class table, with the choices where Cityscapes is ambiguous, is in
 `src/ground_truth/semantic_classes.py`.

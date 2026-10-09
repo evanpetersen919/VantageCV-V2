@@ -58,7 +58,11 @@ def synthetic_crops(dataset: Path) -> List[Tuple[Image.Image, str]]:
             if a["visibility_fraction"] < 0.7 or a["truncation"] > 0 or not MIN_H <= h <= MAX_H:
                 continue
             if image is None:
-                image = Image.open(dataset / entry["file_name"]).convert("RGB").resize(SIZE, Image.BICUBIC)
+                image = (
+                    Image.open(dataset / entry["file_name"])
+                    .convert("RGB")
+                    .resize(SIZE, Image.BICUBIC)
+                )
             out.append((crop_square(image, (x, y, x + w, y + h)), entry["time_of_day"]))
     return out
 
@@ -101,7 +105,9 @@ def embed(crops: List[Image.Image], model: torch.nn.Module, device: str) -> np.n
     features = []
     with torch.no_grad():
         for start in range(0, len(crops), 128):
-            batch = np.stack([np.asarray(c, dtype=np.float32) / 255.0 for c in crops[start : start + 128]])
+            batch = np.stack(
+                [np.asarray(c, dtype=np.float32) / 255.0 for c in crops[start : start + 128]]
+            )
             tensor = torch.from_numpy(batch).permute(0, 3, 1, 2).to(device)
             features.append(model((tensor - mean) / std).cpu().numpy())
     return np.concatenate(features)
@@ -132,7 +138,9 @@ def main() -> None:
     synthetic = {d.name: synthetic_crops(d) for d in args.datasets}
     for name, crops in synthetic.items():
         print(f"{name}: {len(crops)} crops ({sum(t == 'night' for _, t in crops)} night)")
-    features = {name: embed([c for c, _ in crops], model, device) for name, crops in synthetic.items()}
+    features = {
+        name: embed([c for c, _ in crops], model, device) for name, crops in synthetic.items()
+    }
     count = min(len(c) for c in synthetic.values())
     results: Dict[str, List[float]] = {name: [] for name in synthetic}
     floor: List[float] = []
@@ -145,7 +153,9 @@ def main() -> None:
             share = sum(t == "night" for _, t in crops) / len(crops)
             night = [r for r in pool if r[2] == "night"]
             day = [r for r in pool if r[2] == "day"]
-            chosen = random.sample(night, int(round(count * share))) + random.sample(day, count - int(round(count * share)))
+            chosen = random.sample(night, int(round(count * share))) + random.sample(
+                day, count - int(round(count * share))
+            )
             drawn[name] = embed(real_crops(chosen), model, device)
             if not chosen_first:
                 chosen_first = chosen
@@ -157,13 +167,23 @@ def main() -> None:
         taken = {id(r) for r in chosen_first}
         night = [r for r in pool if r[2] == "night" and id(r) not in taken]
         day = [r for r in pool if r[2] == "day" and id(r) not in taken]
-        other = random.sample(night, int(round(count * share))) + random.sample(day, count - int(round(count * share)))
+        other = random.sample(night, int(round(count * share))) + random.sample(
+            day, count - int(round(count * share))
+        )
         floor.append(frechet(drawn[first], embed(real_crops(other), model, device)))
-        print(f"resample {k}: " + ", ".join(f"{n} {results[n][-1]:.1f}" for n in synthetic) + f"; real-vs-real {floor[-1]:.1f}")
+        print(
+            f"resample {k}: "
+            + ", ".join(f"{n} {results[n][-1]:.1f}" for n in synthetic)
+            + f"; real-vs-real {floor[-1]:.1f}"
+        )
     print("\nFrechet distance to real person crops (lower = closer), mean +- sd over resamples:")
     for name, values in results.items():
-        print(f"  {name}: {np.mean(values):.1f} +- {np.std(values, ddof=1):.1f}   ({len(synthetic[name])} crops, {count} used)")
-    print(f"  real vs real (two disjoint samples of {count}): {np.mean(floor):.1f} +- {np.std(floor, ddof=1):.1f}  (noise floor)")
+        print(
+            f"  {name}: {np.mean(values):.1f} +- {np.std(values, ddof=1):.1f}   ({len(synthetic[name])} crops, {count} used)"
+        )
+    print(
+        f"  real vs real (two disjoint samples of {count}): {np.mean(floor):.1f} +- {np.std(floor, ddof=1):.1f}  (noise floor)"
+    )
     sys.stdout.flush()
 
 

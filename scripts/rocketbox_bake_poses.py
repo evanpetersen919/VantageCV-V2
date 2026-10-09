@@ -144,7 +144,11 @@ def main():
         index = 0
         for clip_name in clips:
             clip_path = os.path.join(
-                root, "Assets", "Animations", f"all_animations_max_motextr_{folder}", f"{gender}_{clip_name}.max.fbx"
+                root,
+                "Assets",
+                "Animations",
+                f"all_animations_max_motextr_{folder}",
+                f"{gender}_{clip_name}.max.fbx",
             )
             known = set(bpy.context.scene.objects)
             clip = import_clip(clip_path, known)

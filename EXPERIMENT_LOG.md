@@ -2614,3 +2614,33 @@ colour moved the lamp saturation only between 0.26 and 0.31. **Remaining gap, no
 saturation 0.26 against 0.47, and 117-162 red-light pixels per 10k against 275); no lever tried (glow intensity, glow colour, point-light
 strength) raises it, so it is probably the tonemapper and bloom of the engine's post-process, which was not changed. Day frames are
 unaffected. The release render (`kaggle_v1`) was stopped and restarted with this change.
+
+
+### Taillights against real: the lamps are camera glare, now added and fitted (2026-10-08)
+
+After the point-light fix the lamps themselves still looked wrong (small, pale pink; real brake lights are saturated red with a halo). The cause
+is the night colour grading: the v7 night preset sets global saturation 0.4 and the tonemapper then pales every bright emissive disc, so no glow
+intensity or colour reaches a deep red (pure red at four strengths: 2-10% of cars with deep-red lamps; `scripts/lamp_profile.py`).
+
+Real reference (`scripts/lamp_profile.py`, 300 night frames of BDD100K val, 2,100 cars 30-220 px tall at 1280 x 720; deep red = red hue within 25
+degrees, S >= 0.55, V >= 0.45, lower 70% of the car box): 44.5% of cars show deep-red lamps; among those the lamp area has median 10.7 per mille of the
+car width squared (IQR 2.7-35.1), V median 0.59, S median 0.65, largest blob radius 0.042 car widths. Ours (engine only, 118 night ego cars):
+2.5% of cars, area 2.0, V 0.46, S 0.55, radius 0.007.
+
+Fix: `src/orchestration/lamp_bloom.py`, an image-space glare added at night to every lamp that the engine's depth map shows (a lamp behind a car adds
+nothing; pixels under the painted hood are kept): three Gaussians (widths 0.4, 1.0 and 2.8 lamp radii; weights 1, 0.35, 0.08) added in linear light in
+the lamp's colour (tail red, head warm white) and clipped, so a lamp has a near-clipped core in a deep red halo. Fitted offline on 16 night
+scenarios (32 ego frames) by grid search against the real numbers above; first grids were too strong (area 85-145, radius 0.14-0.18) and one had a
+defect found by looking (a 60 px cap on the glare window cut large halos into squares; removed, then refitted with unchanged optimum):
+
+| | with deep-red lamps | area median (IQR) | V | S | radius |
+|---|---|---|---|---|---|
+| BDD100K night | 44.5% | 10.7 (2.7-35.1) | 0.59 | 0.65 | 0.042 |
+| engine only | 2.5% | 2.0 (1.9-2.7) | 0.46 | 0.55 | 0.007 |
+| + bloom (brake peak 2.0, running 0.5) | 58.5% | 11.2 (3.8-22.1) | 0.55 | 0.64 | 0.041 |
+
+Reading: among cars that show lamps, size, spread, saturation and radius match real closely; brightness is a little low (0.55 against 0.59); the upper
+tail of lamp sizes is shorter (75th percentile 22 against 35); the share of cars with visible lamps (58% against 44.5%) is a property of our scene
+layout (how many cars face away at night), not something the bloom controls. Headlamp glare is not fitted (peak 0.4, chosen conservative after a
+first value of 2.0 made a white haze over close cars). Day frames and labels are unaffected; `--lamp-bloom` (needs `--semantic-maps`) records
+`lamps_bloomed` per image, and the dataset card states that the glare is added in image space. 4 unit tests. The release render restarts with it.

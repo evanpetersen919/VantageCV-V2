@@ -80,6 +80,7 @@ async def _run(args: argparse.Namespace) -> None:
             args.profile,
             args.exact_labels,
             args.semantic_maps,
+            args.lamp_bloom,
         )
     print(
         f"{result.frames} frames in {result.elapsed_seconds:.0f} s -> {output_dir} "
@@ -133,6 +134,12 @@ def main() -> None:
         "pole, vegetation, sky, ...) and a depth map per frame, from what the game renders",
     )
     parser.add_argument(
+        "--lamp-bloom",
+        action="store_true",
+        help="add the camera glare of visible vehicle lamps at night (needs --semantic-maps for "
+        "depth); fitted to real night frames",
+    )
+    parser.add_argument(
         "--exact-labels",
         action="store_true",
         help="take every vehicle and pedestrian box, visible fraction and mask from what the game "
@@ -143,6 +150,10 @@ def main() -> None:
     try:
         args = parser.parse_args()
         _resolve_profile(args)
+        if args.lamp_bloom and not args.semantic_maps:
+            parser.error(
+                "--lamp-bloom needs --semantic-maps (the depth map decides which lamps are visible)"
+            )
         asyncio.run(_run(args))
     except (GameUnavailableError, ManifestMismatchError) as error:
         raise SystemExit(f"error: {error}") from error
