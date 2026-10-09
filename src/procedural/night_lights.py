@@ -57,9 +57,13 @@ HEADLIGHT_OUTER_CONE_DEG = 16.0
 # (found live), not a beam streaking down the road.
 HEADLIGHT_DIP = -0.01
 
-RUNNING_TAILLIGHT_INTENSITY_CD = 12.0
+# Taillight point lights, 0.15 x the earlier 12 and 50 cd. At the earlier strength they washed the
+# vehicles' own bodies and the road pink (a white bus rear read pink): measured on identical night
+# scenes, the scene's mean chromaticity (r, g, b) was 0.421, 0.302, 0.277 against 0.403, 0.324,
+# 0.273 in BDD100K night frames, and 0.403, 0.314, 0.283 at this strength (EXPERIMENT_LOG.md).
+RUNNING_TAILLIGHT_INTENSITY_CD = 1.8
 RUNNING_TAILLIGHT_ATTENUATION_M = 3.0
-BRAKE_LIGHT_INTENSITY_CD = 50.0
+BRAKE_LIGHT_INTENSITY_CD = 7.5
 BRAKE_LIGHT_ATTENUATION_M = 4.0
 
 # Visible glowing lenses (see ``SceneGlow``): a light actor casts light but

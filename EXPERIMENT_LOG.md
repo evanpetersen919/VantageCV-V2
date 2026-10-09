@@ -2582,3 +2582,35 @@ map as in the annotations (a path rule had said truck: found by looking at the p
 the KITTI 3D boxes of 63 unoccluded vehicles: median depth inside [box centre - half extent - 0.6 m, box centre + 0.6 m] for 95.2%,
 depth/z median ratio 0.918. Render cost with every annotation on: about 37 s per scenario (two frames). Not included: surface normals,
 optical flow, LiDAR, riders and two-wheelers, lane-level semantics.
+
+
+### Night taillights: the pink wash, measured and reduced (2026-10-08)
+
+Observation (owner): rear lights and the vehicles around them read pink. Measurement (`scripts/taillight_colour.py`, 1280 x 720, 300 BDD100K
+night frames against 214 night frames of `train_v13r`; inside the lower 70% of car boxes, bright (V >= 0.7), red-hue (within 25 degrees),
+non-white (S >= 0.15) pixels; and the mean chromaticity of mid-tone pixels (0.10 <= V <= 0.50) of the frame):
+
+| | red-light px per 10k box px | their saturation, median (10-90%) | scene chromaticity r, g, b |
+|---|---|---|---|
+| BDD100K night | 275 | 0.47 (0.20-0.79) | 0.403, 0.324, 0.273 |
+| ours before | 595 (434 on the sweep scenes) | 0.28 (0.18-0.38) | 0.421, 0.302, 0.277 |
+
+Sweep on 6 identical night scenes (12 frames) varying one thing at a time: glow-disc intensity x1 to x0.25 changed nothing that mattered
+(saturation 0.29 to 0.30); the taillight **point lights** drove the wash (autoexposure brightens the dark scene, so even a quarter of the
+strength still washed a white bus pink; with them off the lamps read red on a neutral scene):
+
+| point lights | red-light px/10k | saturation median | chromaticity r, g, b |
+|---|---|---|---|
+| x1.00 (earlier) | 434 | 0.29 | 0.421, 0.302, 0.277 |
+| x0.50 | 282 | 0.30 | 0.416, 0.305, 0.279 |
+| x0.25 | 193 | 0.27 | 0.410, 0.309, 0.281 |
+| x0.15 | 162 | 0.26 | 0.403, 0.314, 0.283 |
+| x0.10 | 144 | 0.26 | 0.397, 0.317, 0.286 |
+| off | 75 | 0.23 | 0.381, 0.326, 0.293 |
+
+Chosen: point lights x0.15 (`RUNNING_TAILLIGHT_INTENSITY_CD` 1.8, `BRAKE_LIGHT_INTENSITY_CD` 7.5): scene red chromaticity equals real
+(0.403), the L1 distance to real falls from 0.044 to 0.020, and the body wash is gone. At x0.15 the glow strength (x1 to x0.10) and a pure-red
+colour moved the lamp saturation only between 0.26 and 0.31. **Remaining gap, not closed:** the lamp pixels are paler than real (median
+saturation 0.26 against 0.47, and 117-162 red-light pixels per 10k against 275); no lever tried (glow intensity, glow colour, point-light
+strength) raises it, so it is probably the tonemapper and bloom of the engine's post-process, which was not changed. Day frames are
+unaffected. The release render (`kaggle_v1`) was stopped and restarted with this change.
