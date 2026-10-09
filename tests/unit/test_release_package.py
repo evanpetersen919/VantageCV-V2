@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from src.export.dataset_card import write_card
 from src.export.release_package import build_package, validate_package, yolo_segment_lines
 
 WIDTH, HEIGHT = 64, 48
@@ -50,6 +51,9 @@ def _make_source(root: Path) -> Path:
                     "depth_file": f"depth/{name}.png",
                     "width": WIDTH,
                     "height": HEIGHT,
+                    "time_of_day": "day",
+                    "weather": "clear",
+                    "vertical_fov_deg": 73.74,
                 }
             ],
             "annotations": [_annotation(image_id * 10, image_id)],
@@ -114,3 +118,21 @@ def test_validation_reports_missing_files_unknown_ids_and_unlabeled_pixels(tmp_p
     assert "missing depth_file" in problems
     assert "unknown class ids [99]" in problems
     assert "unlabeled pixels" in problems
+
+
+def test_dataset_card_states_measured_counts_terms_and_notices(tmp_path: Path) -> None:
+    source = _make_source(tmp_path / "source")
+    out = tmp_path / "release"
+    build_package(source, out, link=False)
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps({"annotation_policy": {"max_distance_m": {"6": 30.0, "2": 54.0}}}),
+        encoding="utf-8",
+    )
+    stats = write_card(out, manifest, "test")
+    assert stats["images"] == 2 and stats["per_class"] == {"car": 2}
+    card = (out / "README.md").read_text(encoding="utf-8")
+    assert "**2 forward-looking driving frames**" in card and "| car | 2 |" in card
+    assert "DRAFT" in (out / "DATASET_TERMS.md").read_text(encoding="utf-8")
+    notices = (out / "NOTICES.md").read_text(encoding="utf-8")
+    assert "Copyright (c) 2020 Microsoft" in notices and "Epic Games" in notices

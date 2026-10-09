@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+from src.export.dataset_card import write_card
 from src.export.release_package import build_package, validate_package
 
 
@@ -35,6 +36,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", maxsplit=1)[0])
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--name", default="v1", help="name used in the dataset card title")
     parser.add_argument("--copy", action="store_true", help="copy files instead of hard-linking")
     args = parser.parse_args()
     manifest = build_package(args.source, args.out, link=not args.copy)
@@ -46,6 +48,7 @@ def main() -> None:
     shutil.rmtree(scratch, ignore_errors=True)
     manifest["kitti"], manifest["instance_masks"] = kitti, count
     (args.out / "MANIFEST.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")
+    write_card(args.out, args.source / "manifest.json", args.name)
     problems = validate_package(args.out)
     print(json.dumps(manifest["counts"]), f"| kitti {kitti} | instance masks {count}")
     print(f"{len(problems)} problems" + (":" if problems else " (clean)"))
