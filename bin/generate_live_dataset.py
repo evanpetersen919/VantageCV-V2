@@ -79,6 +79,7 @@ async def _run(args: argparse.Namespace) -> None:
             _policy(args),
             args.profile,
             args.exact_labels,
+            args.semantic_maps,
         )
     print(
         f"{result.frames} frames in {result.elapsed_seconds:.0f} s -> {output_dir} "
@@ -125,6 +126,12 @@ def main() -> None:
     )
     parser.add_argument("--min-box-height", type=float, default=MIN_BOX_HEIGHT_PX)
     parser.add_argument("--min-box-width", type=float, default=MIN_BOX_WIDTH_PX)
+    parser.add_argument(
+        "--semantic-maps",
+        action="store_true",
+        help="also write a full-scene class map (Cityscapes label ids: road, sidewalk, building, "
+        "pole, vegetation, sky, ...) and a depth map per frame, from what the game renders",
+    )
     parser.add_argument(
         "--exact-labels",
         action="store_true",

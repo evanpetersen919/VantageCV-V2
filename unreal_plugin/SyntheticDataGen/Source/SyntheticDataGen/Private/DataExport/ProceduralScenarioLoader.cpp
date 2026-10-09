@@ -932,6 +932,7 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 
 	int32 BuiltCount = 0;
 	int32 SkippedCount = 0;
+	int32 MeshIndex = -1;
 
 	FVector2D BoundsMin(TNumericLimits<double>::Max(), TNumericLimits<double>::Max());
 	FVector2D BoundsMax(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Lowest());
@@ -939,6 +940,7 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 
 	for (const TSharedPtr<FJsonValue>& MeshValue : *MeshesJson)
 	{
+		++MeshIndex;
 		const TSharedPtr<FJsonObject>* MeshObject = nullptr;
 		FScenarioMeshData MeshData;
 		if (!MeshValue->TryGetObject(MeshObject) || !ParseMeshData(**MeshObject, MeshData))
@@ -957,6 +959,8 @@ bool AProceduralScenarioLoader::LoadProceduralScenario(const FString& ScenarioJs
 		}
 
 		UProceduralMeshComponent* Component = NewObject<UProceduralMeshComponent>(this);
+		// Position in the "meshes" array, so a later request (CaptureObjectMasks) can address this surface.
+		Component->ComponentTags.Add(FName(*FString::Printf(TEXT("vcv_mesh_%d"), MeshIndex)));
 		Component->RegisterComponent();
 		if (RootComponent == nullptr)
 		{
@@ -1261,8 +1265,10 @@ void AProceduralScenarioLoader::SpawnGlows(
 		return;
 	}
 
+	int32 GlowIndex = -1;
 	for (const TSharedPtr<FJsonValue>& GlowValue : GlowsJson)
 	{
+		++GlowIndex;
 		const TSharedPtr<FJsonObject>* GlowObject = nullptr;
 		const TArray<TSharedPtr<FJsonValue>>* Position = nullptr;
 		const TArray<TSharedPtr<FJsonValue>>* Color = nullptr;
@@ -1324,6 +1330,8 @@ void AProceduralScenarioLoader::SpawnGlows(
 		MID->SetVectorParameterValue(TEXT("GlowColor"), GlowColor);
 		Component->SetMaterial(0, MID);
 
+		// Position in the "glows" array, so a later request (CaptureObjectMasks) can address this lamp.
+		GlowActor->Tags.Add(FName(*FString::Printf(TEXT("vcv_glow_%d"), GlowIndex)));
 		SpawnedAssetActors.Add(GlowActor);
 		++OutSpawned;
 	}

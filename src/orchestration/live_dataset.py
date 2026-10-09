@@ -34,7 +34,7 @@ from src.orchestration.camera_sampling import (
 from src.orchestration.dataset_generator import Bounds, generate_scenario, render_frame
 from src.orchestration.dataset_store import DatasetStore
 from src.orchestration.exact_labels import apply_exact, capture_exact
-from src.orchestration.hood import clip_to_hood, hood_top_row, paint_hood
+from src.orchestration.hood import clip_exact_to_hood, clip_to_hood, hood_top_row, paint_hood
 from src.orchestration.live_render import (
     RECOVERABLE_ERRORS,
     GameUnavailableError,
@@ -43,6 +43,13 @@ from src.orchestration.live_render import (
     vertical_fov_deg,
 )
 from src.orchestration.scenario_serializer import object_asset_indices, serialize_scenario
+from src.orchestration.semantic_labels import (
+    DEPTH_SCALE,
+    capture_semantic,
+    class_groups,
+    save_maps,
+    unmapped_parts,
+)
 from src.procedural.environment import TimeOfDay, Weather, draw_weather, scenario_environment
 from src.procedural.scenario import ScenarioTypeConfig
 
@@ -161,6 +168,7 @@ def _settings(  # pylint: disable=too-many-arguments
     policy: AnnotationPolicy,
     profile: str = "v6",
     exact_labels: bool = False,
+    semantic_maps: bool = False,
 ) -> Dict[str, Any]:
     """The settings a run is identified by; a resume must match them."""
     settings: Dict[str, Any] = {
@@ -177,6 +185,8 @@ def _settings(  # pylint: disable=too-many-arguments
         settings["profile"] = profile
     if exact_labels:
         settings["exact_labels"] = True
+    if semantic_maps:
+        settings["semantic_maps"] = True
     return settings
 
 
@@ -191,6 +201,7 @@ async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-local
     policy: AnnotationPolicy,
     profile: str = "v6",
     exact_labels: bool = False,
+    semantic_maps: bool = False,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Generate, load and photograph one scenario; return its COCO images and annotations.
 
@@ -207,6 +218,9 @@ async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-local
     payload = serialize_scenario(scenario, environment)
     await renderer.load(payload)
     members = object_asset_indices(scenario, payload) if exact_labels else {}
+    groups = class_groups(payload, scenario) if semantic_maps else []
+    if semantic_maps and unmapped_parts(payload):
+        print(f"unmapped scene parts: {unmapped_parts(payload)}", flush=True)
     frames: List[CocoFrame] = []
     for view_index, pose in enumerate(_views_for(scenario, views, bounds, seed, profile)):
         name = f"{scenario.scenario_id}_{view_index}_{pose.kind}"
@@ -228,10 +242,28 @@ async def _render_scenario(  # pylint: disable=too-many-arguments,too-many-local
             )
             if exact is not None:
                 frame = apply_exact(frame, exact)
+            if hood_row is not None:
+                frame = clip_exact_to_hood(frame, hood_row)
+        files: Dict[str, Any] = {}
+        if semantic_maps:
+            maps = await capture_semantic(
+                renderer.backend,
+                groups,
+                (width, height),
+                output_dir / "semantic_tmp" / name,
+                hood_row,
+            )
+            semantic_file, depth_file = save_maps(maps, output_dir, name)
+            files = {
+                "semantic_file": semantic_file,
+                "depth_file": depth_file,
+                "depth_scale": DEPTH_SCALE,
+            }
         frame, dropped = apply_policy(frame, policy)
         if hood_row is not None:
             frame = clip_to_hood(frame, hood_row, policy.min_box_height_px)
         frame.metadata = _frame_metadata(scenario, conditions, seed, pose)
+        frame.metadata.update(files)
         if hood_row is not None:
             frame.metadata["hood_top_px"] = hood_row
         frame.metadata["dropped_annotations"] = dropped
@@ -277,6 +309,7 @@ async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arg
     policy: Optional[AnnotationPolicy] = None,
     profile: str = "v6",
     exact_labels: bool = False,
+    semantic_maps: bool = False,
 ) -> LiveDatasetResult:
     """Render ``num_scenarios`` scenarios x ``views``, resuming any earlier run in ``output_dir``.
 
@@ -287,7 +320,9 @@ async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arg
     started = time.perf_counter()
     policy = policy or AnnotationPolicy()
     store = DatasetStore(output_dir, export_coco([], policy.profile)["categories"])
-    store.check_manifest(_settings(config, bounds, views, base_seed, policy, profile, exact_labels))
+    store.check_manifest(
+        _settings(config, bounds, views, base_seed, policy, profile, exact_labels, semantic_maps)
+    )
     result = LiveDatasetResult()
     if any(store.load_part(index) is None for index in range(num_scenarios)):
         result.calibration_error_px = await _with_recovery(
@@ -322,6 +357,7 @@ async def generate_live_dataset(  # pylint: disable=too-many-locals,too-many-arg
                     policy,
                     profile,
                     exact_labels,
+                    semantic_maps,
                 ),
             )
             store.save_part(index, images, annotations)

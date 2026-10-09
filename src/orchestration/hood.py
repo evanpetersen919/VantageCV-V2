@@ -12,13 +12,15 @@ How often a hood appears and how tall it is are disclosed starting values (half 
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from numpy.typing import NDArray
 from PIL import Image
+from pycocotools import mask as mask_utils
 
 from src.export.coco_exporter import CocoFrame
+from src.ground_truth.bbox_2d import BoundingBox2D
 
 HOOD_PROBABILITY = 0.5
 HOOD_HEIGHT_FRACTION_RANGE = (0.05, 0.12)
@@ -39,6 +41,62 @@ def _hood_luma(pixels: NDArray[np.float64], top_row: int, rng: np.random.Generat
     start = int(pixels.shape[0] * 0.6)
     scene_luma = float(pixels[start:top_row].mean()) if top_row > start else 60.0
     return float(np.clip(0.4 * scene_luma, 6.0, 70.0)) * float(rng.uniform(0.7, 1.3))
+
+
+def hood_mask(top_row: int, size: tuple[int, int]) -> NDArray[np.bool_]:
+    """The pixels ``paint_hood`` covers in a ``size`` = (width, height) frame."""
+    width, height = size
+    rows = np.arange(height, dtype=np.float64)[:, None]
+    columns = np.linspace(-1.0, 1.0, width)[None, :]
+    covered: NDArray[np.bool_] = rows >= top_row + HOOD_CROWN_FRACTION * height * columns**2
+    return covered
+
+
+def clip_exact_to_hood(frame: CocoFrame, top_row: int) -> CocoFrame:
+    """``frame`` with every exact object mask trimmed to the pixels the hood leaves visible.
+
+    The box becomes the tight extent of what remains, the visible fraction shrinks with the
+    pixels lost, and an object with nothing left is dropped. Objects without an exact mask keep
+    the crown-row cut of ``clip_to_hood``.
+    """
+    masks = dict(frame.masks_by_id)
+    if not masks:
+        return frame
+    width = frame.camera.intrinsics.width
+    height = frame.camera.intrinsics.height
+    hood = hood_mask(top_row, (width, height))
+    boxes: List[BoundingBox2D] = []
+    for box in frame.bboxes_2d:
+        rle = masks.get(box.object_id)
+        if rle is None:
+            boxes.append(box)
+            continue
+        visible = (
+            mask_utils.decode({"size": rle["size"], "counts": rle["counts"].encode("ascii")}) > 0
+        )
+        before = int(visible.sum())
+        visible &= ~hood
+        after = int(visible.sum())
+        if after == 0:
+            masks.pop(box.object_id)
+            continue
+        rows, columns = np.nonzero(visible)
+        encoded = mask_utils.encode(np.asfortranarray(visible.astype(np.uint8)))
+        masks[box.object_id] = {
+            "size": [int(v) for v in encoded["size"]],
+            "counts": encoded["counts"].decode("ascii"),
+        }
+        boxes.append(
+            dataclasses.replace(
+                box,
+                x_min=float(columns.min()),
+                y_min=float(rows.min()),
+                x_max=float(columns.max() + 1),
+                y_max=float(rows.max() + 1),
+                visible_fraction=box.visible_fraction * after / max(before, 1),
+            )
+        )
+    return dataclasses.replace(frame, bboxes_2d=boxes, masks_by_id=masks)
 
 
 def paint_hood(  # pylint: disable=too-many-locals
@@ -69,6 +127,10 @@ def clip_to_hood(frame: CocoFrame, top_row: int, min_height_px: float) -> CocoFr
     (including those wholly under the hood) are dropped, and silhouettes are cut the same way."""
     kept = []
     for box in frame.bboxes_2d:
+        if box.object_id in frame.masks_by_id:  # exact mask: trimmed by clip_exact_to_hood
+            if box.y_max - box.y_min >= min_height_px:
+                kept.append(box)
+            continue
         if box.y_min >= top_row:
             continue
         clipped = dataclasses.replace(box, y_max=min(box.y_max, float(top_row)))

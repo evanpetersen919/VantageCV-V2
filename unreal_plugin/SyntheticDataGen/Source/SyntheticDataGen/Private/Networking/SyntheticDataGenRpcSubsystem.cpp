@@ -467,6 +467,9 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 		{
 			return BuildErrorResponse(RequestId, -32602, TEXT("Invalid params: expected 'out_path' and 'objects'"));
 		}
+		// Optional: also write the full-scene depth (float32 little-endian, centimetres along the view axis; 1e7 or more = no surface).
+		FString DepthPath;
+		(*Params)->TryGetStringField(TEXT("depth_path"), DepthPath);
 		(*Params)->TryGetNumberField(TEXT("width"), Width);
 		(*Params)->TryGetNumberField(TEXT("height"), Height);
 		(*Params)->TryGetNumberField(TEXT("vertical_fov_deg"), VerticalFovDeg);
@@ -482,6 +485,8 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 
 		// asset index -> actor, from the tags the loader set
 		TMap<int32, AActor*> ActorByIndex;
+		TMap<int32, UPrimitiveComponent*> ComponentByIndex;
+		TMap<int32, AActor*> GlowByIndex;
 		for (TActorIterator<AActor> It(World); It; ++It)
 		{
 			for (const FName& Tag : It->Tags)
@@ -490,6 +495,24 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 				if (TagText.StartsWith(TEXT("vcv_asset_")))
 				{
 					ActorByIndex.Add(FCString::Atoi(*TagText.RightChop(10)), *It);
+				}
+				else if (TagText.StartsWith(TEXT("vcv_glow_")))
+				{
+					GlowByIndex.Add(FCString::Atoi(*TagText.RightChop(9)), *It);
+				}
+			}
+			// procedural surfaces: component tag "vcv_mesh_<index>" set by the loader
+			TArray<UPrimitiveComponent*> PrimitiveComponents;
+			It->GetComponents<UPrimitiveComponent>(PrimitiveComponents);
+			for (UPrimitiveComponent* Component : PrimitiveComponents)
+			{
+				for (const FName& Tag : Component->ComponentTags)
+				{
+					const FString TagText = Tag.ToString();
+					if (TagText.StartsWith(TEXT("vcv_mesh_")))
+					{
+						ComponentByIndex.Add(FCString::Atoi(*TagText.RightChop(9)), Component);
+					}
 				}
 			}
 		}
@@ -552,6 +575,18 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 			return BuildErrorResponse(RequestId, -32000, TEXT("Could not read back the scene depth"));
 		}
 
+		if (!DepthPath.IsEmpty())
+		{
+			TArray<uint8> DepthBytes;
+			DepthBytes.SetNumUninitialized(W * H * static_cast<int32>(sizeof(float)));
+			FMemory::Memcpy(DepthBytes.GetData(), FullDepth.GetData(), DepthBytes.Num());
+			if (!FFileHelper::SaveArrayToFile(DepthBytes, *DepthPath))
+			{
+				CaptureActor->Destroy();
+				return BuildErrorResponse(RequestId, -32000, FString::Printf(TEXT("Could not write %s"), *DepthPath));
+			}
+		}
+
 		constexpr float NoSurface = 1.0e7f; // anything farther than 100 km is the sky / nothing
 		TArray<uint16> Visible;
 		Visible.Init(0, W * H);
@@ -559,23 +594,58 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 		TArray<float> ObjectDepth;
 		for (int32 ObjectIndex = 0; ObjectIndex < ObjectsJson->Num(); ++ObjectIndex)
 		{
+			// An object is a list of asset indices, or {"assets": [...], "meshes": [...]} (meshes: procedural surfaces).
 			const TArray<TSharedPtr<FJsonValue>>* Members = nullptr;
-			if (!(*ObjectsJson)[ObjectIndex]->TryGetArray(Members))
+			const TArray<TSharedPtr<FJsonValue>>* MeshMembers = nullptr;
+			const TArray<TSharedPtr<FJsonValue>>* GlowMembers = nullptr;
+			const TSharedPtr<FJsonObject>* GroupObject = nullptr;
+			if ((*ObjectsJson)[ObjectIndex]->TryGetObject(GroupObject))
+			{
+				(*GroupObject)->TryGetArrayField(TEXT("assets"), Members);
+				(*GroupObject)->TryGetArrayField(TEXT("meshes"), MeshMembers);
+				(*GroupObject)->TryGetArrayField(TEXT("glows"), GlowMembers);
+			}
+			else if (!(*ObjectsJson)[ObjectIndex]->TryGetArray(Members))
 			{
 				continue;
 			}
 			Capture->ShowOnlyActors.Reset();
-			for (const TSharedPtr<FJsonValue>& Member : *Members)
+			Capture->ShowOnlyComponents.Reset();
+			if (Members != nullptr)
 			{
-				if (AActor** Found = ActorByIndex.Find(static_cast<int32>(Member->AsNumber())))
+				for (const TSharedPtr<FJsonValue>& Member : *Members)
 				{
-					Capture->ShowOnlyActors.Add(*Found);
+					if (AActor** Found = ActorByIndex.Find(static_cast<int32>(Member->AsNumber())))
+					{
+						Capture->ShowOnlyActors.Add(*Found);
+					}
 				}
 			}
+			if (MeshMembers != nullptr)
+			{
+				for (const TSharedPtr<FJsonValue>& Member : *MeshMembers)
+				{
+					if (UPrimitiveComponent** Found = ComponentByIndex.Find(static_cast<int32>(Member->AsNumber())))
+					{
+						Capture->ShowOnlyComponents.Add(*Found);
+					}
+				}
+			}
+			if (GlowMembers != nullptr)
+			{
+				for (const TSharedPtr<FJsonValue>& Member : *GlowMembers)
+				{
+					if (AActor** Found = GlowByIndex.Find(static_cast<int32>(Member->AsNumber())))
+					{
+						Capture->ShowOnlyActors.Add(*Found);
+					}
+				}
+			}
+			const int32 Shown = Capture->ShowOnlyActors.Num() + Capture->ShowOnlyComponents.Num();
 			const TSharedRef<FJsonObject> Report = MakeShared<FJsonObject>();
 			Report->SetNumberField(TEXT("object"), ObjectIndex);
-			Report->SetNumberField(TEXT("actors_found"), Capture->ShowOnlyActors.Num());
-			if (Capture->ShowOnlyActors.Num() == 0)
+			Report->SetNumberField(TEXT("actors_found"), Shown);
+			if (Shown == 0)
 			{
 				Reports.Add(MakeShared<FJsonValueObject>(Report));
 				continue;
@@ -613,7 +683,10 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 					if (FMath::Abs(Own - FullDepth[Index]) <= FMath::Max(2.0f, 0.002f * Own))
 					{
 						++VisiblePx;
-						Visible[Index] = static_cast<uint16>(ObjectIndex + 1);
+						if (Visible[Index] == 0) // first match wins where two groups coincide
+						{
+							Visible[Index] = static_cast<uint16>(ObjectIndex + 1);
+						}
 						VX0 = FMath::Min(VX0, X);
 						VY0 = FMath::Min(VY0, Y);
 						VX1 = FMath::Max(VX1, X);
@@ -637,6 +710,7 @@ FString USyntheticDataGenRpcSubsystem::HandleRpcRequest(const FString& RequestJs
 			Report->SetArrayField(TEXT("visible_bbox"), VisibleBox);
 			Reports.Add(MakeShared<FJsonValueObject>(Report));
 		}
+		Capture->ShowOnlyComponents.Reset();
 		CaptureActor->Destroy();
 
 		TArray<uint8> Bytes;
