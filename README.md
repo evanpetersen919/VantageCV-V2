@@ -178,6 +178,16 @@ depth equals the scene's depth. Those annotations carry a `mask_rle` (COCO run-l
 the game's render: full boxes of vehicles score 0.94 to 0.99 IoU, pedestrians 0.79, visible-part boxes 0.65 to 0.88 and
 polygons 0.39 to 0.84 (`EXPERIMENT_LOG.md`).
 
+With `--semantic-maps` (after 1.2) each frame also gets a **full-scene class map** (`semantic/<frame>.png`, Cityscapes
+label ids: road, sidewalk, building, pole, traffic light and sign, vegetation, terrain, sky, person, car, truck, bus,
+static, ego vehicle) and a **depth map** (`depth/<frame>.png`, 16-bit, metres x 256 along the viewing axis, 0 = no
+surface), both from the engine's own depth passes, with no unlabeled pixel. On the probe frames the class map agreed
+with 100% of the instance-mask pixels of cars, persons and trucks, and depth agreed with independent 3D boxes for 95%
+of unoccluded vehicles. The painted hood is `ego vehicle` and the exact masks stop at it. `bin/package_dataset.py`
+then builds a self-contained release folder (COCO, YOLO detection and segmentation labels, KITTI, instance masks,
+class table, dataset card) and validates it. The class table, with the choices where Cityscapes is ambiguous, is in
+`src/ground_truth/semantic_classes.py`.
+
 ## Roadmap
 
 The plan after 1.1, with what each step is meant to answer and what is deliberately not being done, is in

@@ -2560,3 +2560,25 @@ buses, 0.992 trucks; median 122 vertices (max 2,902); 19 ms per annotation. Test
 regions kept apart, an exported exact annotation's polygon rasterises to its mask. The batches rendered before this change
 (`train_v12e`, `train_v13r`) keep hull polygons in `segmentation` and exact masks in `mask_rle`; the Kaggle release batch
 (`kaggle_v1`) was restarted after the change so it carries the traced polygons from the start.
+
+
+### Full annotation set before the release render (2026-10-08)
+
+Decision (owner): all annotations are built and checked before the Kaggle batch is rendered, so it is rendered once. The release render
+(`kaggle_v1`, 1,024 scenarios, seeds 80000-81023, Rocketbox pedestrians) was stopped after 13 scenarios and discarded.
+
+What was built: (1) COCO `segmentation` traced from the exact mask (see above); (2) full-scene class map and depth map per frame
+(`--semantic-maps`): the plugin's `CaptureObjectMasks` now takes groups of assets, procedural meshes (tagged `vcv_mesh_<i>`) and lamp glows
+(`vcv_glow_<i>`), resolves overlaps first-match, and can write the engine depth; the class table is Cityscapes label ids
+(`src/ground_truth/semantic_classes.py`), every asset and mesh type of the generator mapped by rule, with a test that fails on an unmapped
+part; (3) the painted hood: `hood_mask`, exact masks and boxes trimmed to it, class map `ego vehicle` there; (4) the release package
+(`bin/package_dataset.py`): relative paths, YOLO detection and segmentation labels, KITTI, instance masks, ultralytics-resolvable
+`data.yaml`, validation, and a dataset card with draft terms and notices.
+
+Checks on a 6-scenario probe (12 frames, day and night, rain, clear, golden hour): class map against the exact instance masks: 100% of
+the mask pixels of cars (2.37 M px), persons (113 k) and trucks (248 k) carry the matching class, no mismatch; unlabeled pixels 0
+(first probe: 0.02% at night, the emissive headlight discs, now tagged and given their vehicle's class); pickups are `car` in the class
+map as in the annotations (a path rule had said truck: found by looking at the picture); 0 of 125 masks overlap the hood; depth against
+the KITTI 3D boxes of 63 unoccluded vehicles: median depth inside [box centre - half extent - 0.6 m, box centre + 0.6 m] for 95.2%,
+depth/z median ratio 0.918. Render cost with every annotation on: about 37 s per scenario (two frames). Not included: surface normals,
+optical flow, LiDAR, riders and two-wheelers, lane-level semantics.
