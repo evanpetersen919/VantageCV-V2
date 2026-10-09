@@ -18,5 +18,6 @@ Research scripts stay here because the experiment log records their paths.
 | `calibrate_bloom.py` | Score lamp-bloom parameters against real night frames, offline, on a rendered night set. |
 | `lamp_profile.py` | Per-car taillight statistics in real night frames and in ours, for calibrating lamp bloom. |
 | `person_crop_realism.py` | How far are synthetic person crops from real ones? A Frechet distance on ResNet-50 features. |
+| `rocketbox_measure.py` | Blender script: limb lengths, height and facing of every Rocketbox adult avatar. |
 | `rocketbox_bake_poses.py` | Blender script: bake static posed meshes of one Microsoft Rocketbox avatar. |
 | `taillight_colour.py` | How red are the vehicle lights, and how warm is the scene, in real night frames and in ours? |
