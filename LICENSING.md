@@ -12,7 +12,7 @@ Dated working notes and results are in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
 | Unreal Engine 5.4 | Unreal Engine EULA | Engine use settled; see crowd row for the one clause that concerns training | rendering |
 | City Sample vehicles, buildings, road kit, props | Epic Content License Agreement and Fab Standard License (EULA text read except Section 16(l)); Fab page tag "Allows usage with AI: No" | **Open.** Text read as limited to generative AI; Epic has not confirmed | all batches |
 | City Sample crowd characters (adapted from MetaHumans) | Unreal Engine EULA, MetaHuman clause | **Unresolved.** Not limited to generative AI. **Not used in new work since 2026-10-08** | batches up to `train_v12e` |
-| Megascans / Quixel items in the project (curbs, street furniture) | Came inside the City Sample package (no separate Megascans entry in the Fab library); no licence statement found | **Unverified**; presumed to follow City Sample's listing | all batches |
+| Megascans / Quixel items in the project (curbs, bollards, hydrants, barriers, street furniture) | Governed by the same two agreements as City Sample: Fab Standard License (Fab EULA) and, for legacy Epic-era items, the Epic Content License Agreement; no Megascans-specific AI clause found | Same status as City Sample (NoAI wording is generative-only; Epic unconfirmed) | all batches |
 | Vehicle Variety Pack Vol. 2 box truck (Fab) | Fab Standard License; "Allows usage with AI: No" | Same reading as City Sample vehicles; unconfirmed | only the `v11` truck experiment |
 | Rocketbox avatars (pedestrians in new work) | MIT since 2020-11-16 (earlier: Microsoft Research License) | Permissive text with a relicensing history; MIT does not name ML training; counsel question | `train_v13r` |
 | BDD100K (25% of every arm's training images; all evaluation) | UC Regents licence: free for educational, research and not-for-profit use; commercial use only for BDD/BAIR Commons members (text read from a mirror) | Research use fine; **commercial use of anything trained on it needs a separate licence** | training, evaluation |
@@ -125,8 +125,8 @@ The test level holds no resident crowd (frames rendered with no scenario pedestr
 
 **Still open for a dataset release**
 1. The NoAI/dataset point above (Epic's reading of Section 17 / 16(l), unread and unconfirmed).
-2. **Megascans** items (curbs, street furniture) are in 5.5% of the scenario asset entries and visible in renders; their licence
-   is unverified. Options: confirm it, or replace them with this project's own meshes and re-render.
+2. Megascans items (curbs, street furniture; 5.5% of the scenario asset entries) fall under the same agreements as City Sample
+   (see above), so they share point 1 and need nothing further of their own.
 3. Rocketbox: MIT's silence on ML and the research-only release history (counsel); for an image dataset the avatars are rendered
    pixels, not distributed files, which lowers but does not remove the question.
 4. The Kaggle licence wording itself, and Kaggle's own terms for uploads containing third-party content.
@@ -160,9 +160,22 @@ become relevant again if weights are ever published.
   (file creation dates, a proxy for acquisition, not the licence acceptance date): `CitySample_5.7` 2025-12-27,
   `VehicleVc016a8147616V2` 2025-12-30, `CitySample_5.4` 2026-09-16. The exact acceptance dates are in the Epic account's purchase
   history (not read).
-- **Megascans / Quixel** (road curbs `Modular_Curb_5_M`, street furniture): there is no separate Megascans entry in the Fab library,
-  so these came inside the City Sample package and are presumed to follow its listing. Searches for a Megascans-specific AI
-  statement found none (Epic's announcements describe Megascans under the Fab Standard License; nothing on AI training). Unverified.
+- **Megascans / Quixel** (the project's `Content/Megascans`: bollards, barriers, hydrants, mailboxes, plant pots, garbage cans,
+  `Modular_Curb_5_M`, parking meter, signs; the scenes use curbs, hydrants, a parking meter and a road sign, from
+  `road_edge_kit.py` and `street_furniture.py`). Checked 2026-10-08:
+  - `quixel.com/terms` permanently redirects (HTTP 308) to Epic's Content License Agreement (`unrealengine.com/eula/content`).
+  - Quixel's licence page says: "Assets bought on Fab are available under the Fab Standard License" (linked to the Fab EULA), and
+    offers custom project or studio licences; it says nothing on AI.
+  - Epic staff on the forum (2024-10-23, thread "Megascans License?"): Megascans obtained from Fab are under "the new license"
+    (Fab Standard); items acquired earlier under Unreal Unlimited "remain subject to the Content EULA and will be considered
+    UE-only content". Community members asked for confirmation on other points and got no staff answer.
+  - The Fab library cache has no separate Megascans listing, so these items came inside the City Sample package (whose listing is
+    flagged AI-forbidden).
+  Result: Megascans here fall under the same two agreements already recorded (Fab EULA Sections 3, 4, 6; Content License
+  Agreement Sections 3, 17), with the same distribution allowance for rendered images and the same NoAI wording. No
+  Megascans-specific restriction on AI or datasets was found anywhere; none of these pages was available verbatim (Epic's pages return
+  403), so the owner's paste of Fab Section 16 and the account's licence record remain the missing pieces. This is not a separate
+  open question any more.
 - **Vehicle Variety Pack Vol. 2** (Fab, free; one box truck): Standard License, "Allows usage with AI: No", "Generated with AI:
   No". Used only in the `v11` experiment; later batches use City Sample vehicles. Same reading and status as City Sample's vehicles.
 
@@ -222,8 +235,8 @@ for the tooling used, so the quotes above rest on the owner's paste. Corroborati
 - Acceptance dates and the licence version shown in the Epic account for City Sample and the Vehicle Variety Pack.
 - Confirm the BDD100K licence on the official site (`doc.bdd100k.com` did not resolve; `bdd-data.berkeley.edu` failed its certificate
   check); read Ultralytics' license FAQ and Enterprise terms directly.
-- Counsel: the NoAI tag, the MetaHuman clause (no longer used), Rocketbox's history and MIT's silence on ML, BDD100K's
-  commercial restriction for released weights, and AGPL for the code and weights. Epic would not interpret any of it (reply of
+- Counsel: the NoAI tag and datasets, the MetaHuman clause (no longer used), Rocketbox's history and MIT's silence on ML (and,
+  only if weights are ever released, BDD100K's commercial restriction and AGPL for the weights). Epic would not interpret any of it (reply of
   2026-10-08).
 
 ## What would change this record
