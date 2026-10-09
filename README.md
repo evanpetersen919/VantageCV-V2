@@ -12,9 +12,9 @@
 honest research log of how well a detector trained on them transfers to real photos
 (BDD100K, Cityscapes), including what didn't work.**
 
-![A 360 degree orbit around one vehicle: 2D box, segmentation, 3D box, heading, class and distance tags and a live attribute card, all staying locked to the car as the camera moves](docs/images/vehicle_annotations.webp)
+![A 360 degree orbit around one car: exact instance masks, 2D and 3D boxes, heading, class, distance and visibility tags, a live attribute card, then the full-scene class map and metric depth, all from the engine](docs/images/vehicle_annotations.webp)
 
-*Every annotation type on one vehicle, from a full 360 degree orbit: the labels are the dataset's own, and they follow the object as the viewpoint changes.*
+*Every annotation type on one vehicle, from a full 360 degree orbit (Rocketbox pedestrians): exact engine instance masks, 2D and 3D boxes, heading, class / distance / visibility tags and a live attribute card, then the Cityscapes class map and metric depth of the whole scene. All of it is the dataset's own labels, and it follows the object as the viewpoint changes.*
 
 | **+4.7 AP** | **about 0.5 px** | **903 tests** |
 |:---:|:---:|:---:|
