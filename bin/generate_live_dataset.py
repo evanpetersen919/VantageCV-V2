@@ -12,6 +12,7 @@ the run if the render and the camera model disagree.
 import argparse
 import asyncio
 from pathlib import Path
+from typing import List, Optional
 
 from src.export.annotation_policy import MIN_BOX_HEIGHT_PX, MIN_BOX_WIDTH_PX, AnnotationPolicy
 from src.ground_truth.categories import BUS, PEDESTRIAN, PROFILES, SEDAN, SUV, TRUCK
@@ -62,12 +63,20 @@ def _resolve_profile(args: argparse.Namespace) -> None:
         args.parking_lot_fraction = V7_PARKING_LOT_FRACTION if v7 else V6_PARKING_LOT_FRACTION
 
 
+def _relaunch_command(args: argparse.Namespace) -> Optional[List[str]]:
+    """The command that restarts the game after a crash, or None without ``--relaunch-game``."""
+    if not args.relaunch_game:
+        return None
+    script = Path(__file__).resolve().parent / "launch_ue5.ps1"
+    return ["powershell", "-NoProfile", "-File", str(script)]
+
+
 async def _run(args: argparse.Namespace) -> None:
     """Build the renderer, run the dataset generation, print a summary."""
     output_dir = args.out or default_output_dir()
     async with UE5Backend(args.ue5_uri, timeout_seconds=300.0) as backend:
         result = await generate_live_dataset(
-            LiveRenderer(backend),
+            LiveRenderer(backend, relaunch_command=_relaunch_command(args)),
             load_scenario_config(args.config).model_copy(
                 update={"parking_lot_fraction": args.parking_lot_fraction}
             ),
@@ -138,6 +147,11 @@ def main() -> None:
         action="store_true",
         help="add the camera glare of visible vehicle lamps at night (needs --semantic-maps for "
         "depth); fitted to real night frames",
+    )
+    parser.add_argument(
+        "--relaunch-game",
+        action="store_true",
+        help="if the game stops answering, start it again with bin/launch_ue5.ps1 and carry on",
     )
     parser.add_argument(
         "--exact-labels",

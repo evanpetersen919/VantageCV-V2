@@ -8,6 +8,8 @@ output:
 generation:
   base_seed: 42
   num_scenarios: 100
+  # Not read by any code today; highway, parking_lot and roundabout raise NotImplementedError
+  # in src/procedural/config_loader.py. Kept as the intended mix once those exist.
   scenario_type_weights:
     urban_dense: 0.3
     urban_sparse: 0.25

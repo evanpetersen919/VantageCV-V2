@@ -14,10 +14,11 @@ image size. Python and UE5 world coordinates agree with no extra flip.
 import asyncio
 import json
 import shutil
+import subprocess  # nosec B404 - launches the user's own game script
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import websockets
@@ -106,12 +107,14 @@ class LiveRenderer:
         settle_seconds: float = 3.0,
         load_seconds: float = 10.0,
         payload_path: Path = Path(tempfile.gettempdir()) / "vantagecv_scenario.json",
+        relaunch_command: Optional[Sequence[str]] = None,
     ) -> None:
         self._backend = backend
         self._payload_path = payload_path
         self._screenshot_path = screenshot_path
         self._settle_seconds = settle_seconds
         self._load_seconds = load_seconds
+        self._relaunch_command = relaunch_command
 
     @property
     def backend(self) -> UE5Backend:
@@ -131,8 +134,12 @@ class LiveRenderer:
     async def recover(self, wait_seconds: float = 20.0, attempts: int = 12) -> None:
         """Wait for a hung or restarting game to answer again, reconnecting each try.
 
-        Raises ``GameUnavailableError`` if it never does (about ``wait_seconds * attempts``).
+        If a ``relaunch_command`` was given and the game does not answer on the first try, it is
+        run once (the command should start the game and return), then the same waiting applies.
+
+        Raises ``GameUnavailableError`` if it never answers (about ``wait_seconds * attempts``).
         """
+        relaunched = False
         for _ in range(attempts):
             await asyncio.sleep(wait_seconds)
             try:
@@ -140,6 +147,10 @@ class LiveRenderer:
                 await self._backend.ping()
                 return
             except RECOVERABLE_ERRORS:
+                if self._relaunch_command is not None and not relaunched:
+                    relaunched = True
+                    print("game not answering; relaunching it", flush=True)
+                    subprocess.run(list(self._relaunch_command), check=False)  # nosec B603
                 continue
         raise GameUnavailableError(
             f"the game did not answer for {wait_seconds * attempts:.0f} s; restart it and rerun "

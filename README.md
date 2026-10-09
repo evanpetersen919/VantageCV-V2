@@ -52,9 +52,10 @@ silhouette (cyan), so the two stay honestly checkable against each other:
 
 ![A whole generated city block from directly above, with 3D wireframe boxes on every building and vehicle, plus their 2D projected boxes](docs/images/city_overview_2d_3d_boxes.jpg)
 
-Only the 2D box and segmentation polygon are written into the exported COCO
-dataset today -- the 3D boxes stay internal-only for now (no LiDAR point
-clouds are generated yet to pair them with; see
+Each COCO annotation carries the 2D box and segmentation polygon, and, since 1.2,
+a KITTI-convention `box3d` with the image's `kitti_P2` projection matrix (valid for
+forward-looking frames; no ego-pose or world-frame export, and no LiDAR point clouds
+are generated yet to pair them with; see
 [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)). Boxes are shrunk to
 the visible region for partially-occluded objects (matching BDD100K/
 Cityscapes' own annotation convention -- see
