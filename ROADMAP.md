@@ -17,6 +17,7 @@ marked as such in the log entries that use them.
   depend on the City Sample crowd, which is where the person gain comes from.
 - In CARLA (`carla_loop/`), exact perception gives 0.46 collisions per km and either trained detector 1.5 to 1.8.
   The two detectors are not separable at 20 routes x 3 weights seeds. The test is underpowered, not negative.
+- Licence evidence is collected in [`LICENSING.md`](LICENSING.md).
 - Epic answered on 2026-10-08 without an answer: it does not give EULA interpretations for a specific distribution
   model and refers to the developer's own legal counsel. Whether City Sample's crowd characters (adapted from
   MetaHumans) may be used for training stays unresolved. No datasets or weights are published; the options are

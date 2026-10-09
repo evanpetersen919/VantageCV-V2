@@ -347,6 +347,9 @@ City Sample (`bin/dump_vehicle_meshes.py`), and those tests are skipped where th
 
 Unreal Engine and City Sample are the property of Epic Games, Inc.
 
+**Licensing record.** What each asset class comes from, the clauses read, and what is still open are in
+[`LICENSING.md`](LICENSING.md).
+
 **Status of the pedestrian assets.** Whether City Sample's crowd characters (adapted from Epic's
 MetaHumans) may be used to train models is not settled (a Rocketbox replacement exists, see the findings; new work uses it and the City Sample crowd is kept only to reproduce earlier batches): Epic was asked (2026-10-05) and replied (2026-10-08) that it
 cannot give legal or EULA interpretations for a specific distribution model and recommended the developer's own legal
