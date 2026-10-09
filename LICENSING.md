@@ -10,7 +10,7 @@ Dated working notes and results are in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
 |---|---|---|---|
 | This repository's code | MIT ([`LICENSE`](LICENSE)) | Settled | everything |
 | Unreal Engine 5.4 | Unreal Engine EULA | Engine use settled; see crowd row for the one clause that concerns training | rendering |
-| City Sample vehicles, buildings, road kit, props | Epic Content License Agreement; Fab page tag "Allows usage with AI: No" | **Open.** Text read as limited to generative AI; Epic has not confirmed | all batches |
+| City Sample vehicles, buildings, road kit, props | Epic Content License Agreement and Fab Standard License (EULA text read except Section 16(l)); Fab page tag "Allows usage with AI: No" | **Open.** Text read as limited to generative AI; Epic has not confirmed | all batches |
 | City Sample crowd characters (adapted from MetaHumans) | Unreal Engine EULA, MetaHuman clause | **Unresolved.** Not limited to generative AI. **Not used in new work since 2026-10-08** | batches up to `train_v12e` |
 | Megascans / Quixel items in the project (curbs, street furniture) | Not recorded | **Unverified** | all batches |
 | Vehicle Variety Pack Vol. 2 box truck (Fab) | Fab Standard License; "Allows usage with AI: No" | Same reading as City Sample vehicles; unconfirmed | only the `v11` truck experiment |
@@ -61,6 +61,34 @@ applies to your specific product and distribution plans, we'd recommend consulti
 **Decision (2026-10-08):** no MetaHuman-derived pedestrians in new datasets, experiments or releases; Rocketbox only. The
 `pedestrian_source: city_sample` option remains only to reproduce earlier batches and logs a warning when used.
 
+## Fab End User License Agreement (Standard License)
+
+The Fab page for City Sample (and for third-party Fab content such as the Vehicle Variety Pack) names the Standard License. Text
+pasted by the repository owner on 2026-10-08 from Epic's page (summary header: "Last updated: October 1st, 2024"). The pasted text
+stops at Section 16(g); Section 16(l), which Section 6 points to for the definitions of "NoAI Content" and "Generative AI
+Programs", was **not** in the paste and has not been read.
+
+- Section 3(a), Standard License: "a non-exclusive and non-transferable license to privately use, reproduce, display, perform, and
+  modify the Content in accordance with the terms of this Agreement ... you can privately use the Content however you want under a
+  Standard License." Private research use is inside the grant, subject to the restrictions below.
+- Section 4(b), Distributing Linear Media Projects: "Subject to any applicable restrictions in Section 6 (Content Use Restrictions),
+  you may freely Distribute a Project that is a rendered linear media product. This means, for example, you may freely Distribute:
+  i. rendered video files (e.g., broadcast or streamed video files, cartoons, movies, or images) and ii. images created using
+  Content." Reading: publishing rendered images and videos is allowed; whether a labelled image dataset counts as "images created
+  using Content" is a reading, not stated.
+- Section 6(b)(vii), General Restrictions: "you may not: ... use NoAI Content (i) in datasets utilized by Generative AI Programs; (ii)
+  in the development of Generative AI Programs; or (iii) as training inputs to Generative AI Programs. See Section 16(l) for the
+  definitions of NoAI Content and Generative AI Programs." Same structure as Content License Agreement Section 17 (above): the
+  restriction is worded around Generative AI Programs. The definition that decides whether a detector is one is in 16(l), unread.
+- Section 7(a), Amendments: "Any Content you acquired (whether free or paid) prior to the modified terms will remain governed by the
+  license terms applicable at the time when you acquired the Content." The terms that apply are those at the time of acquisition;
+  acquisition dates of City Sample and of the Vehicle Variety Pack should be recorded (not yet).
+- Section 14(b), Indemnification: the user indemnifies the Content Licensor against third-party claims "related to your Project or
+  your exercise of a license granted to you". A liability point for counsel.
+- Section 6(a), Non-Compatible Licenses: Standard License content may not be combined with code or content under a licence (for
+  example GPL, LGPL, CC BY-SA) that would require the Content to be governed by other terms. Nothing in this repository combines
+  Content with such code (renders and labels are separate files); noted for counsel together with the ultralytics licence (unchecked).
+
 ## Pedestrians in new work: Microsoft Rocketbox
 
 - Repository `microsoft/Microsoft-Rocketbox` (115 rigged avatars; 38 adult avatars used). Current `LICENSE.md`: the standard MIT
@@ -89,6 +117,7 @@ Cityscapes and BDD100K are used for evaluation only; their terms still apply to 
 
 ## What would change this record
 
+- Section 16(l) of the Fab EULA (the definitions of NoAI Content and Generative AI Programs), and the acquisition dates of the Fab content.
 - A written answer from Epic or counsel on the NoAI tag and the MetaHuman clause.
 - Counsel's reading of the Rocketbox history.
 - Verbatim licence text for Megascans, BDD100K, Cityscapes, RealDriveSim and ultralytics.
