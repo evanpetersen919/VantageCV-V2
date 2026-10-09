@@ -2526,3 +2526,15 @@ An earlier statement in this session called the City Sample vehicles and props t
   the City Sample tag question or the Megascans question. A scene with no City Sample or Megascans assets would need its own
   vehicles, buildings and props from permissively licensed sources; that has not been scoped.
 * Standing position unchanged: no datasets or weights published; code, metrics and this log are what is public.
+
+
+### Licensing verification pass (2026-10-08)
+
+Every licence the project depends on was looked up and the findings recorded in `LICENSING.md` (one place, with sources, quoted text and
+what could not be read). What was newly established: the Fab library cache marks City Sample and the Vehicle Variety Pack as AI-forbidden
+(flag 1) and has no separate Megascans entry; Cityscapes (non-commercial; abstract derivatives such as trained models may be
+distributed) and RealDriveSim (CC BY 4.0) read from their official pages; BDD100K's data licence is a UC Regents licence (research and
+not-for-profit use free; commercial use for BDD/BAIR Commons members), read from a mirror because the official site was unreachable;
+ultralytics is AGPL-3.0 and states trained models are AGPL-3.0 too unless an Enterprise License is bought (secondary reports; this bears on
+any release of weights); MetaHuman and NoAI clause wording corroborated by third-party mirrors. Not resolvable by search: Fab EULA
+Section 16(l), the exact acceptance dates, Epic's own interpretation, and every question of law. These need the owner's paste or counsel.
