@@ -186,9 +186,8 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         VEHICLE_STOP_SETBACK_M if config.lane_markings else VEHICLE_STOP_LINE_CROSSWALK_SETBACK_M
     ).generate(nodes, edges, lanes)
     lane_connectivity = LaneConnectivityGenerator().generate(nodes, edges, lanes)
-    vehicles, pedestrians = ActorPlacementGenerator(
-        seed, config, night=time_of_day == TimeOfDay.NIGHT
-    ).generate(edges, traffic)
+    actor_generator = ActorPlacementGenerator(seed, config, night=time_of_day == TimeOfDay.NIGHT)
+    vehicles, pedestrians = actor_generator.generate(edges, traffic)
     if config.pedestrian_source == "rocketbox":
         pedestrians = swap_pedestrians(pedestrians, seed)
     else:
@@ -286,7 +285,9 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
     )
 
     crosswalk_pieces = generate_crosswalk_pieces(nodes, edges)
-    traffic_light_pieces = generate_traffic_light_pieces(lanes, edges)
+    traffic_light_pieces = generate_traffic_light_pieces(
+        lanes, edges, actor_generator.active_phases if config.signal_states else None
+    )
 
     validation_report = ScenarioValidator().validate(
         bounds, nodes, edges, lanes, buildings, meshes, vehicles, pedestrians, lane_connectivity

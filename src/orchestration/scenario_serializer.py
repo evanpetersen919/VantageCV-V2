@@ -402,7 +402,9 @@ def serialize_scenario(
     ]
     id_offset += len(result.crosswalk_pieces)
     assets += [
-        _facade_piece_to_asset_json(piece, id_offset + piece_id)
+        _facade_piece_to_asset_json(
+            piece, id_offset + piece_id, material_replacements=piece.material_replacements
+        )
         for piece_id, piece in enumerate(result.traffic_light_pieces)
     ]
     id_offset += len(result.traffic_light_pieces)

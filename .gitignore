@@ -77,3 +77,6 @@ src/procedural/vehicle_meshes.npz
 
 # Third-party datasets kept next to the project (large; never committed)
 external_data/
+
+# Output of the headless Unreal tool scripts
+unreal_plugin/tools/*.log

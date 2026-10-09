@@ -356,6 +356,8 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods,too-man
             ** config.pedestrian_density_skew
         )
         self._last_pose_frame: Optional[float] = None
+        # The phase each signalized node showed in the last ``generate`` call.
+        self.active_phases: Dict[int, SignalPhase] = {}
 
     def generate(
         self, edges: Dict[int, RoadEdge], traffic: TrafficNetwork
@@ -396,6 +398,7 @@ class ActorPlacementGenerator:  # pylint: disable=too-few-public-methods,too-man
 
         signal_plans = build_signal_plans(edges, traffic)
         active_phases = resolve_active_phases(signal_plans, self.rng)
+        self.active_phases = active_phases
         node_clearance = compute_node_clearance(edges)
         minor_axis_by_node = compute_minor_axis_by_node(edges)
 

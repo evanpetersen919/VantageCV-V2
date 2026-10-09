@@ -1,4 +1,6 @@
-### [OPEN, NOT RESOLVED -- paused after a real regression] Traffic-light pole color can't be safely driven yet
+### [RESOLVED 2026-10-09, see docs/experiments/31_*.md] Traffic-light pole color can't be safely driven yet
+
+_Resolved with project-owned material copies and the `Crosswalk Control` scalar; the original text below is kept as the record of the regression._
 
 User asked whether the real traffic-signal pole mesh's color (currently
 always whatever its baked material defaults to -- see `traffic_lights.py`'s

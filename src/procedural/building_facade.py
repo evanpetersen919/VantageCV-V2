@@ -142,7 +142,7 @@ flipped -- their own local geometry already faces outward as placed.
 
 import math
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -227,6 +227,8 @@ class FacadePiece:
     # Per-instance scale along the mesh's own local axes; None means
     # unscaled. A negative component mirrors the mesh.
     scale: Optional[Tuple[float, float, float]] = None
+    # Material slot name -> project-owned material instance to swap in (a signal pole's lit state).
+    material_replacements: Optional[Dict[str, str]] = None
 
 
 def generate_building_facade_pieces(  # pylint: disable=too-many-locals

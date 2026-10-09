@@ -86,7 +86,7 @@ reason (``street_furniture.LAMP_STYLES``), which flips local Y to
 ``-outward``, back over the road.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -94,6 +94,12 @@ from src.procedural.building_facade import FacadePiece
 from src.procedural.lane_topology import Lane, compute_node_clearance
 from src.procedural.road_edge_kit import edge_runs
 from src.procedural.road_network import RoadEdge
+from src.procedural.signal_phasing import (
+    SignalLight,
+    SignalPhase,
+    approach_light,
+    classify_approach_direction,
+)
 
 _KIT_DIR = "/Game/Prop/Kit_StreetLamp_A/Mesh/SM_StreetLamp_A_StopLight_"
 
@@ -124,8 +130,38 @@ TRAFFIC_LIGHT_END_MARGIN_M = 1.0
 _ARM_OVER_ROAD_ROTATION_OFFSET_RAD = np.pi
 
 
+# Project-owned copies of the pole's emissive materials, one per lit state
+# (unreal_plugin/tools/create_signal_materials.py). The pole's own materials show every head red,
+# so a signalized pole swaps in the copy for its approach's colour. The vehicle heads follow the
+# approach; the pedestrian heads face back along the approach, at the crosswalk that runs with
+# it, so they show WALK only while the approach is green.
+_SIGNAL_DIR = "/Game/VantageCV/Signals/"
+_VEHICLE_SLOT = "Prop_Emissive_StopLight"
+_PEDESTRIAN_FRONT_SLOT = "Prop_Emissive_Walk_01"
+_PEDESTRIAN_RIGHT_SLOTS = ("Prop_Emissive_Walk_02", "Prop_Emissive_Walk_03")
+
+
+def _material(name: str) -> str:
+    return f"{_SIGNAL_DIR}{name}.{name}"
+
+
+def signal_material_replacements(light: SignalLight) -> Dict[str, str]:
+    """Slot name -> material instance that makes the pole show ``light`` (and the matching
+    pedestrian symbol)."""
+    ped = "Walk" if light == SignalLight.GREEN else "Stop"
+    replacements = {
+        _VEHICLE_SLOT: _material(f"MI_Signal_{light.value.capitalize()}"),
+        _PEDESTRIAN_FRONT_SLOT: _material(f"MI_Ped_Front_{ped}"),
+    }
+    for slot in _PEDESTRIAN_RIGHT_SLOTS:
+        replacements[slot] = _material(f"MI_Ped_Right_{ped}")
+    return replacements
+
+
 def generate_traffic_light_pieces(
-    lanes: Dict[int, Lane], edges: Dict[int, RoadEdge]
+    lanes: Dict[int, Lane],
+    edges: Dict[int, RoadEdge],
+    phases: Optional[Dict[int, SignalPhase]] = None,
 ) -> List[FacadePiece]:
     """One real traffic signal pole per directed road edge long enough to
     hold one clear of the intersection, mounted at the FAR corner of the
@@ -133,13 +169,25 @@ def generate_traffic_light_pieces(
     see module docstring), its mast arm reaching back over the near
     lanes. Every pole uses the long-arm variant (see module docstring:
     every road has the same real width today, so only that arm actually
-    reaches across it)."""
+    reaches across it).
+
+    With ``phases`` (node id -> the phase it shows, ``ActorPlacementGenerator.active_phases``) the
+    poles stand only at signalized nodes and each shows its approach's colour; without it every
+    approach gets a pole in the asset's own default state."""
     node_clearance = compute_node_clearance(edges)
     pieces: List[FacadePiece] = []
     for run in edge_runs(lanes, edges):
         if run.length <= TRAFFIC_LIGHT_END_MARGIN_M:
             continue
         end_node_id = edges[run.edge_id].end_node_id
+        replacements = None
+        if phases is not None:
+            if end_node_id not in phases:
+                continue
+            light = approach_light(
+                phases[end_node_id], classify_approach_direction(edges[run.edge_id])
+            )
+            replacements = signal_material_replacements(light)
         far_side_shift = 2.0 * node_clearance.get(end_node_id, 0.0)
         spot = run.length + far_side_shift + TRAFFIC_LIGHT_END_MARGIN_M
         position = run.start + run.run_direction * spot + run.outward * TRAFFIC_LIGHT_OFFSET_M
@@ -148,6 +196,7 @@ def generate_traffic_light_pieces(
                 asset_path=_CURRENT_STYLE,
                 position=np.array([position[0], position[1], 0.0]),
                 rotation_rad=run.rotation_rad + _ARM_OVER_ROAD_ROTATION_OFFSET_RAD,
+                material_replacements=replacements,
             )
         )
     return pieces

@@ -366,3 +366,27 @@ def red_time_seconds(plan: IntersectionSignalPlan, axis: ApproachDirection) -> f
         and phase.kind in (PhaseKind.GREEN, PhaseKind.YELLOW_CHANGE)
     )
     return plan.cycle_length_s - moving_time_s
+
+
+class SignalLight(str, Enum):
+    """The colour a signal head shows an approach."""
+
+    RED = "red"
+    YELLOW = "yellow"
+    GREEN = "green"
+
+
+def approach_light(phase: SignalPhase, axis: ApproachDirection) -> SignalLight:
+    """The colour shown to an approach on cardinal ``axis`` during ``phase``.
+
+    Green while its axis pair owns a GREEN phase, yellow during that pair's own YELLOW_CHANGE, and
+    red for everything else: the other pair's whole green and yellow, and every ALL_RED. The pair
+    owning a phase is recovered from its index like ``red_time_seconds`` does."""
+    owner = AXIS_PAIRS[phase.phase_index // len(PhaseKind)]
+    if axis not in owner:
+        return SignalLight.RED
+    if phase.kind == PhaseKind.GREEN:
+        return SignalLight.GREEN
+    if phase.kind == PhaseKind.YELLOW_CHANGE:
+        return SignalLight.YELLOW
+    return SignalLight.RED
