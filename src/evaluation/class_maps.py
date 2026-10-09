@@ -15,6 +15,7 @@ Every choice below is a design decision, not a measured fact; they are collected
 they can be reviewed and changed in one place, and the loaders record the mapping used.
 """
 
+from dataclasses import dataclass
 from typing import Dict, Tuple
 
 PERSON, CAR, BUS, TRUCK = 1, 3, 6, 8
@@ -49,3 +50,62 @@ CITYSCAPES_GROUP_SUFFIX = "group"
 # they are not scored on the real side either (they become ignore regions).
 MIN_BOX_HEIGHT_PX = 8.0
 MIN_BOX_WIDTH_PX = 4.0
+
+
+@dataclass(frozen=True)
+class ClassProfile:  # pylint: disable=too-many-instance-attributes
+    """A set of classes, and how real benchmark labels and a COCO detector map onto it."""
+
+    name: str
+    classes: Dict[int, str]
+    bdd_positive: Dict[str, int]
+    bdd_ignore: Dict[str, Tuple[int, ...]]
+    cityscapes_positive: Dict[str, int]
+    cityscapes_ignore: Dict[str, Tuple[int, ...]]
+    coco80_to_ours: Dict[int, int]
+
+    @property
+    def class_order(self) -> Tuple[int, ...]:
+        """Class ids in YOLO index order (sorted by id)."""
+        return tuple(sorted(self.classes))
+
+
+DEFAULT_PROFILE = ClassProfile(
+    "default",
+    OUR_CLASSES,
+    BDD100K_POSITIVE,
+    BDD100K_IGNORE,
+    CITYSCAPES_POSITIVE,
+    CITYSCAPES_IGNORE,
+    COCO80_INDEX_TO_OURS,
+)
+
+# The rider profile scores the vulnerable-road-user classes as classes instead of ignoring or
+# dropping them: BDD100K ``rider`` (the person on the vehicle), ``bike`` and ``motor``; Cityscapes
+# ``rider``, ``bicycle`` and ``motorcycle``. ``bike`` and ``motor`` take the COCO ids of bicycle (2)
+# and motorcycle (4); ``rider`` has no COCO counterpart and gets id 10. A COCO-pretrained detector's
+# bicycle and motorcycle outputs map to bike and motor; it has no rider output.
+BIKE, MOTOR, RIDER = 2, 4, 10
+RIDER_CLASSES: Dict[int, str] = {
+    PERSON: "person",
+    BIKE: "bike",
+    CAR: "car",
+    MOTOR: "motor",
+    BUS: "bus",
+    TRUCK: "truck",
+    RIDER: "rider",
+}
+_RIDER_POSITIVE = {"person": PERSON, "car": CAR, "bus": BUS, "truck": TRUCK, "rider": RIDER}
+RIDER_PROFILE = ClassProfile(
+    "riders",
+    RIDER_CLASSES,
+    {**_RIDER_POSITIVE, "bike": BIKE, "motor": MOTOR},
+    {"train": (BUS, TRUCK)},
+    {**_RIDER_POSITIVE, "bicycle": BIKE, "motorcycle": MOTOR},
+    {"train": (BUS, TRUCK), "caravan": (TRUCK, CAR), "trailer": (TRUCK,)},
+    {0: PERSON, 1: BIKE, 2: CAR, 3: MOTOR, 5: BUS, 7: TRUCK},
+)
+PROFILES: Dict[str, ClassProfile] = {
+    DEFAULT_PROFILE.name: DEFAULT_PROFILE,
+    RIDER_PROFILE.name: RIDER_PROFILE,
+}

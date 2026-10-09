@@ -9,7 +9,7 @@ it is replaced with the dataset's new location.
 
 import random
 from pathlib import Path, PureWindowsPath
-from typing import Dict, Iterable, List, Sequence, Set
+from typing import Dict, Iterable, List, Optional, Sequence, Set
 
 from src.evaluation.yolo_export import label_path_for
 
@@ -52,11 +52,14 @@ def write_rerooted_lists(source_dir: Path, dataset_root: Path, out_dir: Path) ->
     return written
 
 
-def data_yaml(train_lists: Sequence[Path], val_list: Path) -> str:
+def data_yaml(
+    train_lists: Sequence[Path], val_list: Path, names: Optional[Dict[int, str]] = None
+) -> str:
     """A ``data.yaml`` for ultralytics: one or more train lists (a mixed dataset has several),
     one validation list, and this project's four classes."""
+    names = CLASS_NAMES if names is None else names
     train_block = "\n".join(f"  - {path.as_posix()}" for path in train_lists)
-    names_block = "\n".join(f"  {index}: {name}" for index, name in CLASS_NAMES.items())
+    names_block = "\n".join(f"  {index}: {name}" for index, name in names.items())
     return (
         f"path: {val_list.parent.as_posix()}\n"
         f"train:\n{train_block}\n"

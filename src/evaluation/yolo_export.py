@@ -12,7 +12,7 @@ the COCO profile), which is also the order ``detections.py`` maps back from.
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from src.evaluation.class_maps import OUR_CLASSES
 
@@ -77,9 +77,14 @@ def write_yolo_split(
     return len(paths), boxes
 
 
-def write_data_yaml(dataset_dir: Path, class_order: Sequence[int] = CLASS_ORDER) -> None:
+def write_data_yaml(
+    dataset_dir: Path,
+    class_order: Sequence[int] = CLASS_ORDER,
+    names_by_id: Optional[Dict[int, str]] = None,
+) -> None:
     """The ultralytics ``data.yaml`` for ``train.txt`` / ``val.txt`` in ``dataset_dir``."""
-    names = "\n".join(f"  {index}: {OUR_CLASSES[cid]}" for index, cid in enumerate(class_order))
+    labels = OUR_CLASSES if names_by_id is None else names_by_id
+    names = "\n".join(f"  {index}: {labels[cid]}" for index, cid in enumerate(class_order))
     root = dataset_dir.resolve().as_posix()
     yaml = f"path: {root}\ntrain: train.txt\nval: val.txt\nnames:\n{names}\n"
     (dataset_dir / "data.yaml").write_text(yaml, encoding="utf-8")
@@ -92,7 +97,9 @@ def _write_side(dataset_dir: Path, name: str, class_order: Sequence[int]) -> Tup
 
 
 def write_yolo_dataset(
-    dataset_dir: Path, class_order: Sequence[int] = CLASS_ORDER
+    dataset_dir: Path,
+    class_order: Sequence[int] = CLASS_ORDER,
+    names_by_id: Optional[Dict[int, str]] = None,
 ) -> Dict[str, Any]:
     """Write labels, list files and ``data.yaml`` for a dataset that has been split.
 
@@ -102,5 +109,5 @@ def write_yolo_dataset(
     for name in ("train", "val"):
         images, boxes = _write_side(dataset_dir, name, class_order)
         counts[name] = {"images": images, "boxes": boxes}
-    write_data_yaml(dataset_dir, class_order)
+    write_data_yaml(dataset_dir, class_order, names_by_id)
     return counts

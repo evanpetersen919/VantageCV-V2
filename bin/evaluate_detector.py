@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
+from src.evaluation.class_maps import PROFILES
 from src.evaluation.detections import CLASS_SPACES
 from src.evaluation.inference import run_detector
 from src.evaluation.loaders import EvalSet, load_bdd100k, load_cityscapes
@@ -26,8 +27,8 @@ from src.evaluation.scoring import ScoreReport, format_report, score
 def _load(args: argparse.Namespace) -> EvalSet:
     """The benchmark's ground truth."""
     if args.benchmark == "bdd100k":
-        return load_bdd100k(args.labels, args.images)
-    return load_cityscapes(args.cityscapes_root, args.split)
+        return load_bdd100k(args.labels, args.images, profile=PROFILES[args.profile])
+    return load_cityscapes(args.cityscapes_root, args.split, profile=PROFILES[args.profile])
 
 
 def _detect(eval_set: EvalSet, args: argparse.Namespace) -> List[Dict[str, Any]]:
@@ -42,6 +43,7 @@ def _detect(eval_set: EvalSet, args: argparse.Namespace) -> List[Dict[str, Any]]
         args.max_det,
         args.device,
         args.max_images,
+        PROFILES[args.profile],
     )
 
 
@@ -69,6 +71,12 @@ def main() -> None:
     parser.add_argument("--weights", type=Path, required=True)
     parser.add_argument("--class-space", choices=CLASS_SPACES, required=True)
     parser.add_argument("--benchmark", choices=["bdd100k", "cityscapes"], required=True)
+    parser.add_argument(
+        "--profile",
+        choices=sorted(PROFILES),
+        default="default",
+        help="class set: default (person, car, bus, truck) or riders (adds rider, bike, motor)",
+    )
     parser.add_argument("--labels", type=Path, help="BDD100K label JSON")
     parser.add_argument("--images", type=Path, help="BDD100K image folder")
     parser.add_argument("--cityscapes-root", type=Path)

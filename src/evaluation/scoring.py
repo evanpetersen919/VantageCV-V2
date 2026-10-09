@@ -46,14 +46,17 @@ class ScoreReport:
     by_condition: Dict[str, Scores] = field(default_factory=dict)
 
 
-def remap_coco80(detections: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def remap_coco80(
+    detections: Iterable[Dict[str, Any]],
+    profile: class_maps.ClassProfile = class_maps.DEFAULT_PROFILE,
+) -> List[Dict[str, Any]]:
     """Detections from a COCO-pretrained detector (0-based COCO-80 class indices) in our ids.
 
     Predictions of any class we do not model are dropped.
     """
     remapped = []
     for detection in detections:
-        category = class_maps.COCO80_INDEX_TO_OURS.get(detection["category_id"])
+        category = profile.coco80_to_ours.get(detection["category_id"])
         if category is not None:
             remapped.append({**detection, "category_id": category})
     return remapped
@@ -70,24 +73,30 @@ def _mean_precision(precision: np.ndarray) -> float:  # type: ignore[type-arg]
     return float(defined.mean()) if defined.size else float("nan")
 
 
+def _class_names(gt: COCO) -> Dict[int, str]:
+    """Class id -> name from the ground truth's own categories."""
+    return {category["id"]: category["name"] for category in gt.dataset["categories"]}
+
+
 def _ground_truth_counts(gt: COCO, image_ids: Sequence[int]) -> Dict[str, int]:
     """Scored (non-ignore) ground-truth boxes per class over ``image_ids``."""
-    counts = {name: 0 for name in class_maps.OUR_CLASSES.values()}
+    names = _class_names(gt)
+    counts = {name: 0 for name in names.values()}
     wanted = set(image_ids)
     for annotation in gt.dataset["annotations"]:
         if annotation["image_id"] in wanted and not annotation["iscrowd"]:
-            counts[class_maps.OUR_CLASSES[annotation["category_id"]]] += 1
+            counts[names[annotation["category_id"]]] += 1
     return counts
 
 
 def _per_class_precision(
-    evaluator: COCOeval,
+    evaluator: COCOeval, names: Dict[int, str]
 ) -> Tuple[Dict[str, float], Dict[str, float]]:
     """Per-class AP (IoU 0.50:0.95) and AP50 from an evaluated ``COCOeval``."""
     precision = evaluator.eval["precision"]  # [IoU, recall, class, area, max detections]
     per_class, per_class_50 = {}, {}
     for index, category_id in enumerate(evaluator.params.catIds):
-        name = class_maps.OUR_CLASSES[category_id]
+        name = names[category_id]
         per_class[name] = _mean_precision(precision[:, :, index, ALL_AREAS, MAX_DETECTIONS])
         per_class_50[name] = _mean_precision(precision[0, :, index, ALL_AREAS, MAX_DETECTIONS])
     return per_class, per_class_50
@@ -96,13 +105,10 @@ def _per_class_precision(
 def _score_subset(gt: COCO, detections: List[Dict[str, Any]], image_ids: Sequence[int]) -> Scores:
     """COCO evaluation restricted to ``image_ids``."""
     wanted = set(image_ids)
-    kept = [
-        d
-        for d in detections
-        if d["image_id"] in wanted and d["category_id"] in class_maps.OUR_CLASSES
-    ]
+    class_names = _class_names(gt)
+    kept = [d for d in detections if d["image_id"] in wanted and d["category_id"] in class_names]
     counts = _ground_truth_counts(gt, image_ids)
-    names = list(class_maps.OUR_CLASSES.values())
+    names = list(class_names.values())
     if not kept:
         zero = {name: (0.0 if counts[name] else float("nan")) for name in names}
         overall = {stat: (0.0 if any(counts.values()) else float("nan")) for stat in STAT_NAMES}
@@ -113,7 +119,7 @@ def _score_subset(gt: COCO, detections: List[Dict[str, Any]], image_ids: Sequenc
         evaluator.evaluate()
         evaluator.accumulate()
         evaluator.summarize()
-    per_class, per_class_50 = _per_class_precision(evaluator)
+    per_class, per_class_50 = _per_class_precision(evaluator, class_names)
     overall = {
         stat: _nan_if_undefined(evaluator.stats[position])
         for position, stat in enumerate(STAT_NAMES)
@@ -157,7 +163,7 @@ def format_report(report: ScoreReport) -> str:
     def cell(value: float) -> str:
         return "  n/a" if math.isnan(value) else f"{100.0 * value:5.1f}"
 
-    names = list(class_maps.OUR_CLASSES.values())
+    names = list(report.overall.per_class_ap)
     header = "subset                     images   AP  AP50  " + "  ".join(f"{n:>6s}" for n in names)
     lines = [header]
     rows = [("all", report.overall)] + list(report.by_condition.items())

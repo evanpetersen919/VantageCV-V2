@@ -49,6 +49,7 @@ that produced each result (`bin/<name>.py ...`), and those commands should keep 
 | `box_outcomes.py` | Per real ground-truth box of each class: did a trained detector find it, mislabel it, find it only at low confidence, or miss it? (needs PyTorch + ultralytics) |
 | `summarise_box_outcomes.py` | Summarise per-box outcomes of trained arms over seeds (reading rule: hpc/README.md section 16). |
 | `gradcam_compare.py` | Grad-CAM overlays for a YOLOv10m checkpoint, on a fixed real-image panel. |
+| `prepare_rider_headroom.py` | Build the datasets of the rider headroom check: how much does more real rare-class data help? |
 | `prepare_real_control.py` | Build the real-data control dataset: real BDD100K *training* images in YOLO format. |
 | `select_realdrivesim.py` | Choose 512 RealDriveSim frames and write them as a VantageCV-style batch folder. |
 | `plot_results.py` | Draw the results figures used in ``README.md`` and ``EXPERIMENT_LOG.md`` from the result files. |

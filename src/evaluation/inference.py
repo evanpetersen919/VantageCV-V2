@@ -7,6 +7,7 @@ Shared by the scoring script (``bin/evaluate_detector.py``) and the per-box outc
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.evaluation.class_maps import DEFAULT_PROFILE, ClassProfile
 from src.evaluation.detections import boxes_to_detections
 from src.evaluation.loaders import EvalSet
 
@@ -23,6 +24,7 @@ def run_detector(  # pylint: disable=too-many-arguments,too-many-locals
     max_det: int,
     device: str,
     max_images: Optional[int] = None,
+    profile: ClassProfile = DEFAULT_PROFILE,
 ) -> List[Dict[str, Any]]:
     """COCO detections of ``weights`` over the benchmark's images (the first ``max_images``)."""
     from ultralytics import YOLO  # pylint: disable=import-outside-toplevel,import-error
@@ -49,5 +51,6 @@ def run_detector(  # pylint: disable=too-many-arguments,too-many-locals
                 boxes.conf.cpu().tolist(),
                 boxes.cls.cpu().tolist(),
                 class_space,
+                profile,
             )
     return detections

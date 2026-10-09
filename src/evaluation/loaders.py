@@ -45,19 +45,20 @@ class EvalSet:
 
     def counts(self) -> Dict[str, int]:
         """Scored (non-ignore) ground-truth boxes per class name, and the ignore-region count."""
-        totals = {name: 0 for name in class_maps.OUR_CLASSES.values()}
+        names = {category["id"]: category["name"] for category in self.coco["categories"]}
+        totals = {name: 0 for name in names.values()}
         totals["ignore_regions"] = 0
         for annotation in self.coco["annotations"]:
             if annotation["iscrowd"]:
                 totals["ignore_regions"] += 1
             else:
-                totals[class_maps.OUR_CLASSES[annotation["category_id"]]] += 1
+                totals[names[annotation["category_id"]]] += 1
         return totals
 
 
-def _categories() -> List[Dict[str, Any]]:
-    """The COCO ``categories`` list for our four classes."""
-    return [{"id": cid, "name": name} for cid, name in class_maps.OUR_CLASSES.items()]
+def _categories(profile: class_maps.ClassProfile) -> List[Dict[str, Any]]:
+    """The COCO ``categories`` list for a class profile."""
+    return [{"id": cid, "name": name} for cid, name in profile.classes.items()]
 
 
 def _add_object(  # pylint: disable=too-many-arguments,too-many-locals
@@ -121,11 +122,12 @@ def _bdd_entries(labels_path: Path) -> Iterator[Tuple[str, Dict[str, Any], List[
         yield frame["name"], dict(frame.get("attributes", {})), list(frame.get("labels", []))
 
 
-def load_bdd100k(
+def load_bdd100k(  # pylint: disable=too-many-locals
     labels_path: Path,
     image_dir: Path,
     image_size: Tuple[int, int] = BDD100K_IMAGE_SIZE,
     minimum: Tuple[float, float] = (class_maps.MIN_BOX_HEIGHT_PX, class_maps.MIN_BOX_WIDTH_PX),
+    profile: class_maps.ClassProfile = class_maps.DEFAULT_PROFILE,
 ) -> EvalSet:
     """BDD100K detection labels as an ``EvalSet`` (layouts: see ``_bdd_entries``).
 
@@ -152,32 +154,36 @@ def load_bdd100k(
                 annotations,
                 image,
                 (box["x1"], box["y1"], box["x2"], box["y2"]),
-                class_maps.BDD100K_POSITIVE.get(category),
-                class_maps.BDD100K_IGNORE.get(category, ()),
+                profile.bdd_positive.get(category),
+                profile.bdd_ignore.get(category, ()),
                 minimum,
             )
-    coco = {"images": images, "annotations": annotations, "categories": _categories()}
-    return EvalSet("bdd100k", coco, image_dir, {"minimum_height_width_px": list(minimum)})
+    coco = {"images": images, "annotations": annotations, "categories": _categories(profile)}
+    notes = {"minimum_height_width_px": list(minimum), "profile": profile.name}
+    return EvalSet("bdd100k", coco, image_dir, notes)
 
 
-def _cityscapes_mapping(label: str) -> Tuple[Optional[int], Tuple[int, ...]]:
+def _cityscapes_mapping(
+    label: str, profile: class_maps.ClassProfile
+) -> Tuple[Optional[int], Tuple[int, ...]]:
     """(positive class, ignore classes) for a Cityscapes label; ``(None, ())`` drops it."""
-    if label in class_maps.CITYSCAPES_POSITIVE:
-        return class_maps.CITYSCAPES_POSITIVE[label], ()
-    if label in class_maps.CITYSCAPES_IGNORE:
-        return None, class_maps.CITYSCAPES_IGNORE[label]
+    if label in profile.cityscapes_positive:
+        return profile.cityscapes_positive[label], ()
+    if label in profile.cityscapes_ignore:
+        return None, profile.cityscapes_ignore[label]
     suffix = class_maps.CITYSCAPES_GROUP_SUFFIX
-    if label.endswith(suffix) and label[: -len(suffix)] in class_maps.CITYSCAPES_POSITIVE:
-        return None, (class_maps.CITYSCAPES_POSITIVE[label[: -len(suffix)]],)
+    if label.endswith(suffix) and label[: -len(suffix)] in profile.cityscapes_positive:
+        return None, (profile.cityscapes_positive[label[: -len(suffix)]],)
     return None, ()
 
 
-def _cityscapes_image(
+def _cityscapes_image(  # pylint: disable=too-many-arguments
     path: Path,
     split: str,
     image_id: int,
     annotations: List[Dict[str, Any]],
     minimum: Tuple[float, float],
+    profile: class_maps.ClassProfile,
 ) -> Dict[str, Any]:
     """One Cityscapes polygon file as an image; its objects are appended to ``annotations``."""
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -191,7 +197,7 @@ def _cityscapes_image(
         "attributes": {"city": city},
     }
     for instance in data.get("objects", []):
-        positive, ignore = _cityscapes_mapping(instance["label"])
+        positive, ignore = _cityscapes_mapping(instance["label"], profile)
         if positive is None and not ignore:
             continue
         xs = [point[0] for point in instance["polygon"]]
@@ -206,6 +212,7 @@ def load_cityscapes(
     root: Path,
     split: str = "val",
     minimum: Tuple[float, float] = (class_maps.MIN_BOX_HEIGHT_PX, class_maps.MIN_BOX_WIDTH_PX),
+    profile: class_maps.ClassProfile = class_maps.DEFAULT_PROFILE,
 ) -> EvalSet:
     """Cityscapes ``gtFine`` polygons of one split as an ``EvalSet``.
 
@@ -218,6 +225,9 @@ def load_cityscapes(
     images: List[Dict[str, Any]] = []
     annotations: List[Dict[str, Any]] = []
     for path in polygon_files:
-        images.append(_cityscapes_image(path, split, len(images) + 1, annotations, minimum))
-    coco = {"images": images, "annotations": annotations, "categories": _categories()}
-    return EvalSet(f"cityscapes_{split}", coco, root, {"minimum_height_width_px": list(minimum)})
+        images.append(
+            _cityscapes_image(path, split, len(images) + 1, annotations, minimum, profile)
+        )
+    coco = {"images": images, "annotations": annotations, "categories": _categories(profile)}
+    notes = {"minimum_height_width_px": list(minimum), "profile": profile.name}
+    return EvalSet(f"cityscapes_{split}", coco, root, notes)

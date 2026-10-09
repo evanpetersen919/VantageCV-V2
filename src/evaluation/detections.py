@@ -11,18 +11,18 @@ person, car, bus and truck are kept (``class_maps.COCO80_INDEX_TO_OURS``).
 
 from typing import Any, Dict, List, Sequence
 
-from src.evaluation.class_maps import COCO80_INDEX_TO_OURS
-from src.evaluation.yolo_export import CLASS_ORDER
+from src.evaluation.class_maps import DEFAULT_PROFILE, ClassProfile
 
 CLASS_SPACES = ("ours", "coco80")
 
 
-def boxes_to_detections(
+def boxes_to_detections(  # pylint: disable=too-many-arguments
     image_id: int,
     boxes_xyxy: Sequence[Sequence[float]],
     confidences: Sequence[float],
     class_indices: Sequence[int],
     class_space: str,
+    profile: ClassProfile = DEFAULT_PROFILE,
 ) -> List[Dict[str, Any]]:
     """COCO result dicts (``bbox`` as x, y, width, height) for one image.
 
@@ -30,12 +30,13 @@ def boxes_to_detections(
     """
     if class_space not in CLASS_SPACES:
         raise ValueError(f"class_space must be one of {CLASS_SPACES}, got {class_space!r}")
+    class_order = profile.class_order
     detections = []
     for (x1, y1, x2, y2), confidence, index in zip(boxes_xyxy, confidences, class_indices):
         if class_space == "ours":
-            category = CLASS_ORDER[int(index)] if 0 <= int(index) < len(CLASS_ORDER) else None
+            category = class_order[int(index)] if 0 <= int(index) < len(class_order) else None
         else:
-            category = COCO80_INDEX_TO_OURS.get(int(index))
+            category = profile.coco80_to_ours.get(int(index))
         if category is None:
             continue
         detections.append(

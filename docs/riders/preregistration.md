@@ -117,4 +117,9 @@ automatic check of exact masks and boxes on every rendered image, with the failu
 
 ## Amendments
 
-None yet.
+**2026-10-09, amendment 1 (no rule changed).** The evaluation prerequisite in section 2 now exists: a class profile
+`RIDER_PROFILE` (person, bike, car, motor, bus, truck, rider; ids 1, 2, 3, 4, 6, 8, 10 with bike and motor on COCO's
+bicycle and motorcycle ids) in `src/evaluation/class_maps.py`, used by the BDD100K and Cityscapes loaders, the scorer
+and `bin/evaluate_detector.py --profile riders`. The default four-class behaviour is unchanged and its tests pass. A
+cheaper study that needs no new assets, `headroom_check.md`, is registered to run first; it decides whether this
+experiment is worth building towards. None of the rules above is altered.
