@@ -38,6 +38,7 @@ from src.procedural.building_placement import Building, BuildingPlacementGenerat
 from src.procedural.city_sample_assets import BUILDING_STYLES
 from src.procedural.crosswalks import VEHICLE_STOP_SETBACK_M, generate_crosswalk_pieces
 from src.procedural.environment import Season, TimeOfDay, season_has_trees
+from src.procedural.foliage import FOLIAGE_MATERIALS, foliage_meshes
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
 from src.procedural.lane_markings import lane_marking_meshes
 from src.procedural.lane_topology import Lane, LaneTopologyGenerator
@@ -56,6 +57,7 @@ from src.procedural.rocketbox_pedestrians import swap_pedestrians
 from src.procedural.scenario import ScenarioTypeConfig
 from src.procedural.street_furniture import (
     LAMP_STYLES,
+    TREE_ASSET_PATHS,
     TREE_BASE_STYLES,
     TREE_SPECIES,
     generate_street_furniture_pieces,
@@ -280,9 +282,22 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         tree_base_style=tree_base_style,
         tree_species=tree_species,
         seed=seed,
-        include_trees=season_has_trees(chosen_season),
+        include_trees=season_has_trees(chosen_season) or config.foliage,
+        tree_spacing_m=config.street_tree_spacing_m,
         keep_out_rects=[lot.driveway.gap for lot in parking_lots if lot.driveway is not None],
     )
+
+    if config.foliage and chosen_season in FOLIAGE_MATERIALS:
+        # Leafy trees take the bare trees' spots; the tree pits stay.
+        spots = [
+            (float(piece.position[0]), float(piece.position[1]))
+            for piece in street_furniture_pieces
+            if piece.asset_path in TREE_ASSET_PATHS
+        ]
+        street_furniture_pieces = [
+            piece for piece in street_furniture_pieces if piece.asset_path not in TREE_ASSET_PATHS
+        ]
+        meshes += foliage_meshes(spots, chosen_season, seed)
 
     crosswalk_pieces = generate_crosswalk_pieces(nodes, edges)
     traffic_light_pieces = generate_traffic_light_pieces(

@@ -33,6 +33,10 @@ _FIXED_MESH_FACTORY_TAGS = {
     "roof_3",
     "paint_white",
     "paint_yellow",
+    "bark",
+    "foliage_spring",
+    "foliage_summer",
+    "foliage_fall",
 }
 
 

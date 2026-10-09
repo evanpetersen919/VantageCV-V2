@@ -150,10 +150,18 @@ TREE_SPECIES: Tuple[Tuple[str, ...], ...] = (
     _MAPLE_SUGAR_VARIANTS,
 )
 
+# Every tree mesh the placement can pick, to find the spots again after placement.
+TREE_ASSET_PATHS = frozenset(path for species in TREE_SPECIES for path in species)
+
 _Rule = Union[FurnitureRule, TreeRule]
 
+# Measured from Epic's own placements (see the module docstring): tree pits are 20.21 m apart.
+TREE_SPACING_M = 20.21
 
-def furniture_rules(lamp_style: int = 0, tree_species: int = 0) -> List[_Rule]:
+
+def furniture_rules(
+    lamp_style: int = 0, tree_species: int = 0, tree_spacing_m: float = TREE_SPACING_M
+) -> List[_Rule]:
     """The placement rules, highest priority first (a lower-priority item
     is skipped where it would come closer than its clearance to one that
     is already placed)."""
@@ -161,7 +169,7 @@ def furniture_rules(lamp_style: int = 0, tree_species: int = 0) -> List[_Rule]:
     tree_asset_paths = TREE_SPECIES[tree_species % len(TREE_SPECIES)]
     return [
         FurnitureRule("lamp", lamp_path, 0.40, 14.35, 0.0, lamp_rotation, 1.0),
-        TreeRule("tree", tree_asset_paths, 1.5, 20.21, 0.25, 2.5, 0.108, 1.2, (0.8, 1.1)),
+        TreeRule("tree", tree_asset_paths, 1.5, tree_spacing_m, 0.25, 2.5, 0.108, 1.2, (0.8, 1.1)),
         FurnitureRule("hydrant", _HYDRANT, 0.30, 27.87, 0.31, 0.0, 1.2),
         FurnitureRule("sign", _SIGN, 0.55, 33.35, 0.63, 0.0, 1.2),
         FurnitureRule("trash", _TRASH, 0.40, 12.35, 0.47, 0.0, 1.2),
@@ -243,6 +251,7 @@ def generate_street_furniture_pieces(  # pylint: disable=too-many-locals,too-man
     tree_species: int = 0,
     seed: int = 0,
     include_trees: bool = True,
+    tree_spacing_m: float = TREE_SPACING_M,
     keep_out_rects: Sequence[Rect] = (),
 ) -> List[FacadePiece]:
     """Street furniture and street trees along the curb line of every
@@ -258,7 +267,7 @@ def generate_street_furniture_pieces(  # pylint: disable=too-many-locals,too-man
     """
     rules: Sequence[_Rule] = [
         rule
-        for rule in furniture_rules(lamp_style, tree_species)
+        for rule in furniture_rules(lamp_style, tree_species, tree_spacing_m)
         if include_trees or not isinstance(rule, TreeRule)
     ]
     base_asset = TREE_BASE_STYLES[tree_base_style % len(TREE_BASE_STYLES)]

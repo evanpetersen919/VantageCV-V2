@@ -76,6 +76,12 @@ class ScenarioTypeConfig(BaseModel):
         Show each signal pole's colour for its intersection's phase, and put poles only at the
         signalized intersections (``traffic_lights.py``). Off by default so seeds of earlier
         batches give the same scenes.
+    foliage : bool
+        Replace the bare Epic street trees with leafy procedural ones in spring, summer and fall
+        (``foliage.py``). Off by default so seeds of earlier batches give the same scenes.
+    street_tree_spacing_m : float
+        Distance between street-tree spots along a curb. The default is what Epic's own placements
+        measure; a denser street needs a smaller value (see ``foliage.py``).
     road_setback_meters : float
         Minimum clearance (meters) a building must keep from every road,
         beyond the road's own half-width -- read by
@@ -106,6 +112,8 @@ class ScenarioTypeConfig(BaseModel):
     pedestrian_source: str = "city_sample"
     lane_markings: bool = False
     signal_states: bool = False
+    foliage: bool = False
+    street_tree_spacing_m: float = 20.21
 
     @field_validator("avg_block_size", "building_heights", "traffic_density")
     @classmethod

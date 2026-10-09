@@ -11,6 +11,7 @@
 | `scenario_templates/urban_dense_v11.yaml` | v8a plus the box-truck fleet pilot (batch `train_v11`). |
 | `scenario_templates/urban_dense_v14.yaml` | v13r plus painted lane markings (`road_network.lane_markings: true`): double yellow centre lines, white lane lines, stop lines. |
 | `scenario_templates/urban_dense_v15.yaml` | v14 plus signal states (`road_network.signal_states: true`): each signal pole shows its intersection's phase, poles only at signalized intersections. |
+| `scenario_templates/urban_dense_v16.yaml` | v15 plus leafy street trees (`road_network.foliage: true`, `street_tree_spacing_m: 12.0`): generated trunks and leaf-card canopies in spring, summer and fall. |
 | `scenario_templates/urban_dense_v13r.yaml` | v7_peds with Rocketbox pedestrians (batch `train_v13r`, the Kaggle release config). |
 | `generation_config.yaml` | Dataset-level defaults; the scenario-type weights in it are not read by any code yet. |
 | `sensor_profiles/` | Camera profiles. |

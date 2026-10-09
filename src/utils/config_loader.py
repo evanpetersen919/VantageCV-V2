@@ -99,6 +99,10 @@ def load_scenario_config(path: Union[str, Path]) -> ScenarioTypeConfig:
     # from one single place, not two copies of "2.0" that could drift.
     if "lane_markings" in road_network:
         kwargs["lane_markings"] = road_network["lane_markings"]
+    if "street_tree_spacing_m" in road_network:
+        kwargs["street_tree_spacing_m"] = road_network["street_tree_spacing_m"]
+    if "foliage" in road_network:
+        kwargs["foliage"] = road_network["foliage"]
     if "signal_states" in road_network:
         kwargs["signal_states"] = road_network["signal_states"]
     if "road_setback_meters" in buildings:

@@ -131,6 +131,8 @@ def mesh_class(material: str) -> int:
     """The class of a procedural surface from its material name, ``UNLABELED`` when unknown."""
     if material in ("asphalt", "paint_white", "paint_yellow"):
         return ROAD
+    if material == "bark" or material.startswith("foliage"):
+        return VEGETATION
     if material.startswith("pavement"):
         return SIDEWALK
     if material == "ground":

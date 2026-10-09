@@ -135,6 +135,26 @@
       "asset_path": "/Game/VantageCV/M_PaintYellow",
       "source": "Project-owned, created by unreal_plugin/tools/create_paint_material.py (not from CitySample): a plain matte traffic-yellow road-paint material",
       "used_by": "lane_markings.py lane_marking_meshes -- the double solid yellow centre line of two-way roads"
+    },
+    "bark": {
+      "asset_path": "/Game/VantageCV/Foliage/M_Bark",
+      "source": "Project-owned, created by unreal_plugin/tools/create_foliage_material.py: a plain matte brown",
+      "used_by": "foliage.py foliage_meshes -- the trunk and branches of the leafy street trees"
+    },
+    "foliage_spring": {
+      "asset_path": "/Game/VantageCV/Foliage/MI_Foliage_Spring",
+      "source": "Project-owned, created by unreal_plugin/tools/create_foliage_material.py from a generated leaf-cluster texture (unreal_plugin/tools/make_leaf_texture.py): masked, two-sided, spring tint",
+      "used_by": "foliage.py foliage_meshes -- the canopy of the leafy street trees in spring"
+    },
+    "foliage_summer": {
+      "asset_path": "/Game/VantageCV/Foliage/MI_Foliage_Summer",
+      "source": "Project-owned, same material as foliage_spring with a summer tint",
+      "used_by": "foliage.py foliage_meshes -- the canopy in summer"
+    },
+    "foliage_fall": {
+      "asset_path": "/Game/VantageCV/Foliage/MI_Foliage_Fall",
+      "source": "Project-owned, same material as foliage_spring with a fall tint",
+      "used_by": "foliage.py foliage_meshes -- the canopy in fall"
     }
   }
 }
