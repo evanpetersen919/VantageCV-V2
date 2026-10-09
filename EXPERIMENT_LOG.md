@@ -2547,3 +2547,16 @@ only Rocketbox batches (`train_v13r` and later; checked: no Crowd/MetaHuman asse
 forbid generative-AI use (the NoAI clause on datasets), third-party notices, and the open points (Epic's reading of the NoAI clause,
 Megascans in 5.5% of asset entries, Rocketbox's licence history). The weights-only concerns (ultralytics AGPL, BDD100K commercial
 restriction) are moot for a dataset-only release.
+
+
+### COCO segmentation now follows the exact mask (2026-10-08)
+
+Gap found by the owner: with `--exact-labels` the boxes and the `mask_rle` were exact, but the standard COCO `segmentation` field still
+held the old convex hull (IoU 0.39 against the visible mask for persons). `src/export/mask_polygons.py` now traces the mask's outline
+along pixel edges (numpy only, 4-connectivity; holes are not representable in a COCO polygon and are covered by the outer polygon;
+the exact mask stays in `mask_rle`), and the exporter writes it into `segmentation` for every annotation that has an exact mask.
+Measured on 3,000 annotations of `train_v13r`: polygon against the exact mask IoU 0.997 for persons (min 0.94), 0.997 cars, 0.998
+buses, 0.992 trucks; median 122 vertices (max 2,902); 19 ms per annotation. Tests: pixel-exact on solid shapes, corner-touching
+regions kept apart, an exported exact annotation's polygon rasterises to its mask. The batches rendered before this change
+(`train_v12e`, `train_v13r`) keep hull polygons in `segmentation` and exact masks in `mask_rle`; the Kaggle release batch
+(`kaggle_v1`) was restarted after the change so it carries the traced polygons from the start.

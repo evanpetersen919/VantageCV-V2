@@ -174,7 +174,7 @@ have no `box3d` and need re-rendering.
 With `--exact-labels` (about 1.5 s more per frame, game required) every vehicle and pedestrian box, visible fraction
 and mask comes from what the game itself renders instead of from proxy shapes: an object's pixels are where its own
 depth equals the scene's depth. Those annotations carry a `mask_rle` (COCO run-length, the visible pixels), and
-`bin/export_masks.py` paints it in place of the polygon. `bin/audit_labels.py` measures the geometric labels against
+`bin/export_masks.py` paints it in place of the polygon, and the annotation's COCO `segmentation` polygon is traced from it pixel edge by pixel edge (IoU 0.997 with the mask for persons; the hull it replaces scored 0.39). `bin/audit_labels.py` measures the geometric labels against
 the game's render: full boxes of vehicles score 0.94 to 0.99 IoU, pedestrians 0.79, visible-part boxes 0.65 to 0.88 and
 polygons 0.39 to 0.84 (`EXPERIMENT_LOG.md`).
 
