@@ -16,7 +16,10 @@ buildings/vehicles/pedestrians all export correctly as long as
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from pycocotools import mask as mask_utils
+
 from src.export.box3d_formats import camera_box, has_level_frame, projection_matrix
+from src.export.mask_polygons import mask_to_polygons
 from src.ground_truth.bbox_2d import BoundingBox2D
 from src.ground_truth.bbox_3d import BoundingBox3D
 from src.ground_truth.categories import BUILDING, FINE_PROFILE, CategoryProfile
@@ -67,6 +70,15 @@ def _bbox_2d_to_coco_annotation(  # pylint: disable=too-many-arguments
     segmentation: List[List[float]] = []
     if silhouette is not None and len(silhouette) >= 3:
         segmentation = [silhouette.flatten().tolist()]
+    if mask_rle is not None:
+        # the engine's exact visible pixels: the polygon follows their outline (holes aside)
+        traced = mask_to_polygons(
+            mask_utils.decode(
+                {"size": mask_rle["size"], "counts": mask_rle["counts"].encode("ascii")}
+            )
+            > 0
+        )
+        segmentation = traced or segmentation
 
     annotation = {
         "id": annotation_id,

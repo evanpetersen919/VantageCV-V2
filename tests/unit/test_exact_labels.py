@@ -178,3 +178,19 @@ def test_older_runs_settings_are_unchanged_by_the_new_flag() -> None:
         _settings(config, BOUNDS, ("ego",), 1, AnnotationPolicy(), "v7", True)["exact_labels"]
         is True
     )
+
+
+def test_exact_annotation_polygon_follows_the_mask_not_the_hull() -> None:
+    exact = ExactLabels(_visible_map(), [10, 11, 12], _reports())
+    result = export_coco([apply_exact(_frame(), exact)])
+    annotation = next(a for a in result["annotations"] if "mask_rle" in a)
+    raster = mask_utils.decode(
+        mask_utils.merge(mask_utils.frPyObjects(annotation["segmentation"], H, W))
+    )
+    truth = mask_utils.decode(
+        {
+            "size": annotation["mask_rle"]["size"],
+            "counts": annotation["mask_rle"]["counts"].encode("ascii"),
+        }
+    )
+    assert (raster == truth).all()
