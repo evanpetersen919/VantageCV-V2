@@ -21,7 +21,9 @@ Dated working notes and results are in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
 | ultralytics (YOLO training code) | AGPL-3.0 (LICENSE file read); Ultralytics states trained models are AGPL-3.0 too unless an Enterprise License is bought | **A blocker for releasing weights under a non-AGPL licence**; the repository code that imports it is also affected | training |
 
 **Published so far:** MIT code, rendered images and videos, results and this log. **Not published:** datasets and trained
-weights, held until the open rows above are resolved by counsel or by Epic.
+weights. **Goal (owner, 2026-10-08): publish the dataset on Kaggle; trained weights are not going to be published.** What that
+requires is in the section "Publishing the dataset on Kaggle" below; the weights-only rows (ultralytics, BDD100K's commercial
+restriction) stop mattering for a dataset-only release.
 
 ## Epic content (City Sample, Unreal Engine)
 
@@ -90,6 +92,48 @@ Programs", was **not** in the paste and has not been read.
 - Section 6(a), Non-Compatible Licenses: Standard License content may not be combined with code or content under a licence (for
   example GPL, LGPL, CC BY-SA) that would require the Content to be governed by other terms. Nothing in this repository combines
   Content with such code (renders and labels are separate files); noted for counsel together with the ultralytics licence (unchecked).
+
+## Publishing the dataset on Kaggle
+
+Scope: rendered images and their labels (COCO, YOLO, KITTI, masks) of a Rocketbox batch, with a README. No weights, no BDD100K,
+Cityscapes or RealDriveSim data, no Epic asset files, no ultralytics code (link to the GitHub repository instead).
+
+**Which batches.** Only batches rendered with `pedestrian_source: rocketbox` (`train_v13r` and later). Never the batches with the
+City Sample crowd (`train_v7p`, `train_v12e` and earlier): their renders contain MetaHuman-derived characters, and the EULA clause
+covers "any rendered output thereof". Checked 2026-10-08 on all 256 scenarios of `urban_dense_v13r.yaml`: 6,343,451 asset entries,
+by folder `/Game/Building` 5,295,020, `/Game/Vehicle` 1,151,193, `/Game/Megascans` 346,712, `/Game/Road` 282,419, `/Game/Prop` 249,340,
+`/Game/VantageCV` (this project's own, including the Rocketbox meshes) 81,863; **none under `/Crowd` or with MetaHuman in the path**.
+The test level holds no resident crowd (frames rendered with no scenario pedestrians show none).
+
+**What the texts say about a dataset of renders** (readings, not legal advice):
+- Distributing renders: Content License Agreement Section 3b and Fab EULA Section 4(b) allow freely distributing "images created
+  using Content", subject to the Content Use Restrictions (Section 6). Rocketbox's MIT grant includes the right to "publish,
+  distribute" (a copy of the notice must accompany copies of the avatars themselves; renders are not copies, but the notice is
+  cheap to include).
+- The clause that touches a dataset: CLA Section 17 and Fab EULA Section 6(b)(vii) bar using NoAI Content "in datasets utilized by
+  Generative AI Programs". City Sample is NoAI-tagged. A detector is not a generative program, but a public dataset can be
+  downloaded by anyone, including people training generative models. Whether that puts the publisher in breach is not stated;
+  the cautious course is terms that forbid generative-AI use of the dataset. **Counsel question.**
+- Licence choice on Kaggle: the Creative Commons and ODbL options cannot add a ban on generative-AI use (their terms forbid extra
+  restrictions), and a share-alike licence (CC BY-SA, GPL-like) collides with Fab Section 6(a), which names CC BY-SA as
+  incompatible with Standard License content. The natural fit is Kaggle's "Other (specified in description)" with explicit terms:
+  attribution; research and development of non-generative models allowed; no use to train, develop or feed generative AI programs;
+  no redistribution of Epic assets (none are included); third-party notices below. CC0 is not suitable. Wording to be confirmed
+  by counsel.
+- Notices to carry in the dataset README: City Sample and Unreal Engine are Epic Games, Inc.'s; Microsoft Rocketbox avatars,
+  MIT, Copyright (c) 2020 Microsoft, with the licence text; a statement that no real-world data is included.
+
+**Still open for a dataset release**
+1. The NoAI/dataset point above (Epic's reading of Section 17 / 16(l), unread and unconfirmed).
+2. **Megascans** items (curbs, street furniture) are in 5.5% of the scenario asset entries and visible in renders; their licence
+   is unverified. Options: confirm it, or replace them with this project's own meshes and re-render.
+3. Rocketbox: MIT's silence on ML and the research-only release history (counsel); for an image dataset the avatars are rendered
+   pixels, not distributed files, which lowers but does not remove the question.
+4. The Kaggle licence wording itself, and Kaggle's own terms for uploads containing third-party content.
+
+**No longer in play with a dataset-only release:** ultralytics/AGPL for weights, and BDD100K's commercial-use restriction for
+trained models (only metrics computed with them would appear, and no BDD100K data is shipped). The AGPL and BDD100K notes above
+become relevant again if weights are ever published.
 
 ## Pedestrians in new work: Microsoft Rocketbox
 

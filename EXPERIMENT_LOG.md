@@ -2538,3 +2538,12 @@ not-for-profit use free; commercial use for BDD/BAIR Commons members), read from
 ultralytics is AGPL-3.0 and states trained models are AGPL-3.0 too unless an Enterprise License is bought (secondary reports; this bears on
 any release of weights); MetaHuman and NoAI clause wording corroborated by third-party mirrors. Not resolvable by search: Fab EULA
 Section 16(l), the exact acceptance dates, Epic's own interpretation, and every question of law. These need the owner's paste or counsel.
+
+
+### Release goal (2026-10-08): the dataset on Kaggle, no weights
+
+The owner's aim is to publish a rendered dataset on Kaggle and not to publish trained weights. `LICENSING.md` now has the checklist for that:
+only Rocketbox batches (`train_v13r` and later; checked: no Crowd/MetaHuman asset in any of its 256 scenarios), custom Kaggle terms that
+forbid generative-AI use (the NoAI clause on datasets), third-party notices, and the open points (Epic's reading of the NoAI clause,
+Megascans in 5.5% of asset entries, Rocketbox's licence history). The weights-only concerns (ultralytics AGPL, BDD100K commercial
+restriction) are moot for a dataset-only release.
