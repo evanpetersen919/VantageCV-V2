@@ -44,6 +44,15 @@ TEXTURES = (
     ("T_Grass", "photo/Grass005_Color.jpg", "colour"),
     ("T_Grass_N", "photo/Grass005_NormalDX.jpg", "normal"),
     ("T_Grass_R", "photo/Grass005_Roughness.jpg", "data"),
+    ("T_Verge", "photo/Ground003_Color.jpg", "colour"),
+    ("T_Verge_N", "photo/Ground003_NormalDX.jpg", "normal"),
+    ("T_Verge_R", "photo/Ground003_Roughness.jpg", "data"),
+    ("T_Weedy", "photo/Grass007_Color.jpg", "colour"),
+    ("T_Weedy_N", "photo/Grass007_NormalDX.jpg", "normal"),
+    ("T_Weedy_R", "photo/Grass007_Roughness.jpg", "data"),
+    ("T_Dense", "photo/Grass004_Color.jpg", "colour"),
+    ("T_Dense_N", "photo/Grass004_NormalDX.jpg", "normal"),
+    ("T_Dense_R", "photo/Grass004_Roughness.jpg", "data"),
 )
 OUT = open(LOG_PATH, "w", encoding="utf-8")  # pylint: disable=consider-using-with
 
@@ -217,6 +226,9 @@ def main():
         create_instances(create_foliage_material(textures), textures)
         create_surface("M_Bark", "T_Bark", BARK_TINT, textures)
         create_surface("M_Grass", "T_Grass", GRASS_TINT, textures)
+        create_surface("M_Grass_Verge", "T_Verge", GRASS_TINT, textures)
+        create_surface("M_Grass_Weedy", "T_Weedy", GRASS_TINT, textures)
+        create_surface("M_Grass_Dense", "T_Dense", GRASS_TINT, textures)
     except Exception as error:  # pylint: disable=broad-exception-caught
         say("ERROR", repr(error))
     say("DONE")

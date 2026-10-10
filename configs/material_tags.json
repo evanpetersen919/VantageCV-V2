@@ -136,6 +136,21 @@
       "source": "Project-owned, created by unreal_plugin/tools/create_paint_material.py (not from CitySample): a plain matte traffic-yellow road-paint material",
       "used_by": "lane_markings.py lane_marking_meshes -- the double solid yellow centre line of two-way roads"
     },
+    "grass_verge": {
+      "asset_path": "/Game/VantageCV/Foliage/M_Grass_Verge",
+      "source": "Project-owned, create_foliage_material.py from ambientCG Ground003 (CC0): worn grass with bare earth",
+      "used_by": "planting.py grass_mesh with lawn_variants -- half of the curb lawn patches"
+    },
+    "grass_weedy": {
+      "asset_path": "/Game/VantageCV/Foliage/M_Grass_Weedy",
+      "source": "Project-owned, create_foliage_material.py from ambientCG Grass007 (CC0): weedy lawn with twigs",
+      "used_by": "planting.py grass_mesh with lawn_variants -- a third of the lawn patches"
+    },
+    "grass_dense": {
+      "asset_path": "/Game/VantageCV/Foliage/M_Grass_Dense",
+      "source": "Project-owned, create_foliage_material.py from ambientCG Grass004 (CC0): dense dark lawn",
+      "used_by": "planting.py grass_mesh with lawn_variants -- a fifth of the lawn patches"
+    },
     "grass": {
       "asset_path": "/Game/VantageCV/Foliage/M_Grass",
       "source": "Project-owned, created by unreal_plugin/tools/create_foliage_material.py from a generated tileable grass texture (make_leaf_texture.py)",

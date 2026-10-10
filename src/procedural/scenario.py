@@ -83,6 +83,8 @@ class ScenarioTypeConfig(BaseModel):
     photoreal_trees : bool
         With ``foliage``: use scanned photographic tree models (``photoreal_trees.py``) instead of
         the generated card trees. Off by default.
+    lawn_variants : bool
+        Mix three photographic lawn materials across the grass patches (``planting.py``).
     paint_wear : float
         How worn the painted lines are, 0 (fresh) to 1: random chips and eroded ends
         (``lane_markings``).
@@ -132,6 +134,7 @@ class ScenarioTypeConfig(BaseModel):
     planting: bool = False
     cyclists: bool = False
     paint_wear: float = 0.0
+    lawn_variants: bool = False
     cyclist_run_probability: float = 0.6
     street_tree_spacing_m: float = 20.21
 

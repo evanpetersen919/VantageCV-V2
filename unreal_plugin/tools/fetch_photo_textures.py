@@ -7,6 +7,8 @@ commercially, needs no permission and no attribution. The sets, and what they ar
 - ``LeafSet024`` (beech) and ``LeafSet014`` (hornbeam): photogrammetry atlases of single green leaves.
 - ``LeafSet027`` (maple): autumn and green maple leaves, for fall.
 - ``Grass005``: a clean lawn, tileable.
+- ``Ground003`` (worn grass with bare earth), ``Grass007`` (weedy lawn), ``Grass004`` (dense dark lawn):
+  the three lawn variants of the cyclist template.
 - ``Bark012``: oak-like bark, photogrammetry, tileable.
 
 Only the 1K colour, opacity, DirectX normal and roughness maps are kept. Run with the project's
@@ -34,6 +36,9 @@ SETS: Dict[str, Tuple[str, ...]] = {
     "LeafSet027": ("Color", "Opacity"),
     "Grass005": ("Color", "NormalDX", "Roughness"),
     "Bark012": ("Color", "NormalDX", "Roughness"),
+    "Ground003": ("Color", "NormalDX", "Roughness"),
+    "Grass007": ("Color", "NormalDX", "Roughness"),
+    "Grass004": ("Color", "NormalDX", "Roughness"),
 }
 
 

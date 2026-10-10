@@ -142,3 +142,30 @@ def test_scanned_shrubs_stay_on_the_grass_strip() -> None:
             and y + half <= p.rect[3] + 1e-6
             for p in patches
         ), (piece.asset_path, x, y, half)
+
+
+def test_lawn_variants_split_patches_across_materials_and_stay_flat() -> None:
+    """With variants the patches take the three lawn materials; without them, one ``grass`` mesh as
+    before. Every quad is kept (none lost, none invented) and the class is terrain."""
+    edges, lanes = _network()
+    patches = planting.plan_patches(lanes, edges, [], 5)
+    plain = planting.grass_mesh(patches)
+    mixed = planting.grass_mesh(patches, True, 5)
+    assert [m.material for m in plain] == ["grass"]
+    assert {m.material for m in mixed} == set(planting.GRASS_VARIANTS)
+    assert sum(len(m.vertices) for m in mixed) == len(plain[0].vertices) == 4 * len(patches)
+    for mesh in mixed:
+        assert np.allclose(mesh.vertices[:, 2], planting.GRASS_Z_M)
+        assert mesh_class(mesh.material) == TERRAIN
+    again = planting.grass_mesh(patches, True, 5)
+    assert all(np.array_equal(a.vertices, b.vertices) for a, b in zip(mixed, again))
+
+
+def test_a_patch_keeps_its_lawn_material_when_others_are_removed() -> None:
+    """A patch's lawn material depends on its own position, not on the other patches."""
+    edges, lanes = _network()
+    patches = planting.plan_patches(lanes, edges, [], 5)
+    full = {tuple(p.rect): planting.lawn_variant(p, 5) for p in patches}
+    fewer = patches[::2]
+    for patch in fewer:
+        assert planting.lawn_variant(patch, 5) == full[tuple(patch.rect)]

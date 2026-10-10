@@ -180,7 +180,7 @@ def _add_greenery(  # pylint: disable=too-many-arguments
         keep_out = [lot.driveway.gap for lot in parking_lots if lot.driveway is not None]
         if config.photoreal_trees:
             patches = plan_patches(lanes, edges, keep_out, seed)
-            meshes += grass_mesh(patches)
+            meshes += grass_mesh(patches, config.lawn_variants, seed)
             furniture = furniture + shrub_pieces(patches, season, seed)
         else:
             meshes += planting_meshes(lanes, edges, keep_out, season, seed)

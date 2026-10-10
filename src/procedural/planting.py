@@ -32,6 +32,10 @@ from src.procedural.street_furniture import END_MARGIN_METERS
 Point = Tuple[float, float]
 
 GRASS_MATERIAL = "grass"
+# With ``lawn_variants`` each patch takes one of these (a worn verge, a weedy lawn, a dense one)
+# so a street is not one flat green; "grass" is the single lawn of earlier templates.
+GRASS_VARIANTS = ("grass_verge", "grass_weedy", "grass_dense")
+GRASS_VARIANT_WEIGHTS = (0.5, 0.3, 0.2)
 GRASS_Z_M = 0.118  # one centimetre above the sidewalk slab top (0.108 m)
 STRIP_OFFSET_M = (0.3, 1.3)  # from the curb line, outward
 PATCH_LENGTH_M = (8.0, 18.0)
@@ -110,36 +114,59 @@ def plan_patches(
     return patches
 
 
-def grass_mesh(patches: Sequence[Patch]) -> List[Mesh]:
-    """All patches as one upward-facing grass mesh (empty without patches)."""
+def lawn_variant(patch: Patch, seed: int) -> str:
+    """The lawn material of a patch, drawn from its own position so a keep-out never changes it."""
+    x_min, y_min = patch.rect[0], patch.rect[1]
+    rng = np.random.Generator(
+        np.random.PCG64([seed, int(abs(x_min) * 100), int(abs(y_min) * 100), 0x1A7])
+    )
+    return str(rng.choice(GRASS_VARIANTS, p=GRASS_VARIANT_WEIGHTS))
+
+
+def grass_mesh(  # pylint: disable=too-many-locals
+    patches: Sequence[Patch], variants: bool = False, seed: int = 0
+) -> List[Mesh]:
+    """The patches as upward-facing grass meshes, one per lawn material (empty without patches).
+
+    By default every patch is the single ``grass`` material of earlier templates; with ``variants``
+    each takes one of ``GRASS_VARIANTS`` from its position and ``seed``."""
     if not patches:
         return []
-    vertices, triangles, uvs = [], [], []
-    for index, patch in enumerate(patches):
-        x_min, y_min, x_max, y_max = patch.rect
-        base = 4 * index
-        vertices += [
-            [x_min, y_min, GRASS_Z_M],
-            [x_max, y_min, GRASS_Z_M],
-            [x_max, y_max, GRASS_Z_M],
-            [x_min, y_max, GRASS_Z_M],
-        ]
-        uvs += [
-            [x_min / GRASS_UV_TILE_M, y_min / GRASS_UV_TILE_M],
-            [x_max / GRASS_UV_TILE_M, y_min / GRASS_UV_TILE_M],
-            [x_max / GRASS_UV_TILE_M, y_max / GRASS_UV_TILE_M],
-            [x_min / GRASS_UV_TILE_M, y_max / GRASS_UV_TILE_M],
-        ]
-        triangles += [base, base + 1, base + 2, base, base + 2, base + 3]
-    return [
-        Mesh(
-            vertices=np.array(vertices, dtype=np.float64),
-            triangles=np.array(triangles, dtype=np.int64),
-            uvs=np.array(uvs, dtype=np.float64),
-            material=GRASS_MATERIAL,
-            normals=np.tile(np.array([0.0, 0.0, 1.0]), (len(vertices), 1)),
+    by_material: Dict[str, List[Patch]] = {}
+    for patch in patches:
+        material = lawn_variant(patch, seed) if variants else GRASS_MATERIAL
+        by_material.setdefault(material, []).append(patch)
+    meshes: List[Mesh] = []
+    for material in sorted(by_material):
+        vertices: List[List[float]] = []
+        triangles: List[int] = []
+        uvs: List[List[float]] = []
+        for index, patch in enumerate(by_material[material]):
+            x_min, y_min, x_max, y_max = patch.rect
+            base = 4 * index
+            vertices += [
+                [x_min, y_min, GRASS_Z_M],
+                [x_max, y_min, GRASS_Z_M],
+                [x_max, y_max, GRASS_Z_M],
+                [x_min, y_max, GRASS_Z_M],
+            ]
+            uvs += [
+                [x_min / GRASS_UV_TILE_M, y_min / GRASS_UV_TILE_M],
+                [x_max / GRASS_UV_TILE_M, y_min / GRASS_UV_TILE_M],
+                [x_max / GRASS_UV_TILE_M, y_max / GRASS_UV_TILE_M],
+                [x_min / GRASS_UV_TILE_M, y_max / GRASS_UV_TILE_M],
+            ]
+            triangles += [base, base + 1, base + 2, base, base + 2, base + 3]
+        meshes.append(
+            Mesh(
+                vertices=np.array(vertices, dtype=np.float64),
+                triangles=np.array(triangles, dtype=np.int64),
+                uvs=np.array(uvs, dtype=np.float64),
+                material=material,
+                normals=np.tile(np.array([0.0, 0.0, 1.0]), (len(vertices), 1)),
+            )
         )
-    ]
+    return meshes
 
 
 def _shrub_spots(
