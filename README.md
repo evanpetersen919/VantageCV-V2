@@ -75,15 +75,18 @@ the visible region for partially-occluded objects (matching BDD100K/
 Cityscapes' own annotation convention -- see
 [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md)):
 
-![Bounding boxes and segmentation polygons on a live-rendered night/rain scene](docs/images/segmentation_and_bbox_example.jpg)
-
-Season, weather and time-of-day are drawn per scenario from real conditions
-data (see `src/procedural/environment.py`), so one dataset run naturally spans
-a wide range of real-world driving conditions in the same set of city layouts:
-
 ![One frame, eight views of its labels: the RGB image, 2D boxes, segmentation polygons, exact instance masks, the Cityscapes class map, metric depth, 3D boxes, and class, distance and visibility tags](docs/images/annotation_grid.jpg)
 
 *One frame, one panel per annotation type: everything is exported with the image and comes from the engine and the scene, not from a model.*
+
+Season, weather and time-of-day are drawn per scenario from real conditions
+data (see `src/procedural/environment.py`), so one dataset run naturally spans
+a wide range of real-world driving conditions. Below is the same street from the
+same camera, with only the conditions changed:
+
+![The same street from the same camera in four seasons and three conditions: clear day, rain with a wet reflective road, and night](docs/images/seasons_conditions_matrix.jpg)
+
+*Columns are the four seasons, rows are clear day, rain and night. The layout, traffic and camera are identical in all twelve; the night row is brightened for the page.*
 
 **New in 1.3: more of the real street.** Wet roads with reflections, realistic Rocketbox pedestrians (one crossing on
 the crosswalk), golden hour, fog, night, fall colour and winter, over streets with MUTCD-dimensioned lane markings,
