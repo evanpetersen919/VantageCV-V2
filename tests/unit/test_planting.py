@@ -5,6 +5,7 @@ import pytest
 
 from src.ground_truth.semantic_classes import TERRAIN, VEGETATION, mesh_class
 from src.orchestration.dataset_generator import generate_scenario
+from src.procedural import photoreal_trees as pt
 from src.procedural import planting
 from src.procedural.environment import Season, TimeOfDay
 from src.procedural.lane_topology import LaneTopologyGenerator
@@ -117,3 +118,27 @@ def test_scanned_shrubs_follow_the_patch_style_in_every_season() -> None:
         assert piece.scale[0] > 0.0 and piece.position[2] == 0.0
     assert planting.shrub_pieces(patches, Season.SUMMER, 5)[0].scale == summer[0].scale
     assert not planting.shrub_pieces([], Season.SUMMER, 5)
+
+
+def test_scanned_shrubs_stay_on_the_grass_strip() -> None:
+    """Every shrub's whole footprint (its visible centre plus or minus half its scaled width) lies
+    inside one grass patch, so no bush overhangs the pavement."""
+    edges, lanes = _network()
+    patches = planting.plan_patches(lanes, edges, [], 5)
+    variants = {f"{pt.TREE_DIR}/{v.mesh}": v for m in pt.SHRUBS.values() for v in m.variants}
+    pieces = planting.shrub_pieces(patches, Season.SUMMER, 5)
+    assert pieces
+    for piece in pieces:
+        variant = variants[piece.asset_path]
+        # The visible centre is the pivot plus the scaled bounds-centre offset (engine y is
+        # mirrored).
+        x = float(piece.position[0]) + piece.scale[0] * variant.centre_x_m
+        y = float(piece.position[1]) - piece.scale[0] * variant.centre_y_m
+        half = 0.5 * variant.width_m * piece.scale[0]
+        assert any(
+            p.rect[0] <= x - half + 1e-6
+            and x + half <= p.rect[2] + 1e-6
+            and p.rect[1] <= y - half + 1e-6
+            and y + half <= p.rect[3] + 1e-6
+            for p in patches
+        ), (piece.asset_path, x, y, half)

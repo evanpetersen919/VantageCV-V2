@@ -35,6 +35,8 @@ fall with a hue-shifted leaf texture; winter keeps Epic's bare trees; the shrubs
    The Blender check that settled the UV orientation: with no flip the leaf faces land on opaque texels 55% of the time
    (29% with a flip).
 
+**Shrubs on the grass only (follow-up, same day).** A probe aimed at shrub patches showed bushes standing on the pavement beside the strip. Two causes, both fixed: (1) the scanned plants are authored side by side, so a variant's pivot sits up to 1.6 m from its visible centre (measured from the imported meshes' bounds); the shrubs are now placed by their visible centre, with yaw fixed at zero so the offset is exact; (2) a bush could be wider than the 1.0 m strip, so each is scaled down until its footprint is at most 90% of the strip. A unit test checks that every shrub's whole footprint lies inside one grass patch; the probe render agrees (a row of shrubs and a hedge centred on the strip). The shrubs are small as a result (about 0.4 to 1 m tall).
+
 **Result** (16 frames of 8 scenes, forced summer, v17, class maps; the same seeds as entries 32 and 33)
 
 | | Cityscapes val | Cards, entry 33 | Scanned, 15.5 m |

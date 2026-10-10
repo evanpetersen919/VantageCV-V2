@@ -48,6 +48,8 @@ HEDGE_HEIGHT_M = (0.9, 1.2)
 SHRUB_CARDS = 30
 SHRUB_CARD_SIZE_M = (0.4, 0.7)
 GRASS_UV_TILE_M = 2.0
+# A scanned plant's footprint is kept inside the grass strip: this share of its width.
+STRIP_FILL = 0.9
 PLANT_HEDGE_SPACING_M = 1.1  # scanned columnar shrubs are wider than the card lumps
 FERN_PROBABILITY = 0.4
 
@@ -199,17 +201,20 @@ def shrub_pieces(patches: Sequence[Patch], season: Season, seed: int) -> List[Fa
     sometimes a fern."""
     rng = np.random.Generator(np.random.PCG64([seed, 0x5B2C]))
     pieces: List[FacadePiece] = []
+    fit = STRIP_FILL * (STRIP_OFFSET_M[1] - STRIP_OFFSET_M[0])
     for patch in patches:
         if patch.style == "lawn":
             if rng.random() < FERN_PROBABILITY:
                 (x0, y0), (x1, y1) = patch.centre_line
                 fraction = float(rng.uniform(0.2, 0.8))
                 spot = (x0 + (x1 - x0) * fraction, y0 + (y1 - y0) * fraction)
-                pieces.append(plant_piece(SHRUBS["fern_02"], spot, season, rng))
+                pieces.append(
+                    plant_piece(SHRUBS["fern_02"], spot, season, rng, max_width_m=fit, centred=True)
+                )
             continue
         model = SHRUBS["othonna_cerarioides" if patch.style == "hedge" else "searsia_lucida"]
         for spot in _shrub_spots(patch, rng, PLANT_HEDGE_SPACING_M):
-            pieces.append(plant_piece(model, spot, season, rng))
+            pieces.append(plant_piece(model, spot, season, rng, max_width_m=fit, centred=True))
     return pieces
 
 

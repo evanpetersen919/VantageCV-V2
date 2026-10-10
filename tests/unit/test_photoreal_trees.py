@@ -26,9 +26,9 @@ def test_winter_and_no_spots_give_no_trees() -> None:
 def _model_of(piece):
     """The plant model and real mesh height behind a placed piece."""
     for model in list(pt.TREES.values()) + list(pt.SHRUBS.values()):
-        for mesh, height in model.variants:
-            if piece.asset_path == f"{pt.TREE_DIR}/{mesh}":
-                return model, height
+        for variant in model.variants:
+            if piece.asset_path == f"{pt.TREE_DIR}/{variant.mesh}":
+                return model, variant.height_m
     raise AssertionError(piece.asset_path)
 
 
