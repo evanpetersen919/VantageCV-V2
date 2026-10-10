@@ -1,5 +1,7 @@
 ## Tree quality and curb planting: grass, shrubs, hedges (2026-10-09)
 
+*Trees superseded by [entry 34](34_scanned-photographic-street-trees.md) (scanned models); the planting here is still current.*
+
 Entry 32 added generated leafy trees and brought vegetation to 14.8% of pixels, but the owner's review of the frames was
 that the trees "look super fake". The causes were visible: each leaf card was lit as a flat quad (the engine computes
 normals per card), every card had the same brightness and colour, the leaf texture repeated identically, crowns were

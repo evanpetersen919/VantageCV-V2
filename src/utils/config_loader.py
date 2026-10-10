@@ -105,6 +105,8 @@ def load_scenario_config(  # pylint: disable=too-many-branches
         kwargs["street_tree_spacing_m"] = road_network["street_tree_spacing_m"]
     if "planting" in road_network:
         kwargs["planting"] = road_network["planting"]
+    if "photoreal_trees" in road_network:
+        kwargs["photoreal_trees"] = road_network["photoreal_trees"]
     if "foliage" in road_network:
         kwargs["foliage"] = road_network["foliage"]
     if "signal_states" in road_network:

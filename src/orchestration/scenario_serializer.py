@@ -392,6 +392,7 @@ def serialize_scenario(
             piece,
             id_offset + piece_id,
             None if night else _street_lamp_overrides(piece),
+            piece.material_replacements,
         )
         for piece_id, piece in enumerate(result.street_furniture_pieces)
     ]

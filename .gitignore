@@ -80,3 +80,4 @@ external_data/
 
 # Output of the headless Unreal tool scripts
 unreal_plugin/tools/*.log
+unreal_plugin/content/polyhaven_cache/

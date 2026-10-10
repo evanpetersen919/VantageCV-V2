@@ -114,6 +114,7 @@ _ASSET_RULES: List[Tuple[str, int]] = [
     ("/Game/Prop/Kit_Trashcan", STATIC),
     ("/Game/Prop/Kit_TreeBase", SIDEWALK),
     ("/Game/Prop/Kit_Tree_", VEGETATION),
+    ("/Game/VantageCV/Trees/", VEGETATION),
     ("/Game/Prop/Kit_roof_", BUILDING),
     ("/Game/Prop/Kit_Roof_", BUILDING),
 ]

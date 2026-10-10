@@ -51,6 +51,7 @@ from src.procedural.parking_lots import (
     parking_lot_pieces,
     plan_parking_lots,
 )
+from src.procedural.photoreal_trees import photoreal_tree_pieces
 from src.procedural.planting import planting_meshes
 from src.procedural.road_edge_kit import DEFAULT_ROAD_EDGE_KIT, Rect, generate_road_edge_pieces
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadNode
@@ -168,7 +169,10 @@ def _add_greenery(  # pylint: disable=too-many-arguments
             if piece.asset_path in TREE_ASSET_PATHS
         ]
         furniture = [piece for piece in furniture if piece.asset_path not in TREE_ASSET_PATHS]
-        meshes += foliage_meshes(spots, season, seed)
+        if config.photoreal_trees:
+            furniture += photoreal_tree_pieces(spots, season, seed)
+        else:
+            meshes += foliage_meshes(spots, season, seed)
     if config.planting:
         keep_out = [lot.driveway.gap for lot in parking_lots if lot.driveway is not None]
         meshes += planting_meshes(lanes, edges, keep_out, season, seed)

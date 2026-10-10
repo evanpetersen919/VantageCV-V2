@@ -135,6 +135,22 @@ The test level holds no resident crowd (frames rendered with no scenario pedestr
 trained models (only metrics computed with them would appear, and no BDD100K data is shipped). The AGPL and BDD100K notes above
 become relevant again if weights are ever published.
 
+## Vegetation textures and models (CC0)
+
+Added 2026-10-10 for the leafy street trees, the curb grass and the scanned trees. Everything here is under Creative Commons CC0 1.0
+(public domain dedication), which allows copying, modifying and redistributing, even commercially, with no permission or attribution.
+CC0 is also compatible with the dataset terms discussed above (it adds nothing to the restrictions on the Epic content).
+
+| Source | Asset | Used for | Licence statement checked |
+|---|---|---|---|
+| ambientCG (https://ambientcg.com) | `LeafSet024` (beech), `LeafSet014` (hornbeam), `LeafSet027` (maple) | leaf-cluster cards of the generated trees (`unreal_plugin/tools/build_foliage_textures.py`) | https://docs.ambientcg.com/license/ : "All ambientCG assets are provided under the Creative Commons CC0 1.0 Universal License" (2026-10-10) |
+| ambientCG | `Grass005`, `Bark012` | curb grass patches and tree bark (`fetch_photo_textures.py`, 1K maps committed under `unreal_plugin/content/photo`) | same page |
+| Poly Haven (https://polyhaven.com) | `jacaranda_tree` (scan by Rob Tuytel and Rico Cilliers) | the photographic street tree (`prepare_photoreal_trees.py`; the FBX and textures are downloaded, not committed) | https://polyhaven.com/license : "CC0 means absolute freedom" (2026-10-10) |
+
+The Unreal assets built from these (materials, instances, Nanite mesh) live in the project under `/Game/VantageCV/Foliage` and
+`/Game/VantageCV/Trees`; no Epic content is used for any of them. The generated leaf, bark and grass patterns made earlier with
+Pillow and numpy have no third-party origin and were replaced by the photographs above.
+
 ## Pedestrians in new work: Microsoft Rocketbox
 
 - Repository `microsoft/Microsoft-Rocketbox` (115 rigged avatars; 38 adult avatars used). Current `LICENSE.md`: the standard MIT

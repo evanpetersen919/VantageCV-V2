@@ -78,7 +78,11 @@ class ScenarioTypeConfig(BaseModel):
         batches give the same scenes.
     foliage : bool
         Replace the bare Epic street trees with leafy procedural ones in spring, summer and fall
-        (``foliage.py``). Off by default so seeds of earlier batches give the same scenes.
+        (``foliage.py``). Off by default so seeds of earlier batches give the same
+        scenes.
+    photoreal_trees : bool
+        With ``foliage``: use scanned photographic tree models (``photoreal_trees.py``) instead of
+        the generated card trees. Off by default.
     planting : bool
         Add grass patches, shrubs and hedges beside the curb (``planting.py``). Off by default so
         seeds of earlier batches give the same scenes.
@@ -116,6 +120,7 @@ class ScenarioTypeConfig(BaseModel):
     lane_markings: bool = False
     signal_states: bool = False
     foliage: bool = False
+    photoreal_trees: bool = False
     planting: bool = False
     street_tree_spacing_m: float = 20.21
 
