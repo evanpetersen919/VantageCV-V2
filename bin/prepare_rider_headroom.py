@@ -35,13 +35,13 @@ from src.evaluation.real_sampling import (
     SPLIT_PREFIX,
     add_sampling_arguments,
     extract_images,
+    read_rare_flags,
     shuffled_names,
     subset_coco,
     training_names,
 )
 from src.evaluation.yolo_export import write_yolo_split
 
-RARE_CATEGORIES = ("rider", "bike", "motor")
 ARMS = ("A", "rare2", "rare4", "rand2", "rand4")
 
 
@@ -69,20 +69,6 @@ def select_arms(
         "rand4": base + random_extra,
     }
     return {"arms": arms, "validation": validation, "r0": r0}
-
-
-def read_rare_flags(labels_zip: Path) -> Dict[str, bool]:
-    """For every training image, whether its labels hold a rider, bike or motor box."""
-    flags: Dict[str, bool] = {}
-    with zipfile.ZipFile(labels_zip) as archive:
-        for info in archive.infolist():
-            if info.filename.startswith(SPLIT_PREFIX) and info.filename.endswith(".json"):
-                data = json.loads(archive.read(info))
-                objects = [o for frame in data["frames"] for o in frame["objects"]]
-                flags[Path(info.filename).stem] = any(
-                    o["category"] in RARE_CATEGORIES and "box2d" in o for o in objects
-                )
-    return flags
 
 
 def instance_counts(eval_set: EvalSet, names: Sequence[str]) -> Dict[str, int]:

@@ -6,6 +6,7 @@ study's base set is exactly the control. Everything here reads the downloaded BD
 """
 
 import argparse
+import json
 import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Sequence
@@ -15,6 +16,7 @@ import numpy as np
 from src.evaluation.loaders import EvalSet
 
 SPLIT_PREFIX = "100k/train/"
+RARE_CATEGORIES = ("rider", "bike", "motor")
 
 
 def training_names(labels_zip: zipfile.ZipFile) -> List[str]:
@@ -24,6 +26,20 @@ def training_names(labels_zip: zipfile.ZipFile) -> List[str]:
         for info in labels_zip.infolist()
         if info.filename.startswith(SPLIT_PREFIX) and info.filename.endswith(".json")
     )
+
+
+def read_rare_flags(labels_zip: Path) -> Dict[str, bool]:
+    """For every training image, whether its labels hold a rider, bike or motor box."""
+    flags: Dict[str, bool] = {}
+    with zipfile.ZipFile(labels_zip) as archive:
+        for info in archive.infolist():
+            if info.filename.startswith(SPLIT_PREFIX) and info.filename.endswith(".json"):
+                data = json.loads(archive.read(info))
+                objects = [o for frame in data["frames"] for o in frame["objects"]]
+                flags[Path(info.filename).stem] = any(
+                    o["category"] in RARE_CATEGORIES and "box2d" in o for o in objects
+                )
+    return flags
 
 
 def shuffled_names(names: Sequence[str], seed: int) -> List[str]:

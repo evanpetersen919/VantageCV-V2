@@ -1,6 +1,6 @@
 #!/bin/bash
 # Submit one arm of the rider headroom check.   bash hpc/submit_rider.sh NAME ARM SEED
-#   ARM is one of: A | rare2 | rare4 | rand2 | rand4   (built by bin/prepare_rider_headroom.py)
+#   ARM is one of: A | rare2 | rare4 | rand2 | rand4 (bin/prepare_rider_headroom.py), B | C | E | B250 | E250 | B500 | E500 (bin/prepare_rider_synthetic_arms.py)
 # Example (quick smoke test, 2 epochs):  EPOCHS=2 bash hpc/submit_rider.sh smoke_rider A 0
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
