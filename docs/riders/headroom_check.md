@@ -99,6 +99,13 @@ project's `bin/evaluate_detector.py --profile riders`; per-class AP is in `overa
 to bike, motorcycle to motor; COCO has no rider class, so rider AP is 0 by construction). It is a reference for the
 scale of bike and motor AP, not an arm of the study.
 
+## Result (2026-10-10)
+
+Run and applied as registered: **headroom exists** (mean d_rare +6.19 AP, positive in all three seeds: +6.54, +6.60,
++5.42; guards fine). Full table and reading in `docs/experiments/35_rider-headroom-check-result.md`; analysis by
+`bin/analyze_rider_headroom.py`, written to `results/rider_headroom_analysis.json`. The cluster path ran as described
+above (the earlier statement that it had not run is now out of date).
+
 ## Amendments
 
-None yet.
+None. The rule, thresholds and arms were not changed after the runs.

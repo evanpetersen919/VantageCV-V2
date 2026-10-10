@@ -68,6 +68,7 @@ that produced each result (`bin/<name>.py ...`), and those commands should keep 
 | `measure_layout.py` | Measure a generator profile's scene-layout statistics without the game. |
 | `measure_night_brightness.py` | Measure mean-pixel-brightness statistics for night images, synthetic and real. |
 | `measure_rider_stats.py` | Measure rider, bike and motor statistics in BDD100K's detection labels. |
+| `analyze_rider_headroom.py` | Apply the registered decision rule of the rider headroom check to its 15 result files. |
 | `measure_pedestrian_extents.py` | Measure every City Sample pedestrian body's real extents per animation frame. |
 | `measure_rig_gap.py` | Measure the gap between a tractor cab and its trailer in the engine, for several hitch offsets. |
 | `measure_vehicle_bounds.py` | Measure every City Sample vehicle model's real ground-truth box and print the module source for ``src/procedural/vehicle_bounds.py``. |

@@ -1,9 +1,9 @@
 # VantageCV Remastered
 
-### Synthetic AV Dataset Generator V1.2
+### Synthetic AV Dataset Generator V1.3
 
 [![Lint and Test](https://github.com/evanpetersen919/VantageCV-V2/actions/workflows/lint_and_test.yml/badge.svg)](https://github.com/evanpetersen919/VantageCV-V2/actions/workflows/lint_and_test.yml)
-![Version 1.2](https://img.shields.io/badge/version-1.2-1baf7a.svg)
+![Version 1.3](https://img.shields.io/badge/version-1.3-1baf7a.svg)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
 ![Unreal Engine 5.4](https://img.shields.io/badge/Unreal%20Engine-5.4-black.svg)
@@ -16,7 +16,7 @@ honest research log of how well a detector trained on them transfers to real pho
 
 *Every annotation type on one vehicle, from a full 360 degree orbit (Rocketbox pedestrians): exact engine instance masks, 2D and 3D boxes, heading, class / distance / visibility tags and a live attribute card, then the Cityscapes class map and metric depth of the whole scene. All of it is the dataset's own labels, and it follows the object as the viewpoint changes.*
 
-| **+4.7 AP** | **about 0.5 px** | **1,036 tests** |
+| **+4.7 AP** | **about 0.5 px** | **1,120 tests** |
 |:---:|:---:|:---:|
 | synthetic images added to 460 real BDD100K images ([results](#results)) | camera check: projected points against the engine's render | strict mypy, pylint 10/10, CI on every push |
 
@@ -52,7 +52,7 @@ Jump to: [Results](#results) · [Roadmap](#roadmap) · [Quick start](#quick-star
 
 ![Twelve frames from the generator: aerial views of generated cities, street views at golden hour, sunset, overcast, fog and night, a parking lot, and a pedestrian corner](docs/images/collage_dataset.jpg)
 
-*Twelve frames from one generator: different seeds, layouts and conditions. Direct renders, with a mild contrast curve and vignette applied to all of them.*
+*Twelve frames from one generator (1.3): different seeds, layouts, seasons and conditions, with painted lane markings, signal heads that follow the phase and scanned street trees. Direct renders, with a mild contrast curve and vignette applied to all of them.*
 
 | ![A new procedural city generated every few seconds while the camera keeps flying: five seconds, two hand-overs between cities, with the seed shown](docs/images/city_generation.webp) | ![The same street and the same camera move, switching from day to night: headlamps, tail lights, street lamps and building lights come on](docs/images/day_to_night.webp) |
 |:---:|:---:|
@@ -81,11 +81,16 @@ Season, weather and time-of-day are drawn per scenario from real conditions
 data (see `src/procedural/environment.py`), so one dataset run naturally spans
 a wide range of real-world driving conditions in the same set of city layouts:
 
-![Four scenes from the same generator run: clear day, night rain, overcast day, and clear day with a garbage truck](docs/images/scene_diversity_labels.jpg)
+![One frame, eight views of its labels: the RGB image, 2D boxes, segmentation polygons, exact instance masks, the Cityscapes class map, metric depth, 3D boxes, and class, distance and visibility tags](docs/images/annotation_grid.jpg)
 
-**Measured, not guessed.** Distance cutoffs and night brightness are fit to real
-BDD100K/Cityscapes statistics, and the vehicle mix follows real registration data, with
-the evidence written down in [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md).
+*One frame, one panel per annotation type: everything is exported with the image and comes from the engine and the scene, not from a model.*
+
+**New in 1.3: more of the real street.** Wet roads with reflections, realistic Rocketbox pedestrians (one crossing on
+the crosswalk), golden hour, fog, night, fall colour and winter, over streets with MUTCD-dimensioned lane markings,
+signal heads that follow their phase and scanned photographic trees and shrubs. Vegetation is 15.7% of pixels
+against 17.1% in real Cityscapes frames (it was 0% in summer).
+
+![Nine views of the street: a pedestrian on the crosswalk, wet road with reflections, realistic pedestrians, golden hour, fog, night, fall colour, winter and a lit night street](docs/images/augmentations_1_3.jpg)
 
 <details>
 <summary><b>Pipeline and what shipped</b></summary>
@@ -133,7 +138,12 @@ three seeds each, p < 0.01 throughout). It is not a substitute: the same number 
 - **The vehicle results do not depend on the pedestrian crowd (1.1).** With the same scenes and no synthetic pedestrians, car and truck AP are unchanged and person AP falls by 3.0.
 - **Another synthetic source gives the same AP (1.2).** 512 RealDriveSim frames with person, car and truck counts matched to this pipeline's batch score 20.92 against 20.99 on BDD100K val (three seeds); AP at this size does not separate the two sources.
 - **Tight engine-exact labels did not move AP by a resolvable amount (1.2).** Person AP +0.72 (p=0.13) against the registered +1.0 threshold; overall unchanged.
-- **MIT-licensed pedestrians keep the person gain (after 1.2, not yet released).** With `pedestrian_source: rocketbox` (38 adult Microsoft Rocketbox avatars, 342 baked poses) in place of City Sample's crowd, in the same scenes with the same exact labels, person AP is 16.95 against 16.96 on BDD100K val (three seeds), 99.8% of the +4.5 gain over real-only. This does not clear publication by itself: Rocketbox's MIT text does not name ML training, and the scenes still use other City Sample assets.
+- **MIT-licensed pedestrians keep the person gain (1.3).** With `pedestrian_source: rocketbox` (38 adult Microsoft Rocketbox avatars, 342 baked poses) in place of City Sample's crowd, in the same scenes with the same exact labels, person AP is 16.95 against 16.96 on BDD100K val (three seeds), 99.8% of the +4.5 gain over real-only. This does not clear publication by itself: Rocketbox's MIT text does not name ML training, and the scenes still use other City Sample assets.
+- **More real rider, bike and motor images help a lot (1.3).** On a registered headroom check (15 runs, three seeds,
+  1,838-image real base), adding 516 real images that contain riders, bikes or motors raised their mean AP from 6.7
+  to 14.6, against 8.4 for 516 ordinary extra images: +6.2 AP, positive in all three seeds, with car and person AP
+  unchanged or higher. This sets the headroom a synthetic rider supplement would have to fill; it does not show that
+  synthetic riders help (that is the next registered experiment).
 - **Generator v7 reaches parity with the older generator, not a gain.** With the older, higher pedestrian density it scores 20.99 against 20.84 (BDD100K AP at 25% real); with a real-frequency pedestrian density it stays 0.7 behind (20.18).
 - **Synthetic-only transfer is still far below real-data baselines.** Grad-CAM shows the detector keys on background texture like foliage and curbs rather than object shape.
 
@@ -212,6 +222,9 @@ The plan after 1.1, with what each step is meant to answer and what is deliberat
   (started in `bin/stylize_backgrounds.py`; renderer-side randomization next).
 - **Camera realism:** roll, field of view and post-process effects need a small RPC/engine change.
 - **Scale and variance:** doubling the synthetic set to 3,691 images added little (about +0.9 AP at best). More pedestrians per scene helps person AP; more trucks and buses, a different mix, other box sizes, a larger input and one added box-truck model did not help truck or bus AP (1.1). What is left untested is a larger, more varied truck population (box, dump, utility and delivery trucks of several makes).
+- **Riders, bikes and motors:** the headroom is large (above); the parametric bicycle with an analytic rider pose
+  is built and renders with exact masks, and the synthetic arm is the registered next step
+  (`docs/riders/preregistration.md`).
 - **LiDAR:** 3D boxes are exported (`box3d`), but the LiDAR sensor model is not wired into the pipeline, so no point clouds are
   produced (see [`KNOWN_GAPS_AND_ISSUES.md`](KNOWN_GAPS_AND_ISSUES.md)).
 

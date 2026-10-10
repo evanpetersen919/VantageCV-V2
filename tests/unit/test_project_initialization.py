@@ -58,7 +58,7 @@ def test_pyproject_toml_valid() -> None:
     config = toml.load(REPO_ROOT / "pyproject.toml")
     assert "tool" in config
     assert "poetry" in config["tool"]
-    assert config["tool"]["poetry"]["version"] == "1.2.0"
+    assert config["tool"]["poetry"]["version"] == "1.3.0"
     assert config["tool"]["poetry"]["dependencies"]["python"] == "^3.11"
 
 

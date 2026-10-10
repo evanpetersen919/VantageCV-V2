@@ -49,3 +49,4 @@ The entries are in order of when they were run, one file each under [`docs/exper
 | 32 | [Leafy street trees: vegetation share from 0 to 15% (2026-10-09)](docs/experiments/32_leafy-street-trees-vegetation-share-from-0-to-15-percent.md) |
 | 33 | [Tree quality and curb planting: grass, shrubs, hedges (2026-10-09)](docs/experiments/33_tree-quality-and-curb-planting-grass-shrubs-hedges.md) |
 | 34 | [Scanned, photographic street trees and shrubs (2026-10-10)](docs/experiments/34_scanned-photographic-street-trees.md) |
+| 35 | [Rider headroom check: more real rider images help a lot (2026-10-10)](docs/experiments/35_rider-headroom-check-result.md) |

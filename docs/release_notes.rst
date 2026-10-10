@@ -1,6 +1,54 @@
 Release Notes
 ==============
 
+1.3 -- 2026-10-10
+-----------------
+
+Street-level realism (painted markings, signal states, scanned vegetation), MIT-licensed pedestrians as the
+default for new work, a bicycle-and-rider pipeline with its evaluation profile, and the first result of the
+rider programme: a registered headroom check.
+
+**Street realism** (all off by default, so every earlier seed gives the same scene; template
+``urban_dense_v17.yaml``)
+
+- ``lane_markings``: double yellow centre lines, white broken lane lines and stop lines with MUTCD 11th
+  edition Part 3 dimensions; the stop line sits 4 ft beyond the *painted* crosswalk (measured, 3.69 m long, not
+  the 15 m mesh footprint) and queued cars stop behind it.
+- ``signal_states``: each signal pole shows the colour its intersection's phase gives its approach, and the
+  pedestrian heads the walking figure or the hand; poles only at signalized intersections. The lit state
+  comes from project-owned material copies (measured: with the Mass-AI switch off, ``Crosswalk Control`` picks the
+  lens).
+- ``foliage`` / ``photoreal_trees`` / ``planting``: leafy street trees in spring, summer and fall from CC0 Poly
+  Haven scans (two species), curb grass patches with scanned shrubs, hedges and ferns kept on the strip, ambientCG
+  grass and bark. Vegetation 15.7% of pixels against 17.1% in Cityscapes validation (0% before in summer).
+  Nanite is not used (the D3D11 game cannot draw it); heavy meshes get classic LODs.
+- Meshes in the scenario payload may carry per-vertex normals and colours (plugin and serializer).
+
+**Pedestrians and riders**
+
+- ``pedestrian_source: rocketbox``: 38 adult Microsoft Rocketbox avatars (MIT) in 342 baked poses replace City
+  Sample's crowd for new work; person AP is unchanged (16.95 against 16.96).
+- A parametric bicycle with an analytic rider pose (0 mm contact error), imported into Unreal with exact masks;
+  the ``riders`` class profile through loaders, scoring and ``evaluate_detector.py --profile riders``.
+
+**Result: rider headroom (registered before the runs)**
+
+- 15 runs (5 arms, 3 seeds). 516 extra real images with riders, bikes or motors: M = 14.58 AP; 516 ordinary
+  extra images: 8.40; base 6.74. d_rare = +6.54, +6.60, +5.42 (mean +6.19), against a bar of +1.0 with a
+  positive sign in every seed. Car AP +0.9 and person AP +3.6 against the base. ``bin/analyze_rider_headroom.py``,
+  ``docs/experiments/35_*.md``.
+
+**Hygiene**: experiment log split into one file per entry, known gaps likewise, folder READMEs, measurement
+scripts for BDD100K rider statistics.
+
+**Known limits**
+
+- The synthetic rider arm has not been run, so synthetic riders are not shown to help.
+- Two tree species; one lawn texture; building (28% against 21%) and sky (7% against 3%) shares are still high.
+- Leaf colour is close but a little low on blue (54, 60, 41 against 51, 62, 49).
+- Three seeds per arm; no datasets or trained weights are published, and the use of City Sample content in a
+  public dataset is still open (``LICENSING.md``).
+
 1.2 -- 2026-10-08
 -----------------
 
