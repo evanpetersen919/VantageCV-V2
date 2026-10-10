@@ -66,6 +66,13 @@ def main() -> None:
     if args.warmup_bias_lr is not None:
         optimizer_args["warmup_bias_lr"] = args.warmup_bias_lr
 
+    # Without exist_ok, ultralytics saves into ``<name>-2`` when ``<name>`` exists (a retry after a
+    # failed job then trains into a folder the scoring step does not look in). So a run always
+    # writes to ``<project>/<name>``; one that already holds weights is refused, not overwritten.
+    finished = args.project.resolve() / args.name / "weights" / "best.pt"
+    if finished.exists():
+        parser.error(f"{finished} exists: pick another --name or remove the finished run")
+
     from ultralytics import YOLO  # pylint: disable=import-outside-toplevel,import-error
 
     model = YOLO(args.weights)
@@ -79,6 +86,7 @@ def main() -> None:
         workers=args.workers,
         project=str(args.project.resolve()),
         name=args.name,
+        exist_ok=True,
         mosaic=args.mosaic,
         close_mosaic=args.close_mosaic,
         deterministic=True,
