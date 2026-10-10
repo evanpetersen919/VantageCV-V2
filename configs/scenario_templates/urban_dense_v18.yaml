@@ -10,6 +10,7 @@ road_network:
   foliage: true
   photoreal_trees: true
   cyclists: true
+  cyclist_run_probability: 0.2       # about 10 per city; a design choice, the rider views aim at them
   lawn_variants: true
   paint_wear: 0.6                    # chipped lines (design choice, src/procedural/lane_markings.py)
   planting: true

@@ -59,9 +59,9 @@ def test_no_cyclists_on_a_road_too_short_for_the_margins() -> None:
 def test_placement_is_deterministic_and_seed_dependent() -> None:
     """The same seed gives the same cyclists; another seed another set."""
     lanes, edges = _network()
-    first = cy.generate_cyclists(lanes, edges, [], 5)
-    again = cy.generate_cyclists(lanes, edges, [], 5)
-    other = cy.generate_cyclists(lanes, edges, [], 6)
+    first = cy.generate_cyclists(lanes, edges, [], 5, run_probability=0.6)
+    again = cy.generate_cyclists(lanes, edges, [], 5, run_probability=0.6)
+    other = cy.generate_cyclists(lanes, edges, [], 6, run_probability=0.6)
     assert len(first) > 5
     assert [(tuple(c.center), c.avatar, c.crank_deg) for c in first] == [
         (tuple(c.center), c.avatar, c.crank_deg) for c in again

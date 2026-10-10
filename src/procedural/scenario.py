@@ -135,7 +135,7 @@ class ScenarioTypeConfig(BaseModel):
     cyclists: bool = False
     paint_wear: float = 0.0
     lawn_variants: bool = False
-    cyclist_run_probability: float = 0.6
+    cyclist_run_probability: float = 0.2
     street_tree_spacing_m: float = 20.21
 
     @field_validator("avg_block_size", "building_heights", "traffic_density")

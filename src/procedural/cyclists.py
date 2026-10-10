@@ -146,7 +146,7 @@ def generate_cyclists(  # pylint: disable=too-many-arguments,too-many-locals
     edges: Dict[int, RoadEdge],
     vehicles: Sequence[Vehicle],
     seed: int,
-    run_probability: float = 0.6,
+    run_probability: float = 0.2,
     max_per_run: int = 2,
 ) -> List[Cyclist]:
     """Cyclists along the curb of every driving run, on their own random stream.
