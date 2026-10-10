@@ -8,6 +8,7 @@ import pytest
 from src.ground_truth.bbox_3d import extract_bboxes_3d_cyclists
 from src.ground_truth.categories import BICYCLE, PROFILES, RIDER
 from src.ground_truth.semantic_classes import asset_class
+from src.orchestration import camera_sampling as cs
 from src.orchestration.dataset_generator import generate_scenario
 from src.orchestration.scenario_serializer import object_asset_indices, serialize_scenario
 from src.procedural import cyclists as cy
@@ -187,3 +188,43 @@ def test_class_map_labels_rider_and_bicycle_and_the_riders_profile_exports_them(
     assert mapping[RIDER] == 10 and mapping[BICYCLE] == 2
     assert {name for _, name in PROFILES["riders"].categories} >= {"rider", "bike", "person"}
     assert RIDER not in PROFILES["fine"].mapping and RIDER not in PROFILES["coco"].mapping
+
+
+# ---------------------------------------------------------------------------- rider camera
+
+
+def test_rider_heights_follow_the_measured_bdd100k_quantiles() -> None:
+    """The sampled box heights reproduce the measured BDD100K rider-box quartiles within 3%."""
+    rng = np.random.default_rng(3)
+    heights = np.array([cs.sample_rider_height_px(rng) for _ in range(30000)])
+    for quantile, target in (
+        (0.05, 15.97),
+        (0.25, 33.77),
+        (0.5, 59.31),
+        (0.75, 102.32),
+        (0.95, 237.16),
+    ):
+        assert float(np.quantile(heights, quantile)) == pytest.approx(target, rel=0.03)
+
+
+def test_rider_view_distance_inverts_the_pinhole_height() -> None:
+    """A rider 1.64 m tall at the returned distance is the asked height tall in a 720p frame."""
+    focal = 360.0 / math.tan(math.radians(73.7398 / 2.0))
+    for height in (20.0, 59.0, 150.0):
+        distance = cs.rider_view_distance_m(height)
+        assert focal * cs.RIDER_BOX_HEIGHT_M / distance == pytest.approx(height, rel=1e-6)
+
+
+def test_rider_pose_looks_at_a_cyclist_from_the_road_and_needs_one() -> None:
+    """The pose is aimed at one of the cyclists from the road; without cyclists there is none."""
+    scenario = _scenario()
+    rng = np.random.default_rng(4)
+    for _ in range(20):
+        pose = cs.sample_rider_pose(scenario, rng, BOUNDS, "v7")
+        assert pose is not None and pose.kind == "rider"
+        assert any(
+            np.allclose(pose.look_at[:2], c.center) for c in scenario.cyclists
+        ), "the camera must look at a cyclist"
+        assert 1.2 <= pose.position[2] <= 2.1
+    none = _scenario(template=TEMPLATE)
+    assert cs.sample_rider_pose(none, rng, BOUNDS) is None

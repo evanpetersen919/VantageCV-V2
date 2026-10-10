@@ -30,6 +30,7 @@ from src.orchestration.camera_sampling import (
     overview_pose,
     sample_ego_pose,
     sample_lot_pose,
+    sample_rider_pose,
 )
 from src.orchestration.dataset_generator import Bounds, generate_scenario, render_frame
 from src.orchestration.dataset_store import DatasetStore
@@ -107,6 +108,8 @@ def _views_for(
             pose: Optional[CameraPose] = overview_pose(bounds)
         elif kind == "lot":
             pose = sample_lot_pose(scenario, rng, bounds)
+        elif kind == "rider":
+            pose = sample_rider_pose(scenario, rng, bounds, profile)
         else:
             pose = sample_ego_pose(scenario, rng, bounds, profile)
         if pose is not None:

@@ -17,6 +17,8 @@ from numpy.typing import NDArray
 from src.orchestration.dataset_generator import Bounds, ScenarioResult
 from src.procedural.parking_lots import ParkingLot
 
+VERTICAL_FOV_DEG = 73.7398  # the engine's fixed field (live_render.vertical_fov_deg())
+
 EGO_HEIGHT_RANGE_M = (1.4, 1.9)
 LOOK_AHEAD_M = 30.0
 LOOK_TARGET_HEIGHT_M = 1.2
@@ -247,3 +249,87 @@ def _lot_pose(
         np.array([ground[0], ground[1], height]),
         np.array([target[0], target[1], _pitched_target_z(LOOK_AHEAD_M, rng)]),
     )
+
+
+# ----------------------------------------------------------------------------- cyclist views
+
+# Measured on BDD100K's 70,000 training images (results/rider_stats_bdd100k_train.json): the height
+# of a ``rider`` box in 1280 x 720 pixels at these quantiles. The outer anchors (0%, 2%, 98% and
+# 100%) are extrapolations, not measurements.
+RIDER_HEIGHT_QUANTILES_PX = (
+    (0.00, 8.0),
+    (0.02, 11.0),
+    (0.05, 15.97),
+    (0.25, 33.77),
+    (0.50, 59.31),
+    (0.75, 102.32),
+    (0.95, 237.16),
+    (0.98, 330.0),
+    (1.00, 420.0),
+)
+RIDER_BOX_HEIGHT_M = 1.64  # the baked riders' mesh height above the saddle-seated pose (about)
+REFERENCE_IMAGE_HEIGHT_PX = 720.0
+RIDER_VIEW_DISTANCE_M = (3.5, 60.0)
+RIDER_FRONT_VIEW_SHARE = 0.3  # oncoming view; the rest look from behind, down the traffic
+RIDER_BEARING_JITTER_RAD = np.radians(35.0)
+
+
+def sample_rider_height_px(rng: np.random.Generator) -> float:
+    """A rider box height (pixels at 720p) from the measured BDD100K distribution, log-linear
+    between the quantile anchors."""
+    u = float(rng.uniform(RIDER_HEIGHT_QUANTILES_PX[0][0], RIDER_HEIGHT_QUANTILES_PX[-1][0]))
+    for (u0, h0), (u1, h1) in zip(RIDER_HEIGHT_QUANTILES_PX, RIDER_HEIGHT_QUANTILES_PX[1:]):
+        if u <= u1:
+            fraction = (u - u0) / (u1 - u0)
+            return float(np.exp(np.log(h0) + fraction * (np.log(h1) - np.log(h0))))
+    return RIDER_HEIGHT_QUANTILES_PX[-1][1]
+
+
+def rider_view_distance_m(height_px: float) -> float:
+    """The distance at which a rider box is ``height_px`` tall in a 720p frame of this renderer's
+    73.74 degree vertical field of view (the pinhole relation, no lens model)."""
+    focal_px = (REFERENCE_IMAGE_HEIGHT_PX / 2.0) / np.tan(np.radians(VERTICAL_FOV_DEG) / 2.0)
+    distance = focal_px * RIDER_BOX_HEIGHT_M / height_px
+    return float(np.clip(distance, *RIDER_VIEW_DISTANCE_M))
+
+
+def sample_rider_pose(  # pylint: disable=too-many-locals
+    scenario: ScenarioResult,
+    rng: np.random.Generator,
+    bounds: Optional[Bounds] = None,
+    profile: str = "v6",
+) -> Optional[CameraPose]:
+    """A camera that looks at one of the scenario's cyclists from a distance drawn so the rider's
+    box height follows BDD100K's measured distribution; ``None`` when the scenario has no cyclist or
+    no attempt found a clear view.
+
+    The camera stands on the road behind the cyclist (70%) or in front of it (30%), within 35
+    degrees of the line of travel, at an ego-vehicle height. Poses inside a building or a vehicle,
+    or off the city's edge, are rejected like the ego views."""
+    cyclists = list(scenario.cyclists)
+    if not cyclists:
+        return None
+    for _ in range(MAX_ATTEMPTS):
+        cyclist = cyclists[int(rng.integers(len(cyclists)))]
+        distance = rider_view_distance_m(sample_rider_height_px(rng))
+        forward = np.array([np.cos(cyclist.heading_rad), np.sin(cyclist.heading_rad)])
+        front = float(rng.random()) < RIDER_FRONT_VIEW_SHARE
+        bearing = float(rng.uniform(-RIDER_BEARING_JITTER_RAD, RIDER_BEARING_JITTER_RAD))
+        base = forward if front else -forward
+        turn = np.array([[np.cos(bearing), -np.sin(bearing)], [np.sin(bearing), np.cos(bearing)]])
+        position = np.asarray(cyclist.center, dtype=float) + (turn @ base) * distance
+        if any(_inside(position, b.aabb, BUILDING_MARGIN_M) for b in scenario.buildings):
+            continue
+        if any(_inside(position, v.aabb, VEHICLE_MARGIN_M) for v in scenario.vehicles):
+            continue
+        if bounds is not None and not _within(position, bounds, EDGE_MARGIN_M):
+            continue
+        height = _ego_height(rng, profile)
+        look_z = 1.0 + distance * float(np.tan(rng.uniform(-0.04, 0.04)))
+        target = np.asarray(cyclist.center, dtype=float)
+        return CameraPose(
+            "rider",
+            np.array([position[0], position[1], height]),
+            np.array([target[0], target[1], look_z]),
+        )
+    return None
