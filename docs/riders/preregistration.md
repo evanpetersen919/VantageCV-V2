@@ -139,3 +139,14 @@ them). Consequences, fixed now so they cannot be chosen after results:
 4. The real-data headroom for the two classes, from `headroom_check.md` (rare4 against rand4, mean over seeds): rider
    +7.0 AP and bike +6.9 AP. Not a target, a reference.
 5. Everything else (arms, S = 1,000, five seeds, the paired t-interval and the bootstrap, the guards) is unchanged.
+
+**2026-10-10, amendment 3 (annotation distance cutoff; no decision rule altered).** Written before any rider batch is
+rendered. The provisional 30 m cutoff for `rider` and `bike` (the pedestrian's value) is replaced by **50 m**. Reason:
+the rider camera draws box heights from BDD100K's measured rider-height quantiles (p5 15.97 px, p25 33.77, p50 59.31,
+p75 102.32, p95 237.16, at 720p) and a 30 m cutoff would remove every rider whose measured height is under 26 px
+(1.64 m x 480 px / 30 m), about a fifth of the measured distribution, so the synthetic set would have fewer small riders
+than the real one. 50 m is the distance at which a rider box is the measured 5th-percentile height (49.3 m, from the
+pinhole relation at this renderer's 73.74 degree vertical field), rounded. Riders and bikes farther than that are not
+labelled, as for the other classes. The same cutoff is used for `bike` (a bike is about 0.95 m tall, so at 50 m its
+box is about 9 px, just above the 8 px minimum). This is a design value derived from a measured quantile, not a fit to
+detector results; the audit reports the rendered height quartiles beside the measured ones.

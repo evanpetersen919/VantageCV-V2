@@ -53,10 +53,12 @@ TOO_FAR = "too_far"
 # Fit against BDD100K + Cityscapes median box-height fractions; see the module docstring.
 MAX_DISTANCE_M: Dict[int, float] = {
     PEDESTRIAN: 30.0,
-    # Provisional: the person's cutoff, until a cutoff is fitted to BDD100K's rider and bike box
-    # heights (the cyclist dataset's own step); only the riders profile exports these classes.
-    RIDER: 30.0,
-    BICYCLE: 30.0,
+    # Rider and bike: the distance at which a 1.64 m rider box is BDD100K's measured 5th-percentile
+    # height (15.97 px at 720p, 73.74 degree vertical field): 480 px * 1.64 m / 15.97 px = 49.3 m,
+    # rounded to 50 m (docs/riders/preregistration.md, amendment 3). Only the riders profile
+    # exports these classes.
+    RIDER: 50.0,
+    BICYCLE: 50.0,
     SEDAN: 54.0,
     SUV: 54.0,
     BUS: 41.0,
