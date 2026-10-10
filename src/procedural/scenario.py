@@ -83,6 +83,11 @@ class ScenarioTypeConfig(BaseModel):
     photoreal_trees : bool
         With ``foliage``: use scanned photographic tree models (``photoreal_trees.py``) instead of
         the generated card trees. Off by default.
+    cyclists : bool
+        Place riders on bicycles along the curb of the driving lanes (``cyclists.py``). Off by
+        default so seeds of earlier batches give the same scenes.
+    cyclist_run_probability : float
+        The chance that a curb run holds a cyclist, and again for each further one (up to two).
     planting : bool
         Add grass patches, shrubs and hedges beside the curb (``planting.py``). Off by default so
         seeds of earlier batches give the same scenes.
@@ -122,6 +127,8 @@ class ScenarioTypeConfig(BaseModel):
     foliage: bool = False
     photoreal_trees: bool = False
     planting: bool = False
+    cyclists: bool = False
+    cyclist_run_probability: float = 0.6
     street_tree_spacing_m: float = 20.21
 
     @field_validator("avg_block_size", "building_heights", "traffic_density")

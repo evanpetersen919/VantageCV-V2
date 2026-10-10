@@ -260,6 +260,7 @@ def test_serialize_scenario_handles_empty_meshes() -> None:
         traffic_light_pieces: list = []
         parking_lot_pieces: list = []
         pedestrians: list = []
+        cyclists: list = []
         time_of_day = TimeOfDay.DAY
 
     payload = serialize_scenario(_FakeResult())  # type: ignore[arg-type]

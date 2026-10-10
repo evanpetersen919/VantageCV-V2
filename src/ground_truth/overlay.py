@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 from PIL import ImageDraw
 
 from src.ground_truth.bbox_3d import BoundingBox3D
-from src.ground_truth.categories import BUILDING, BUS, PEDESTRIAN, SEDAN, SUV, TRUCK
+from src.ground_truth.categories import BICYCLE, BUILDING, BUS, PEDESTRIAN, RIDER, SEDAN, SUV, TRUCK
 from src.sensors.camera_model import Camera
 
 NEAR_PLANE_M = 0.2
@@ -23,6 +23,8 @@ COLOURS: Dict[int, Tuple[int, int, int]] = {
     TRUCK: (255, 0, 220),
     BUS: (0, 200, 255),
     PEDESTRIAN: (60, 255, 60),
+    RIDER: (255, 255, 255),
+    BICYCLE: (255, 120, 120),
     BUILDING: (255, 255, 0),
 }
 EDGES = [(0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4)] + [

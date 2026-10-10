@@ -22,10 +22,11 @@ from src.export.metadata_manager import ScenarioMetadata, build_scenario_metadat
 from src.ground_truth.bbox_2d import project_bboxes_3d_to_2d
 from src.ground_truth.bbox_3d import (
     extract_bboxes_3d,
+    extract_bboxes_3d_cyclists,
     extract_bboxes_3d_pedestrians,
     extract_bboxes_3d_vehicles,
 )
-from src.ground_truth.categories import PEDESTRIAN
+from src.ground_truth.categories import PEDESTRIAN, RIDER
 from src.ground_truth.mesh_labels import refine_with_meshes
 from src.ground_truth.occlusion import filter_occluded
 from src.ground_truth.proxy_shapes import elliptic_cylinder_triangles
@@ -37,6 +38,7 @@ from src.procedural.building_lights import building_piece_room_ids, building_pie
 from src.procedural.building_placement import Building, BuildingPlacementGenerator
 from src.procedural.city_sample_assets import BUILDING_STYLES
 from src.procedural.crosswalks import VEHICLE_STOP_SETBACK_M, generate_crosswalk_pieces
+from src.procedural.cyclists import Cyclist, generate_cyclists
 from src.procedural.environment import Season, TimeOfDay, season_has_trees
 from src.procedural.foliage import FOLIAGE_MATERIALS, foliage_meshes
 from src.procedural.lane_connectivity import LaneConnectivityGenerator, LaneConnectivityGraph
@@ -114,6 +116,7 @@ class ScenarioResult:  # pylint: disable=too-many-instance-attributes
     building_pieces_lit: List[bool] = field(default_factory=list)
     parking_lots: List[ParkingLot] = field(default_factory=list)
     parking_lot_pieces: List[FacadePiece] = field(default_factory=list)
+    cyclists: List[Cyclist] = field(default_factory=list)
     building_piece_room_ids: List[int] = field(default_factory=list)
 
 
@@ -235,6 +238,11 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         parking_lots, config, seed, max((v.vehicle_id for v in vehicles), default=-1) + 1
     )
     assign_vehicle_paint(vehicles, seed)
+    cyclists = (
+        generate_cyclists(lanes, edges, vehicles, seed, config.cyclist_run_probability)
+        if config.cyclists
+        else []
+    )
 
     # Vehicles are deliberately NOT built into box meshes here as of the
     # City Sample asset integration's Phase 1 (see KNOWN_GAPS_AND_ISSUES.md):
@@ -363,6 +371,7 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         time_of_day=time_of_day,
         parking_lots=parking_lots,
         parking_lot_pieces=parking_lot_props,
+        cyclists=cyclists,
         building_pieces_lit=(
             building_pieces_lit(len(building_facade_pieces), seed)
             if time_of_day == TimeOfDay.NIGHT
@@ -415,11 +424,13 @@ def render_frame(
     """
     vehicle_id_offset = len(scenario.buildings)
     pedestrian_id_offset = vehicle_id_offset + len(scenario.vehicles)
+    cyclist_id_offset = pedestrian_id_offset + len(scenario.pedestrians)
 
     bboxes_3d = (
         extract_bboxes_3d(scenario.buildings)
         + extract_bboxes_3d_vehicles(scenario.vehicles, id_offset=vehicle_id_offset)
         + extract_bboxes_3d_pedestrians(scenario.pedestrians, id_offset=pedestrian_id_offset)
+        + extract_bboxes_3d_cyclists(scenario.cyclists, id_offset=cyclist_id_offset)
     )
     bboxes_3d_by_id = {bbox.object_id: bbox for bbox in bboxes_3d}
     vehicle_meshes = {
@@ -436,7 +447,7 @@ def render_frame(
     pedestrian_shapes = {
         bbox.object_id: elliptic_cylinder_triangles(bbox)
         for bbox in bboxes_3d
-        if bbox.category_id == PEDESTRIAN
+        if bbox.category_id in (PEDESTRIAN, RIDER)
     }
     bboxes_2d, silhouettes = refine_with_meshes(
         camera, bboxes_2d, {**vehicle_meshes, **pedestrian_shapes}, modal

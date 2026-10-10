@@ -28,9 +28,11 @@ VEGETATION = 21
 TERRAIN = 22
 SKY = 23
 PERSON = 24
+RIDER = 25
 CAR = 26
 TRUCK = 27
 BUS = 28
+BICYCLE = 33
 
 CLASS_NAMES: Dict[int, str] = {
     UNLABELED: "unlabeled",
@@ -46,9 +48,11 @@ CLASS_NAMES: Dict[int, str] = {
     TERRAIN: "terrain",
     SKY: "sky",
     PERSON: "person",
+    RIDER: "rider",
     CAR: "car",
     TRUCK: "truck",
     BUS: "bus",
+    BICYCLE: "bicycle",
 }
 
 PALETTE: Dict[int, Tuple[int, int, int]] = {
@@ -65,14 +69,18 @@ PALETTE: Dict[int, Tuple[int, int, int]] = {
     TERRAIN: (152, 251, 152),
     SKY: (70, 130, 180),
     PERSON: (220, 20, 60),
+    RIDER: (255, 0, 0),
     CAR: (0, 0, 142),
     TRUCK: (0, 0, 70),
     BUS: (0, 60, 100),
+    BICYCLE: (119, 11, 32),
 }
 
 # Where two groups meet at the same depth, the earlier class here wins.
 PRIORITY: List[int] = [
     PERSON,
+    RIDER,
+    BICYCLE,
     CAR,
     TRUCK,
     BUS,
@@ -101,6 +109,8 @@ _ASSET_RULES: List[Tuple[str, int]] = [
     ("/Game/Vehicle/vehVan_", CAR),
     ("/Game/VehicleVarietyVol2/", TRUCK),
     ("/Game/VantageCV/Pedestrians/", PERSON),
+    ("/Game/VantageCV/Riders/Spike/rider_", RIDER),
+    ("/Game/VantageCV/Riders/Spike/bike_", BICYCLE),
     ("/Game/Crowd/", PERSON),
     ("/Game/Road/Kit_Sidewalk_A/", SIDEWALK),
     ("/Game/Road/Kit_MeshDecals_A/", ROAD),

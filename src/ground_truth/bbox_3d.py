@@ -23,9 +23,16 @@ from typing import List
 import numpy as np
 import numpy.typing as npt
 
-from src.ground_truth.categories import BUILDING, PEDESTRIAN, VEHICLE_TYPE_TO_CATEGORY
+from src.ground_truth.categories import (
+    BICYCLE,
+    BUILDING,
+    PEDESTRIAN,
+    RIDER,
+    VEHICLE_TYPE_TO_CATEGORY,
+)
 from src.procedural.actor_placement import Pedestrian, Vehicle
 from src.procedural.building_placement import Building
+from src.procedural.cyclists import Cyclist
 
 
 @dataclass(frozen=True)
@@ -191,3 +198,24 @@ def extract_bboxes_3d_pedestrians(
 ) -> List[BoundingBox3D]:
     """Extract a BoundingBox3D for every pedestrian in a scenario."""
     return [extract_bbox_3d_pedestrian(pedestrian, id_offset) for pedestrian in pedestrians]
+
+
+def extract_bboxes_3d_cyclists(cyclists: List[Cyclist], id_offset: int = 0) -> List[BoundingBox3D]:
+    """Two boxes per cyclist: the rider (id ``id_offset + 2 * cyclist_id``) and the bicycle (the
+    next id), each the world placement of its mesh-frame bounds, as BDD100K labels them."""
+    boxes: List[BoundingBox3D] = []
+    for cyclist in cyclists:
+        for slot, (bounds, category) in enumerate(
+            ((cyclist.rider_bounds, RIDER), (cyclist.bike_bounds, BICYCLE))
+        ):
+            centre, length, width, z_min, z_max = cyclist.world_box(bounds)
+            boxes.append(
+                BoundingBox3D(
+                    object_id=id_offset + 2 * cyclist.cyclist_id + slot,
+                    center=np.array([centre[0], centre[1], (z_min + z_max) / 2.0]),
+                    dimensions=np.array([length, width, z_max - z_min]),
+                    heading_rad=cyclist.heading_rad,
+                    category_id=category,
+                )
+            )
+    return boxes

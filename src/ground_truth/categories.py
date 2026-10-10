@@ -16,6 +16,8 @@ SUV = 3
 TRUCK = 4
 BUS = 5
 PEDESTRIAN = 6
+RIDER = 7
+BICYCLE = 8
 
 CATEGORY_NAMES: Dict[int, str] = {
     BUILDING: "building",
@@ -25,6 +27,11 @@ CATEGORY_NAMES: Dict[int, str] = {
     BUS: "bus",
     PEDESTRIAN: "pedestrian",
 }
+
+# The two classes cyclists add (see ``cyclists.py``). Kept out of ``CATEGORY_NAMES``, this project's
+# fixed original schema, so every earlier export is unchanged; they are written by the ``riders``
+# profile only.
+CYCLIST_CATEGORY_NAMES: Dict[int, str] = {RIDER: "rider", BICYCLE: "bicycle"}
 
 # Maps ScenarioTypeConfig.vehicle_mix's string keys (see
 # src/procedural/scenario.py) onto the category IDs above.
@@ -64,7 +71,25 @@ COCO_PROFILE = CategoryProfile(
     mapping={PEDESTRIAN: 1, SEDAN: 3, SUV: 3, BUS: 6, TRUCK: 8},
 )
 
+# The rider-study classes with the ids of ``src.evaluation.class_maps.RIDER_PROFILE``: person,
+# bike (COCO's bicycle id), car, motor (COCO's motorcycle id), bus, truck and rider (BDD100K's own
+# class). This pipeline places bicycles only, so motor has no instances.
+RIDERS_PROFILE = CategoryProfile(
+    name="riders",
+    categories=(
+        (1, "person"),
+        (2, "bike"),
+        (3, "car"),
+        (4, "motor"),
+        (6, "bus"),
+        (8, "truck"),
+        (10, "rider"),
+    ),
+    mapping={PEDESTRIAN: 1, BICYCLE: 2, SEDAN: 3, SUV: 3, BUS: 6, TRUCK: 8, RIDER: 10},
+)
+
 PROFILES: Dict[str, CategoryProfile] = {
     FINE_PROFILE.name: FINE_PROFILE,
     COCO_PROFILE.name: COCO_PROFILE,
+    RIDERS_PROFILE.name: RIDERS_PROFILE,
 }

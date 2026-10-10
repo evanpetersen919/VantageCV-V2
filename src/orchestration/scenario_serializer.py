@@ -37,6 +37,7 @@ from src.procedural.city_sample_assets import (
     TRAILER_ID_OFFSET,
     VEHICLE_PART_PATHS,
 )
+from src.procedural.cyclists import Cyclist
 from src.procedural.environment import EnvironmentConfig, TimeOfDay, build_ground_mesh
 from src.procedural.intersection_pavement import build_intersection_pavement_meshes
 from src.procedural.mesh_factory import Mesh
@@ -274,13 +275,45 @@ def _facade_piece_to_asset_json(
     return entry
 
 
+def _cyclist_to_asset_jsons(cyclist: Cyclist, first_id: int) -> List[Dict[str, Any]]:
+    """The two ``"assets"`` entries of one cyclist: the rider mesh, then the bicycle (its frame
+    with the other 12 parts attached). Both stand at the same transform, facing the heading the
+    way the Rocketbox pedestrians do."""
+    position = [
+        float(cyclist.center[0]),
+        float(cyclist.center[1]),
+        float(cyclist.surface_z),
+    ]
+    rotation = float(cyclist.heading_rad) + ROCKETBOX_FORWARD_OFFSET_RAD
+    return [
+        {
+            "category": "static_asset",
+            "asset_path": cyclist.rider_asset,
+            "part_paths": [],
+            "position": position,
+            "rotation_rad": rotation,
+            "id": first_id,
+        },
+        {
+            "category": "static_asset",
+            "asset_path": cyclist.bike_asset,
+            "part_paths": cyclist.bike_part_paths,
+            "position": list(position),
+            "rotation_rad": rotation,
+            "id": first_id + 1,
+        },
+    ]
+
+
 def _street_lamp_overrides(piece: FacadePiece) -> Optional[Dict[str, float]]:
     """The daytime "lamp off" override for a regular street lamp, else
     ``None`` (trees, hydrants, signs etc. are untouched)."""
     return STREET_LAMP_OFF_OVERRIDES if piece.asset_path in LAMP_ASSET_PATHS else None
 
 
-def object_asset_indices(result: ScenarioResult, payload: Dict[str, Any]) -> Dict[int, List[int]]:
+def object_asset_indices(  # pylint: disable=too-many-locals
+    result: ScenarioResult, payload: Dict[str, Any]
+) -> Dict[int, List[int]]:
     """Label object id (as ``render_frame`` numbers them) -> the indices in
     ``payload["assets"]`` of the
     actors that make the object: a vehicle (and its trailer, for a rig) or a pedestrian.
@@ -307,6 +340,12 @@ def object_asset_indices(result: ScenarioResult, payload: Dict[str, Any]) -> Dic
         found = by_key.get(_asset_key(_pedestrian_to_asset_json(pedestrian, 0)))
         if found is not None:
             indices[pedestrian.pedestrian_id + n_buildings + n_vehicles] = [found]
+    cyclist_base = n_buildings + n_vehicles + len(result.pedestrians)
+    for cyclist in result.cyclists:
+        for slot, entry in enumerate(_cyclist_to_asset_jsons(cyclist, 0)):
+            found = by_key.get(_asset_key(entry))
+            if found is not None:
+                indices[cyclist_base + 2 * cyclist.cyclist_id + slot] = [found]
     return indices
 
 
@@ -422,6 +461,10 @@ def serialize_scenario(
         _pedestrian_to_asset_json(pedestrian, id_offset + piece_id, enable_live_pose_preview)
         for piece_id, pedestrian in enumerate(result.pedestrians)
     ]
+    id_offset += len(result.pedestrians)
+    for cyclist in result.cyclists:
+        assets += _cyclist_to_asset_jsons(cyclist, id_offset)
+        id_offset += 2
     payload: Dict[str, Any] = {"meshes": meshes, "assets": assets}
     if night:
         # Real light actors (see night_lights.py): a daytime payload
@@ -443,7 +486,6 @@ def serialize_scenario(
         ]
         meshes += [_mesh_to_json(mesh) for mesh in build_roof_meshes(result.buildings)]
         # Rooftop equipment goes with the roofs: only when dressing the scene.
-        id_offset += len(result.pedestrians)
         assets += [
             _facade_piece_to_asset_json(piece, id_offset + piece_id)
             for piece_id, piece in enumerate(generate_roof_prop_pieces(result.buildings))

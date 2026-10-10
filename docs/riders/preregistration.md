@@ -123,3 +123,19 @@ bicycle and motorcycle ids) in `src/evaluation/class_maps.py`, used by the BDD10
 and `bin/evaluate_detector.py --profile riders`. The default four-class behaviour is unchanged and its tests pass. A
 cheaper study that needs no new assets, `headroom_check.md`, is registered to run first; it decides whether this
 experiment is worth building towards. None of the rules above is altered.
+
+**2026-10-10, amendment 2 (scope of the synthetic arm; the decision rule is not altered).** Before any rider image is
+rendered or any detector trained for this experiment, the synthetic arm E is narrowed to **cyclists only**: Rocketbox riders
+on the project's parametric bicycle. No motorcycles or scooters are built for release 1.4 (the opening of section 1 named
+them). Consequences, fixed now so they cannot be chosen after results:
+
+1. The primary outcome M for the decision is the mean AP of **rider and bike** (two classes), not of rider, bike and
+   motor, because arm E contains no motorcycles and could not be expected to move `motor`. M for arms A, B and C is
+   computed the same way. All rules in section 5 apply unchanged with that M.
+2. `motor` AP is still reported for every arm (it is a guard-like secondary: if E lowers it, that is reported), and the
+   three-class M of the headroom check (`headroom_check.md`) is kept for comparison.
+3. A rider on a bicycle is also the rider that BDD100K pairs with motorcycles; E teaches the `rider` class from bicycles
+   only, so a `rider` gain is not evidence about motorcycle riders.
+4. The real-data headroom for the two classes, from `headroom_check.md` (rare4 against rand4, mean over seeds): rider
+   +7.0 AP and bike +6.9 AP. Not a target, a reference.
+5. Everything else (arms, S = 1,000, five seeds, the paired t-interval and the bootstrap, the guards) is unchanged.

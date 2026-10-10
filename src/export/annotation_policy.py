@@ -33,9 +33,11 @@ import numpy as np
 
 from src.export.coco_exporter import CocoFrame
 from src.ground_truth.categories import (
+    BICYCLE,
     BUS,
     COCO_PROFILE,
     PEDESTRIAN,
+    RIDER,
     SEDAN,
     SUV,
     TRUCK,
@@ -51,6 +53,10 @@ TOO_FAR = "too_far"
 # Fit against BDD100K + Cityscapes median box-height fractions; see the module docstring.
 MAX_DISTANCE_M: Dict[int, float] = {
     PEDESTRIAN: 30.0,
+    # Provisional: the person's cutoff, until a cutoff is fitted to BDD100K's rider and bike box
+    # heights (the cyclist dataset's own step); only the riders profile exports these classes.
+    RIDER: 30.0,
+    BICYCLE: 30.0,
     SEDAN: 54.0,
     SUV: 54.0,
     BUS: 41.0,

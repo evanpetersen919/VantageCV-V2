@@ -1,0 +1,44 @@
+# Urban Dense as urban_dense_v17.yaml (Rocketbox pedestrians, markings, signal states, scanned vegetation) with
+# cyclists: Rocketbox riders on the parametric bicycle along the curb of the driving lanes (src/procedural/cyclists.py).
+# Everything else, and so every scene's layout, traffic and pedestrians for a seed, is the same as v17.
+version: "1.0"
+scenario_type: urban_dense
+
+road_network:
+  lane_markings: true
+  signal_states: true
+  foliage: true
+  photoreal_trees: true
+  cyclists: true
+  planting: true
+  street_tree_spacing_m: 15.5       # design choice to reach the real vegetation share (Epic measured 20.21)
+  avg_block_size: [80.0, 150.0]      # meters, uniform range
+  avg_road_width: 12.0               # meters
+  num_intersections: [4, 9]
+  intersection_types: ["4way", "3way"]
+
+buildings:
+  building_density: 0.8              # coverage ratio
+  building_heights: [20.0, 40.0]     # meters
+  road_setback_meters: 2.0           # narrow sidewalk, buildings close to the curb
+  parking_lot_fraction: 0.1          # share of blocks holding a surface lot (design choice)
+
+traffic:
+  traffic_density: [0.6, 1.0]
+  # v7 fleet (see city_sample_assets.FLEET_MODEL_WEIGHTS): pickups and vans count as cars, as
+  # BDD100K does (its trucks are 4.1% of car boxes; the US pickup share alone is 18%). City
+  # Sample has no SUV model, so "sedan" stands in for cars and SUVs. Shares: trucks 4% and
+  # buses 1.5% of vehicles = 4.3% and 1.6% of car boxes, the measured BDD100K ratios
+  # (0.42 and 0.16 per image against 10.2 cars).
+  fleet: v7
+  vehicle_mix:
+    sedan: 0.74
+    suv: 0.205
+    truck: 0.04
+    bus: 0.015
+  # The v6 value: constant, the density the v5/v5b images (2.5 persons per image) were made with.
+  pedestrian_density_fraction: [0.3, 0.3]
+  pedestrian_density_skew: 1.0
+  pedestrian_source: rocketbox
+
+complexity_score: 80
