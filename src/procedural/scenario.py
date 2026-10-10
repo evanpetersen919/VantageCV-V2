@@ -83,6 +83,9 @@ class ScenarioTypeConfig(BaseModel):
     photoreal_trees : bool
         With ``foliage``: use scanned photographic tree models (``photoreal_trees.py``) instead of
         the generated card trees. Off by default.
+    paint_wear : float
+        How worn the painted lines are, 0 (fresh) to 1: random chips and eroded ends
+        (``lane_markings``).
     cyclists : bool
         Place riders on bicycles along the curb of the driving lanes (``cyclists.py``). Off by
         default so seeds of earlier batches give the same scenes.
@@ -128,6 +131,7 @@ class ScenarioTypeConfig(BaseModel):
     photoreal_trees: bool = False
     planting: bool = False
     cyclists: bool = False
+    paint_wear: float = 0.0
     cyclist_run_probability: float = 0.6
     street_tree_spacing_m: float = 20.21
 

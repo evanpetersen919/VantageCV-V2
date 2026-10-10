@@ -32,6 +32,12 @@ FOOT_BALL_OVER_SPINDLE = (
     True  # ball of the foot over the pedal spindle (standard bike-fit practice)
 )
 SPINE = ("Bip01 Spine", "Bip01 Spine1", "Bip01 Spine2")
+GRIP_RADIUS = 0.016  # the modelled grip's radius (bike_model: tube of 0.016)
+FINGER_RADIUS = (
+    0.0075  # MODEL: a finger's half thickness; the finger's centre line rides at the sum
+)
+FINGER_SPACING = 0.0175  # MODEL: centre-to-centre across the grip
+FINGER_BONES = ("1", "2", "3", "4")  # index to little; each is Finger<n>, Finger<n>1, Finger<n>2
 BUTTOCK_REST_Z = (0.78, 0.93)
 BUTTOCK_REST_HALF_WIDTH = 0.13
 
@@ -151,6 +157,57 @@ def reset_pose(arm):
     bpy.context.view_layer.update()
 
 
+def wrap_fingers(arm, side, grip, sign):
+    """Close the four fingers of one hand around the grip; return the worst fingertip gap in metres.
+
+    Each finger is three segments of the rig's own lengths. Its joints are put on a circle around the grip's
+    axis (the bar runs along x), the first segment from the knuckle to the circle point at that segment's
+    length, the next two a chord of their length further around, so fingers wrap over the top and down the
+    front. Every bone is aimed with the same ``aim`` the arms use. The gap is the fingertip's distance to the
+    grip's surface minus the finger's own half thickness (0 means the finger lies on the grip)."""
+    radius = GRIP_RADIUS + FINGER_RADIUS
+    gaps = []
+    for index, number in enumerate(FINGER_BONES):
+        names = [
+            f"Bip01 {side} Finger{number}",
+            f"Bip01 {side} Finger{number}1",
+            f"Bip01 {side} Finger{number}2",
+        ]
+        knuckle = world_head(arm, names[0])
+        lengths = [segment(arm, names[0], names[1]), segment(arm, names[1], names[2])]
+        lengths.append(
+            lengths[1] * arm.pose.bones[names[2]].length / arm.pose.bones[names[1]].length
+        )
+        centre = Vector((grip.x + sign * (index - 1.5) * FINGER_SPACING, grip.y, grip.z))
+
+        def circle(theta, centre=centre):
+            return centre + Vector((0.0, radius * math.sin(theta), radius * math.cos(theta)))
+
+        # the first joint: the circle point (over the top, towards the front) at the first segment's length
+        best_theta, best_error = 0.0, 1e9
+        for step in range(-30, 121, 2):
+            theta = math.radians(step)
+            error = abs((circle(theta) - knuckle).length - lengths[0])
+            if error < best_error:
+                best_theta, best_error = theta, error
+        thetas = [best_theta]
+        for length in lengths[1:]:
+            thetas.append(thetas[-1] + 2.0 * math.asin(min(1.0, length / (2.0 * radius))))
+        aim(arm, names[0], names[1], circle(thetas[0]))
+        aim(arm, names[1], names[2], circle(thetas[1]))
+        direction = (world_head(arm, names[2]) - world_head(arm, names[1])).normalized()
+        aim_vector(
+            arm, names[2], direction, (circle(thetas[2]) - world_head(arm, names[2])).normalized()
+        )
+        tip = (
+            world_head(arm, names[2])
+            + (circle(thetas[2]) - world_head(arm, names[2])).normalized() * lengths[2]
+        )
+        axis_distance = math.hypot(tip.y - grip.y, tip.z - grip.z)
+        gaps.append(abs(axis_distance - GRIP_RADIUS - FINGER_RADIUS))
+    return max(gaps)
+
+
 def solve(arm, kp, crank_deg, hip_target, torso_deg=TORSO_ANGLE_DEG):
     """Pose the avatar on the bike with its hip centre at ``hip_target``; return the measured contact errors."""
     reset_pose(arm)
@@ -215,6 +272,7 @@ def solve(arm, kp, crank_deg, hip_target, torso_deg=TORSO_ANGLE_DEG):
         aim(arm, f"Bip01 {side} UpperArm", f"Bip01 {side} Forearm", elbow)
         aim(arm, f"Bip01 {side} Forearm", f"Bip01 {side} Hand", wrist)
         aim(arm, f"Bip01 {side} Hand", f"Bip01 {side} Finger2", grip)
+        report[f"{side}_finger_gap"] = wrap_fingers(arm, side, grip, sign)
         report[f"{side}_wrist_error"] = (world_head(arm, f"Bip01 {side} Hand") - wrist).length
         report[f"{side}_elbow_angle"] = angle_between(
             world_head(arm, f"Bip01 {side} UpperArm"),
@@ -362,7 +420,13 @@ def render_preview(prefix):
         "front": ((0.0, 4.0, 0.95), (90, 0, 180)),
         "top": ((0.0, 0.0, 4.0), (0, 0, 0)),
     }
+    # close-ups of the right hand on its grip (for checking the fingers by eye)
+    grip = bm.key_points(0.5757)["grip_right"]
+    views["hand_side"] = ((grip.x + 0.45, grip.y, grip.z + 0.02), (90, 0, 90))
+    views["hand_front"] = ((grip.x, grip.y + 0.45, grip.z + 0.02), (90, 0, 180))
+    views["hand_above"] = ((grip.x, grip.y, grip.z + 0.45), (0, 0, 0))
     for view, (location, rotation) in views.items():
+        camera.data.ortho_scale = 0.32 if view.startswith("hand") else 2.4
         camera.location = location
         camera.rotation_euler = tuple(math.radians(v) for v in rotation)
         scene.render.filepath = f"{prefix}_{view}.png"

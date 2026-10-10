@@ -80,10 +80,24 @@ not be attributed to the spokes).
 ## Not done and known limits
 
 - Wheels do not turn, steering is neutral and there is no lean, so riders are in a fixed pose per crank angle.
-  Fingers are open, lying across the grip, not wrapped.
+  Fingers: the open hand of the spike was replaced on 2026-10-10 by a wrap (see the update below); the thumb is still extended.
 - One bicycle model (a hybrid) and three avatars; no motorcycle or scooter; no helmets or bags.
 - Riders are not yet placed by the scenario generator or exported as labels. The label convention (rider and
   vehicle as separate boxes) is possible with these two instances, but the exporter does not do it yet.
 - The test scene is a flat road, not a city; occlusion by buildings, parked cars and other riders is untested.
 - The class-map depth fix (commit `f69e2e0`) was in the plugin used for these renders; the probe uses only the
   exact-mask path.
+
+## Update 2026-10-10: fingers wrap the grip
+
+`scripts/rider_bake.py` now closes the four fingers of each hand around the grip (`wrap_fingers`): every finger is three
+segments of the rig's own lengths whose joints are placed on a circle of radius grip + finger half thickness (0.016 +
+0.0075 m, a MODEL choice) around the grip's axis, over the top and down the front, with the first segment's far end at
+the circle point that matches its length, and each bone aimed with the same `aim` the arms use. Fingers are spread across
+the grip at 17.5 mm (MODEL). The report gains `R_finger_gap` and `L_finger_gap` (the worst fingertip's distance from the
+grip surface minus the finger half thickness: 0.1 mm in the Male_Adult_01 crank-0 pose). That number is by
+construction; the check that matters is the close-up render (`--render` writes `hand_side`, `hand_front` and `hand_above`
+views): the grip passes through a closed hand. The thumb is left extended along the grip (a MODEL simplification) and
+the fingertips bunch where the fingers meet at the same circle positions.
+
+The meshes in Unreal were baked before this change and are replaced only when the riders are re-baked and re-imported.

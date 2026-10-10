@@ -305,7 +305,7 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
             lot.driveway = lot.driveway.widened(removed_curbs)
     meshes += parking_lot_meshes(parking_lots)
     if config.lane_markings:
-        meshes += lane_marking_meshes(edges)
+        meshes += lane_marking_meshes(edges, config.paint_wear, seed)
 
     # Drawn LAST from the style stream so every earlier style choice for a
     # given seed is unchanged by the season feature.

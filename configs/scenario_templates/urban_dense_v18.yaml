@@ -10,6 +10,7 @@ road_network:
   foliage: true
   photoreal_trees: true
   cyclists: true
+  paint_wear: 0.6                    # chipped lines (design choice, src/procedural/lane_markings.py)
   planting: true
   street_tree_spacing_m: 15.5       # design choice to reach the real vegetation share (Epic measured 20.21)
   avg_block_size: [80.0, 150.0]      # meters, uniform range

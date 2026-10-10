@@ -202,8 +202,66 @@ def _lane_lines(road: _Road) -> Quads:
     return quads
 
 
-def lane_marking_meshes(edges: Dict[int, RoadEdge]) -> List[Mesh]:
-    """The painted lines of every road as at most two meshes (white, yellow)."""
+# Worn paint (a design choice, not a measurement: MUTCD says nothing on wear): at wear 1.0 a line
+# loses about this many chips per metre, each a random length in the range below; the ends of a
+# strip
+# also erode by up to ``WEAR_END_ERODE_M``.
+WEAR_CHIPS_PER_M = 0.4
+WEAR_CHIP_LENGTH_M = (0.08, 0.9)
+WEAR_END_ERODE_M = 0.45
+WEAR_STREAM_TAG = 0x9EA2
+
+
+def worn(quads: Quads, wear: float, seed: int) -> Quads:  # pylint: disable=too-many-locals
+    """``quads`` (long strips of paint) with random chips cut out along their length.
+
+    ``wear`` in [0, 1] scales the chip rate; 0 returns the strips unchanged. A strip's long axis is
+    its first-to-last corner direction; chips are full-width cuts, the surviving pieces keep the
+    strip's corner order (counter-clockwise from above). Deterministic from ``seed``."""
+    if wear <= 0.0:
+        return quads
+    rng = np.random.Generator(np.random.PCG64([seed, WEAR_STREAM_TAG]))
+    kept: Quads = []
+    for quad in quads:
+        length = float(np.linalg.norm(quad[3] - quad[0]))
+        if length < 1e-6:
+            continue
+        start = float(rng.random()) * wear * WEAR_END_ERODE_M
+        end = length - float(rng.random()) * wear * WEAR_END_ERODE_M
+        if end - start < MIN_DASH_M * 0.2:
+            continue
+        cuts: List[Span] = []
+        position = start
+        while True:
+            position += float(rng.exponential(1.0 / (WEAR_CHIPS_PER_M * wear)))
+            if position >= end:
+                break
+            chip = float(np.exp(rng.uniform(*np.log(WEAR_CHIP_LENGTH_M))))
+            cuts.append((position, min(position + chip, end)))
+            position += chip
+        edges_at = [start] + [v for cut in cuts for v in cut] + [end]
+        for first, last in zip(edges_at[0::2], edges_at[1::2]):
+            if last - first < 0.02:
+                continue
+            t0, t1 = first / length, last / length
+            kept.append(
+                np.array(
+                    [
+                        quad[0] + (quad[3] - quad[0]) * t0,
+                        quad[1] + (quad[2] - quad[1]) * t0,
+                        quad[1] + (quad[2] - quad[1]) * t1,
+                        quad[0] + (quad[3] - quad[0]) * t1,
+                    ]
+                )
+            )
+    return kept
+
+
+def lane_marking_meshes(edges: Dict[int, RoadEdge], wear: float = 0.0, seed: int = 0) -> List[Mesh]:
+    """The painted lines of every road as at most two meshes (white, yellow).
+
+    ``wear`` (0 is fresh paint) chips the lines, see ``worn``; ``seed`` makes the chips repeatable.
+    """
     clearance = compute_node_clearance(edges)
     white: Quads = []
     yellow: Quads = []
@@ -229,6 +287,7 @@ def lane_marking_meshes(edges: Dict[int, RoadEdge]) -> List[Mesh]:
         if road.run_end - road.run_start >= MIN_DASH_M:
             yellow += _centre_line(road)
             white += _lane_lines(road)
+    white, yellow = worn(white, wear, seed), worn(yellow, wear, seed + 1)
     meshes = []
     if white:
         meshes.append(_mesh(white, MATERIAL_WHITE))

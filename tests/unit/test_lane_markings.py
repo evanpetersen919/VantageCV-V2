@@ -11,7 +11,7 @@ from src.procedural.crosswalks import CROSSWALK_PAINT_FAR_M, VEHICLE_STOP_SETBAC
 from src.procedural.environment import TimeOfDay
 from src.procedural.lane_topology import LANE_WIDTH_METERS
 from src.procedural.mesh_factory import Mesh
-from src.procedural.road_network import RoadEdge, RoadType
+from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadType
 from src.utils.config_loader import load_scenario_config
 
 TEMPLATE = "configs/scenario_templates/urban_dense_v14.yaml"
@@ -192,3 +192,51 @@ def test_summary_reports_area_per_material() -> None:
     area = lm.marking_summary(lm.lane_marking_meshes(edges))
     assert area["paint_yellow"] > 2 * lm.LINE_WIDTH_NARROW_M * 100.0
     assert area["paint_white"] > 0.0
+
+
+# ------------------------------------------------------------------------------ worn paint
+
+
+def _strip(length: float = 40.0) -> np.ndarray:
+    """One 0.1 m wide strip of paint along +x, corners counter-clockwise from above."""
+    return np.array(
+        [[0.0, 0.0, 0.0], [0.0, 0.1, 0.0], [length, 0.1, 0.0], [length, 0.0, 0.0]], dtype=float
+    )
+
+
+def _painted_length(quads) -> float:
+    return float(sum(np.linalg.norm(q[3] - q[0]) for q in quads))
+
+
+def test_no_wear_returns_the_strips_untouched() -> None:
+    """Wear 0 is fresh paint: the very same quads."""
+    quads = [_strip()]
+    assert lm.worn(quads, 0.0, 5) is quads
+
+
+def test_wear_removes_paint_deterministically_and_never_adds() -> None:
+    """Chips remove some of the paint; more wear removes more; pieces stay inside the strip and keep
+    their winding; the same seed gives the same chips."""
+    quads = [_strip(60.0) for _ in range(8)]
+    light, heavy = lm.worn(quads, 0.3, 4), lm.worn(quads, 1.0, 4)
+    total = _painted_length(quads)
+    assert _painted_length(heavy) < _painted_length(light) < total
+    assert _painted_length(heavy) > 0.5 * total  # worn, not erased
+    again = lm.worn(quads, 0.3, 4)
+    assert len(again) == len(light) and all(np.allclose(a, b) for a, b in zip(again, light))
+    for piece in heavy:
+        assert (piece[:, 0] >= -1e-9).all() and (piece[:, 0] <= 60.0 + 1e-9).all()
+        assert np.allclose(piece[:, 1], [0.0, 0.1, 0.1, 0.0])
+        assert piece[3][0] > piece[0][0]
+
+
+def test_wear_changes_only_the_painted_area_of_the_meshes() -> None:
+    """The same roads with wear have less paint area; the fresh call is unchanged."""
+    config = load_scenario_config(TEMPLATE)
+    _, edges = RoadNetworkGenerator(80003, config).generate(BOUNDS)
+    fresh = lm.marking_summary(lm.lane_marking_meshes(edges))
+    same = lm.marking_summary(lm.lane_marking_meshes(edges, 0.0, 7))
+    worn_area = lm.marking_summary(lm.lane_marking_meshes(edges, 0.6, 7))
+    assert fresh == same
+    for material, area in fresh.items():
+        assert 0.5 * area < worn_area[material] < area
