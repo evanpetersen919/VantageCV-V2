@@ -52,7 +52,7 @@ from src.procedural.parking_lots import (
     plan_parking_lots,
 )
 from src.procedural.photoreal_trees import photoreal_tree_pieces
-from src.procedural.planting import planting_meshes
+from src.procedural.planting import grass_mesh, plan_patches, planting_meshes, shrub_pieces
 from src.procedural.road_edge_kit import DEFAULT_ROAD_EDGE_KIT, Rect, generate_road_edge_pieces
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadNode
 from src.procedural.rocketbox_pedestrians import swap_pedestrians
@@ -175,7 +175,12 @@ def _add_greenery(  # pylint: disable=too-many-arguments
             meshes += foliage_meshes(spots, season, seed)
     if config.planting:
         keep_out = [lot.driveway.gap for lot in parking_lots if lot.driveway is not None]
-        meshes += planting_meshes(lanes, edges, keep_out, season, seed)
+        if config.photoreal_trees:
+            patches = plan_patches(lanes, edges, keep_out, seed)
+            meshes += grass_mesh(patches)
+            furniture = furniture + shrub_pieces(patches, season, seed)
+        else:
+            meshes += planting_meshes(lanes, edges, keep_out, season, seed)
     return furniture
 
 

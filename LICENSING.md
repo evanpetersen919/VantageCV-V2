@@ -145,7 +145,7 @@ CC0 is also compatible with the dataset terms discussed above (it adds nothing t
 |---|---|---|---|
 | ambientCG (https://ambientcg.com) | `LeafSet024` (beech), `LeafSet014` (hornbeam), `LeafSet027` (maple) | leaf-cluster cards of the generated trees (`unreal_plugin/tools/build_foliage_textures.py`) | https://docs.ambientcg.com/license/ : "All ambientCG assets are provided under the Creative Commons CC0 1.0 Universal License" (2026-10-10) |
 | ambientCG | `Grass005`, `Bark012` | curb grass patches and tree bark (`fetch_photo_textures.py`, 1K maps committed under `unreal_plugin/content/photo`) | same page |
-| Poly Haven (https://polyhaven.com) | `jacaranda_tree` (scan by Rob Tuytel and Rico Cilliers) | the photographic street tree (`prepare_photoreal_trees.py`; the FBX and textures are downloaded, not committed) | https://polyhaven.com/license : "CC0 means absolute freedom" (2026-10-10) |
+| Poly Haven (https://polyhaven.com) | `jacaranda_tree`, `tree_small_02`, `searsia_lucida`, `othonna_cerarioides`, `fern_02` (scans by Rob Tuytel and Rico Cilliers) | the photographic street trees, shrubs, hedges and ferns (`prepare_photoreal_trees.py`; the FBX and textures are downloaded, not committed) | https://polyhaven.com/license : "CC0 means absolute freedom" (2026-10-10) |
 
 The Unreal assets built from these (materials, instances, Nanite mesh) live in the project under `/Game/VantageCV/Foliage` and
 `/Game/VantageCV/Trees`; no Epic content is used for any of them. The generated leaf, bark and grass patterns made earlier with

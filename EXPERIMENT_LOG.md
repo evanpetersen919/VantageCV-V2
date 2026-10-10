@@ -48,4 +48,4 @@ The entries are in order of when they were run, one file each under [`docs/exper
 | 31 | [Signal poles show their intersection's phase (2026-10-09)](docs/experiments/31_signal-poles-show-their-intersection-s-phase.md) |
 | 32 | [Leafy street trees: vegetation share from 0 to 15% (2026-10-09)](docs/experiments/32_leafy-street-trees-vegetation-share-from-0-to-15-percent.md) |
 | 33 | [Tree quality and curb planting: grass, shrubs, hedges (2026-10-09)](docs/experiments/33_tree-quality-and-curb-planting-grass-shrubs-hedges.md) |
-| 34 | [Scanned, photographic street trees (2026-10-10)](docs/experiments/34_scanned-photographic-street-trees.md) |
+| 34 | [Scanned, photographic street trees and shrubs (2026-10-10)](docs/experiments/34_scanned-photographic-street-trees.md) |

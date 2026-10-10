@@ -100,3 +100,20 @@ def test_off_by_default_and_on_in_the_v16_template() -> None:
     assert not any(m.material == "grass" for m in _scenario(OLD_TEMPLATE, Season.SUMMER).meshes)
     for season in (Season.SUMMER, Season.WINTER):
         assert any(m.material == "grass" for m in _scenario(TEMPLATE, season).meshes)
+
+
+def test_scanned_shrubs_follow_the_patch_style_in_every_season() -> None:
+    """Searsia on shrub patches, columnar othonna on hedge patches, ferns only on lawns; shrubs
+    are evergreen so winter has them too, with the summer leaf material."""
+    edges, lanes = _network()
+    patches = planting.plan_patches(lanes, edges, [], 5)
+    summer = planting.shrub_pieces(patches, Season.SUMMER, 5)
+    winter = planting.shrub_pieces(patches, Season.WINTER, 5)
+    assert summer and len(summer) == len(winter)
+    paths = {piece.asset_path.split("/")[-1].split("_2k")[0] for piece in summer}
+    assert paths == {"searsia_lucida", "othonna_cerarioides", "fern_02"}
+    for piece in winter:
+        assert all("_summer." in value for value in piece.material_replacements.values())
+        assert piece.scale[0] > 0.0 and piece.position[2] == 0.0
+    assert planting.shrub_pieces(patches, Season.SUMMER, 5)[0].scale == summer[0].scale
+    assert not planting.shrub_pieces([], Season.SUMMER, 5)

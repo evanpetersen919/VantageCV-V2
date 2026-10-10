@@ -1,6 +1,6 @@
-# Urban Dense as urban_dense_v16.yaml but with scanned, photographic street trees (src/procedural/photoreal_trees.py:
-# Poly Haven CC0 photogrammetry, Nanite) in place of the generated card trees, at 13 m spacing
-# (the generated trees used 12 m; Epic's own placements measured 20.21 m). Grass patches, shrubs and hedges stay as in v16.
+# Urban Dense as urban_dense_v16.yaml but with scanned, photographic street trees and shrubs
+# (src/procedural/photoreal_trees.py: Poly Haven CC0 photogrammetry, reduced LODs) in place of the generated
+# card trees and shrubs, at 15.5 m tree spacing (the generated trees used 12 m; Epic's placements measured 20.21 m).
 version: "1.0"
 scenario_type: urban_dense
 
@@ -10,7 +10,7 @@ road_network:
   foliage: true
   photoreal_trees: true
   planting: true
-  street_tree_spacing_m: 13.0       # design choice to reach the real vegetation share (Epic measured 20.21)
+  street_tree_spacing_m: 15.5       # design choice to reach the real vegetation share (Epic measured 20.21)
   avg_block_size: [80.0, 150.0]      # meters, uniform range
   avg_road_width: 12.0               # meters
   num_intersections: [4, 9]

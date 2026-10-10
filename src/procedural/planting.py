@@ -19,10 +19,12 @@ from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
 
+from src.procedural.building_facade import FacadePiece
 from src.procedural.environment import Season
 from src.procedural.foliage import FOLIAGE_MATERIALS, MeshPart, canopy_cards, merge_parts
 from src.procedural.lane_topology import Lane
 from src.procedural.mesh_factory import Mesh
+from src.procedural.photoreal_trees import SHRUBS, plant_piece
 from src.procedural.road_edge_kit import EdgeRun, Rect, edge_runs
 from src.procedural.road_network import RoadEdge
 from src.procedural.street_furniture import END_MARGIN_METERS
@@ -46,6 +48,8 @@ HEDGE_HEIGHT_M = (0.9, 1.2)
 SHRUB_CARDS = 30
 SHRUB_CARD_SIZE_M = (0.4, 0.7)
 GRASS_UV_TILE_M = 2.0
+PLANT_HEDGE_SPACING_M = 1.1  # scanned columnar shrubs are wider than the card lumps
+FERN_PROBABILITY = 0.4
 
 
 @dataclass(frozen=True)
@@ -136,7 +140,9 @@ def grass_mesh(patches: Sequence[Patch]) -> List[Mesh]:
     ]
 
 
-def _shrub_spots(patch: Patch, rng: np.random.Generator) -> List[Tuple[float, float]]:
+def _shrub_spots(
+    patch: Patch, rng: np.random.Generator, hedge_spacing: float = HEDGE_SPACING_M
+) -> List[Tuple[float, float]]:
     """Where a patch's shrubs or hedge lumps stand along its centre line."""
     if patch.style == "lawn":
         return []
@@ -149,7 +155,7 @@ def _shrub_spots(patch: Patch, rng: np.random.Generator) -> List[Tuple[float, fl
             fraction = position / length
             spots.append((x0 + (x1 - x0) * fraction, y0 + (y1 - y0) * fraction))
         position += (
-            HEDGE_SPACING_M if patch.style == "hedge" else float(rng.uniform(*SHRUB_SPACING_M))
+            hedge_spacing if patch.style == "hedge" else float(rng.uniform(*SHRUB_SPACING_M))
         )
     return spots
 
@@ -184,6 +190,27 @@ def shrub_meshes(patches: Sequence[Patch], season: Season, seed: int) -> List[Me
             colors=merged.colors,
         )
     ]
+
+
+def shrub_pieces(patches: Sequence[Patch], season: Season, seed: int) -> List[FacadePiece]:
+    """Scanned shrubs and hedges of the patches (``photoreal_trees.py``), evergreen in every season.
+
+    Shrub patches get searsia bushes, hedge patches a row of columnar othonna, lawn patches
+    sometimes a fern."""
+    rng = np.random.Generator(np.random.PCG64([seed, 0x5B2C]))
+    pieces: List[FacadePiece] = []
+    for patch in patches:
+        if patch.style == "lawn":
+            if rng.random() < FERN_PROBABILITY:
+                (x0, y0), (x1, y1) = patch.centre_line
+                fraction = float(rng.uniform(0.2, 0.8))
+                spot = (x0 + (x1 - x0) * fraction, y0 + (y1 - y0) * fraction)
+                pieces.append(plant_piece(SHRUBS["fern_02"], spot, season, rng))
+            continue
+        model = SHRUBS["othonna_cerarioides" if patch.style == "hedge" else "searsia_lucida"]
+        for spot in _shrub_spots(patch, rng, PLANT_HEDGE_SPACING_M):
+            pieces.append(plant_piece(model, spot, season, rng))
+    return pieces
 
 
 def planting_meshes(

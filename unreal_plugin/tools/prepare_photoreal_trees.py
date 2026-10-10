@@ -1,17 +1,19 @@
-"""Download Poly Haven (CC0) scanned trees, convert their textures, and import them into Unreal.
+"""Download Poly Haven (CC0) scanned trees and plants, convert their textures, import them into Unreal.
 
-Poly Haven publishes every asset under CC0 (https://polyhaven.com/license): no permission or
-attribution is needed. The trees used here are photogrammetry scans with hundreds of thousands to
-millions of triangles, so they are imported as Nanite meshes (``setup_photoreal_trees.py``).
+Poly Haven publishes every asset under CC0 (https://polyhaven.com/license): no permission or attribution is
+needed. The assets are photogrammetry scans with tens of thousands to millions of triangles, imported as Nanite
+meshes (``setup_photoreal_trees.py``).
 
-For each tree this script, with the game closed:
+For each asset this script, with the game closed:
 
 1. downloads the 2K FBX and its textures into the cache directory (default
-   ``unreal_plugin/content/polyhaven_cache``, ignored by git: the FBX alone is over 100 MB);
-2. writes the textures Unreal needs: the leaf colour with the leaf opacity as its alpha, normal maps with the
-   green channel flipped (Poly Haven's are OpenGL, Unreal reads DirectX), and a yellow-orange hue-shifted copy
-   of the leaf colour for fall;
-3. imports the FBX into ``/Game/VantageCV/Trees`` with the ImportAssets commandlet.
+   ``unreal_plugin/content/polyhaven_cache``, ignored by git: the files are large);
+2. finds the asset's material parts from its texture names (``<asset>_<part>_diff_2k.png``, or
+   ``<asset>_diff_2k.png`` for a single-material plant) and writes, per part, the colour with the opacity map as
+   its alpha when there is one, an autumn hue-shifted copy of such a part, and the normal map with the green
+   channel flipped (Poly Haven's are OpenGL, Unreal reads DirectX) when a PNG one exists;
+3. writes ``textures.json`` (parts and their files) and imports the FBX into ``/Game/VantageCV/Trees`` with the
+   ImportAssets commandlet.
 
 Run with the project's Python from the repository root:
 
@@ -20,6 +22,7 @@ Run with the project's Python from the repository root:
 
 import colorsys
 import json
+import re
 import urllib.request
 from pathlib import Path
 from typing import Dict
@@ -29,7 +32,13 @@ from PIL import Image
 
 from src.ue5.import_assets import import_group, report_import, run_import
 
-TREES = ("jacaranda_tree",)
+ASSETS = (
+    "jacaranda_tree",
+    "tree_small_02",
+    "searsia_lucida",
+    "othonna_cerarioides",
+    "fern_02",
+)
 CACHE = Path(__file__).resolve().parent.parent / "content" / "polyhaven_cache"
 RESOLUTION = "2k"
 DESTINATION = "/Game/VantageCV/Trees"
@@ -45,12 +54,12 @@ def download(url: str, target: Path) -> None:
         return
     target.parent.mkdir(parents=True, exist_ok=True)
     request = urllib.request.Request(url, headers=HEADERS)
-    with urllib.request.urlopen(request, timeout=600) as response:
+    with urllib.request.urlopen(request, timeout=900) as response:
         target.write_bytes(response.read())
 
 
-def fetch_tree(name: str) -> Path:
-    """Download one tree's FBX and textures; return its directory."""
+def fetch(name: str) -> Path:
+    """Download one asset's FBX and PNG textures; return its directory."""
     folder = CACHE / name
     folder.mkdir(parents=True, exist_ok=True)
     listing = folder / "files.json"
@@ -58,12 +67,13 @@ def fetch_tree(name: str) -> Path:
     entry = json.loads(listing.read_text(encoding="utf-8"))["fbx"][RESOLUTION]["fbx"]
     download(entry["url"], folder / f"{name}_{RESOLUTION}.fbx")
     for relative, item in entry["include"].items():
-        download(item["url"], folder / relative)
+        if relative.endswith((".png", ".jpg")):
+            download(item["url"], folder / relative)
     return folder
 
 
 def hue_shift(image: Image.Image) -> Image.Image:
-    """The leaf colour turned toward autumn yellow-orange (alpha kept)."""
+    """The colour turned toward autumn yellow-orange (alpha kept)."""
     rgb = np.array(image.convert("RGB")).astype(np.float64) / 255.0
     flat = rgb.reshape(-1, 3)
     shifted = np.empty_like(flat)
@@ -77,40 +87,65 @@ def hue_shift(image: Image.Image) -> Image.Image:
     return out
 
 
-def convert_textures(name: str, folder: Path) -> Dict[str, Path]:
-    """Write the textures Unreal imports next to the downloads; return their paths by role."""
+def convert(name: str, folder: Path) -> Dict[str, Dict[str, str]]:
+    """Write the textures Unreal imports; return ``{part: {role: path}}``."""
     textures = folder / "textures"
-    prefix = f"{name}_"
-    suffix = f"_{RESOLUTION}.png"
-    out: Dict[str, Path] = {}
-    leaves = Image.open(textures / f"{prefix}leaves_diff{suffix}").convert("RGB")
-    alpha = Image.open(textures / f"{prefix}leaves_alpha{suffix}").convert("L")
-    leaves.putalpha(alpha)
-    out["leaves_diff"] = folder / "leaves_diff_rgba.png"
-    leaves.save(out["leaves_diff"])
-    out["leaves_diff_fall"] = folder / "leaves_diff_fall_rgba.png"
-    hue_shift(leaves.resize((1024, 1024), Image.Resampling.LANCZOS)).save(out["leaves_diff_fall"])
-    for part in ("leaves", "branches", "trunk"):
-        normal = np.array(Image.open(textures / f"{prefix}{part}_nor_gl{suffix}").convert("RGB"))
-        normal[..., 1] = 255 - normal[..., 1]  # OpenGL to DirectX: flip the green channel
-        out[f"{part}_nor"] = folder / f"{part}_nor_dx.png"
-        Image.fromarray(normal, "RGB").save(out[f"{part}_nor"])
-        out[f"{part}_rough"] = textures / f"{prefix}{part}_rough{suffix}"
-        if part != "leaves":
-            out[f"{part}_diff"] = textures / f"{prefix}{part}_diff{suffix}"
-    return out
+    pattern = re.compile(rf"^{re.escape(name)}_(?:(.+)_)?diff_{RESOLUTION}\.(?:png|jpg)$")
+    parts: Dict[str, Dict[str, str]] = {}
+    for path in sorted(textures.glob(f"{name}_*diff_{RESOLUTION}.*")):
+        match = pattern.match(path.name)
+        if match is None:
+            continue
+        part = match.group(1) or "main"
+        stem = f"{name}_{match.group(1)}_" if match.group(1) else f"{name}_"
+        colour = Image.open(path).convert("RGB")
+        files: Dict[str, str] = {}
+        alpha_path = textures / f"{stem}alpha_{RESOLUTION}.png"
+        if alpha_path.exists():
+            colour.putalpha(Image.open(alpha_path).convert("L").resize(colour.size))
+            fall = folder / f"{part}_diff_fall_rgba.png"
+            hue_shift(colour.resize((1024, 1024), Image.Resampling.LANCZOS)).save(fall)
+            files["diff_fall"] = fall.as_posix()
+        diffuse = folder / f"{part}_diff_rgba.png"
+        colour.save(diffuse)
+        files["diff"] = diffuse.as_posix()
+        normal_path = textures / f"{stem}nor_gl_{RESOLUTION}.png"
+        if normal_path.exists():
+            normal = np.array(Image.open(normal_path).convert("RGB"))
+            normal[..., 1] = 255 - normal[..., 1]  # OpenGL to DirectX: flip the green channel
+            normal_out = folder / f"{part}_nor_dx.png"
+            Image.fromarray(normal, "RGB").save(normal_out)
+            files["nor"] = normal_out.as_posix()
+        rough_path = textures / f"{stem}rough_{RESOLUTION}.png"
+        if rough_path.exists():
+            files["rough"] = rough_path.as_posix()
+        parts[part] = files
+    return parts
+
+
+def write_placeholders() -> Dict[str, str]:
+    """A flat normal map and a mid-grey roughness map for parts that have none."""
+    CACHE.mkdir(parents=True, exist_ok=True)
+    flat = CACHE / "placeholder_normal.png"
+    grey = CACHE / "placeholder_rough.png"
+    diffuse = CACHE / "placeholder_diffuse.png"
+    Image.new("RGB", (4, 4), (128, 128, 255)).save(flat)
+    Image.new("RGB", (4, 4), (160, 160, 160)).save(grey)
+    Image.new("RGBA", (4, 4), (128, 128, 128, 255)).save(diffuse)
+    return {"nor": flat.as_posix(), "rough": grey.as_posix(), "diff": diffuse.as_posix()}
 
 
 def main() -> None:
-    """Fetch, convert and import every tree; print where the textures are."""
+    """Fetch, convert and import every asset."""
+    placeholders = write_placeholders()
     groups = []
-    for name in TREES:
-        folder = fetch_tree(name)
-        paths = convert_textures(name, folder)
+    for name in ASSETS:
+        folder = fetch(name)
+        parts = convert(name, folder)
         (folder / "textures.json").write_text(
-            json.dumps({role: path.as_posix() for role, path in paths.items()}, indent=1),
-            encoding="utf-8",
+            json.dumps({"placeholders": placeholders, "parts": parts}, indent=1), encoding="utf-8"
         )
+        print(name, "parts:", sorted(parts))
         if (CONTENT / f"{name}_{RESOLUTION}.uasset").exists():
             print(name, "is already imported; delete its asset to import it again")
             continue
