@@ -86,7 +86,11 @@ class AnnotationPolicy:
             "profile": self.profile.name,
             "min_box_height_px": self.min_box_height_px,
             "min_box_width_px": self.min_box_width_px,
-            "max_distance_m": {str(k): v for k, v in self.max_distance_m.items()},
+            # only the classes the profile exports can matter (later-added classes, such as the
+            # rider and bicycle cutoffs, must not change the identity of a coco or fine run)
+            "max_distance_m": {
+                str(k): v for k, v in self.max_distance_m.items() if k in self.profile.mapping
+            },
         }
 
 

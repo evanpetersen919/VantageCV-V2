@@ -274,6 +274,37 @@ RIDER_FRONT_VIEW_SHARE = 0.3  # oncoming view; the rest look from behind, down t
 RIDER_BEARING_JITTER_RAD = np.radians(35.0)
 
 
+TRUNK_CLEARANCE_M = 3.0  # a rider camera stays this far from a street tree...
+TRUNK_SIGHT_CLEARANCE_M = 0.9  # ...and no trunk may stand this close to the line of sight
+
+
+def _tree_points(scenario: ScenarioResult) -> List[NDArray[np.float64]]:
+    """Ground positions of the scenario's street trees (Epic's, the generated cards' spots are not
+    here: those are meshes, and their trunks are thin; the scanned ones stand in the furniture)."""
+    points: List[NDArray[np.float64]] = []
+    for piece in scenario.street_furniture_pieces:
+        path = piece.asset_path
+        if "/Kit_Tree_" in path or "/Trees/jacaranda_tree" in path or "/Trees/tree_small" in path:
+            points.append(np.asarray(piece.position[:2], dtype=float))
+    return points
+
+
+def _trunk_blocks(
+    position: NDArray[np.float64], target: NDArray[np.float64], trees: List[NDArray[np.float64]]
+) -> bool:
+    """Whether a trunk is too near the camera or on the line of sight from it to the target."""
+    sight = target - position
+    length_sq = float(np.dot(sight, sight))
+    for tree in trees:
+        if float(np.linalg.norm(tree - position)) < TRUNK_CLEARANCE_M:
+            return True
+        fraction = float(np.clip(np.dot(tree - position, sight) / max(length_sq, 1e-9), 0.0, 1.0))
+        closest = position + sight * fraction
+        if fraction < 0.98 and float(np.linalg.norm(tree - closest)) < TRUNK_SIGHT_CLEARANCE_M:
+            return True
+    return False
+
+
 def sample_rider_height_px(rng: np.random.Generator) -> float:
     """A rider box height (pixels at 720p) from the measured BDD100K distribution, log-linear
     between the quantile anchors."""
@@ -309,6 +340,7 @@ def sample_rider_pose(  # pylint: disable=too-many-locals
     cyclists = list(scenario.cyclists)
     if not cyclists:
         return None
+    trees = _tree_points(scenario)
     for _ in range(MAX_ATTEMPTS):
         cyclist = cyclists[int(rng.integers(len(cyclists)))]
         distance = rider_view_distance_m(sample_rider_height_px(rng))
@@ -323,6 +355,8 @@ def sample_rider_pose(  # pylint: disable=too-many-locals
         if any(_inside(position, v.aabb, VEHICLE_MARGIN_M) for v in scenario.vehicles):
             continue
         if bounds is not None and not _within(position, bounds, EDGE_MARGIN_M):
+            continue
+        if _trunk_blocks(position, np.asarray(cyclist.center, dtype=float), trees):
             continue
         height = _ego_height(rng, profile)
         look_z = 1.0 + distance * float(np.tan(rng.uniform(-0.04, 0.04)))

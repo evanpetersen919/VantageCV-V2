@@ -228,3 +228,55 @@ def test_rider_pose_looks_at_a_cyclist_from_the_road_and_needs_one() -> None:
         assert 1.2 <= pose.position[2] <= 2.1
     none = _scenario(template=TEMPLATE)
     assert cs.sample_rider_pose(none, rng, BOUNDS) is None
+
+
+def test_rider_camera_keeps_away_from_trunks() -> None:
+    """No rider pose has a tree within 3 m of the camera or a trunk right on the line of sight."""
+    scenario = _scenario()
+    trees = cs._tree_points(scenario)  # pylint: disable=protected-access
+    assert trees
+    rng = np.random.default_rng(9)
+    poses = [cs.sample_rider_pose(scenario, rng, BOUNDS, "v7") for _ in range(40)]
+    assert sum(p is not None for p in poses) >= 30
+    for pose in poses:
+        if pose is None:
+            continue
+        assert not cs._trunk_blocks(  # pylint: disable=protected-access
+            pose.position[:2], pose.look_at[:2], trees
+        )
+
+
+# ------------------------------------------------------------------ resume identity of a run
+
+
+def test_added_options_at_default_do_not_change_a_runs_identity() -> None:
+    """Options left at their defaults keep the fingerprint they had before the options existed, and
+    a changed option changes it (a resume is refused only when it should be)."""
+    from src.orchestration.live_dataset import (  # pylint: disable=import-outside-toplevel
+        config_fingerprint,
+    )
+
+    base = load_scenario_config(TEMPLATE)
+    assert config_fingerprint(base) == config_fingerprint(base.model_copy())
+    changed = base.model_copy(update={"cyclists": True})
+    assert config_fingerprint(changed) != config_fingerprint(base)
+    # the dump with the default options left out is exactly the dump of the config without them
+    without = base.model_dump_json(
+        exclude={"cyclists", "cyclist_run_probability", "paint_wear", "lawn_variants"}
+    )
+    import hashlib  # pylint: disable=import-outside-toplevel
+
+    assert config_fingerprint(base) == hashlib.sha1(without.encode("utf-8")).hexdigest()
+
+
+def test_cyclist_classes_do_not_change_the_policy_identity_of_a_coco_run() -> None:
+    """The coco and fine policies list only their own classes in the run settings."""
+    from src.export.annotation_policy import (  # pylint: disable=import-outside-toplevel
+        AnnotationPolicy,
+    )
+    from src.ground_truth.categories import FINE_PROFILE  # pylint: disable=import-outside-toplevel
+
+    coco = AnnotationPolicy().settings()["max_distance_m"]
+    assert str(RIDER) not in coco and str(BICYCLE) not in coco
+    assert str(RIDER) in AnnotationPolicy(PROFILES["riders"]).settings()["max_distance_m"]
+    assert str(RIDER) not in AnnotationPolicy(FINE_PROFILE).settings()["max_distance_m"]

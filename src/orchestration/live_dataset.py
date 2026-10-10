@@ -170,6 +170,19 @@ def _frame_metadata(
     }
 
 
+# Config options added after earlier batches were rendered. A run is identified by its config, but
+# an option left at its default changes nothing in the output, so it must not change the identity
+# of a half-finished render (a resume would be refused for a config that renders the same).
+_ADDED_OPTIONS = ("cyclists", "cyclist_run_probability", "paint_wear", "lawn_variants")
+
+
+def config_fingerprint(config: ScenarioTypeConfig) -> str:
+    """SHA-1 of the config, leaving out the later-added options that still have their default."""
+    defaults = {name: ScenarioTypeConfig.model_fields[name].default for name in _ADDED_OPTIONS}
+    skip = {name for name, value in defaults.items() if getattr(config, name) == value}
+    return hashlib.sha1(config.model_dump_json(exclude=skip).encode("utf-8")).hexdigest()
+
+
 def _settings(  # pylint: disable=too-many-arguments
     config: ScenarioTypeConfig,
     bounds: Bounds,
@@ -183,7 +196,7 @@ def _settings(  # pylint: disable=too-many-arguments
 ) -> Dict[str, Any]:
     """The settings a run is identified by; a resume must match them."""
     settings: Dict[str, Any] = {
-        "config_hash": hashlib.sha1(config.model_dump_json().encode("utf-8")).hexdigest(),
+        "config_hash": config_fingerprint(config),
         "bounds": list(bounds),
         "views": list(views),
         "base_seed": base_seed,
