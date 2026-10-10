@@ -5,8 +5,10 @@ import pytest
 
 from src.ground_truth.semantic_classes import VEGETATION, mesh_class
 from src.orchestration.dataset_generator import generate_scenario
+from src.orchestration.scenario_serializer import _mesh_to_json
 from src.procedural import foliage
 from src.procedural.environment import Season, TimeOfDay
+from src.procedural.mesh_factory import flat_quad_mesh
 from src.procedural.street_furniture import TREE_ASSET_PATHS
 from src.utils.config_loader import load_scenario_config
 
@@ -50,7 +52,8 @@ def test_trees_stand_on_their_spots_within_the_design_size() -> None:
     bark, leaves = meshes[0], meshes[1]
     assert np.isclose(bark.vertices[:, 2].min(), 0.0)
     ground = bark.vertices[bark.vertices[:, 2] == 0.0]
-    assert np.allclose(ground[:, :2].mean(axis=0), [5.0, -3.0], atol=1e-6)
+    centre = 0.5 * (ground[:, :2].min(axis=0) + ground[:, :2].max(axis=0))
+    assert np.allclose(centre, [5.0, -3.0], atol=1e-6)
     assert leaves.vertices[:, 2].min() > 1.8
     assert leaves.vertices[:, 2].max() < foliage.TOTAL_HEIGHT_M[1] + 2.0
     span = np.ptp(leaves.vertices[:, :2], axis=0)
@@ -109,3 +112,16 @@ def test_denser_spacing_gives_more_trees() -> None:
     dense = generate_scenario(80003, config, BOUNDS, "s", season=Season.WINTER)
     wide = generate_scenario(80003, sparse, BOUNDS, "s", season=Season.WINTER)
     assert _tree_pieces(dense) > 1.3 * _tree_pieces(wide)
+
+
+def test_payload_carries_normals_and_colours_rounded_and_only_for_meshes_that_have_them() -> None:
+    """Foliage meshes send normals and colours (millimetre-rounded); plain meshes are unchanged."""
+    leaves = foliage.foliage_meshes(SPOTS, Season.SUMMER, 1)[1]
+    entry = _mesh_to_json(leaves)
+    assert len(entry["normals"]) == len(entry["vertices"]) == len(leaves.vertices)
+    assert len(entry["colors"]) == len(leaves.vertices)
+    assert all(len(str(value)) <= 8 for value in entry["vertices"][0])
+    norms = np.linalg.norm(np.array(entry["normals"]), axis=1)
+    assert np.allclose(norms, 1.0, atol=0.01)
+    plain = _mesh_to_json(flat_quad_mesh(0.0, 0.0, 1.0, 1.0, 0.0, 1.0, "asphalt"))
+    assert set(plain) == {"vertices", "triangles", "uvs", "material"}

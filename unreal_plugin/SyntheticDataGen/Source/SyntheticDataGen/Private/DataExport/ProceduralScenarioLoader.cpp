@@ -145,6 +145,39 @@ namespace
 			return false;
 		}
 
+		// Optional "normals" ([N,3] directions) and "colors" ([N,3] bytes) -- see mesh_factory.Mesh.
+		const TArray<TSharedPtr<FJsonValue>>* NormalsJson = nullptr;
+		if (MeshObject.TryGetArrayField(TEXT("normals"), NormalsJson))
+		{
+			if (!ParseVector3Array(*NormalsJson, OutMeshData.Normals)
+				|| OutMeshData.Normals.Num() != OutMeshData.Vertices.Num())
+			{
+				return false;
+			}
+			for (FVector& Normal : OutMeshData.Normals)
+			{
+				Normal = Normal.GetSafeNormal();
+			}
+		}
+		const TArray<TSharedPtr<FJsonValue>>* ColorsJson = nullptr;
+		if (MeshObject.TryGetArrayField(TEXT("colors"), ColorsJson))
+		{
+			for (const TSharedPtr<FJsonValue>& Entry : *ColorsJson)
+			{
+				const TArray<TSharedPtr<FJsonValue>>* Triple = nullptr;
+				if (!Entry->TryGetArray(Triple) || Triple->Num() != 3)
+				{
+					return false;
+				}
+				OutMeshData.Colors.Add(FColor(
+					(*Triple)[0]->AsNumber(), (*Triple)[1]->AsNumber(), (*Triple)[2]->AsNumber(), 255));
+			}
+			if (OutMeshData.Colors.Num() != OutMeshData.Vertices.Num())
+			{
+				return false;
+			}
+		}
+
 		OutMeshData.Material = Material;
 		return true;
 	}

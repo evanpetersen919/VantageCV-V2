@@ -37,7 +37,9 @@ from src.procedural.scenario import ScenarioType, ScenarioTypeConfig
 _SUPPORTED_SCENARIO_TYPES = frozenset({ScenarioType.URBAN_DENSE, ScenarioType.URBAN_SPARSE})
 
 
-def load_scenario_config(path: Union[str, Path]) -> ScenarioTypeConfig:
+def load_scenario_config(  # pylint: disable=too-many-branches
+    path: Union[str, Path]
+) -> ScenarioTypeConfig:
     """Load a ``ScenarioTypeConfig`` from a ``configs/scenario_templates/``-
     shaped YAML file.
 
@@ -101,6 +103,8 @@ def load_scenario_config(path: Union[str, Path]) -> ScenarioTypeConfig:
         kwargs["lane_markings"] = road_network["lane_markings"]
     if "street_tree_spacing_m" in road_network:
         kwargs["street_tree_spacing_m"] = road_network["street_tree_spacing_m"]
+    if "planting" in road_network:
+        kwargs["planting"] = road_network["planting"]
     if "foliage" in road_network:
         kwargs["foliage"] = road_network["foliage"]
     if "signal_states" in road_network:

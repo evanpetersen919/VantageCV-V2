@@ -1,6 +1,7 @@
-# Urban Dense as urban_dense_v15.yaml (Rocketbox pedestrians, painted lane markings, signal states) with leafy
-# street trees in spring, summer and fall (src/procedural/foliage.py): generated trunks and leaf-card canopies
-# in place of Epic's bare trees, and trees in every season but winter. Everything else, and so every scene's
+# Urban Dense as urban_dense_v15.yaml (Rocketbox pedestrians, painted lane markings, signal states) with
+# greenery: leafy street trees in spring, summer and fall (src/procedural/foliage.py: generated trunks and
+# leaf-card canopies in place of Epic's bare trees; Epic's bare trees stay in winter) and grass patches,
+# shrubs and hedges beside the curb (src/procedural/planting.py). Everything else, and so every scene's
 # layout, traffic and pedestrians for a given seed, is the same as urban_dense_v15.yaml.
 version: "1.0"
 scenario_type: urban_dense
@@ -9,6 +10,7 @@ road_network:
   lane_markings: true
   signal_states: true
   foliage: true
+  planting: true
   street_tree_spacing_m: 12.0       # denser than Epic's measured 20.21 (design choice, see experiment 32)
   avg_block_size: [80.0, 150.0]      # meters, uniform range
   avg_road_width: 12.0               # meters

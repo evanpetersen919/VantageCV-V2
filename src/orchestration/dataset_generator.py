@@ -51,6 +51,7 @@ from src.procedural.parking_lots import (
     parking_lot_pieces,
     plan_parking_lots,
 )
+from src.procedural.planting import planting_meshes
 from src.procedural.road_edge_kit import DEFAULT_ROAD_EDGE_KIT, Rect, generate_road_edge_pieces
 from src.procedural.road_network import RoadEdge, RoadNetworkGenerator, RoadNode
 from src.procedural.rocketbox_pedestrians import swap_pedestrians
@@ -145,6 +146,33 @@ def _warn_city_sample_crowd() -> None:
             "pedestrian_source is 'city_sample': the MetaHuman-derived crowd is kept only to "
             "reproduce earlier batches; new datasets use pedestrian_source: rocketbox."
         )
+
+
+def _add_greenery(  # pylint: disable=too-many-arguments
+    config: ScenarioTypeConfig,
+    season: Season,
+    seed: int,
+    lanes: Dict[int, Lane],
+    edges: Dict[int, RoadEdge],
+    parking_lots: List[ParkingLot],
+    furniture: List[FacadePiece],
+    meshes: List[Mesh],
+) -> List[FacadePiece]:
+    """Add the leafy trees and the curb planting the config asks for to ``meshes`` and return the
+    street furniture without the bare Epic trees the leafy ones replace."""
+    if config.foliage and season in FOLIAGE_MATERIALS:
+        # Leafy trees take the bare trees' spots; the tree pits stay.
+        spots = [
+            (float(piece.position[0]), float(piece.position[1]))
+            for piece in furniture
+            if piece.asset_path in TREE_ASSET_PATHS
+        ]
+        furniture = [piece for piece in furniture if piece.asset_path not in TREE_ASSET_PATHS]
+        meshes += foliage_meshes(spots, season, seed)
+    if config.planting:
+        keep_out = [lot.driveway.gap for lot in parking_lots if lot.driveway is not None]
+        meshes += planting_meshes(lanes, edges, keep_out, season, seed)
+    return furniture
 
 
 def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
@@ -287,17 +315,9 @@ def generate_scenario(  # pylint: disable=too-many-locals,too-many-arguments
         keep_out_rects=[lot.driveway.gap for lot in parking_lots if lot.driveway is not None],
     )
 
-    if config.foliage and chosen_season in FOLIAGE_MATERIALS:
-        # Leafy trees take the bare trees' spots; the tree pits stay.
-        spots = [
-            (float(piece.position[0]), float(piece.position[1]))
-            for piece in street_furniture_pieces
-            if piece.asset_path in TREE_ASSET_PATHS
-        ]
-        street_furniture_pieces = [
-            piece for piece in street_furniture_pieces if piece.asset_path not in TREE_ASSET_PATHS
-        ]
-        meshes += foliage_meshes(spots, chosen_season, seed)
+    street_furniture_pieces = _add_greenery(
+        config, chosen_season, seed, lanes, edges, parking_lots, street_furniture_pieces, meshes
+    )
 
     crosswalk_pieces = generate_crosswalk_pieces(nodes, edges)
     traffic_light_pieces = generate_traffic_light_pieces(

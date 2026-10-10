@@ -33,6 +33,14 @@ struct FScenarioMeshData
 	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
 	TArray<FVector2D> UVs;
 
+	// Optional per-vertex normals (unit length, already in UE space) and colours; empty means
+	// "compute the normals from the triangles" and "white".
+	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
+	TArray<FVector> Normals;
+
+	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
+	TArray<FColor> Colors;
+
 	UPROPERTY(BlueprintReadWrite, Category = "SyntheticDataGen")
 	FString Material;
 };

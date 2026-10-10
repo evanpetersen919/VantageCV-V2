@@ -3,10 +3,16 @@
 Epic's City Sample tree kits are bare branch skeletons, so before this module spring and summer
 streets had no trees at all and winter and fall had leafless ones: vegetation was 0 to 2% of
 pixels in our class maps against 17.1% in Cityscapes validation (``demo/veg_share.py``,
-experiment 32). Each tree here is a tapered trunk, a few branches and a canopy of leaf cards:
-flat quads textured with a cluster of leaves, masked by the texture's alpha (the ``foliage_*``
-materials, ``unreal_plugin/tools/create_foliage_material.py``). Everything is generated, so no
-third-party asset is involved.
+experiment 32). Each tree here is a flared, tapered trunk, forked branches and a canopy of leaf
+cards: flat quads textured with a cluster of leaves, masked by the texture's alpha (the
+``foliage_*`` materials, ``unreal_plugin/tools/create_foliage_material.py``). Everything is
+generated, so no third-party asset is involved.
+
+What makes flat cards read as a crown rather than paper (experiment 33): every card vertex carries
+the outward normal of its lump (the card's own normal is only a small part), so light falls off
+across the whole crown, not card by card; every card carries a vertex colour that darkens cards deep
+inside a lump and underneath it and jitters brightness and hue; and the card's texture is turned by
+a random quarter turn and mirror so no two neighbours repeat.
 
 The size ranges are design choices for a mature street tree (about 7 to 11 m tall, a clear trunk
 of 3.0 to 4.0 m so vehicles and pedestrians pass under, a canopy 5 to 7 m wide), not measurements.
@@ -18,6 +24,7 @@ two draw items, not hundreds.
 """
 
 import math
+from dataclasses import dataclass
 from typing import List, Sequence, Tuple
 
 import numpy as np
@@ -38,85 +45,168 @@ TOTAL_HEIGHT_M = (7.0, 11.0)
 CLEAR_TRUNK_M = (3.0, 4.0)
 CANOPY_RADIUS_M = (2.4, 3.6)
 TRUNK_RADIUS_M = (0.12, 0.20)
-LEAF_CARDS = 220
+LEAF_CARDS = 240
 LOBES = (3, 5)  # a canopy is this many overlapping lumps (inclusive range), not one ball
-CARD_SIZE_M = (1.1, 1.8)
-BRANCHES = 4
-_TRUNK_SIDES = 6
+CARD_SIZE_M = (1.0, 1.5)
+BRANCHES_PER_LOBE = 2
+# How strongly a card vertex's normal follows its lump's outward direction (the rest is the card's).
+LUMP_NORMAL_WEIGHT = 0.8
+# Brightness of the darkest (deepest, lowest) cards relative to the brightest, and the spread added.
+DEEP_CARD_BRIGHTNESS = 0.4
+MAX_CARD_BRIGHTNESS = (
+    0.88  # sunlit leaves are not white: keeps the brightest cards from blowing out
+)
+BRIGHTNESS_JITTER = 0.12
+WIDTH_VARIATION = (0.75, 1.3)  # per-tree factor on the crown's width: narrow ovals to wide spreads
+LEAN_M = 0.6  # the crown sits off the trunk's foot by up to this much, so trees are not plumb
+HUE_JITTER = 0.08
+BARK_UV_METERS = 0.8  # trunk length covered by one repeat of the bark texture
+_TRUNK_SIDES = 8
 _BRANCH_SIDES = 4
 
 Vec = npt.NDArray[np.float64]
+Ints = npt.NDArray[np.int64]
+Bytes = npt.NDArray[np.uint8]
+
+
+@dataclass
+class MeshPart:
+    """Buffers of one piece of geometry."""
+
+    vertices: Vec
+    triangles: Ints
+    uvs: Vec
+    normals: Vec
+    colors: Bytes
 
 
 def _frustum(  # pylint: disable=too-many-locals
-    bottom: Vec, top: Vec, bottom_radius: float, top_radius: float, sides: int
-) -> Tuple[Vec, npt.NDArray[np.int64], Vec]:
-    """A tapered prism from ``bottom`` to ``top``: vertices, flat triangle list, UVs."""
+    bottom: Vec, top: Vec, radii: Tuple[float, float], sides: int
+) -> MeshPart:
+    """A tapered prism from ``bottom`` to ``top`` (smooth-shaded, bark texture along its length)."""
     axis = top - bottom
-    axis = axis / np.linalg.norm(axis)
+    length = float(np.linalg.norm(axis))
+    axis = axis / length
     helper = np.array([1.0, 0.0, 0.0]) if abs(axis[0]) < 0.9 else np.array([0.0, 1.0, 0.0])
     side_a = np.cross(axis, helper)
     side_a /= np.linalg.norm(side_a)
     side_b = np.cross(axis, side_a)
-    angles = np.linspace(0.0, 2.0 * math.pi, sides, endpoint=False)
+    fractions = np.arange(sides + 1) / sides  # one extra seam vertex so the texture wraps cleanly
+    angles = 2.0 * math.pi * fractions
     ring = np.outer(np.cos(angles), side_a) + np.outer(np.sin(angles), side_b)
-    vertices = np.vstack([bottom + ring * bottom_radius, top + ring * top_radius])
+    vertices = np.vstack([bottom + ring * radii[0], top + ring * radii[1]])
+    normals = np.vstack([ring, ring])
+    rise = length / BARK_UV_METERS
     uvs = np.vstack(
         [
-            np.column_stack([np.linspace(0.0, 1.0, sides, endpoint=False), np.zeros(sides)]),
-            np.column_stack([np.linspace(0.0, 1.0, sides, endpoint=False), np.ones(sides)]),
+            np.column_stack([fractions * 2.0, np.zeros(sides + 1)]),
+            np.column_stack([fractions * 2.0, np.full(sides + 1, rise)]),
         ]
     )
+    stride = sides + 1
     triangles: List[int] = []
     for i in range(sides):
-        j = (i + 1) % sides
-        triangles += [i, j, sides + i, j, sides + j, sides + i]
-    return vertices, np.array(triangles, dtype=np.int64), uvs
+        triangles += [i, i + 1, stride + i, i + 1, stride + i + 1, stride + i]
+    colors = np.full((len(vertices), 3), 255, dtype=np.uint8)
+    return MeshPart(vertices, np.array(triangles, dtype=np.int64), uvs, normals, colors)
 
 
-def _canopy_cards(  # pylint: disable=too-many-locals
-    centre: Vec, radii: Tuple[float, float], count: int, rng: np.random.Generator
-) -> Tuple[Vec, npt.NDArray[np.int64], Vec]:
-    """``count`` leaf-cluster quads scattered through an ellipsoid lump, outer shell favoured."""
-    horizontal, vertical = radii
-    directions = rng.normal(size=(count, 3))
-    directions /= np.linalg.norm(directions, axis=1, keepdims=True)
-    reach = 0.55 + 0.45 * rng.random(count) ** (1.0 / 3.0)
-    scale = np.array([horizontal, horizontal, vertical])
-    spots = centre + directions * scale * reach[:, None]
-    # A card faces roughly outward (up to a quarter turn off), spun about its own normal.
-    normals = directions + 0.6 * rng.normal(size=(count, 3))
-    normals /= np.linalg.norm(normals, axis=1, keepdims=True)
+def _orthonormal_frame(normals: Vec) -> Tuple[Vec, Vec]:
+    """Two unit vectors perpendicular to each row of ``normals`` and to each other."""
     helper = np.where(np.abs(normals[:, :1]) < 0.9, [[1.0, 0.0, 0.0]], [[0.0, 1.0, 0.0]])
     tangent = np.cross(normals, helper)
     tangent /= np.linalg.norm(tangent, axis=1, keepdims=True)
-    bitangent = np.cross(normals, tangent)
+    return tangent, np.cross(normals, tangent)
+
+
+def canopy_cards(  # pylint: disable=too-many-locals
+    centre: Vec,
+    radii: Tuple[float, float],
+    count: int,
+    rng: np.random.Generator,
+    card_size: Tuple[float, float] = CARD_SIZE_M,
+) -> MeshPart:
+    """``count`` leaf-cluster quads (``card_size`` metres) scattered through one ellipsoid lump,
+    outer shell favoured; ``radii`` is (horizontal, vertical)."""
+    scale = np.array([radii[0], radii[0], radii[1]])
+    directions = rng.normal(size=(count, 3))
+    directions /= np.linalg.norm(directions, axis=1, keepdims=True)
+    reach = 0.55 + 0.45 * rng.random(count) ** (1.0 / 3.0)
+    spots = centre + directions * scale * reach[:, None]
+    # A card faces roughly outward (up to a quarter turn off), spun about its own normal.
+    card_normals = directions + 0.6 * rng.normal(size=(count, 3))
+    card_normals /= np.linalg.norm(card_normals, axis=1, keepdims=True)
+    tangent, bitangent = _orthonormal_frame(card_normals)
     roll = rng.uniform(0.0, 2.0 * math.pi, count)[:, None]
     along = np.cos(roll) * tangent + np.sin(roll) * bitangent
-    across = np.cross(normals, along)
-    half = (0.5 * rng.uniform(CARD_SIZE_M[0], CARD_SIZE_M[1], count))[:, None]
+    across = np.cross(card_normals, along)
+    half = (0.5 * rng.uniform(card_size[0], card_size[1], count))[:, None]
     corners = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
-    vertices = np.concatenate(
-        [spots + along * half * a + across * half * b for a, b in corners], axis=0
-    )
-    # The concatenation is corner-major; reorder to card-major (a card's corners adjacent).
-    vertices = np.reshape(np.transpose(np.reshape(vertices, (4, count, 3)), (1, 0, 2)), (-1, 3))
-    uvs = np.tile(np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]), (count, 1))
+    # Card-major: each card's four corners are adjacent.
+    vertices = np.stack([spots + along * half * a + across * half * b for a, b in corners], axis=1)
+
+    # Smooth shading: the lump's outward normal at each vertex, with a little of the card's own.
+    outward = (vertices - centre) / scale**2
+    outward /= np.linalg.norm(outward, axis=2, keepdims=True)
+    facing = np.sign(np.sum(card_normals[:, None, :] * outward, axis=2, keepdims=True))
+    own = facing * card_normals[:, None, :]
+    normals = LUMP_NORMAL_WEIGHT * outward + (1.0 - LUMP_NORMAL_WEIGHT) * own
+    normals /= np.linalg.norm(normals, axis=2, keepdims=True)
+
+    # Cards deep in the lump and low in it are shaded; brightness and hue vary card to card.
+    depth = (reach - 0.55) / 0.45
+    height = 0.5 + 0.5 * directions[:, 2]
+    span = 1.0 - DEEP_CARD_BRIGHTNESS
+    brightness = DEEP_CARD_BRIGHTNESS + span * (0.65 * depth + 0.35 * height)
+    jittered = brightness * rng.normal(1.0, BRIGHTNESS_JITTER, count)
+    brightness = np.clip(jittered, 0.1, MAX_CARD_BRIGHTNESS)
+    hue = rng.normal(0.0, HUE_JITTER, count)
+    tint = np.stack([1.0 + hue, np.ones(count), 1.0 - hue], axis=1)
+    rgb = np.clip(brightness[:, None] * tint, 0.0, 1.0)
+    colors = np.repeat((rgb * 255.0).astype(np.uint8)[:, None, :], 4, axis=1)
+
+    # The texture is turned by a random quarter turn and mirrored per card.
+    base_uv = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
+    turns = rng.integers(0, 4, count)
+    mirrored = rng.random(count) < 0.5
+    uvs = np.empty((count, 4, 2))
+    for i in range(count):
+        uv = np.roll(base_uv, int(turns[i]), axis=0)
+        uvs[i] = uv[::-1] if mirrored[i] else uv
     base = 4 * np.arange(count)[:, None]
     triangles = (base + np.array([[0, 1, 2, 0, 2, 3]])).reshape(-1).astype(np.int64)
-    return vertices, triangles, uvs
+    return MeshPart(
+        vertices.reshape(-1, 3),
+        triangles,
+        uvs.reshape(-1, 2),
+        normals.reshape(-1, 3),
+        colors.reshape(-1, 3),
+    )
+
+
+def merge_parts(parts: Sequence[MeshPart]) -> MeshPart:
+    """Concatenate parts, shifting each one's triangle indices past the vertices before it."""
+    offsets = np.cumsum([0] + [len(part.vertices) for part in parts[:-1]])
+    return MeshPart(
+        np.concatenate([part.vertices for part in parts]),
+        np.concatenate([part.triangles + offset for part, offset in zip(parts, offsets)]),
+        np.concatenate([part.uvs for part in parts]),
+        np.concatenate([part.normals for part in parts]),
+        np.concatenate([part.colors for part in parts]),
+    )
 
 
 def tree_geometry(  # pylint: disable=too-many-locals
     at: Tuple[float, float], rng: np.random.Generator
-) -> Tuple[Tuple[Vec, npt.NDArray[np.int64], Vec], Tuple[Vec, npt.NDArray[np.int64], Vec]]:
-    """One tree at ground point ``at``: ``(trunk and branches, canopy)`` as buffers."""
+) -> Tuple[MeshPart, MeshPart]:
+    """One tree at ground point ``at``: ``(trunk and branches, canopy)``."""
     total = float(rng.uniform(*TOTAL_HEIGHT_M))
     clear = float(rng.uniform(*CLEAR_TRUNK_M))
-    horizontal = float(rng.uniform(*CANOPY_RADIUS_M))
+    horizontal = float(rng.uniform(*CANOPY_RADIUS_M) * rng.uniform(*WIDTH_VARIATION))
     vertical = 0.5 * (total - clear)
     root = np.array([at[0], at[1], 0.0])
-    centre = root + np.array([0.0, 0.0, clear + vertical])
+    lean = np.array([rng.uniform(-LEAN_M, LEAN_M), rng.uniform(-LEAN_M, LEAN_M), 0.0])
+    centre = root + lean + np.array([0.0, 0.0, clear + vertical])
     radius = float(rng.uniform(*TRUNK_RADIUS_M))
 
     lobe_count = int(rng.integers(LOBES[0], LOBES[1] + 1))
@@ -132,32 +222,21 @@ def tree_geometry(  # pylint: disable=too-many-locals
         radii = (horizontal * rng.uniform(0.55, 0.8), vertical * rng.uniform(0.6, 0.8))
         lobes.append((centre + offset, radii))
 
+    flare = root + [0.0, 0.0, 0.7]
+    trunk_top = root + 0.8 * lean + [0.0, 0.0, clear + 0.6 * vertical]
     parts = [
-        _frustum(
-            root, root + [0.0, 0.0, clear + 0.6 * vertical], radius, 0.45 * radius, _TRUNK_SIDES
-        )
+        _frustum(root, flare, (1.6 * radius, 1.05 * radius), _TRUNK_SIDES),
+        _frustum(flare, trunk_top, (1.05 * radius, 0.45 * radius), _TRUNK_SIDES),
     ]
-    for index in range(BRANCHES):
-        start = root + [0.0, 0.0, clear + float(rng.uniform(0.0, 0.5)) * vertical]
+    for index in range(BRANCHES_PER_LOBE * lobe_count):
         lobe_centre = lobes[index % lobe_count][0]
-        parts.append(_frustum(start, lobe_centre, 0.45 * radius, 0.15 * radius, _BRANCH_SIDES))
+        start = root + [0.0, 0.0, clear + float(rng.uniform(0.0, 0.5)) * vertical]
+        parts.append(_frustum(start, lobe_centre, (0.45 * radius, 0.15 * radius), _BRANCH_SIDES))
     cards = [
-        _canopy_cards(lobe_centre, radii, LEAF_CARDS // lobe_count, rng)
+        canopy_cards(lobe_centre, radii, LEAF_CARDS // lobe_count, rng)
         for lobe_centre, radii in lobes
     ]
-    return _merge(parts), _merge(cards)
-
-
-def _merge(
-    parts: Sequence[Tuple[Vec, npt.NDArray[np.int64], Vec]]
-) -> Tuple[Vec, npt.NDArray[np.int64], Vec]:
-    """Concatenate meshes, shifting each one's triangle indices past the vertices before it."""
-    offsets = np.cumsum([0] + [len(vertices) for vertices, _, _ in parts[:-1]])
-    return (
-        np.concatenate([vertices for vertices, _, _ in parts]),
-        np.concatenate([triangles + offset for (_, triangles, _), offset in zip(parts, offsets)]),
-        np.concatenate([uvs for _, _, uvs in parts]),
-    )
+    return merge_parts(parts), merge_parts(cards)
 
 
 def foliage_meshes(  # pylint: disable=too-many-locals
@@ -179,6 +258,15 @@ def foliage_meshes(  # pylint: disable=too-many-locals
         leaf_parts.append(leaves)
     meshes = []
     for tag, parts in ((BARK_MATERIAL, bark_parts), (material, leaf_parts)):
-        vertices, triangles, uvs = _merge(parts)
-        meshes.append(Mesh(vertices=vertices, triangles=triangles, uvs=uvs, material=tag))
+        merged = merge_parts(parts)
+        meshes.append(
+            Mesh(
+                vertices=merged.vertices,
+                triangles=merged.triangles,
+                uvs=merged.uvs,
+                material=tag,
+                normals=merged.normals,
+                colors=merged.colors,
+            )
+        )
     return meshes

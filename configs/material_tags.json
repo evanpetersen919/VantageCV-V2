@@ -136,6 +136,11 @@
       "source": "Project-owned, created by unreal_plugin/tools/create_paint_material.py (not from CitySample): a plain matte traffic-yellow road-paint material",
       "used_by": "lane_markings.py lane_marking_meshes -- the double solid yellow centre line of two-way roads"
     },
+    "grass": {
+      "asset_path": "/Game/VantageCV/Foliage/M_Grass",
+      "source": "Project-owned, created by unreal_plugin/tools/create_foliage_material.py from a generated tileable grass texture (make_leaf_texture.py)",
+      "used_by": "planting.py grass_mesh -- the lawn patches beside the curb"
+    },
     "bark": {
       "asset_path": "/Game/VantageCV/Foliage/M_Bark",
       "source": "Project-owned, created by unreal_plugin/tools/create_foliage_material.py: a plain matte brown",

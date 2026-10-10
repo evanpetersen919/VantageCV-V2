@@ -47,3 +47,4 @@ The entries are in order of when they were run, one file each under [`docs/exper
 | 30 | [Lane markings: double yellow centre lines, white lane lines and stop lines (2026-10-09)](docs/experiments/30_lane-markings-painted-centre-lines-lane-lines-and-stop-lines.md) |
 | 31 | [Signal poles show their intersection's phase (2026-10-09)](docs/experiments/31_signal-poles-show-their-intersection-s-phase.md) |
 | 32 | [Leafy street trees: vegetation share from 0 to 15% (2026-10-09)](docs/experiments/32_leafy-street-trees-vegetation-share-from-0-to-15-percent.md) |
+| 33 | [Tree quality and curb planting: grass, shrubs, hedges (2026-10-09)](docs/experiments/33_tree-quality-and-curb-planting-grass-shrubs-hedges.md) |

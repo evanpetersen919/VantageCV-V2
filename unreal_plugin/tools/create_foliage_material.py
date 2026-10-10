@@ -11,7 +11,7 @@ creates, in ``/Game/VantageCV/Foliage``:
 - ``M_Foliage``: masked and two-sided; base colour = the texture's grey brightness times a ``Tint``
   vector parameter, opacity mask = the texture's alpha, matte.
 - ``MI_Foliage_Spring``, ``MI_Foliage_Summer``, ``MI_Foliage_Fall``: differ in ``Tint``.
-- ``M_Bark``: a plain matte brown.
+- ``M_Bark``: the bark texture times a brown tint; ``M_Grass``: the grass texture times green.
 
 The mesh tags ``foliage_*`` and ``bark`` resolve to them (``MaterialResolver.cpp``). Existing assets
 are rebuilt, they are this project's own. Nothing shared is edited.
@@ -20,16 +20,17 @@ are rebuilt, they are this project's own. Nothing shared is edited.
 import unreal  # type: ignore[import-not-found]  # pylint: disable=import-error
 
 PACKAGE_PATH = "/Game/VantageCV/Foliage"
-TEXTURE_FILE = r"F:/vscode/VantageCV-V2/unreal_plugin/content/T_LeafCluster.png"
+TEXTURE_DIR = r"F:/vscode/VantageCV-V2/unreal_plugin/content/"
 LOG_PATH = r"F:/vscode/VantageCV-V2/unreal_plugin/tools/create_foliage_material.log"
 # Linear colours multiplied with the leaf texture's brightness; calibrated against rendered frames
 # (docs/experiments/32_*.md), not guessed.
 TINTS = {
-    "MI_Foliage_Spring": (0.40, 0.68, 0.33),
-    "MI_Foliage_Summer": (0.32, 0.55, 0.32),
-    "MI_Foliage_Fall": (0.75, 0.40, 0.08),
+    "MI_Foliage_Spring": (0.26, 0.43, 0.24),
+    "MI_Foliage_Summer": (0.19, 0.33, 0.22),
+    "MI_Foliage_Fall": (0.47, 0.26, 0.05),
 }
-BARK_COLOUR = (0.05, 0.035, 0.025)
+GRASS_TINT = (0.13, 0.22, 0.12)  # the real terrain colour is close to the real vegetation colour
+BARK_TINT = (0.17, 0.125, 0.09)  # multiplies the bark texture (about 0.6 linear grey)
 OUT = open(LOG_PATH, "w", encoding="utf-8")  # pylint: disable=consider-using-with
 
 
@@ -46,24 +47,27 @@ def rebuild(name):
         unreal.EditorAssetLibrary.delete_asset(path)
 
 
-def import_texture():
-    """Import the leaf PNG as a texture asset (sRGB, with alpha) and return it."""
-    rebuild("T_LeafCluster")
+def import_texture(name):
+    """Import ``content/<name>.png`` as a texture asset (sRGB, with alpha) and return it."""
+    rebuild(name)
     task = unreal.AssetImportTask()
-    task.set_editor_property("filename", TEXTURE_FILE)
+    task.set_editor_property("filename", f"{TEXTURE_DIR}{name}.png")
     task.set_editor_property("destination_path", PACKAGE_PATH)
-    task.set_editor_property("destination_name", "T_LeafCluster")
+    task.set_editor_property("destination_name", name)
     task.set_editor_property("automated", True)
     task.set_editor_property("save", True)
     task.set_editor_property("replace_existing", True)
     unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
-    texture = unreal.EditorAssetLibrary.load_asset(f"{PACKAGE_PATH}/T_LeafCluster")
+    texture = unreal.EditorAssetLibrary.load_asset(f"{PACKAGE_PATH}/{name}")
     say("TEXTURE", texture)
     return texture
 
 
 def create_foliage_material(texture):
-    """The masked, two-sided parent material."""
+    """The masked, two-sided-foliage parent material.
+
+    Base colour = leaf texture x ``Tint`` x the mesh's vertex colour (darkens deep, low cards);
+    the same product feeds the subsurface colour so light shows through leaves."""
     rebuild("M_Foliage")
     library = unreal.MaterialEditingLibrary
     tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -72,28 +76,43 @@ def create_foliage_material(texture):
     )
     material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
     material.set_editor_property("two_sided", True)
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_TWO_SIDED_FOLIAGE)
 
     sample = library.create_material_expression(
-        material, unreal.MaterialExpressionTextureSample, -800, 0
+        material, unreal.MaterialExpressionTextureSample, -1000, 0
     )
     sample.set_editor_property("texture", texture)
     tint = library.create_material_expression(
-        material, unreal.MaterialExpressionVectorParameter, -800, 300
+        material, unreal.MaterialExpressionVectorParameter, -1000, 300
     )
     tint.set_editor_property("parameter_name", "Tint")
     tint.set_editor_property("default_value", unreal.LinearColor(*TINTS["MI_Foliage_Summer"], 1.0))
-    multiply = library.create_material_expression(
-        material, unreal.MaterialExpressionMultiply, -450, 100
+    vertex = library.create_material_expression(
+        material, unreal.MaterialExpressionVertexColor, -1000, 500
     )
-    library.connect_material_expressions(sample, "RGB", multiply, "A")
-    library.connect_material_expressions(tint, "", multiply, "B")
-    library.connect_material_property(multiply, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    first = library.create_material_expression(
+        material, unreal.MaterialExpressionMultiply, -700, 100
+    )
+    library.connect_material_expressions(sample, "RGB", first, "A")
+    library.connect_material_expressions(tint, "", first, "B")
+    second = library.create_material_expression(
+        material, unreal.MaterialExpressionMultiply, -450, 200
+    )
+    library.connect_material_expressions(first, "", second, "A")
+    library.connect_material_expressions(vertex, "RGB", second, "B")
+    library.connect_material_property(second, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(second, "", unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
     library.connect_material_property(sample, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
     roughness = library.create_material_expression(
-        material, unreal.MaterialExpressionConstant, -450, 300
+        material, unreal.MaterialExpressionConstant, -450, 400
     )
-    roughness.set_editor_property("r", 0.65)
+    roughness.set_editor_property("r", 0.6)
     library.connect_material_property(roughness, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    specular = library.create_material_expression(
+        material, unreal.MaterialExpressionConstant, -450, 500
+    )
+    specular.set_editor_property("r", 0.15)
+    library.connect_material_property(specular, "", unreal.MaterialProperty.MP_SPECULAR)
     library.recompile_material(material)
     unreal.EditorAssetLibrary.save_loaded_asset(material)
     say("MATERIAL", material.get_path_name())
@@ -121,21 +140,30 @@ def create_instances(parent):
         say("INSTANCE", name, colour)
 
 
-def create_bark():
-    """A plain matte brown."""
+def create_bark(texture):
+    """Furrowed bark: the bark texture times a brown tint, matte."""
     rebuild("M_Bark")
     library = unreal.MaterialEditingLibrary
     tools = unreal.AssetToolsHelpers.get_asset_tools()
     material = tools.create_asset(
         "M_Bark", PACKAGE_PATH, unreal.Material, unreal.MaterialFactoryNew()
     )
-    base = library.create_material_expression(
-        material, unreal.MaterialExpressionConstant3Vector, -400, 0
+    sample = library.create_material_expression(
+        material, unreal.MaterialExpressionTextureSample, -800, 0
     )
-    base.set_editor_property("constant", unreal.LinearColor(*BARK_COLOUR, 1.0))
-    library.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    sample.set_editor_property("texture", texture)
+    tint = library.create_material_expression(
+        material, unreal.MaterialExpressionConstant3Vector, -800, 300
+    )
+    tint.set_editor_property("constant", unreal.LinearColor(*BARK_TINT, 1.0))
+    multiply = library.create_material_expression(
+        material, unreal.MaterialExpressionMultiply, -450, 100
+    )
+    library.connect_material_expressions(sample, "RGB", multiply, "A")
+    library.connect_material_expressions(tint, "", multiply, "B")
+    library.connect_material_property(multiply, "", unreal.MaterialProperty.MP_BASE_COLOR)
     roughness = library.create_material_expression(
-        material, unreal.MaterialExpressionConstant, -400, 200
+        material, unreal.MaterialExpressionConstant, -450, 300
     )
     roughness.set_editor_property("r", 0.9)
     library.connect_material_property(roughness, "", unreal.MaterialProperty.MP_ROUGHNESS)
@@ -144,12 +172,45 @@ def create_bark():
     say("BARK", material.get_path_name())
 
 
+def create_grass(texture):
+    """Lawn: the grass texture times a green tint, matte."""
+    rebuild("M_Grass")
+    library = unreal.MaterialEditingLibrary
+    tools = unreal.AssetToolsHelpers.get_asset_tools()
+    material = tools.create_asset(
+        "M_Grass", PACKAGE_PATH, unreal.Material, unreal.MaterialFactoryNew()
+    )
+    sample = library.create_material_expression(
+        material, unreal.MaterialExpressionTextureSample, -800, 0
+    )
+    sample.set_editor_property("texture", texture)
+    tint = library.create_material_expression(
+        material, unreal.MaterialExpressionConstant3Vector, -800, 300
+    )
+    tint.set_editor_property("constant", unreal.LinearColor(*GRASS_TINT, 1.0))
+    multiply = library.create_material_expression(
+        material, unreal.MaterialExpressionMultiply, -450, 100
+    )
+    library.connect_material_expressions(sample, "RGB", multiply, "A")
+    library.connect_material_expressions(tint, "", multiply, "B")
+    library.connect_material_property(multiply, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    roughness = library.create_material_expression(
+        material, unreal.MaterialExpressionConstant, -450, 300
+    )
+    roughness.set_editor_property("r", 0.95)
+    library.connect_material_property(roughness, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.recompile_material(material)
+    unreal.EditorAssetLibrary.save_loaded_asset(material)
+    say("GRASS", material.get_path_name())
+
+
 def main():
     """Build every foliage asset, then quit the editor."""
     try:
-        parent = create_foliage_material(import_texture())
+        parent = create_foliage_material(import_texture("T_LeafCluster"))
         create_instances(parent)
-        create_bark()
+        create_bark(import_texture("T_Bark"))
+        create_grass(import_texture("T_Grass"))
     except Exception as error:  # pylint: disable=broad-exception-caught
         say("ERROR", repr(error))
     say("DONE")

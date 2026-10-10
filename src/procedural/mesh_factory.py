@@ -35,7 +35,7 @@ actually operates in, consistent with the checklist's own test.
 """
 
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -200,6 +200,10 @@ class Mesh:
     triangles: npt.NDArray[np.int64]  # [M * 3] flat vertex-index list
     uvs: npt.NDArray[np.float64]  # [N, 2]
     material: str
+    # Optional per-vertex unit normals [N, 3] and colours [N, 3] (0-255). Without normals the engine
+    # computes them from the triangles (flat shading for separate quads); without colours, white.
+    normals: Optional[npt.NDArray[np.float64]] = None
+    colors: Optional[npt.NDArray[np.uint8]] = None
 
 
 def _triangle_area_2d(

@@ -62,12 +62,21 @@ def _mesh_to_json(mesh: Mesh) -> Dict[str, Any]:
     without it, ``json.dumps`` raises ``TypeError`` on the numpy scalar
     types every ``Mesh`` field actually holds.
     """
-    return {
+    entry: Dict[str, Any] = {
         "vertices": mesh.vertices.tolist(),
         "triangles": mesh.triangles.tolist(),
         "uvs": mesh.uvs.tolist(),
         "material": mesh.material,
     }
+    if mesh.normals is not None:
+        # Meshes with per-vertex normals are the big vegetation meshes (hundreds of thousands of
+        # vertices): rounding to a millimetre keeps the payload a third of its size.
+        entry["vertices"] = np.round(mesh.vertices, 3).tolist()
+        entry["uvs"] = np.round(mesh.uvs, 4).tolist()
+        entry["normals"] = np.round(mesh.normals, 3).tolist()
+    if mesh.colors is not None:
+        entry["colors"] = mesh.colors.tolist()
+    return entry
 
 
 def _vehicle_folder_name(asset_path: str) -> str:

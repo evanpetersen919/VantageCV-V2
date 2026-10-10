@@ -49,7 +49,15 @@ bool UScenarioMeshBuilder::BuildMeshSection(
 	UKismetProceduralMeshLibrary::CalculateTangentsForMesh(
 		MeshData.Vertices, MeshData.Triangles, MeshData.UVs, Normals, Tangents);
 
+	// Given normals replace the computed ones (the tangents stay computed); given colours go to the
+	// vertex-colour channel, empty means white.
+	if (MeshData.Normals.Num() == MeshData.Vertices.Num())
+	{
+		Normals = MeshData.Normals;
+	}
 	const TArray<FColor> EmptyVertexColors;
+	const TArray<FColor>& VertexColors =
+		MeshData.Colors.Num() == MeshData.Vertices.Num() ? MeshData.Colors : EmptyVertexColors;
 
 	TargetComponent->CreateMeshSection(
 		/*SectionIndex=*/0,
@@ -57,7 +65,7 @@ bool UScenarioMeshBuilder::BuildMeshSection(
 		MeshData.Triangles,
 		Normals,
 		MeshData.UVs,
-		EmptyVertexColors,
+		VertexColors,
 		Tangents,
 		/*bCreateCollision=*/true);
 

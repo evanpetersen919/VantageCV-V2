@@ -25,6 +25,7 @@ namespace
 			{TEXT("pavement_5"), TEXT("/Game/Road/Material/MI/M_Sidewalk_Master_Inst_6")},
 			{TEXT("paint_white"), TEXT("/Game/VantageCV/M_PaintWhite")},
 			{TEXT("paint_yellow"), TEXT("/Game/VantageCV/M_PaintYellow")},
+			{TEXT("grass"), TEXT("/Game/VantageCV/Foliage/M_Grass")},
 			{TEXT("bark"), TEXT("/Game/VantageCV/Foliage/M_Bark")},
 			{TEXT("foliage_spring"), TEXT("/Game/VantageCV/Foliage/MI_Foliage_Spring")},
 			{TEXT("foliage_summer"), TEXT("/Game/VantageCV/Foliage/MI_Foliage_Summer")},

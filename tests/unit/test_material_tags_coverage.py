@@ -34,6 +34,7 @@ _FIXED_MESH_FACTORY_TAGS = {
     "paint_white",
     "paint_yellow",
     "bark",
+    "grass",
     "foliage_spring",
     "foliage_summer",
     "foliage_fall",

@@ -135,7 +135,7 @@ def mesh_class(material: str) -> int:
         return VEGETATION
     if material.startswith("pavement"):
         return SIDEWALK
-    if material == "ground":
+    if material in ("ground", "grass"):
         return TERRAIN
     if material.startswith("roof"):
         return BUILDING

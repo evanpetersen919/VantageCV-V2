@@ -1,5 +1,7 @@
 ## Leafy street trees: vegetation share from 0 to 15% (2026-10-09)
 
+*Superseded in look and numbers by [entry 33](33_tree-quality-and-curb-planting-grass-shrubs-hedges.md): the trees below were later given smooth shading, depth and shape variation, and curb planting was added.*
+
 Epic's City Sample tree kits are bare branch skeletons, so the generator drew **no trees at all in spring and summer**
 and leafless ones in fall and winter. In our class maps vegetation was **0.0% of pixels in forced-summer scenes (16
 frames) and 1.8% over a random-season set (8 frames)**, against **17.1%** in Cityscapes validation (167 images, every
